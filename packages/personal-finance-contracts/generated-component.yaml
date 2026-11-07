@@ -11,6 +11,9 @@ ownership:
   template_files:
     - "generated-component.yaml"
     - "mise.toml"
+  project_extensions: []
+  runtime_role: "api-contracts"
+
   product_logic: "project"
   secrets: "external"
 rollout:

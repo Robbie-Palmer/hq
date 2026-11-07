@@ -38,6 +38,7 @@ describe("agent markdown generation", () => {
     for (const file of [
       "index.md",
       "experience.md",
+      "technologies.md",
       "projects.md",
       "building-philosophy.md",
       "ideas.md",
@@ -122,7 +123,13 @@ describe("agent markdown generation", () => {
     expect(htmlPages).toContain("digital-twins.html");
     expect(htmlPages).toContain("mutation-testing.html");
     expect(htmlPages).toContain("property-based-testing.html");
-    expect(htmlPages).toHaveLength(43);
+    expect(htmlPages).toContain("distributed-locking.html");
+    expect(htmlPages).toContain("idempotency.html");
+    expect(htmlPages).toContain("delegated-authority.html");
+    expect(htmlPages).toContain("study-design.html");
+    expect(htmlPages).toContain("randomization.html");
+    expect(htmlPages).toContain("sampling-bias.html");
+    expect(htmlPages).toHaveLength(49);
     for (const htmlPage of htmlPages) {
       const mdPage = htmlPage.replace(/\.html$/, ".md");
       expect(fs.existsSync(path.join(OUT_DIR, "ideas", mdPage))).toBe(true);

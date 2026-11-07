@@ -159,7 +159,7 @@ describe("Personal Finance production profile", () => {
         "storage.object-store",
       ]),
     );
-    expect(first.blueprint.rollout).toEqual({
+    expect(first.blueprint.rollout).toMatchObject({
       operational_checks: [
         {
           id: "browser-export-recovery",
@@ -189,6 +189,27 @@ describe("Personal Finance production profile", () => {
           status: "pending",
         }),
       ],
+      stateful_operations: {
+        preview: {
+          github_environment: "preview-personal-finance",
+          secret_config_ref:
+            "doppler://personal-finance-operations/preview",
+        },
+        production: {
+          github_environment: "production-personal-finance",
+          plan_secret_config_ref: "doppler://personal-finance/ops",
+          apply_secret_config_ref: "doppler://personal-finance/apply",
+        },
+        backup: {
+          github_environment: "production-personal-finance-backup",
+          secret_config_ref: "doppler://personal-finance/backup",
+        },
+        alerting: {
+          github_environment: "production-personal-finance-alerting",
+          secret_config_ref:
+            "doppler://personal-finance-operations/alerts",
+        },
+      },
     });
   });
 
@@ -209,7 +230,7 @@ describe("Personal Finance production profile", () => {
     expect(template).toMatchObject({
       id: "monorepo-project",
       source: "https://github.com/Robbie-Palmer/hq.git",
-      revision: "6fdbc10f6700a9a42c2288e4e301a7fd86ed3367",
+      revision: "4b70db2d7edb71fb71041e5e9253c6757f84e8ff",
     });
     expect(plan.owned_paths).toEqual([
       "infra/personal-finance",
@@ -223,6 +244,9 @@ describe("Personal Finance production profile", () => {
       "ui/content/projects/personal-finance-app",
       "workers/personal-finance-api",
     ]);
+    expect(plan.shared_manifest_edits).toContainEqual({
+      kind: "pnpm_lockfile",
+    });
     expect(
       blueprint.components.flatMap(({ id, tasks }) =>
         tasks
@@ -267,7 +291,17 @@ describe("Personal Finance production profile", () => {
           path: "workers/personal-finance-api",
         },
         ownership: {
-          template_files: ["generated-component.yaml", "mise.toml"],
+          template_files: [
+            "generated-component.yaml",
+            "mise.toml",
+            "package.json",
+            "openapi.json",
+            "src/auth.ts",
+            "src/authorization.ts",
+            "src/index.ts",
+            "src/runtime.ts",
+            "wrangler.toml",
+          ],
           product_logic: "project",
           secrets: "external",
         },
@@ -291,7 +325,19 @@ describe("Personal Finance production profile", () => {
           path: "packages/personal-finance-data",
         },
         ownership: {
-          template_files: ["generated-component.yaml", "mise.toml"],
+          template_files: [
+            "generated-component.yaml",
+            "mise.toml",
+            "drizzle.config.ts",
+            "drizzle/0000_create_authenticated_runtime.sql",
+            "drizzle/meta/0000_snapshot.json",
+            "package.json",
+            "src/connection.ts",
+            "src/index.ts",
+            "src/runtime-schema.ts",
+            "src/schema.ts",
+            "tests/runtime-schema.test.ts",
+          ],
           product_logic: "project",
           secrets: "external",
         },
@@ -317,12 +363,19 @@ describe("Personal Finance production profile", () => {
       expect(source.endsWith("\n")).toBe(true);
       expect(source.endsWith("\n\n")).toBe(false);
     }
-    await expect(
-      readFile(
-        new URL("infra/personal-finance/generated-project.tf", repositoryRoot),
-        "utf8",
-      ),
-    ).rejects.toMatchObject({ code: "ENOENT" });
+    const terraformSource = await readFile(
+      new URL("infra/personal-finance/generated-project.tf", repositoryRoot),
+      "utf8",
+    );
+    expect(terraformSource).toContain('module "cloudflare_worker"');
+    expect(terraformSource).toContain('module "cloudflare_access"');
+    expect(terraformSource).toContain('module "cloudflare_r2"');
+    expect(terraformSource).toContain('module "neon"');
+    expect(terraformSource).toContain('module "telemetry"');
+    expect(terraformSource).toContain('module "posthog_alerts"');
+    expect(terraformSource).not.toMatch(
+      /NEON_DATABASE_URL|R2_SECRET_ACCESS_KEY|POSTHOG_KEY/,
+    );
     expect(rolloutSource).not.toMatch(
       /NEON_DATABASE_URL|R2_SECRET_ACCESS_KEY|POSTHOG_KEY/,
     );

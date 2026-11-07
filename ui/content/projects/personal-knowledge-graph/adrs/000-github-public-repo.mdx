@@ -3,25 +3,28 @@ title: "ADR 000: Github Public Repo"
 date: "2025-10-18"
 status: "Accepted"
 tech_stack: ["GitHub"]
+implements_product_decisions:
+  - "personal-knowledge-graph:001-one-public-account-of-the-work"
 ---
 
 # Context
 
-I need a place to host the source code for this project. The requirements are:
+[PDR 001](/projects/personal-knowledge-graph/pdrs/001-one-public-account-of-the-work)
+requires a public, inspectable source for the Personal Knowledge Graph. The
+repository host needs to provide:
 
-* **Visibility**: It must be public to serve as a portfolio piece and reference implementation.
 * **Reliability**: It needs to be hosted on a stable, industry-standard platform.
 * **Collaboration**: It should support standard workflows for version control, issue tracking, and CI/CD integration.
 * **Ecosystem**: It should integrate easily with other tools (Vercel, Cloudflare, etc.).
 
 # Decision
 
-I decided to host the repository publicly on **GitHub**.
+Host the public repository on **GitHub**.
 
 This aligns with several guiding principles:
 
 * **[The Goldilocks Zone](/building-philosophy#the-goldilocks-zone)**: GitHub is the default, status quo choice for open source software. It is reliable, well-understood, and ubiquitous.
-* **[Build in Public](/building-philosophy#build-in-public)**: Making the repo public invites feedback, sharing knowledge, and demonstrating technical capability as a portfolio artifact.
+* **[Build in Public](/building-philosophy#build-in-public)**: GitHub exposes the source and review history required by PDR 001.
 * **[Less Is More](/building-philosophy#less-is-more)**: I already use GitHub for my professional work and other open source contributions. Using it here avoids creating a new account or learning a new interface.
 
 # Consequences
@@ -36,3 +39,9 @@ This aligns with several guiding principles:
 ### Cons
 
 * **Vendor Lock-in**: Deep reliance on GitHub Actions and specific features can make migrating to GitLab or Bitbucket difficult later (though accepted as a low risk given GitHub's dominance).
+
+## Migration note
+
+The 2026-11-01 PDR migration moved the public-account policy into PDR 001.
+This ADR still records the original GitHub hosting choice, date, rationale, and
+consequences.

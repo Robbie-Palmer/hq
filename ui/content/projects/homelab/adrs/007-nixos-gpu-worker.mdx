@@ -3,16 +3,17 @@ title: "ADR 007: NixOS GPU worker"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["NixOS", "Docker"]
+implements_product_decisions:
+  - "homelab:002-reuse-unsupported-hardware-for-real-jobs"
 ---
 
 # Context
 
-I have an Asus desktop with a GTX 1050 (2GB VRAM), Pascal-era (`sm_61`),
-released 2016,
-and now "unsupported" by the modern toolchain: CUDA 13 and the 585+ driver
-branches dropped Pascal entirely. Rather than e-waste it, I'm turning it into
-a headless GPU worker for batch computer vision jobs, the
-kind of workload that needs many GPU-hours, not a modern GPU.
+[PDR 002](/projects/homelab/pdrs/002-reuse-unsupported-hardware-for-real-jobs)
+allowed unsupported hardware to remain active for a real job. The Asus desktop
+has a GTX 1050 with 2 GB VRAM, a Pascal-era GPU released in 2016. CUDA 13 and
+the 585+ driver branches dropped Pascal, so using it for batch computer-vision
+work requires a pinned older toolchain.
 
 Managing dependencies on end-of-life hardware is fiddly: the driver, kernel,
 and CUDA versions all have to be pinned just so, and there's no vendor telling

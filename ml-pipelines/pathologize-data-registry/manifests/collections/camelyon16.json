@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "collection_id": "camelyon16",
+  "title": "CAMELYON16",
+  "description": "Whole-slide H&E images of sentinel lymph-node sections with source-provided metastasis annotations and challenge labels.",
+  "registration_status": "manifest_only",
+  "source": {
+    "publisher": "CAMELYON challenge organizers",
+    "landing_page_url": "https://camelyon17.grand-challenge.org/Data/",
+    "documentation_urls": [
+      "https://camelyon16.grand-challenge.org/Download/",
+      "https://camelyon16.grand-challenge.org/Rules/"
+    ],
+    "doi": null,
+    "source_version": "current public CAMELYON data page",
+    "retrieved_at": "2026-11-06"
+  },
+  "access": {
+    "public": true,
+    "authentication_required": false,
+    "automated_access": true,
+    "acquisition_policy": "manifest_only",
+    "reason": "The current data page offers public GigaScience and AWS access and states CC0. The 762.5 GB collection is outside the bounded starter acquisition, and historical challenge rules remain linked for operator review.",
+    "download_base_urls": []
+  },
+  "license": {
+    "name": "CC0 1.0 Universal",
+    "spdx_id": "CC0-1.0",
+    "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "scope": "The current CAMELYON data page states that the CAMELYON16 and CAMELYON17 data are made available under CC0.",
+    "redistribution": "No registry copy is made. Review the current data page and the separately published historical challenge rules before adding any source asset."
+  },
+  "citation": "Bejnordi, B. E. et al. Diagnostic Assessment of Deep Learning Algorithms for Detection of Lymph Node Metastases in Women With Breast Cancer. JAMA 318, 2199-2210 (2017).",
+  "known_scale": {
+    "slides_or_series": 399,
+    "bytes": 762471984787,
+    "basis": "The official AWS Open Data CAMELYON16 prefix contained 1,366 objects totaling 762,471,984,787 bytes when listed on 2026-11-06."
+  },
+  "source_native_label_domains": [
+    "challenge train or test designation",
+    "slide-level metastasis status",
+    "source lesion annotations"
+  ],
+  "subsets": []
+}

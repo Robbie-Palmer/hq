@@ -1,0 +1,151 @@
+---
+title: "ADR 012: Separate ticket discovery from queue selection"
+date: "2026-11-01"
+status: "Accepted"
+implements_product_decisions:
+  - "work-graph:005-find-related-work-before-creating-tickets"
+---
+
+## Context
+
+[PDR 005](/projects/work-graph/pdrs/005-find-related-work-before-creating-tickets)
+requires one read-only way to find work related to an idea before an agent
+proposes or creates a ticket. Candidates may be open, released, or cancelled,
+and useful evidence may appear in a ticket's brief or acceptance criteria rather
+than its title.
+
+[ADR 003](/projects/work-graph/adrs/003-rest-api-and-cli-first) makes the REST
+API and TypeScript CLI the stable agent interface. The existing GET list
+endpoint and `queue` command implement a different contract. They return a
+bounded page in scheduling priority order and filter by stage, scope, parent,
+or exact ancestor title. Adding relevance ranking to that operation would make
+its order depend on the query and weaken its use for queue inspection and
+claims.
+
+A ticket search may carry a paragraph from the current discussion, several
+scope filters, and an opaque pagination cursor. Encoding that input in a URI
+exposes planning text to URI logs and places an unnecessary size constraint on
+the conversation. POST can carry the input as content, but its method semantics
+do not tell intermediaries and clients that the operation is safe and
+idempotent.
+
+[RFC 10008](https://www.rfc-editor.org/rfc/rfc10008.html) defines HTTP QUERY
+for a safe, idempotent server-side query whose input is request content. It
+permits automatic retries and caching with the request content in the cache
+key. [OpenAPI 3.2](https://spec.openapis.org/oas/v3.2.0.html#path-item-object)
+adds QUERY as a standard Path Item operation. Cloudflare Workers
+[accepts every HTTP method except CONNECT](https://developers.cloudflare.com/workers/runtime-apis/request/),
+and the repository's Hono version can route QUERY requests. The service still
+emits OpenAPI 3.1, so its contract generator must move to OpenAPI 3.2 before
+this operation can appear in the generated client.
+
+[ADR 001](/projects/work-graph/adrs/001-postgresql-coordination-boundary)
+already places current work items and their context in PostgreSQL. The initial
+search does not need a second store or an external model to make those records
+discoverable.
+
+## Decision
+
+Add `QUERY /api/work-items/search` as an authenticated, read-only endpoint and
+expose it as `work-graph search <query>`. Send the search text, scope and stage
+filters, result limit, and cursor in an `application/json` request body. Return
+`Accept-Query: "application/json"` when advertising the resource's query
+format. The operation is safe and idempotent. It will not acquire a lease or
+perform any mutation.
+
+Keep search separate from the GET list endpoint and from queue selection.
+Search orders by relevance; list and queue operations continue to order by
+scheduling priority. Do not add a GET alias whose URI contains the same search
+text.
+
+Execute the search in the API against PostgreSQL. Build the searchable text
+from the authoritative ticket ID and title plus the current `brief` and
+`acceptance_criteria` context records. Do not index notes, events, pull-request
+snapshots, or other operational history in the first version. Those records add
+noise and do not define the intended outcome.
+
+Use PostgreSQL full-text search for token normalization, stemming, matching,
+and ranking. Rank an exact ID or title match ahead of full-text matches. Weight
+title matches above brief and acceptance-criteria matches. Break equal scores
+by stable ticket ID so pagination remains deterministic. Derive the search
+document from the authoritative tables rather than maintaining a second mutable
+copy. Add expression indexes only where measured query plans require them.
+
+The endpoint will accept the existing initiative, project, parent, and stage
+filters, plus a bounded result limit and an opaque cursor. With no stage
+filter, it will search every lifecycle state. The response will include the
+ticket ID, title, stage, scheduling project, relevance score, matched fields,
+and bounded excerpts. It will not return a boolean claim that a duplicate
+exists.
+
+Describe the operation in an OpenAPI 3.2 document and generate the TypeScript
+client from that contract. Do not emit a QUERY operation in an OpenAPI 3.1
+document. The implementation must prove that contract generation, client
+generation, Node fetch, Cloudflare Access, and the Worker preserve the method,
+JSON body, and response end to end. Keep the response out of shared caches with
+`Cache-Control: no-store`; search results contain authenticated planning state
+and can change whenever the graph changes.
+
+Keep the CLI a thin caller of the generated client. `work-graph prime`, the CLI
+documentation, and the agent skill will tell agents to search when a
+conversation becomes task-like and before creating a ticket.
+
+Do not add embeddings in the first implementation. The agent can reformulate a
+query, inspect the bounded candidates, and make the semantic comparison. Add a
+semantic index only if evaluation shows that lexical search misses known
+related work often enough to justify its model, indexing, privacy, and
+consistency costs.
+
+## Consequences
+
+Agents can search ticket intent with one API request, including context and
+terminal work that a ready queue would hide. Queue and claim behaviour keeps
+its current priority semantics.
+
+Search remains lexical. Different terminology can hide a related ticket, while
+common terms can return weak candidates. The result contract must preserve
+matched-field evidence and lifecycle state so the agent can explain its
+judgment instead of treating rank as authority.
+
+The API gains a relevance query, a stable pagination rule, excerpts, and tests
+for scope and lifecycle filters. Database work stays inside the existing
+PostgreSQL boundary, and the service does not gain a vector database, embedding
+job, or model dependency.
+
+QUERY is newer than the methods in the service's current OpenAPI 3.1 contract.
+The implementation must adopt OpenAPI 3.2 generation and validate the complete
+Cloudflare path. Browser callers will incur a CORS preflight because QUERY is
+not a CORS-safelisted method. The first client is a Node CLI, so that does not
+add a round trip to the intended workflow.
+
+## Alternatives considered
+
+### Add search parameters to the GET list endpoint
+
+This uses the service's existing contract and has broad intermediary support.
+It also mixes relevance order with scheduling order, puts discussion text in
+the URI, and limits the practical request size. Short public searches would fit
+GET well. This authenticated search accepts longer planning text and belongs on
+a separate resource.
+
+### Use POST for the search resource
+
+POST carries the same JSON without changing the OpenAPI version. It does not
+express that the operation is safe and idempotent, so retry and cache behavior
+depends on application-specific knowledge. QUERY exists for this case, and the
+controlled client, framework, and edge path all support arbitrary methods.
+
+### Fetch pages and search in the CLI
+
+Client-side search avoids an API change. It cannot search briefs or acceptance
+criteria without an additional request for every ticket, and a bounded client
+cannot know it has searched every page. It also repeats filtering and ranking
+logic in each client.
+
+### Use embeddings and vector similarity
+
+Embeddings can find conceptually related work that shares few words. They also
+introduce a model choice, derived-data lifecycle, reindexing rules, privacy
+review, and another relevance function to calibrate. The first user is an agent
+that can already reformulate lexical queries and compare a small candidate set,
+so those costs are not yet justified.

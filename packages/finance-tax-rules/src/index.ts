@@ -127,6 +127,13 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
 };
 
 export { ruleDataset } from "./data";
+export * from "./annualAllowance";
+export { pensionAnnualAllowanceFixtures } from "./annualAllowanceFixtures";
+export * from "./marriageAllowance";
+export {
+  marriageAllowanceFixtures,
+  marriageAllowanceFixtureRequest,
+} from "./marriageAllowanceFixtures";
 export * from "./householdTax";
 export * from "./historicalSalary";
 export * from "./salaryAdapter";

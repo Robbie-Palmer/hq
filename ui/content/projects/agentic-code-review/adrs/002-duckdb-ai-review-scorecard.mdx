@@ -3,6 +3,9 @@ title: "ADR 002: DuckDB for the AI Review Scorecard"
 date: "2026-08-15"
 status: "Accepted"
 tech_stack: ["DuckDB", "Cloudflare R2", "Parquet"]
+implements_product_decisions:
+  - "agentic-code-review:000-own-review-policy-and-rent-inference"
+  - "agentic-code-review:001-review-pull-requests-by-risk"
 ---
 
 # Context
@@ -11,7 +14,11 @@ tech_stack: ["DuckDB", "Cloudflare R2", "Parquet"]
 established an append-only R2 data lake for review runs, finding evidence,
 versioned outcomes, and controlled replay records. That evidence is useful only
 if the scorecard resolves its lifecycle consistently and makes the metric
-definitions reproducible.
+definitions reproducible. The scorecard supplies the portable outcome evidence
+required by
+[PDR 000](/projects/agentic-code-review/pdrs/000-own-review-policy-and-rent-inference)
+and the replay evidence required to assess
+[PDR 001](/projects/agentic-code-review/pdrs/001-review-pull-requests-by-risk).
 
 The analytical workload is small, private, and asynchronous. It rebuilds facts
 from immutable JSON objects, performs relational validation and aggregation,
@@ -149,3 +156,9 @@ window, multiple users need concurrent low-latency queries, cross-product data
 must be governed centrally, or incremental ingestion becomes materially simpler
 than rebuilding immutable inputs. Until then, keep the scorecard a batch
 transformation rather than a warehouse platform.
+
+# Migration note
+
+This structural edit links the scorecard to the earlier product decisions whose
+evidence it provides. It does not change the original date, Accepted status,
+technology choices, metric calculations, or rebuild boundary.

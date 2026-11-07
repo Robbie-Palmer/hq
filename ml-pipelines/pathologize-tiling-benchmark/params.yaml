@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0.0",
+  "benchmark_id": "pathologize.tiling-magnification/v1",
+  "workstream": "tiling_magnification_policy",
+  "experiments": [
+    "experiments/tiling-magnification.json"
+  ]
+}

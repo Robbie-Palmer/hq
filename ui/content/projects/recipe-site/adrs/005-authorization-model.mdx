@@ -2,108 +2,90 @@
 title: "ADR 005: Authorization Model"
 date: "2026-05-27"
 status: "Accepted"
+implements_product_decisions:
+  - "recipe-site:003-private-user-state-and-household-sharing"
 ---
 
 # Summary
 
-Authentication chooses identity; authorization chooses visibility and mutation rights.
+Enforce Recipe Site visibility and mutation rules in the application service
+with explicit public, user, and household scopes. Browser visibility is never
+an authorization boundary.
 
-This ADR defines the lean authorization baseline needed before implementing shared user-state
-features.
+[PDR 003](/projects/recipe-site/pdrs/003-private-user-state-and-household-sharing)
+owns the product policy for public recipes, private user state, and
+household-first sharing. This ADR defines the technical model that enforces it.
 
 # Context
 
-The recipe-site roadmap is not just "users can log in." It includes:
+Authentication identifies a user. It does not determine which user or household
+owns a record, whether that record is public, or which actions a current
+household member may perform.
 
-* public recipe content
-* private user-owned state
-* shared household state
-* eventual friend-sharing features
-
-Those features need a clear answer to:
-
-* who can see a record
-* who can change it
-* which sharing boundary is first-class
-
-Authentication tells us **who** a user is. The authorization model must decide **what they are
-allowed to do**.
+The backend needs one authorization path for route handlers, background work,
+and later delegated agents. Hiding a control in React cannot protect the API,
+and treating a Better Auth organization membership as permission to every
+household resource would bypass resource audience and custody rules.
 
 # Decision
 
-Adopt the following authorization baseline:
+Represent a protected resource with an explicit scope and custody reference:
 
-1. **Public content is explicit scope.** Authorization must model public readability as a first
-   class visibility state, not only private/shared resources.
-2. **Private by default for user-owned mutable state.** User-created state is private unless
-   explicitly shared.
-3. **Household is the first real sharing boundary.** For MVP, the only multi-user scope that needs
-   to exist is the household.
-4. **Friend-level sharing is deferred.** It is a real roadmap item, but it should not complicate
-   the first authorization model.
-5. **Keep roles small.** For MVP, support only:
-   * **Owner**: can read, edit, delete, and manage sharing for their own resources
-   * **Household member**: can access only resources explicitly shared with the household
-6. **Membership changes are privileged actions.** Invites, removals, and ownership-sensitive
-   changes must always be checked server-side.
-7. **Never trust client-side visibility logic alone.** The browser may hide controls, but the
-   runtime is the enforcement point.
+* public scope permits anonymous reads and never implies anonymous writes;
+* user scope names the user who controls the resource;
+* household scope names the household that controls the resource;
+* a user-owned resource may separately grant its current household read access
+  without changing custody.
 
-[ADR 003](/projects/recipe-site/adrs/003-better-auth) accepts Better Auth. Its
-organization/household primitive supplies the membership building block. The application still
-needs its own authorization system.
+Resolve the authenticated actor at the `recipe-api` boundary. Load current
+resource scope, custody, audience, and household membership from authoritative
+server state. Pass that context to domain authorization functions before a
+read or mutation reaches its repository operation.
 
-## MVP Policy Matrix
+The initial roles stay small. A resource custodian can read, edit, delete, and
+change its audience. A household owner can manage household membership and
+household-governed resources. A household member receives only the access that
+the resource policy grants. PDR 000 later permits active members to edit a
+household-maintained recipe branch while keeping personal shared recipes under
+their user's custody.
 
-| Resource / action                    | Public visitor | Owner | Household member |
-| ------------------------------------ | -------------- | ----- | ---------------- |
-| Read public recipe                   | Yes            | Yes   | Yes              |
-| Read private recipe or user state    | No             | Yes   | No               |
-| Read household-shared recipe / state | No             | Yes   | Yes              |
-| Create recipe draft                  | No             | Yes   | Yes              |
-| Edit own recipe draft                | No             | Yes   | No               |
-| Edit another user's shared recipe    | No             | No    | No               |
-| Delete own resource                  | No             | Yes   | No               |
-| Manage household membership          | No             | Yes   | No               |
+Membership invitations, removals, custody transfers, publication, and audience
+changes require server-side checks inside the same operation that changes the
+protected state. A membership change must invalidate or bound cached access,
+live subscriptions, and delegated permissions.
 
-The key intentional constraint is that household sharing grants read access first. Collaborative
-editing, shared ownership, and household-admin roles are deferred until real use shows they are
-needed. In this matrix, **Owner** means the resource owner except for household membership actions,
-where it means the household owner.
+Use the same policy functions for HTTP routes, Workflows, administrative tools,
+and agent capability handlers. Every path supplies an authenticated or
+anonymous actor and the target resource context. No internal caller receives
+implicit permission merely because it runs behind the public API.
 
-The practical MVP scope becomes:
+# Verification
 
-| Capability                            | MVP?         | Notes                                                            |
-| ------------------------------------- | ------------ | ---------------------------------------------------------------- |
-| **Public recipe visibility**          | **Yes**      | Public recipe content remains readable without login.            |
-| **Private user-owned state**          | **Yes**      | Core per-user state remains private unless explicitly shared.    |
-| **Household membership**              | **Yes**      | First shared boundary.                                           |
-| **Share to household**                | **Yes**      | Explicit, server-checked sharing.                                |
-| **Separate editor/admin roles**       | **Deferred** | Only needed if recipe authoring/publishing expands beyond today. |
-| **Friend-to-friend sharing**          | **Deferred** | Adds a second social graph too early.                            |
-| **Fine-grained RBAC / ABAC matrices** | **No**       | Overkill until real collaboration pain appears.                  |
-| **Public API scopes**                 | **Deferred** | Only relevant once machine-facing APIs exist.                    |
+Authorization tests cover each resource and action across anonymous visitors,
+the user custodian, household owners, current members, former members, and an
+unrelated signed-in user. Tests also cover audience changes, membership removal,
+and stale delegated or realtime access.
+
+The application must return the same denial for a hidden resource and an
+unknown resource when revealing existence would leak private state. Logs may
+record stable internal identifiers and the policy result, but not private
+recipe, pantry, or household content.
 
 # Consequences
 
-## Positive
+The database and API have a concrete scope model that implements the product
+policy without introducing a general RBAC or ABAC engine. Authorization logic
+remains application code, which needs shared functions and exhaustive tests to
+avoid route-specific drift.
 
-* The product gets a visibility model for public, private, and shared content without inventing
-  enterprise-style RBAC.
-* Authorization stays aligned with the actual roadmap: public recipes, self state, household
-  sharing, friends later.
-* The runtime and database work have a concrete policy model to implement.
+Future direct friend sharing, new household roles, public API scopes, or
+cross-household collaboration require a new product decision before expanding
+this model. A later architecture decision can then add the smallest policy
+mechanism needed for that accepted behavior.
 
-## Negative
+# Migration note
 
-* Household sharing still requires careful modeling of invitations, acceptance, and revocation.
-* Some future features may need a richer policy model than owner/member.
-
-# When To Revisit
-
-Revisit when any of the following become true:
-
-* recipe publishing or editing needs privileged non-owner roles
-* friend-to-friend sharing becomes a near-term feature
-* multiple household roles become necessary in practice
-* API keys, agents, or third-party integrations need non-human authorization scopes
+The original ADR mixed the product visibility and sharing policy with its
+enforcement model. PDR 003 now owns the product choice. This structural edit
+retains the accepted server-side scope and authorization decision without
+changing access behavior.

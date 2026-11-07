@@ -5,6 +5,7 @@ import { propertyIndexHistories } from "@/app/_projects/personal-finance-app/con
 import { recurringFlows } from "@/app/_projects/personal-finance-app/content/recurringFlows";
 import { salaryHistory } from "@/app/_projects/personal-finance-app/content/salaryHistory";
 import { snapshots } from "@/app/_projects/personal-finance-app/content/snapshots";
+import { soleTraderScenarios } from "@/app/_projects/personal-finance-app/content/soleTraderScenarios";
 import { transfers } from "@/app/_projects/personal-finance-app/content/transfers";
 import {
   exchangeRateObservations,
@@ -113,6 +114,7 @@ export function getDemoAssetTrackerData(): AssetTrackerData {
       },
     ],
     recurringFlows,
+    soleTraderScenarios,
     planningCases: [
       {
         id: "2024-kitchen-renovation",

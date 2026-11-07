@@ -3,6 +3,7 @@ blueprint:
   schema_version: 2
   project:
     id: all-capabilities
+    stable_id: project:all-capabilities
     name: All application capabilities
     kind: application
     published: false
@@ -11,6 +12,7 @@ blueprint:
       kind: terraform-root
       name: All application capabilities fixture
       path: infra/all-capabilities
+      template_ownership: structure-only
   selections:
     - { slot: web-app.host, value: cloudflare-pages }
     - { slot: backend-api.runtime, value: cloudflare-workers }
@@ -19,4 +21,41 @@ blueprint:
     - { slot: network.public-ingress, value: cloudflare-dns }
     - { slot: database.relational-host, value: neon }
     - { slot: database.preview-isolation, value: fresh-preview }
+    - { slot: database.backup-restore, value: encrypted-archives }
+    - { slot: observability.telemetry-protocol, value: opentelemetry }
     - { slot: observability.application-telemetry, value: posthog }
+    - { slot: observability.alert-evaluation, value: posthog }
+    - { slot: observability.alert-delivery, value: slack }
+  rollout:
+    operational_checks: []
+    migration_checkpoints: []
+    stateful_operations:
+      preview:
+        github_environment: fixture-preview
+        secret_config_ref: doppler://all-capabilities/prv_ci
+        provision: mise //fixture:preview:provision
+        migrate: mise //fixture:preview:migrate
+        seed_synthetic: mise //fixture:preview:seed
+        deploy: mise //fixture:preview:deploy
+        smoke_authenticated: mise //fixture:preview:smoke
+        smoke_telemetry: mise //fixture:preview:telemetry
+        cleanup: mise //fixture:preview:cleanup
+      production:
+        github_environment: fixture-production
+        plan_secret_config_ref: doppler://all-capabilities/prd_plan
+        apply_secret_config_ref: doppler://all-capabilities/prd_apply
+        migrate: mise //fixture:production:migrate
+        deploy: mise //fixture:production:deploy
+        smoke: mise //fixture:production:smoke
+        rollback: mise //fixture:production:rollback
+      backup:
+        github_environment: fixture-backup
+        secret_config_ref: doppler://all-capabilities/prd_backup
+        schedule: "17 3 * * 0"
+        create: mise //fixture:backup
+        restore: mise //fixture:restore
+      alerting:
+        github_environment: fixture-alerting
+        secret_config_ref: doppler://all-capabilities/prd_alerts
+        responder: Fixture owner
+        smoke: mise //fixture:alert:smoke

@@ -1,4 +1,6 @@
 locals {
+  server_enabled           = var.server_state != "suspended"
+  server_delete_protection = var.server_state == "active"
   common_labels = merge(
     {
       environment = "production"
@@ -55,6 +57,8 @@ resource "hcloud_firewall" "remote_development" {
 }
 
 resource "hcloud_server" "remote_development" {
+  count = local.server_enabled ? 1 : 0
+
   name        = var.server_name
   image       = var.bootstrap_image
   server_type = var.server_type
@@ -64,8 +68,8 @@ resource "hcloud_server" "remote_development" {
     hcloud_firewall.remote_development.id,
   ]
   backups                  = var.enable_backups
-  delete_protection        = var.enable_delete_protection
-  rebuild_protection       = var.enable_delete_protection
+  delete_protection        = local.server_delete_protection
+  rebuild_protection       = local.server_delete_protection
   shutdown_before_deletion = true
   labels                   = local.common_labels
 
@@ -87,12 +91,24 @@ resource "hcloud_volume" "workspace" {
   location          = var.location
   size              = var.data_volume_size_gb
   format            = "ext4"
-  delete_protection = var.enable_delete_protection
+  delete_protection = var.enable_volume_delete_protection
   labels            = local.common_labels
 }
 
 resource "hcloud_volume_attachment" "workspace" {
+  count = local.server_enabled ? 1 : 0
+
   volume_id = hcloud_volume.workspace.id
-  server_id = hcloud_server.remote_development.id
+  server_id = hcloud_server.remote_development[0].id
   automount = false
+}
+
+moved {
+  from = hcloud_server.remote_development
+  to   = hcloud_server.remote_development[0]
+}
+
+moved {
+  from = hcloud_volume_attachment.workspace
+  to   = hcloud_volume_attachment.workspace[0]
 }

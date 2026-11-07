@@ -1,0 +1,104 @@
+{
+  "$defs": {
+    "SubsetSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "method": {
+          "minLength": 1,
+          "title": "Method",
+          "type": "string"
+        },
+        "selected_at": {
+          "format": "date",
+          "title": "Selected At",
+          "type": "string"
+        },
+        "source_index_version": {
+          "minLength": 1,
+          "title": "Source Index Version",
+          "type": "string"
+        },
+        "task_split": {
+          "default": null,
+          "title": "Task Split",
+          "type": "null"
+        }
+      },
+      "required": [
+        "method",
+        "source_index_version",
+        "selected_at"
+      ],
+      "title": "SubsetSelection",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "asset_count": {
+      "exclusiveMinimum": 0,
+      "title": "Asset Count",
+      "type": "integer"
+    },
+    "asset_manifest_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Asset Manifest Id",
+      "type": "string"
+    },
+    "asset_root": {
+      "pattern": "^[a-zA-Z0-9][a-zA-Z0-9._/-]+$",
+      "title": "Asset Root",
+      "type": "string"
+    },
+    "collection_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Collection Id",
+      "type": "string"
+    },
+    "description": {
+      "minLength": 1,
+      "title": "Description",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "selection": {
+      "$ref": "#/$defs/SubsetSelection"
+    },
+    "slide_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Slide Ids",
+      "type": "array"
+    },
+    "subset_id": {
+      "pattern": "^[a-z0-9][a-z0-9:.-]+$",
+      "title": "Subset Id",
+      "type": "string"
+    },
+    "total_bytes": {
+      "exclusiveMinimum": 0,
+      "title": "Total Bytes",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "schema_version",
+    "subset_id",
+    "collection_id",
+    "description",
+    "selection",
+    "asset_root",
+    "asset_manifest_id",
+    "slide_ids",
+    "asset_count",
+    "total_bytes"
+  ],
+  "title": "SubsetManifest",
+  "type": "object"
+}

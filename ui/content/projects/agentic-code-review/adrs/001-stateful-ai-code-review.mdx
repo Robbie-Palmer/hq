@@ -4,31 +4,27 @@ date: "2026-07-25"
 status: "Proposed"
 supersedes: "agentic-code-review:000-custom-agentic-code-review"
 tech_stack: ["Cloudflare Workers", "Cloudflare Workflows", "Cloudflare R2"]
+ideas: ["distributed-locking", "idempotency"]
+implements_product_decisions:
+  - "agentic-code-review:000-own-review-policy-and-rent-inference"
+  - "agentic-code-review:001-review-pull-requests-by-risk"
 ---
 
 # Context
 
+[PDR 000](/projects/agentic-code-review/pdrs/000-own-review-policy-and-rent-inference)
+owns the product decision to retain review policy and evidence while keeping
+model inference replaceable. The technical prototype in
 [ADR 000](/projects/agentic-code-review/adrs/000-custom-agentic-code-review)
-established that a focused, custom reviewer is economically credible. In
-practice it produced better findings per dollar than Qodo, CodeRabbit,
-Greptile, or the other evaluated services. Its weakness is now orchestration:
-the GitHub Actions implementation is stateless and fires on every push,
-re-sending largely unchanged diffs and repository context. Commit frequency
-therefore drives token spend even when a new commit does not justify another
-full review.
+showed that the finding contract and ensemble worked, but its GitHub Actions
+implementation is stateless and fires on every qualifying push. It resends
+largely unchanged diffs and repository context. Commit frequency therefore
+drives token spend even when the new commit adds little review risk.
 
-The managed alternatives have also weakened. Gemini's consumer GitHub reviewer
-has shut down and now continues only as an enterprise product
-([ADR 041](/projects/personal-knowledge-graph/adrs/041-gemini-code-assist)). Qodo's free
-integration produced no useful activity, and its useful trial ended
-([ADR 045](/projects/personal-knowledge-graph/adrs/045-qodo)). Paying for Qodo remains
-possible, but observed value per dollar was below the custom reviewer.
-
-Meanwhile, inference is becoming more competitive: strong closed and
-open-weight coding models are being released rapidly across providers.
-Review-specific orchestration, repository policy, retained state, and
-evaluation data are therefore more durable investments than coupling the
-workflow to today's best model or review SaaS.
+[PDR 001](/projects/agentic-code-review/pdrs/001-review-pull-requests-by-risk)
+defines the proposed behavior: retain state for an evolving Pull Request,
+review material changes, and avoid reposting resolved or unchanged findings.
+This ADR chooses the system structure needed to implement that behavior.
 
 # Decision
 
@@ -130,9 +126,10 @@ selected provider supports it. The durable state prevents unnecessary calls
 and context independently of provider-side caching; Durable Objects do not
 themselves cache model computation, and prefix-cache hits are not guaranteed.
 
-# Evaluation and Success Metrics
+# Implementation evidence
 
-An asynchronous evaluator runs when a Pull Request is merged or closed, and
+To evaluate PDR 001 without coupling the live review path to reporting, an
+asynchronous evaluator runs when a Pull Request is merged or closed. It runs
 again after a configurable outcome window if evidence remains incomplete. It
 joins each finding to subsequent diffs, thread resolution, replies and
 reactions, and final PR state. Deterministic evidence is preferred; a separate
@@ -176,56 +173,32 @@ frozen PR set with the same context, prompt, and budget. The baseline window,
 minimum sample size, and target improvements must be fixed before evaluating
 the proposal rather than selected after seeing results.
 
-The service remains advisory during evaluation. It becomes **Accepted** only
-when replaying representative PR histories and then running live PRs shows:
+Keep this architecture Proposed until representative replays and live Pull
+Requests show:
 
 * materially fewer model calls and uncached input tokens per PR than the
   GitHub Actions baseline;
 * lower cost per accepted finding, with improved or non-inferior adjudicated
   acceptance and noise rates;
 * no material loss of coverage from batching and incremental review; and
-* maintenance effort and total spend remain below the value of buying Qodo or
-  another managed reviewer.
+* the state, retry, and publication boundaries operate without manual repair at
+  the tested review volume.
 
-# Strategic Considerations
+# Architecture boundaries
 
-* **Own the compounding layer.** Prompts, review policy, PR memory, accepted and
-  rejected findings, and cost/quality measurements improve future model
-  selection. A vendor subscription does not make that evidence portable.
-* **Improve the development loop upstream.** The review corpus can expose
-  recurring failure classes by code area, task type, or originating agent.
-  Stable patterns should become deterministic tests or linters where possible,
-  then `AGENTS.md` guidance, reusable skills, or specialised agents. The
-  objective is not only better review; it is preventing the same defect from
-  reaching review again.
-* **Create a private, relevant benchmark.** Longitudinal performance on real
-  changes and human dispositions is more useful to this workflow than relying
-  only on saturated public coding benchmarks. The same evidence can guide both
-  reviewer-model selection and which coding agent to use across Claude Code,
-  Codex, OpenCode, and future tools.
-* **Exploit model competition.** Provider and model adapters must keep the
-  structured finding schema stable so new closed or open-weight models can be
-  benchmarked and promoted without redesigning the service.
-* **Spend by risk, not activity.** Deterministic triage and a cheap scout should
-  handle routine deltas; the multi-scout and merger path is reserved for
-  material or high-risk changes.
-* **Preserve an exit.** Cloudflare consolidates webhook compute, state,
-  observability, and existing project infrastructure, but it becomes a larger
-  platform dependency. The provider-neutral inference boundary and stored
-  scorecard preserve migration among OpenRouter, OpenCode, direct APIs, or
-  another gateway.
-* **Create reusable review infrastructure.** Webhook ingestion, durable
-  context, policy-based triggering, multi-model review, suggestion delivery,
-  and feedback capture generalise beyond code. Future products could reuse
-  these primitives for content review, for example, suggesting recipe
-  improvements or adapting public recipes to a user's diet and preferences.
-  Each product still requires its own ADR for domain policy, safety, privacy,
-  and user experience.
-* **Keep the scope narrow.** Build only this repository's review loop. A
-  general code-review platform, dashboards, repository-wide semantic indexing,
-  content-review features, compliance policy, and team administration remain
-  out of scope; the first implementation should only preserve clean reusable
-  boundaries.
+The provider adapter keeps the structured finding schema independent of any
+one model API. The operational store, immutable analytical records, and derived
+scorecard have separate ownership so a batch-reporting failure cannot block a
+live review.
+
+Cloudflare consolidates webhook compute, state, workflow execution, and object
+storage. That reduces the number of deployed systems while increasing platform
+concentration. The adapter and append-only records must remain portable enough
+to move inference or state without changing the finding contract.
+
+This ADR does not add dashboards, repository-wide semantic indexing, content
+review, compliance policy, or team administration. Those capabilities do not
+belong in the state and workflow boundary chosen here.
 
 # Alternatives
 
@@ -314,3 +287,12 @@ through the existing gateway.
   deletion, and redaction must be designed before collecting non-public data.
 * Consolidating on Cloudflare reduces operational surface while increasing
   Cloudflare concentration risk.
+
+# Migration note
+
+This structural edit moves the owned-product boundary and Pull Request behavior
+to PDRs 000 and 001. It retains the original date, Proposed status,
+supersession, Cloudflare technology choices, state model, workflow and retry
+rules, analytical record contract, and technical adoption evidence. Later
+product-policy changes remain in later records rather than rewriting this
+proposal.

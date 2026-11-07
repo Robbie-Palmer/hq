@@ -97,8 +97,6 @@ describe("compareRetirementProjectionRanges", () => {
       facts: facts(),
       assumptionSets: assumptions,
       pathOptions: {
-        retireEarlierYears: 2,
-        workLongerYears: 2,
         lowerIncomeRate: 0.5,
       },
     });
@@ -110,11 +108,15 @@ describe("compareRetirementProjectionRanges", () => {
       ),
     ).toEqual([10, 15, 20, 30]);
     expect(result.pathComparisons.map(({ path }) => path.id)).toEqual([
-      "planned",
-      "earlier",
-      "longer",
-      "lower-income",
+      "stop-work",
+      "stay-in-work",
+      "reduced-work",
     ]);
+    expect(
+      result.pathComparisons[0]?.outcomes.map(
+        ({ horizonYears }) => horizonYears,
+      ),
+    ).toEqual([10, 15, 20]);
   });
 
   it("separates adverse return sequence, inflation, spending, delayed income, and tax effects", () => {
@@ -122,8 +124,6 @@ describe("compareRetirementProjectionRanges", () => {
       facts: facts(),
       assumptionSets: assumptions,
       pathOptions: {
-        retireEarlierYears: 2,
-        workLongerYears: 2,
         lowerIncomeRate: 0.5,
       },
     });
@@ -136,13 +136,11 @@ describe("compareRetirementProjectionRanges", () => {
     expect(conservative?.effects.withdrawalTax).toBeLessThanOrEqual(0);
   });
 
-  it("shows timing and replacement-income choices against the same starting facts", () => {
+  it("compares stopping, staying, and reducing work against the same starting facts", () => {
     const result = compareRetirementProjectionRanges({
       facts: facts(),
       assumptionSets: assumptions,
       pathOptions: {
-        retireEarlierYears: 2,
-        workLongerYears: 2,
         lowerIncomeRate: 0.5,
       },
     });
@@ -153,17 +151,151 @@ describe("compareRetirementProjectionRanges", () => {
       ]),
     );
 
-    expect(byPath.get("earlier")?.path.retirementDate).toBe("2033-01-01");
-    expect(byPath.get("longer")?.path.retirementDate).toBe("2037-01-01");
-    expect(byPath.get("lower-income")?.path.annualNetEmploymentIncome).toBe(
+    expect(byPath.get("stop-work")?.path.retirementDate).toBe("2035-01-01");
+    expect(byPath.get("stay-in-work")?.path.retirementDate).toBeNull();
+    expect(byPath.get("reduced-work")?.path.annualNetEmploymentIncome).toBe(
       21_000,
     );
-    expect(byPath.get("longer")?.outcome.totalNetWorth).toBeGreaterThan(
-      byPath.get("earlier")?.outcome.totalNetWorth ?? 0,
+    expect(
+      byPath.get("stay-in-work")?.outcomes.at(-1)?.totalNetWorth,
+    ).toBeGreaterThan(
+      byPath.get("stop-work")?.outcomes.at(-1)?.totalNetWorth ?? 0,
     );
-    expect(byPath.get("lower-income")?.outcome.totalNetWorth).toBeLessThan(
-      byPath.get("planned")?.outcome.totalNetWorth ?? 0,
+    expect(
+      byPath.get("reduced-work")?.outcomes.at(-1)?.totalNetWorth,
+    ).toBeLessThan(
+      byPath.get("stay-in-work")?.outcomes.at(-1)?.totalNetWorth ?? 0,
     );
+  });
+
+  it("keeps home value, liabilities, restricted pension, and unfunded spending separate", () => {
+    const input = facts();
+    input.accounts.push(
+      account({
+        id: "home",
+        name: "Home",
+        balance: 300_000,
+        assetType: "property",
+        liquidity: "illiquid",
+      }),
+      account({
+        id: "mortgage",
+        name: "Mortgage",
+        balance: -100_000,
+        assetType: "mortgage",
+        liquidity: "illiquid",
+        taxWrapper: undefined,
+      }),
+    );
+    const pension = input.accounts.find(({ id }) => id === "pension");
+    if (pension?.accessPolicy != null) {
+      pension.accessPolicy = {
+        ...pension.accessPolicy,
+        accessibleFromDate: "2040-01-01",
+      };
+    }
+    input.contributionPlan = {
+      accountId: "pension",
+      annualEmployeeGross: 6_000,
+      annualEmployer: 3_000,
+    };
+
+    const result = compareRetirementProjectionRanges({
+      facts: input,
+      assumptionSets: assumptions,
+      pathOptions: { lowerIncomeRate: 0.5 },
+    });
+    const outcome = result.assumptionComparisons.find(
+      ({ assumption }) => assumption.id === "central",
+    )?.outcomes[0];
+
+    expect(outcome).toMatchObject({
+      liabilities: expect.any(Number),
+      restrictedPensionCapital: expect.any(Number),
+    });
+    expect(outcome?.retainedHomeEquity).toBeGreaterThan(300_000);
+    expect(outcome?.liabilities).toBeGreaterThan(100_000);
+    expect(outcome?.restrictedPensionCapital).toBeGreaterThan(200_000);
+    expect(outcome?.liquidWithdrawalCapital).toBeLessThan(
+      outcome?.totalNetWorth ?? 0,
+    );
+  });
+
+  it("blocks unsupported withdrawal rules before returning results", () => {
+    const input = facts();
+    const isa = input.accounts.find(({ id }) => id === "isa");
+    if (isa != null) {
+      isa.accessPolicy = {
+        accessDelayMonths: 0,
+        withdrawalFeeRate: 0,
+        taxTreatment: {
+          kind: "unsupported",
+          reason: "Provider exit charge needs manual review",
+        },
+        canFundOrdinarySpending: true,
+      };
+    }
+
+    expect(() =>
+      compareRetirementProjectionRanges({
+        facts: input,
+        assumptionSets: assumptions,
+        pathOptions: { lowerIncomeRate: 0.5 },
+      }),
+    ).toThrow(
+      "Cannot show retirement forecast: ISA: Provider exit charge needs manual review",
+    );
+  });
+
+  it("moves released home equity into withdrawal capital only on the chosen date", () => {
+    const input = facts();
+    input.accounts.push(
+      account({
+        id: "home",
+        name: "Home",
+        balance: 300_000,
+        assetType: "property",
+        liquidity: "illiquid",
+        expectedAnnualReturn: 0,
+      }),
+      account({
+        id: "mortgage",
+        name: "Mortgage",
+        balance: -100_000,
+        assetType: "mortgage",
+        liquidity: "illiquid",
+        taxWrapper: undefined,
+        expectedAnnualReturn: 0,
+      }),
+    );
+    input.housingReleases = [
+      {
+        id: "downsize",
+        date: "2035-01-01",
+        sourcePropertyAccountId: "home",
+        destinationAccountId: "isa",
+        grossProceeds: 300_000,
+        retainedHousingValue: 0,
+        tax: 0,
+        fees: 10_000,
+        liabilitySettlements: [{ accountId: "mortgage", amount: 100_000 }],
+      },
+    ];
+
+    const result = compareRetirementProjectionRanges({
+      facts: input,
+      assumptionSets: assumptions,
+      pathOptions: { lowerIncomeRate: 0.5 },
+    });
+    const outcome = result.assumptionComparisons.find(
+      ({ assumption }) => assumption.id === "central",
+    )?.outcomes[0];
+
+    expect(outcome).toMatchObject({
+      retainedHomeEquity: 0,
+      liabilities: 0,
+    });
+    expect(outcome?.liquidWithdrawalCapital).toBeGreaterThan(0);
   });
 
   it("keeps the central path alive when the conservative sequence exhausts accessible capital", () => {
@@ -171,8 +303,6 @@ describe("compareRetirementProjectionRanges", () => {
       facts: facts(),
       assumptionSets: assumptions,
       pathOptions: {
-        retireEarlierYears: 2,
-        workLongerYears: 2,
         lowerIncomeRate: 0.5,
       },
     });
@@ -181,8 +311,11 @@ describe("compareRetirementProjectionRanges", () => {
     expect(
       conservative?.outcomes.at(-1)?.accessibleCapitalExhaustionDate,
     ).not.toBeNull();
+    expect(conservative?.outcomes.at(-1)?.cashRunwayMonths).not.toBeNull();
+    expect(conservative?.outcomes.at(-1)?.portfolioSurvives).toBe(false);
     expect(
       central?.outcomes.at(-1)?.accessibleCapitalExhaustionDate,
     ).toBeNull();
+    expect(central?.outcomes.at(-1)?.portfolioSurvives).toBe(true);
   });
 });

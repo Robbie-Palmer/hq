@@ -1,0 +1,58 @@
+---
+title: "PDR 000: Keep authors in control of editing and publication"
+date: "2026-09-04"
+status: "Accepted"
+decision_date: "2026-09-04"
+---
+
+## Context
+
+Agent output can contain strong research and weak writing. An editor can reduce
+repetition, repair local faults, and restructure a passage, but those changes
+carry different risks. A punctuation fix is easier to verify than a rewrite
+that may alter facts, intent, terminology, or voice.
+
+Publishing raises the stakes again. A useful suggestion does not give the
+system authority to decide what is true or to publish under somebody's name.
+The author remains accountable for the final artifact.
+
+## Decision
+
+Give authors control that matches the scope and risk of each editorial change.
+
+The editor may report an exact finding, propose a local replacement, or group
+dependent edits into a passage rewrite. It must show enough source context and
+provenance for the author to understand the change. Local suggestions and
+passage rewrites enter an explicit accept, reject, or change workflow.
+
+Automatic application is limited to narrow rules whose evidence shows that the
+change is safe. Publication under a person's name still requires that person's
+final review and approval. The editor may retrieve supporting context, but it
+does not replace research, fact checking, or editorial judgment.
+
+The product will preserve the author's facts, intent, terminology, and voice.
+It will not optimize for generic polish or train every author toward one style.
+
+## Consequences
+
+The review interface needs more than a list of model outputs. It must separate
+findings from actionable suggestions, show dependent changes together, retain
+the author's decision, and stop when source text or evidence is stale.
+
+This boundary limits unattended rewriting. Even a strong model cannot publish
+on confidence alone. The extra review is deliberate because the artifact
+carries the author's name and judgment.
+
+## Evaluation
+
+The policy is working when authors can explain each proposed change, reject or
+revise it without losing the original, and publish only after checking the
+complete artifact. Evaluation must record factual, terminology, intent, and
+voice regressions as failures even when a rewrite sounds smoother.
+
+## Migration note
+
+This record preserves the author-control policy published in the original
+project narrative and the product constraints that were mixed into ADR 006.
+Moving the policy into a PDR does not change it. ADR 006 retains the separate
+architecture choice to use knowledge-graph context.

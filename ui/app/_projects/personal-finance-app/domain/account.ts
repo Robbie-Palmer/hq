@@ -75,34 +75,44 @@ export const ExpectedReturnChangeSchema = z.object({
 });
 export type ExpectedReturnChange = z.infer<typeof ExpectedReturnChangeSchema>;
 
-export const AccountContentSchema = z.object({
-  id: AccountIdSchema,
-  name: z.string().min(1),
-  provider: z.string().min(1),
-  currency: CurrencySchema,
-  assetType: AssetTypeSchema,
-  /** UK tax treatment for income, disposals, and annual contributions. */
-  taxWrapper: TaxWrapperSchema.optional(),
-  /** How readily this account can fund spending without waiting or penalties. */
-  liquidity: LiquidityTierSchema.optional(),
-  /** Retirement withdrawal rules, separate from the account's net-worth value. */
-  accessPolicy: AccountAccessPolicySchema.optional(),
-  // For debt accounts this is the interest rate, compounding the (negative)
-  // balance further from zero. Constrained like ExpectedReturnChange.rate —
-  // a return at or below -100% can't compound.
-  expectedAnnualReturn: z.number().gt(-1, "Rate must be above -100%"),
-  expectedReturnChanges: z.array(ExpectedReturnChangeSchema).optional(),
-  /**
-   * Inter-linked accounts, e.g. a mortgage secured on a property. Lets the
-   * tracker derive figures like home equity (property value + mortgage
-   * balance) without the user maintaining them.
-   */
-  linkedAccountId: AccountIdSchema.optional(),
-  /** Forward repayment assumptions anchored to the latest recorded balance. */
-  mortgageTerms: MortgageTermsSchema.optional(),
-  createdAt: z.iso.date(),
-  closedAt: z.iso.date().optional(),
-});
+export const AccountContentSchema = z
+  .object({
+    id: AccountIdSchema,
+    name: z.string().min(1),
+    provider: z.string().min(1),
+    currency: CurrencySchema,
+    assetType: AssetTypeSchema,
+    /** Stable debt identity used to prevent duplicating an account as an obligation. */
+    liabilityId: z.string().trim().min(1).optional(),
+    /** UK tax treatment for income, disposals, and annual contributions. */
+    taxWrapper: TaxWrapperSchema.optional(),
+    /** How readily this account can fund spending without waiting or penalties. */
+    liquidity: LiquidityTierSchema.optional(),
+    /** Retirement withdrawal rules, separate from the account's net-worth value. */
+    accessPolicy: AccountAccessPolicySchema.optional(),
+    // For debt accounts this is the interest rate, compounding the (negative)
+    // balance further from zero. Constrained like ExpectedReturnChange.rate —
+    // a return at or below -100% can't compound.
+    expectedAnnualReturn: z.number().gt(-1, "Rate must be above -100%"),
+    expectedReturnChanges: z.array(ExpectedReturnChangeSchema).optional(),
+    /**
+     * Inter-linked accounts, e.g. a mortgage secured on a property. Lets the
+     * tracker derive figures like home equity (property value + mortgage
+     * balance) without the user maintaining them.
+     */
+    linkedAccountId: AccountIdSchema.optional(),
+    /** Forward repayment assumptions anchored to the latest recorded balance. */
+    mortgageTerms: MortgageTermsSchema.optional(),
+    createdAt: z.iso.date(),
+    closedAt: z.iso.date().optional(),
+  })
+  .refine(
+    (account) => account.liabilityId == null || isLiability(account.assetType),
+    {
+      message: "Only liability accounts can carry a liability ID",
+      path: ["liabilityId"],
+    },
+  );
 
 export type AccountContent = z.infer<typeof AccountContentSchema>;
 

@@ -74,9 +74,14 @@ describe("RetirementStressPlanner", () => {
     ).toBeVisible();
     expect(
       screen.getByRole("table", {
-        name: "Retirement timing and replacement income comparison",
+        name: "Retirement work choices at 10, 15, and 20 years",
       }),
-    ).toHaveTextContent("Work 2 years longer");
+    ).toHaveTextContent("Stay in work");
+    expect(
+      screen.getByRole("table", {
+        name: "Retirement work choices at 10, 15, and 20 years",
+      }),
+    ).toHaveTextContent("Reduce earned income to 50%");
     expect(
       screen.getByLabelText("Severe downside annual return, %"),
     ).toHaveValue(3);
@@ -96,19 +101,19 @@ describe("RetirementStressPlanner", () => {
     fireEvent.change(screen.getByLabelText("Central inflation, %"), {
       target: { value: "3.2" },
     });
-    fireEvent.change(screen.getByLabelText("Work longer by, years"), {
-      target: { value: "3" },
+    fireEvent.change(screen.getByLabelText("Reduced-work net income, %"), {
+      target: { value: "40" },
     });
 
     expect(screen.getByDisplayValue("Long downturn")).toBeVisible();
     expect(screen.getByLabelText("Central inflation, %")).toHaveValue(3.2);
-    expect(screen.getByText("Work 3 years longer")).toBeVisible();
+    expect(screen.getAllByText("Reduce earned income to 40%")).toHaveLength(3);
     await waitFor(() => {
       const saved = window.localStorage.getItem(
-        "assettracker:retirement-stress-planner:v1",
+        "assettracker:retirement-stress-planner:v2",
       );
       const parsed = JSON.parse(saved ?? "{}");
-      expect(parsed.workLongerYears).toBe(3);
+      expect(parsed.lowerIncomeRate).toBe(0.4);
       expect(parsed.assumptionSets).toEqual(
         expect.arrayContaining([
           expect.objectContaining({ name: "Long downturn" }),
@@ -132,5 +137,22 @@ describe("RetirementStressPlanner", () => {
     expect(screen.getByRole("alert")).toHaveTextContent(
       "Longevity horizons must be whole years of at least 30",
     );
+  });
+
+  it("blocks an unsupported home-equity release before showing results", () => {
+    render(<RetirementStressPlanner />);
+
+    fireEvent.change(screen.getByLabelText("Housing strategy"), {
+      target: { value: "release-equity" },
+    });
+
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Releasing home equity needs a valued property and a withdrawal account",
+    );
+    expect(
+      screen.queryByRole("table", {
+        name: "Retirement stress outcomes at 10, 15, 20, and 30 years",
+      }),
+    ).not.toBeInTheDocument();
   });
 });

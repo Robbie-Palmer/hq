@@ -19,11 +19,12 @@ from work_graph_analytics.publication import (
 
 EVENTS_MODEL = "fct_events.parquet"
 SCOPES_MODEL = "fct_scopes.parquet"
+WAIT_EPISODES_MODEL = "fct_wait_episodes.parquet"
 REQUIRED_REPORT_MODELS = (
     EVENTS_MODEL,
     SCOPES_MODEL,
     "fct_tickets.parquet",
-    "fct_wait_episodes.parquet",
+    WAIT_EPISODES_MODEL,
 )
 INFERENCE_LIMITS = (
     "A missing work note is a failed-handoff proxy; it does not prove the handoff failed.",
@@ -65,6 +66,10 @@ class ReportProvenance(StrictModel):
     source_coverage: ReportSourceCoverage = Field(serialization_alias="sourceCoverage")
     scope_snapshot: ReportScopeSnapshot = Field(serialization_alias="scopeSnapshot")
     freshness: ReportFreshness
+    verified_model_bytes: int = Field(serialization_alias="verifiedModelBytes", ge=1)
+    report_input_bytes_upper_bound: int = Field(
+        serialization_alias="reportInputBytesUpperBound", ge=1
+    )
 
 
 class ReportMetric(StrictModel):
@@ -298,9 +303,7 @@ def _scope_snapshot(
 
 
 REPORT_QUERY = (
-    resources.files("work_graph_analytics")
-    .joinpath("queries/operational_report.sql")
-    .read_text()
+    resources.files("work_graph_analytics").joinpath("queries/operational_report.sql").read_text()
 )
 
 
@@ -318,7 +321,7 @@ def _metrics(
         [
             start,
             end,
-            str(paths["fct_wait_episodes.parquet"][0]),
+            str(paths[WAIT_EPISODES_MODEL][0]),
             str(paths[EVENTS_MODEL][0]),
             str(paths[SCOPES_MODEL][0]),
             project_id,
@@ -406,6 +409,11 @@ def operational_report(
             freshness=ReportFreshness(
                 latest_event_at=_isoformat(latest_event[0]),
                 scope_captured_at=scope_snapshot.captured_at,
+            ),
+            verified_model_bytes=sum(descriptor.size for descriptor in manifest.models),
+            report_input_bytes_upper_bound=sum(
+                paths[filename][1].size
+                for filename in (WAIT_EPISODES_MODEL, EVENTS_MODEL, SCOPES_MODEL)
             ),
         ),
         inference_limits=INFERENCE_LIMITS,

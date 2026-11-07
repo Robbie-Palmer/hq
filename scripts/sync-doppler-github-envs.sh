@@ -80,6 +80,20 @@ filter_entries_for_environment() {
   local entries_json="$2"
 
   case "$github_env" in
+    production-work-graph-analytics)
+      jq -c '
+        map(select(
+          .name == "CLOUDFLARE_ACCOUNT_ID"
+          or .name == "CLOUDFLARE_R2_AUDIT_API_TOKEN"
+          or .name == "MODEL_R2_ACCESS_KEY_ID"
+          or .name == "MODEL_R2_SECRET_ACCESS_KEY"
+          or .name == "R2_REGION"
+          or .name == "RAW_R2_ACCESS_KEY_ID"
+          or .name == "RAW_R2_SECRET_ACCESS_KEY"
+          or .name == "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED"
+        ))
+      ' <<<"$entries_json"
+      ;;
     production-tailnet-infra|production-tailnet-infra-drift|production-tailnet-infra-plan)
       jq -c '
         map(select(
@@ -115,6 +129,41 @@ validate_entries_for_environment() {
   fi
 
   case "$github_env" in
+    production-work-graph-analytics)
+      missing_names=$(jq -r '
+        [
+          "CLOUDFLARE_ACCOUNT_ID",
+          "CLOUDFLARE_R2_AUDIT_API_TOKEN",
+          "MODEL_R2_ACCESS_KEY_ID",
+          "MODEL_R2_SECRET_ACCESS_KEY",
+          "R2_REGION",
+          "RAW_R2_ACCESS_KEY_ID",
+          "RAW_R2_SECRET_ACCESS_KEY",
+          "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED"
+        ] - [.[].name]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$missing_names" ]]; then
+        echo "Refusing to sync incomplete analytics credentials to '$github_env': $missing_names" >&2
+        exit 1
+      fi
+
+      invalid_visibility=$(jq -r '
+        [
+          .[]
+          | select(
+              ((.name == "CLOUDFLARE_ACCOUNT_ID" or .name == "R2_REGION" or .name == "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED") and .visibility != "unmasked")
+              or ((.name != "CLOUDFLARE_ACCOUNT_ID" and .name != "R2_REGION" and .name != "WORK_GRAPH_ANALYTICS_SCHEDULE_ENABLED") and .visibility == "unmasked")
+            )
+          | .name
+        ]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$invalid_visibility" ]]; then
+        echo "Refusing analytics credential visibility mismatch: $invalid_visibility" >&2
+        exit 1
+      fi
+      ;;
     production-tailnet-infra|production-tailnet-infra-drift|production-tailnet-infra-plan)
       missing_names=$(jq -r '
         [
@@ -271,8 +320,11 @@ known_environments=(
   production-cloudflare-access-drift
   production-cloudflare-access-plan
   production-personal-finance
+  production-personal-finance-alerting
+  production-personal-finance-backup
   production-personal-finance-drift
   production-personal-finance-plan
+  preview-personal-finance
   production-recipe-api
   production-recipe-ingest
   production-site-ui
@@ -285,6 +337,7 @@ known_environments=(
   production-remote-development-infra
   production-remote-development-infra-plan
   production-work-graph
+  production-work-graph-analytics
   production-work-graph-backup
   production-work-graph-infra
   production-database-backup
@@ -310,8 +363,11 @@ sync_requested_env production-cloudflare-access cloudflare-access/ops_apply
 sync_requested_env production-cloudflare-access-drift cloudflare-access/ops_drift
 sync_requested_env production-cloudflare-access-plan cloudflare-access/ops_plan
 sync_requested_env production-personal-finance personal-finance/apply
+sync_requested_env production-personal-finance-alerting personal-finance-operations/alerts
+sync_requested_env production-personal-finance-backup personal-finance/backup
 sync_requested_env production-personal-finance-drift personal-finance/drift
 sync_requested_env production-personal-finance-plan personal-finance/ops
+sync_requested_env preview-personal-finance personal-finance-operations/preview
 sync_requested_env production-recipe-api prd_recipe_api prd_site_ui prd_pages_env
 sync_requested_env production-recipe-ingest prd_recipe_ingest prd_site_ui prd_pages_env
 sync_requested_env production-site-ui prd_site_ui prd_pages_env
@@ -324,6 +380,7 @@ sync_requested_env production-infra-bootstrap-plan prd_bootstrap_plan
 sync_requested_env production-remote-development-infra homelab/prd_remote_development_infra
 sync_requested_env production-remote-development-infra-plan homelab/prd_remote_development_infra
 sync_requested_env production-work-graph work-graph/prd_work_graph
+sync_requested_env production-work-graph-analytics work-graph/analytics
 sync_requested_env production-work-graph-backup work-graph/prd_work_graph_backup
 sync_requested_env production-work-graph-infra work-graph/prd_work_graph_infra
 sync_requested_env production-database-backup prd_database_backup

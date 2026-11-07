@@ -107,6 +107,11 @@ function trackerValue() {
         updatedAt: "2026-01-01T00:00:00Z",
       },
     ],
+    financialIndependence: {
+      representativeAnnualExpenditure: 42_000,
+      spendingBasis: { kind: "reconciled" },
+    },
+    solveReplacementIncomeThresholds: vi.fn().mockReturnValue([]),
     compareJobMoveScenario: vi.fn().mockReturnValue({
       scenarioId: "offer",
       warnings: [],
@@ -457,6 +462,47 @@ describe("JobMoveScenarioPlanner", () => {
     await user.click(screen.getByRole("button", { name: "Add scenario" }));
     await user.click(screen.getByRole("button", { name: "Cancel" }));
     expect(screen.queryByLabelText("Scenario name")).toBeNull();
+  });
+
+  it("solves three job starts across named threshold assumptions", async () => {
+    const user = userEvent.setup();
+    const tracker = trackerValue();
+    mockUseAssetTracker.mockReturnValue(tracker);
+    render(<JobMoveScenarioPlanner />);
+
+    expect(
+      screen.getByRole("heading", { name: "Replacement income threshold" }),
+    ).toBeVisible();
+    expect(screen.getByLabelText("Job start 1")).toHaveValue("2026-03-01");
+    expect(screen.getByLabelText("Job start 2")).toHaveValue("2026-06-01");
+    expect(screen.getByLabelText("Job start 3")).toHaveValue("2026-09-01");
+
+    await user.selectOptions(
+      screen.getByLabelText("Goal"),
+      "preserve-cash-reserve",
+    );
+    await user.click(
+      screen.getByRole("button", { name: "Calculate thresholds" }),
+    );
+
+    expect(tracker.solveReplacementIncomeThresholds).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scenarioId: "offer",
+        roleStartDates: ["2026-03-01", "2026-06-01", "2026-09-01"],
+        goal: { kind: "preserve-cash-reserve", amount: 12_000 },
+        horizonMonths: 120,
+        assumptionSets: [
+          expect.objectContaining({ id: "conservative", name: "Conservative" }),
+          expect.objectContaining({ id: "central", name: "Central" }),
+          expect.objectContaining({ id: "optimistic", name: "Optimistic" }),
+        ],
+      }),
+    );
+    expect(
+      screen.getByRole("table", {
+        name: "Replacement income thresholds by job start and assumption set",
+      }),
+    ).toBeVisible();
   });
 
   it("shows a job-loss default when no scenarios have been saved", () => {

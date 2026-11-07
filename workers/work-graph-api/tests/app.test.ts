@@ -1,15 +1,15 @@
-import {
-  WorkGraphError,
-  type CriticalPathProjection,
-  type WorkItemLifecycle,
-  type WorkStage,
-} from "work-graph-domain";
+import { describe, expect, it, vi } from "vitest";
 import type {
   DecomposeClaimedWorkItemInput,
   StoredLease,
   WorkItemReadModel,
 } from "work-graph-db";
-import { describe, expect, it, vi } from "vitest";
+import {
+  type CriticalPathProjection,
+  WorkGraphError,
+  type WorkItemLifecycle,
+  type WorkStage,
+} from "work-graph-domain";
 import {
   createWorkGraphApp,
   type WorkGraphApiRepository,
@@ -154,11 +154,21 @@ const buildRepository = (): WorkGraphApiRepository => ({
   addKnowledgeScopeRelationship: vi.fn(async () => undefined),
   removeKnowledgeScopeRelationship: vi.fn(async () => undefined),
   listWorkItems: vi.fn(async () => []),
+  listWorkItemPage: vi.fn(async () => []),
   getWorkItem: vi.fn(async (workItemId) => item(workItemId, "ready")),
   resolveWorkItemContext: vi.fn(async () => []),
   listWorkItemDeliveryEvidence: vi.fn(async () => []),
   getCompletionCandidate: vi.fn(async () => null),
   putCompletionPolicyRevision: vi.fn(async (input) => input),
+  putRepositoryCompletionPolicyDefaultRevision: vi.fn(async (input) => input),
+  putDeliveryMetadataRevision: vi.fn(async (input) => input),
+  putDeliveryTargetOverride: vi.fn(async () => undefined),
+  putDeliveryActionRequest: vi.fn(async (input) => input),
+  listDeliveryRecoveries: vi.fn(async () => []),
+  reserveDeliveryRecovery: vi.fn(async (input) => ({
+    delivery: input,
+    created: true,
+  })),
   assignCompletionPolicy: vi.fn(async () => undefined),
   evaluateCompletionCandidateIfConfigured: vi.fn(async () => null),
   evaluateCompletionCandidateAndReleaseIfConfigured: vi.fn(async () => null),
@@ -221,6 +231,8 @@ const buildRepository = (): WorkGraphApiRepository => ({
       id: input.id,
       workItemId: input.workItemId,
       requestingLeaseId: input.leaseId,
+      deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: input.kind,
       question: input.question,
       note: input.note ?? null,
@@ -755,7 +767,7 @@ describe("Given knowledge-scope mirrors", () => {
 describe("Given work items with derived readiness", () => {
   it("keeps repository priority order instead of sorting by ID", async () => {
     const repository = buildRepository();
-    vi.mocked(repository.listWorkItems).mockResolvedValue([
+    vi.mocked(repository.listWorkItemPage).mockResolvedValue([
       item("z-high", "ready"),
       item("a-low", "ready"),
     ]);
@@ -778,10 +790,12 @@ describe("Given work items with derived readiness", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(repository.listWorkItems).toHaveBeenCalledWith({
+    expect(repository.listWorkItemPage).toHaveBeenCalledWith({
       includeInitiativeIds: ["initiative"],
       includeProjectIds: ["project"],
       parentId: "parent",
+      stage: "ready",
+      limit: 51,
     });
   });
 
@@ -794,24 +808,23 @@ describe("Given work items with derived readiness", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(repository.listWorkItems).toHaveBeenCalledWith({
+    expect(repository.listWorkItemPage).toHaveBeenCalledWith({
       includeProjectIds: ["project-a", "project-b"],
       excludeInitiativeIds: ["initiative-b"],
       includeParentTitles: ["Ship Work Graph"],
       excludeParentTitles: ["Build API"],
+      limit: 51,
     });
   });
 
   it("lists a stage with a cursor that survives readiness changes", async () => {
     const repository = buildRepository();
-    vi.mocked(repository.listWorkItems)
+    vi.mocked(repository.listWorkItemPage)
       .mockResolvedValueOnce([
-        item("blocked", "blocked"),
         item("a-ready", "ready"),
         item("b-ready", "ready"),
       ])
       .mockResolvedValueOnce([
-        item("a-ready", "in_progress", "open", lease("a-ready")),
         item("b-ready", "ready"),
       ]);
     const app = createWorkGraphApp(repository);
@@ -1109,6 +1122,192 @@ describe("Given work items with derived readiness", () => {
     );
   });
 
+  it("creates immutable repository completion-policy defaults", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+    const createdAt = "2026-10-17T20:00:00.000Z";
+
+    const response = await app.request(
+      "/api/github/repositories/Robbie-Palmer/hq/completion-policy-defaults/2",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          policyId: "hq-production",
+          policyRevision: 3,
+          enabled: true,
+          createdAt,
+        }),
+      },
+    );
+
+    expect(response.status).toBe(200);
+    expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision,
+    ).toHaveBeenCalledWith({
+      repository: "Robbie-Palmer/hq",
+      revision: 2,
+      policyId: "hq-production",
+      policyRevision: 3,
+      enabled: true,
+      createdAt,
+    });
+  });
+
+  it("stores generated delivery metadata and explicit target subsets", async () => {
+    const repository = buildRepository();
+    const app = createWorkGraphApp(repository);
+    const createdAt = "2026-10-17T20:00:00.000Z";
+    const target = {
+      id: "delivery-target:work-graph/api",
+      projectId: "project:work-graph",
+      repository: "Robbie-Palmer/hq",
+      sourcePaths: [
+        {
+          path: "workers/work-graph-api",
+          mode: "exclusive",
+          subjects: ["component:work-graph/work-graph-api"],
+        },
+      ],
+      subjects: ["component:work-graph/work-graph-api"],
+      sharedHostId: null,
+      requiredCiNames: ["Work Graph API CI"],
+      productionEnvironments: ["production-work-graph"],
+    } as const;
+
+    const metadata = await app.request(
+      "/api/github/repositories/Robbie-Palmer/hq/delivery-metadata-revisions/catalog-v1",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ targets: [target], createdAt }),
+      },
+    );
+    const override = await app.request(
+      "/api/work-items/ticket/delivery-target-override",
+      {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          targetIds: [target.id],
+          updatedAt: createdAt,
+        }),
+      },
+    );
+
+    expect(metadata.status).toBe(200);
+    expect(repository.putDeliveryMetadataRevision).toHaveBeenCalledWith(
+      {
+        repository: "Robbie-Palmer/hq",
+        sourceRevision: "catalog-v1",
+        targets: [target],
+      },
+      createdAt,
+    );
+    expect(override.status).toBe(200);
+    expect(repository.putDeliveryTargetOverride).toHaveBeenCalledWith({
+      workItemId: "ticket",
+      targetIds: [target.id],
+      updatedAt: createdAt,
+    });
+  });
+
+  it("records delivery actions and lets the initiating session pull and reserve recovery", async () => {
+    const repository = buildRepository();
+    const actionRequest = {
+      id: "00000000-0000-4000-8000-000000000009",
+      workItemId: "ticket",
+      kind: "deployment" as const,
+      provider: "github" as const,
+      evidenceKind: "deployment" as const,
+      evidenceExternalId: "example/site/deployments/20",
+      repository: "example/site",
+      commitSha: "b".repeat(40),
+      policyId: "site-production",
+      policyRevision: 2,
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention" as const,
+      requestedAt: "2026-11-04T20:00:00.000Z",
+    };
+    const recovery = {
+      id: "00000000-0000-4000-8000-000000000010",
+      workItemId: "ticket",
+      actionRequestId: actionRequest.id,
+      actionResultId: "00000000-0000-4000-8000-000000000011",
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention" as const,
+      attentionRequestId,
+      createdAt: "2026-11-04T20:05:00.000Z",
+      resolvedAt: null,
+      evidence: {
+        provider: "github",
+        externalId: actionRequest.evidenceExternalId,
+        repository: actionRequest.repository,
+        commitSha: actionRequest.commitSha,
+        kind: "deployment" as const,
+        state: "failure" as const,
+        sourceUrl:
+          "https://api.github.com/repos/example/site/deployments/20/statuses/21",
+        observedAt: "2026-11-04T20:04:00.000Z",
+      },
+    };
+    vi.mocked(repository.listDeliveryRecoveries).mockResolvedValue([recovery]);
+    const app = createWorkGraphApp(repository);
+
+    const created = await app.request("/api/delivery-action-requests", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(actionRequest),
+    });
+    const listed = await app.request(
+      "/api/delivery-recoveries?initiatingSessionId=session%3Ainitiator&limit=1",
+    );
+    const listedAtMaximumPageSize = await app.request(
+      "/api/delivery-recoveries?initiatingSessionId=session%3Ainitiator&limit=100",
+    );
+    const reserved = await app.request(
+      `/api/delivery-recoveries/${recovery.id}/deliveries`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          id: "00000000-0000-4000-8000-000000000012",
+          kind: "push",
+          targetSessionId: "session:initiator",
+          reservedAt: "2026-11-04T20:06:00.000Z",
+        }),
+      },
+    );
+
+    expect(created.status).toBe(201);
+    expect(repository.putDeliveryActionRequest).toHaveBeenCalledWith(
+      actionRequest,
+    );
+    expect(await responseJson(listed)).toEqual({
+      items: [recovery],
+      nextCursor: null,
+    });
+    expect(repository.listDeliveryRecoveries).toHaveBeenCalledWith({
+      initiatingSessionId: "session:initiator",
+      unresolvedOnly: true,
+      limit: 2,
+    });
+    expect(listedAtMaximumPageSize.status).toBe(200);
+    expect(repository.listDeliveryRecoveries).toHaveBeenLastCalledWith({
+      initiatingSessionId: "session:initiator",
+      unresolvedOnly: true,
+      limit: 101,
+    });
+    expect(reserved.status).toBe(201);
+    expect(repository.reserveDeliveryRecovery).toHaveBeenCalledWith({
+      id: "00000000-0000-4000-8000-000000000012",
+      recoveryId: recovery.id,
+      kind: "push",
+      targetSessionId: "session:initiator",
+      reservedAt: "2026-11-04T20:06:00.000Z",
+    });
+  });
+
   it("refreshes and links pull requests outside claim operations", async () => {
     const repository = buildRepository();
     const snapshot = {
@@ -1385,6 +1584,8 @@ describe("Given a worker recording progress and requesting attention", () => {
       id: attentionRequestId,
       workItemId: "ready",
       requestingLeaseId: leaseId,
+      deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: "decision",
       question: "Which contract is canonical?",
       note: null,
@@ -1396,6 +1597,8 @@ describe("Given a worker recording progress and requesting attention", () => {
       id: attentionResolutionId,
       workItemId: "resolved",
       requestingLeaseId: leaseId,
+      deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: "review",
       question: "Is the wording clear?",
       note: null,
@@ -1412,6 +1615,8 @@ describe("Given a worker recording progress and requesting attention", () => {
       id: secondAttentionRequestId,
       workItemId: "other",
       requestingLeaseId: leaseId,
+      deliveryRecoveryId: null,
+      deliveryResolutionId: null,
       kind: "input",
       question: "Which option applies?",
       note: null,
@@ -1634,6 +1839,8 @@ describe("Given a worker recording progress and requesting attention", () => {
         id: attentionRequestId,
         workItemId: "ready",
         requestingLeaseId: leaseId,
+        deliveryRecoveryId: null,
+        deliveryResolutionId: null,
         kind: "decision",
         question: "Which contract is canonical?",
         note: "Compare both options.",
@@ -2384,7 +2591,7 @@ describe("Given a transient database failure", () => {
         new Error(databaseMessage),
         { code },
       );
-      vi.mocked(repository.listWorkItems).mockRejectedValue(
+      vi.mocked(repository.listWorkItemPage).mockRejectedValue(
         new Error("database request failed", { cause: databaseError }),
       );
       const warn = vi.spyOn(console, "error").mockImplementation(() => undefined);

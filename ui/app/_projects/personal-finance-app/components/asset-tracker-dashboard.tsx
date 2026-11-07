@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AccountBalanceChart } from "./account-balance-chart";
 import { AssetAllocationChart } from "./asset-allocation-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { HousingValueDisclosure } from "./housing-value-disclosure";
 
 function staleObservationMessage(
   count: number,
@@ -20,6 +21,28 @@ function staleObservationMessage(
   const noun = count === 1 ? singular : plural;
   const verb = count === 1 ? "is" : "are";
   return `${count} ${noun} ${verb} missing or stale. `;
+}
+
+function PropertyValuesInNetWorth() {
+  const { propertyValueHistories = [] } = useAssetTracker();
+  if (propertyValueHistories.length === 0) return null;
+  return (
+    <details className="rounded-lg border p-4">
+      <summary className="cursor-pointer text-sm font-medium">
+        Property values included in net worth
+      </summary>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        {propertyValueHistories.map((view) => (
+          <div className="space-y-2" key={view.accountId}>
+            <HousingValueDisclosure value={view.selectedValue} compact />
+            <p className="text-xs text-muted-foreground">
+              {view.selectionExplanation}
+            </p>
+          </div>
+        ))}
+      </div>
+    </details>
+  );
 }
 
 export function AssetTrackerDashboard() {
@@ -49,7 +72,6 @@ export function AssetTrackerDashboard() {
     "holding price",
     "holding prices",
   );
-
   if (accountDetails.length === 0) {
     return (
       <div className="space-y-8">
@@ -185,6 +207,7 @@ export function AssetTrackerDashboard() {
           )}
         </div>
       </div>
+      <PropertyValuesInNetWorth />
       <div className="grid gap-8 lg:grid-cols-2">
         <AssetAllocationChart data={assetAllocation} currency={baseCurrency} />
         <AccountBalanceChart accounts={accountDetails} />

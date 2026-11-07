@@ -1,0 +1,19 @@
+name: Personal Finance App alert smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: alert-smoke
+      operations_root: "infra/personal-finance"
+      github_environment: "production-personal-finance-alerting"
+      secret_config_ref: "doppler://personal-finance-operations/alerts"
+      checkout_ref: ${{ github.sha }}
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.PROJECT_ALERT_DOPPLER_TOKEN }}

@@ -2,6 +2,8 @@
 title: "ADR 006: Knowledge graph context with bounded authority"
 date: "2026-09-04"
 status: "Proposed"
+implements_product_decisions:
+  - "agent-first-writing:000-author-controlled-editing-and-publication"
 ---
 
 # Context
@@ -11,9 +13,10 @@ They cannot reliably tell which architecture decision supports a claim, which
 terms the author uses elsewhere, or which evidence may be stale.
 
 The Personal Knowledge Graph already connects projects, architecture
-decisions, technologies, and public artifacts. That context can improve editing,
-but retrieval does not grant authority to decide facts or publish in the
-author's name.
+decisions, technologies, and public artifacts. That context can improve
+editing. [PDR 000](/projects/agent-first-writing/pdrs/000-author-controlled-editing-and-publication)
+keeps factual judgment and publication authority with the author, so retrieval
+must remain a source of context rather than authority.
 
 # Decision
 
@@ -21,9 +24,10 @@ Use the knowledge graph to supply editorial context. The editor may retrieve the
 project a draft describes, linked architecture decisions, established
 terminology, and claims that need fresh evidence.
 
-Return proposed public artifacts and structured edit history to the graph. Do
-not let the editor decide what is true, replace research or fact checking, or
-publish under a person's name without explicit authority and final review.
+Return proposed public artifacts and structured edit history to the graph.
+Label the retrieved source and revision, surface missing or stale evidence, and
+stop when no source decision supports a claim. The review workflow enforces the
+author-control policy from PDR 000.
 
 # Consequences
 

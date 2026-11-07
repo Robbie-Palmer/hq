@@ -40,6 +40,13 @@ describe("PropertyComparables", () => {
     );
     expect(within(table).getByText(/Leasehold · New build/)).toBeVisible();
     expect(screen.getByText("CF10 2BB")).toBeVisible();
+    expect(screen.getAllByText("Completed sale").length).toBe(3);
+    expect(
+      screen.getAllByText(
+        /Official completed-sale record · HM Land Registry Price Paid Data/,
+      ).length,
+    ).toBe(3);
+    expect(screen.getAllByText("Retrieved 2026-10-04").length).toBe(3);
     expect(
       within(table).getAllByText(/Cardiff · full postcode/).length,
     ).toBeGreaterThan(0);
@@ -106,6 +113,12 @@ describe("PropertyComparables", () => {
     expect(
       screen.getByText(/completed-sale records for Scotland/),
     ).toBeVisible();
+    expect(
+      screen.getByText(/Geography Scotland · nation · unsupported/),
+    ).toBeVisible();
+    expect(
+      screen.getByText(/Source kind Official completed-sale record/),
+    ).toBeVisible();
   });
 
   it("shows NI HPI evidence without presenting it as comparable sales", () => {
@@ -130,6 +143,13 @@ describe("PropertyComparables", () => {
       screen.getByText(/Belfast · All property types · Q2 2026/),
     ).toBeVisible();
     expect(screen.getByText("£184,768.00")).toBeVisible();
+    expect(screen.getByText("Regional index statistic")).toBeVisible();
+    expect(screen.getAllByText("Provisional").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Official index · Land & Property Services/),
+    ).toBeVisible();
+    expect(screen.getByText(/Belfast · local authority/)).toBeVisible();
+    expect(screen.getByText("2026-06-30")).toBeVisible();
     expect(screen.getByText("+7.7%")).toBeVisible();
     expect(
       screen.getByText("374 in Q1 2026 · all property types"),

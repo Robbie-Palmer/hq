@@ -1,65 +1,38 @@
 ---
-title: "ADR 005: Minimise Human Attention With Recall-First Review"
+title: "ADR 005: Record finding correctness separately from downstream utility"
 date: "2026-09-30"
 status: "Accepted"
+implements_product_decisions:
+  - "agentic-code-review:003-recall-first-agent-mediated-review"
 ---
 
 ## Context
 
+[PDR 003](/projects/agentic-code-review/pdrs/003-recall-first-agent-mediated-review)
+makes owner attention the product objective and allows lower raw precision when
+agent-mediated triage produces useful discovery within safety, money, and time
+limits.
+
 [ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review)
-defined acceptance and noise metrics for a reviewer that publishes findings to
-a Pull Request. [ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard)
-made those outcomes reproducible, while
-[ADR 004](/projects/agentic-code-review/adrs/004-use-aacr-bench-as-a-secondary-challenge-set)
-added an external benchmark whose authors explicitly optimise for precision.
+records one disposition for each published finding, and
+[ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard)
+resolves those versioned outcomes for analysis. That record can say whether the
+author fixed, acknowledged, rejected, or did not answer the cited claim. It
+cannot also say that a wrong claim prompted a different useful change without
+misrepresenting the claim as correct.
 
-That objective does not fit this development loop. Human attention is the
-scarce resource. Local coding agents consume most review comments and can
-investigate them before the owner needs to intervene. Extra inference,
-latency, and authoring-agent work are worthwhile when they reduce the owner's
-review time now or avoid future time spent debugging, repairing, or
-maintaining a missed problem.
-
-The reviewer also exists to find issues that the authoring model missed.
-Selecting divergent scouts should increase the chance of an uncorrelated
-finding, even when it lowers comment precision. A technically wrong comment
-can still make the authoring agent inspect an assumption and discover a
-different improvement. This resembles a senior engineer reconsidering a design
-after receiving an imperfect review comment from a junior engineer. The
-original claim remains wrong, but the exchange can still improve the change.
-
-The current single outcome cannot represent both facts. A rejected finding is
-treated as noise even if it caused a useful adjacent change. Counting that
-finding as accepted would be equally misleading.
+The two facts need separate fields and separate evidence. Otherwise the
+scorecard either discards agent-mediated value or rewards a reviewer for making
+false claims that happen to coincide with unrelated edits.
 
 ## Decision
 
-This later policy replaces precision and raw noise as promotion constraints in
-ADRs 001 and 004. Their architecture and dataset-source decisions remain.
+Keep finding correctness and downstream utility as separate versioned records.
 
-We will optimise reviewer policy to minimise the owner's expected attention
-over the life of a change. Recall and incremental useful discovery are the
-main means of doing that. Raw comment precision and rejection rate remain
-diagnostics. They will not block a candidate merely because a divergent scout
-uses more agent work to investigate false positives without involving the
-owner.
-
-The attention measure includes manual review and triage, interventions needed
-to unblock agents, rework after review, and later debugging or incident work
-attributable to escaped defects. Automated investigation, retries, and
-discarded edit attempts consume money and elapsed time, but not human
-attention unless they require an intervention or delay work enough to demand
-one.
-
-Model comparisons will report each scout's marginal contribution after
-reconciliation. The primary comparison asks how many useful issues or
-improvements disappear when that scout is removed from an otherwise identical
-replay. Duplicate comments do not count as recall gains.
-
-The evaluation record will separate finding correctness from downstream
-utility. Existing dispositions continue to record whether the cited claim was
-fixed, acknowledged, rejected, censored, or unanswered. A separate,
-evidence-backed effect records whether the review caused:
+The existing disposition continues to classify the cited claim as
+`confirmed-fixed`, `acknowledged`, `rejected`, `superseded`, or
+`no-observable-response`. Add a separate evidence-backed effect with one of
+these values:
 
 * a direct fix for the cited issue;
 * a different useful improvement prompted by the investigation;
@@ -67,39 +40,40 @@ evidence-backed effect records whether the review caused:
 * unnecessary or harmful churn; or
 * an effect that cannot be determined.
 
-A different improvement counts only when the response links the review to a
-specific change and adjudication confirms that the change is useful on its own
-merits. It does not convert the original false claim into a correct finding.
-This distinction prevents an authoring agent from manufacturing busywork to
-make noisy review look productive.
+A different improvement requires a response that links the review to a
+specific change and an adjudication that the change is useful on its own
+merits. It does not change the original finding's correctness. A discarded edit
+attempt remains agent work, not useful product output.
 
-For AACR-Bench, positive comments test issue recall. Negative comments become a
-separate test of whether the authoring agent can absorb noisy review without
-passing it to the owner. The useful behaviours are rejecting the bad premise,
-requesting evidence from another agent, or finding an independently justified
-improvement without introducing a regression. Following a negative comment
-without verification is a failure, even if the patch changes.
+Record owner intervention, model and prompt versions, scout attribution,
+coverage, latency, tokens, cost, and the final-patch result beside the two
+classifications. Model comparisons report each scout's marginal useful
+contribution after reconciliation. Duplicate findings receive no extra recall
+credit.
 
-Human attention is the objective. Spend, latency, and agent work are operating
-constraints. Final-patch quality and introduced defects remain safety
-constraints. A precision loss is acceptable when it lowers expected human
-attention and stays within predeclared money, time, and safety limits. Findings
-still pass through the existing reconciler and single publication path.
+For AACR-Bench replays, positive references test issue recall. Negative
+references test whether the authoring agent rejects a bad premise, requests
+more evidence, or finds an independently justified improvement without adding
+a regression. Keep those results distinct from production dispositions and
+from the benchmark's original label.
 
 ## Consequences
 
-The reviewer can use genuinely different models instead of converging on the
-safest consensus comment. The system deliberately spends more agent resources
-when that is likely to save owner attention. The scorecard also captures a
-class of review value that acceptance rate currently throws away.
+The scorecard can represent a false finding that still led to a useful adjacent
+change without calling the finding correct. It can also identify harmful churn
+that a simple acceptance rate would miss.
 
-This policy spends more compute and authoring-agent effort. That trade is
-intentional. It can still fail by creating unsafe edits, exceeding the budget,
-or making the owner wait for little benefit. Evaluation must inspect the
-resulting patch and record owner interventions rather than reward compliance or
-finding count. If noisy comments routinely escape agent triage and reach the
-owner, the system has failed even when benchmark recall rises.
+The evaluator now needs another versioned schema, evidence links, adjudication
+rules, and scorecard dimensions. Some effects will remain unknown. Agents may
+also try to create work that makes a noisy comment appear valuable, so the
+record requires independent evidence and inspection of the final patch.
 
-We will reconsider the recall-first policy if marginal findings rarely survive
-adjudication, agent-mediated triage increases the owner's total attention, or
-the money, delay, or safety cost breaches its declared limit.
+Controlled ablations can compare a scout's marginal contribution, but they add
+replay cost and cannot infer owner attention from finding count alone.
+
+## Migration note
+
+This structural edit moves the recall-first objective, human-attention policy,
+and acceptable trade-offs to PDR 003. It retains the original date, Accepted
+status, two-part outcome model, evidence requirements, benchmark treatment, and
+scorecard consequences. No architecture decision changed during migration.

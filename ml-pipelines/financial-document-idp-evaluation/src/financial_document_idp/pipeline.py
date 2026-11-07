@@ -10,13 +10,10 @@ from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, cast, override
 
-from .evaluation_artifacts import (
+from data_artifacts.files import (
     canonical_bytes,
-    code_revision,
     load_model,
-    load_params,
     pretty_bytes,
-    project_root,
     read_json,
     read_jsonl,
     resolve_under,
@@ -25,6 +22,8 @@ from .evaluation_artifacts import (
     write_json,
     write_jsonl,
 )
+
+from .evaluation_artifacts import code_revision, load_params, project_root
 from .schemas import (
     Abstention,
     Account,

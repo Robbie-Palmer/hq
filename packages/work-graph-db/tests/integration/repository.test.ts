@@ -1,23 +1,29 @@
+import { and, eq, sql } from "drizzle-orm";
 import {
+  type DeliveryEvidenceObservation,
   getDirectChildren,
+  type GitHubDelivery,
+  normalizeGitHubDelivery,
   projectWorkItemStage,
   type WorkGraphError,
-  type DeliveryEvidenceObservation,
   type WorkItemDependency,
 } from "work-graph-domain";
-import { eq, sql } from "drizzle-orm";
-import { normalizeGitHubDelivery, type GitHubDelivery } from "work-graph-domain";
-import { githubDelivery, headSha, mergeSha, repository as githubRepository } from "../../../work-graph-domain/tests/fixtures/github";
+import {
+  githubDelivery,
+  headSha,
+  mergeSha,
+  repository as githubRepository,
+} from "../../../work-graph-domain/tests/fixtures/github";
 import {
   classifyRetryableDatabaseFailure,
   closeDb,
-  createDb,
   createDatabaseQueryMetrics,
+  createDb,
   estimateDatabaseResultRowBytes,
+  GitHubDeliveryConsumer,
   isRetryableDatabaseTimeout,
   schema,
   WorkGraphRepository,
-  GitHubDeliveryConsumer,
 } from "../../src/index";
 
 const databaseURL = process.env.DATABASE_URL;
@@ -146,6 +152,8 @@ describe("database timeout classification", () => {
     ["57P03", "the database system is starting up", "capacity"],
     ["58000", "Failed to acquire a connection from the pool.", "capacity"],
     ["58000", "Internal error.", "infrastructure"],
+    ["CONNECTION_CLOSED", "write CONNECTION_CLOSED", "infrastructure"],
+    ["CONNECTION_ENDED", "socket CONNECTION_ENDED", "infrastructure"],
     [
       "58000",
       "Server connection attempt failed: connection_refused",
@@ -164,6 +172,17 @@ describe("database timeout classification", () => {
     },
   );
 
+  it.each(["CONNECTION_CLOSED", "CONNECTION_ENDED"])(
+    "classifies retryable transport failure from its message: %s",
+    (transportCode) => {
+      expect(
+        classifyRetryableDatabaseFailure(
+          new Error(`write ${transportCode} hyperdrive.local:5432`),
+        ),
+      ).toBe("infrastructure");
+    },
+  );
+
   it.each([
     ["58000", "Unsupported Hyperdrive protocol operation"],
     ["28P01", "password authentication failed"],
@@ -174,6 +193,33 @@ describe("database timeout classification", () => {
         Object.assign(new Error(message), { code }),
       ),
     ).toBeUndefined();
+  });
+});
+
+describe("database connection cleanup", () => {
+  const databaseWithEnd = (end: () => Promise<void>) =>
+    ({ $client: { end } }) as unknown as NonNullable<
+      Parameters<typeof closeDb>[0]
+    >;
+
+  it("treats an already-closed transport as successful cleanup", async () => {
+    await expect(
+      closeDb(
+        databaseWithEnd(async () => {
+          throw new Error("write CONNECTION_CLOSED hyperdrive.local:5432");
+        }),
+      ),
+    ).resolves.toBeUndefined();
+  });
+
+  it("preserves unrelated connection cleanup failures", async () => {
+    await expect(
+      closeDb(
+        databaseWithEnd(async () => {
+          throw new Error("cleanup failed");
+        }),
+      ),
+    ).rejects.toThrow("cleanup failed");
   });
 });
 
@@ -238,15 +284,45 @@ beforeAll(async () => {
     where pg_type.typname = 'architecture_decision_role'
     order by enumsortorder
   `);
+  const completionPolicyAssignmentSourceValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'completion_policy_assignment_source'
+    order by enumsortorder
+  `);
+  const deliveryActionKindValues = await db.execute<{ enumlabel: string }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'delivery_action_kind'
+    order by enumsortorder
+  `);
+  const deliveryRecoveryFallbackValues = await db.execute<{
+    enumlabel: string;
+  }>(sql`
+    select enumlabel
+    from pg_enum
+    join pg_type on pg_type.oid = pg_enum.enumtypid
+    where pg_type.typname = 'delivery_recovery_fallback'
+    order by enumsortorder
+  `);
 
-  expect(migrationCount?.count).toBe(18);
+  expect(migrationCount?.count).toBe(26);
   expect(tables.map(({ table_name }) => table_name)).toEqual([
     "attention_requests",
     "attention_resolutions",
     "completion_candidate_evaluations",
     "completion_policy_revisions",
     "current_delivery_evidence",
+    "delivery_action_requests",
+    "delivery_action_results",
     "delivery_evidence_observations",
+    "delivery_metadata_revisions",
+    "delivery_recoveries",
+    "delivery_recovery_deliveries",
     "events",
     "external_deliveries",
     "github_delivery_processing",
@@ -257,13 +333,18 @@ beforeAll(async () => {
     "leases",
     "notes",
     "pull_requests",
+    "repository_completion_policy_default_revisions",
+    "repository_current_delivery_metadata_revisions",
     "work_item_architecture_decisions",
     "work_item_completion_candidates",
     "work_item_completion_policies",
     "work_item_contexts",
+    "work_item_delivery_target_overrides",
     "work_item_dependencies",
     "work_item_hierarchy",
     "work_item_priority_contexts",
+    "work_item_pull_request_current_delivery_resolutions",
+    "work_item_pull_request_delivery_resolutions",
     "work_item_pull_requests",
     "work_item_references",
     "work_items",
@@ -295,6 +376,16 @@ beforeAll(async () => {
   expect(
     architectureDecisionRoleValues.map(({ enumlabel }) => enumlabel),
   ).toEqual(["governing", "background"]);
+  expect(
+    completionPolicyAssignmentSourceValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["explicit", "repository_default"]);
+  expect(deliveryActionKindValues.map(({ enumlabel }) => enumlabel)).toEqual([
+    "merge",
+    "deployment",
+  ]);
+  expect(
+    deliveryRecoveryFallbackValues.map(({ enumlabel }) => enumlabel),
+  ).toEqual(["request_owner_attention", "launch_replacement"]);
 });
 
 describe("transactional decomposition", () => {
@@ -880,6 +971,23 @@ beforeEach(async () => {
     );
     await transaction.delete(schema.attentionResolution);
     await transaction.delete(schema.attentionRequest);
+    await transaction.delete(
+      schema.workItemPullRequestCurrentDeliveryResolution,
+    );
+    await transaction.execute(sql`alter table ${schema.workItemPullRequestDeliveryResolution} disable trigger work_item_pull_request_delivery_resolutions_immutable`);
+    await transaction.delete(schema.workItemPullRequestDeliveryResolution);
+    await transaction.execute(sql`alter table ${schema.workItemPullRequestDeliveryResolution} enable trigger work_item_pull_request_delivery_resolutions_immutable`);
+    await transaction.delete(schema.workItemDeliveryTargetOverride);
+    await transaction.execute(sql`alter table ${schema.deliveryRecoveryDelivery} disable trigger delivery_recovery_deliveries_immutable`);
+    await transaction.delete(schema.deliveryRecoveryDelivery);
+    await transaction.execute(sql`alter table ${schema.deliveryRecoveryDelivery} enable trigger delivery_recovery_deliveries_immutable`);
+    await transaction.delete(schema.deliveryRecovery);
+    await transaction.execute(sql`alter table ${schema.deliveryActionResult} disable trigger delivery_action_results_immutable`);
+    await transaction.delete(schema.deliveryActionResult);
+    await transaction.execute(sql`alter table ${schema.deliveryActionResult} enable trigger delivery_action_results_immutable`);
+    await transaction.execute(sql`alter table ${schema.deliveryActionRequest} disable trigger delivery_action_requests_immutable`);
+    await transaction.delete(schema.deliveryActionRequest);
+    await transaction.execute(sql`alter table ${schema.deliveryActionRequest} enable trigger delivery_action_requests_immutable`);
     await transaction.delete(schema.note);
     await transaction.execute(
       sql`alter table ${schema.note} enable trigger notes_immutable`,
@@ -891,6 +999,9 @@ beforeEach(async () => {
     await transaction.delete(schema.completionCandidateEvaluation);
     await transaction.execute(sql`alter table ${schema.completionCandidateEvaluation} enable trigger completion_candidate_evaluations_immutable`);
     await transaction.delete(schema.workItemCompletionPolicy);
+    await transaction.execute(sql`alter table ${schema.repositoryCompletionPolicyDefaultRevision} disable trigger repository_completion_policy_default_revisions_immutable`);
+    await transaction.delete(schema.repositoryCompletionPolicyDefaultRevision);
+    await transaction.execute(sql`alter table ${schema.repositoryCompletionPolicyDefaultRevision} enable trigger repository_completion_policy_default_revisions_immutable`);
     await transaction.execute(sql`alter table ${schema.completionPolicyRevision} disable trigger completion_policy_revisions_immutable`);
     await transaction.delete(schema.completionPolicyRevision);
     await transaction.execute(sql`alter table ${schema.completionPolicyRevision} enable trigger completion_policy_revisions_immutable`);
@@ -907,6 +1018,12 @@ beforeEach(async () => {
     await transaction.delete(schema.workItemReference);
     await transaction.delete(schema.workItemPullRequest);
     await transaction.delete(schema.pullRequest);
+    await transaction.delete(
+      schema.repositoryCurrentDeliveryMetadataRevision,
+    );
+    await transaction.execute(sql`alter table ${schema.deliveryMetadataRevision} disable trigger delivery_metadata_revisions_immutable`);
+    await transaction.delete(schema.deliveryMetadataRevision);
+    await transaction.execute(sql`alter table ${schema.deliveryMetadataRevision} enable trigger delivery_metadata_revisions_immutable`);
     await transaction.delete(schema.knowledgeScopeRelationship);
     await transaction.delete(schema.workItemPriorityContext);
     await transaction.delete(schema.knowledgeScope);
@@ -954,6 +1071,57 @@ describe("GitHub delivery consumption", () => {
     });
   });
 
+  it("imports reconciled catalog metadata and resolves changed paths idempotently", async () => {
+    await linkImplementation();
+    const delivery = githubDelivery();
+    Object.assign(delivery.payload.pull_request as object, {
+      changed_paths: ["workers/work-graph-api/src/index.ts"],
+    });
+    Object.assign(delivery.payload, {
+      work_graph_delivery_metadata_created_at: "2026-10-01T09:00:00.000Z",
+      work_graph_delivery_metadata: {
+        repository: githubRepository,
+        sourceRevision: "catalog-blob-sha",
+        targets: [
+          {
+            id: "delivery-target:work-graph/api",
+            projectId: "project:work-graph",
+            repository: githubRepository,
+            sourcePaths: [
+              {
+                path: "workers/work-graph-api",
+                mode: "exclusive",
+                subjects: ["component:work-graph/work-graph-api"],
+              },
+            ],
+            subjects: ["component:work-graph/work-graph-api"],
+            sharedHostId: null,
+            requiredCiNames: ["Work Graph API CI"],
+            productionEnvironments: ["production-work-graph"],
+          },
+        ],
+      },
+    });
+
+    await expect(consumer.consume(delivery)).resolves.toBe("processed");
+    await expect(consumer.consume(delivery)).resolves.toBe("processed");
+
+    await expect(db.select().from(schema.deliveryMetadataRevision)).resolves.toEqual([
+      expect.objectContaining({ sourceRevision: "catalog-blob-sha" }),
+    ]);
+    await expect(
+      db.select().from(schema.workItemPullRequestDeliveryResolution),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        metadataSourceRevision: "catalog-blob-sha",
+        targets: [
+          expect.objectContaining({ id: "delivery-target:work-graph/api" }),
+        ],
+        failureCode: null,
+      }),
+    ]);
+  });
+
   it("correlates head CI, merge, and deployment when deployment arrives first without changing lifecycle authority", async () => {
     await linkImplementation();
     await repository.createWorkItem({ id: "dependent", title: "Wait for release" });
@@ -978,6 +1146,207 @@ describe("GitHub delivery consumption", () => {
     expect(await repository.getWorkItem("dependent")).toMatchObject({ lifecycle: "open", stage: "blocked" });
     expect((await repository.listEvents()).filter((item) => item.type !== "pull_request.refreshed"))
       .toEqual(before.filter((item) => item.type !== "pull_request.refreshed"));
+  });
+
+  it("turns failed requested deployment evidence into one session-bound recovery", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-production",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putDeliveryActionRequest({
+      id: recordId(880),
+      workItemId: "github-work",
+      kind: "deployment",
+      provider: "github",
+      evidenceKind: "deployment",
+      evidenceExternalId: `${githubRepository}/deployments/20`,
+      repository: githubRepository,
+      commitSha: mergeSha,
+      policyId: "github-production",
+      policyRevision: 1,
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention",
+      requestedAt: "2026-10-01T11:00:00.000Z",
+    });
+    await consumer.consume(githubDelivery());
+    const failed = githubDelivery("deployment_status", 3);
+    Object.assign(failed.payload.deployment_status as object, {
+      state: "failure",
+    });
+
+    await expect(consumer.consume(failed)).resolves.toBe("processed");
+    await expect(consumer.consume(failed)).resolves.toBe("processed");
+
+    const recoveries = await repository.listDeliveryRecoveries({
+      initiatingSessionId: "session:initiator",
+    });
+    expect(recoveries).toEqual([
+      expect.objectContaining({
+        workItemId: "github-work",
+        initiatingSessionId: "session:initiator",
+        evidence: expect.objectContaining({
+          externalId: `${githubRepository}/deployments/20`,
+          state: "failure",
+        }),
+      }),
+    ]);
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      stage: "needs_attention",
+    });
+    expect(await repository.listAttentionRequests({ workItemId: "github-work" }))
+      .toEqual([
+        expect.objectContaining({
+          id: recoveries[0]?.attentionRequestId,
+          requestingLeaseId: null,
+          deliveryRecoveryId: recoveries[0]?.id,
+          kind: "delivery_action_failure",
+          blocking: true,
+        }),
+      ]);
+    expect(await db.select().from(schema.deliveryActionResult)).toHaveLength(1);
+    expect(await db.select().from(schema.deliveryRecovery)).toHaveLength(1);
+    expect(
+      (
+        await rejectedDatabaseError(
+          db
+            .update(schema.deliveryActionRequest)
+            .set({ commitSha: commitSha("c") })
+            .where(eq(schema.deliveryActionRequest.id, recordId(880))),
+        )
+      )?.code,
+    ).toBe("55000");
+
+    const [recovery] = recoveries;
+    if (!recovery) throw new Error("Expected a delivery recovery.");
+    const delivery = {
+      id: recordId(881),
+      recoveryId: recovery.id,
+      kind: "push" as const,
+      targetSessionId: "session:initiator",
+      reservedAt: "2026-10-01T12:05:00.000Z",
+    };
+    await expect(repository.reserveDeliveryRecovery(delivery)).resolves.toMatchObject({
+      created: true,
+    });
+    await expect(repository.reserveDeliveryRecovery(delivery)).resolves.toMatchObject({
+      created: false,
+    });
+
+    await repository.resolveAttentionRequest({
+      id: recordId(882),
+      attentionRequestId: recovery.attentionRequestId,
+      resolution: "Initiating session recovered the deployment.",
+    });
+    await expect(
+      repository.listDeliveryRecoveries({
+        initiatingSessionId: "session:initiator",
+      }),
+    ).resolves.toEqual([]);
+    await expect(
+      repository.listDeliveryRecoveries({
+        initiatingSessionId: "session:initiator",
+        unresolvedOnly: false,
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({ resolvedAt: expect.any(String) }),
+    ]);
+  });
+
+  it("reserves at most one owner-authorized replacement launch", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "replacement-production",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putDeliveryActionRequest({
+      id: recordId(883),
+      workItemId: "github-work",
+      kind: "deployment",
+      provider: "github",
+      evidenceKind: "deployment",
+      evidenceExternalId: `${githubRepository}/deployments/20`,
+      repository: githubRepository,
+      commitSha: mergeSha,
+      policyId: "replacement-production",
+      policyRevision: 1,
+      initiatingSessionId: null,
+      unavailableSessionFallback: "launch_replacement",
+      requestedAt: "2026-10-01T11:00:00.000Z",
+    });
+    await consumer.consume(githubDelivery());
+    const failed = githubDelivery("deployment_status", 3);
+    Object.assign(failed.payload.deployment_status as object, {
+      state: "failure",
+    });
+    await consumer.consume(failed);
+    const [recovery] = await repository.listDeliveryRecoveries({
+      workItemId: "github-work",
+    });
+    if (!recovery) throw new Error("Expected a delivery recovery.");
+    const launch = {
+      id: recordId(884),
+      recoveryId: recovery.id,
+      kind: "replacement_launch" as const,
+      targetSessionId: null,
+      reservedAt: "2026-10-01T12:06:00.000Z",
+    };
+
+    await expect(repository.reserveDeliveryRecovery(launch)).resolves.toMatchObject({
+      created: true,
+    });
+    await expect(
+      repository.reserveDeliveryRecovery({ ...launch, id: recordId(885) }),
+    ).rejects.toMatchObject({
+      code: "duplicate_delivery_recovery_delivery",
+    });
+  });
+
+  it("records a successful requested merge without recovery work", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "merge-production",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putDeliveryActionRequest({
+      id: recordId(886),
+      workItemId: "github-work",
+      kind: "merge",
+      provider: "github",
+      evidenceKind: "pull_request",
+      evidenceExternalId: `${githubRepository}/pull/7`,
+      repository: githubRepository,
+      commitSha: mergeSha,
+      policyId: "merge-production",
+      policyRevision: 1,
+      initiatingSessionId: "session:initiator",
+      unavailableSessionFallback: "request_owner_attention",
+      requestedAt: "2026-10-01T11:00:00.000Z",
+    });
+
+    await expect(consumer.consume(githubDelivery())).resolves.toBe("processed");
+
+    await expect(
+      repository.listDeliveryRecoveries({ workItemId: "github-work" }),
+    ).resolves.toEqual([]);
+    await expect(db.select().from(schema.deliveryActionResult)).resolves.toEqual([
+      expect.objectContaining({ state: "success" }),
+    ]);
+    await expect(
+      repository.listAttentionRequests({ workItemId: "github-work" }),
+    ).resolves.toEqual([]);
   });
 
   it("reevaluates configured completion candidacy after correlated deliveries and replay", async () => {
@@ -1057,6 +1426,221 @@ describe("GitHub delivery consumption", () => {
         expect.any(String),
       ]),
     });
+  });
+
+  it("applies an enabled repository default when a PR link recovers retained evidence", async () => {
+    await repository.createWorkItem({ id: "github-work", title: "Ship" });
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-default",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    const policyDefault = {
+      repository: githubRepository,
+      revision: 1,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: true,
+      createdAt: "2026-10-01T09:01:00.000Z",
+    } as const;
+    await expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision(policyDefault),
+    ).resolves.toEqual(policyDefault);
+    await expect(
+      repository.putRepositoryCompletionPolicyDefaultRevision({
+        ...policyDefault,
+        enabled: false,
+      }),
+    ).rejects.toMatchObject({ code: "invalid_completion_policy_default" });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    await consumer.consume(githubDelivery());
+    await repository.putWorkItemPullRequest({
+      workItemId: "github-work",
+      repository: githubRepository,
+      number: 7,
+      role: "implementation",
+    });
+
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "released",
+    });
+    expect(await repository.getCompletionCandidate("github-work")).toMatchObject({
+      candidate: true,
+      policyId: "github-default",
+      policyRevision: 1,
+    });
+  });
+
+  it("fails closed when the latest repository default is disabled", async () => {
+    await linkImplementation();
+    await repository.putCompletionPolicyRevision({
+      policyId: "github-default",
+      revision: 1,
+      requiredCiNames: ["CI"],
+      productionEnvironments: ["production"],
+      automaticRelease: true,
+      createdAt: "2026-10-01T09:00:00.000Z",
+    });
+    await repository.putRepositoryCompletionPolicyDefaultRevision({
+      repository: githubRepository,
+      revision: 1,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: true,
+      createdAt: "2026-10-01T09:01:00.000Z",
+    });
+    await repository.putRepositoryCompletionPolicyDefaultRevision({
+      repository: githubRepository,
+      revision: 2,
+      policyId: "github-default",
+      policyRevision: 1,
+      enabled: false,
+      createdAt: "2026-10-01T09:02:00.000Z",
+    });
+
+    await consumer.consume(githubDelivery("deployment_status", 3));
+    await consumer.consume(githubDelivery("workflow_run", 2));
+    await consumer.consume(githubDelivery());
+
+    expect(await repository.getWorkItem("github-work")).toMatchObject({
+      lifecycle: "open",
+    });
+    expect(await repository.getCompletionCandidate("github-work")).toBeNull();
+  });
+
+  it("requires linked repositories to agree and preserves explicit assignments", async () => {
+    await repository.createWorkItem({
+      id: "multi-repository-work",
+      title: "Ship across repositories",
+    });
+    for (const [policyId, repositoryName] of [
+      ["first-policy", "example/first"],
+      ["second-policy", "example/second"],
+    ] as const) {
+      await repository.putCompletionPolicyRevision({
+        policyId,
+        revision: 1,
+        requiredCiNames: ["CI"],
+        productionEnvironments: ["production"],
+        automaticRelease: true,
+        createdAt: "2026-10-01T09:00:00.000Z",
+      });
+      await repository.putRepositoryCompletionPolicyDefaultRevision({
+        repository: repositoryName,
+        revision: 1,
+        policyId,
+        policyRevision: 1,
+        enabled: true,
+        createdAt: "2026-10-01T09:01:00.000Z",
+      });
+    }
+
+    const linkImplementation = async (
+      repositoryName: string,
+      number: number,
+    ): Promise<void> => {
+      await repository.refreshPullRequest({
+        repository: repositoryName,
+        number,
+        url: `https://github.com/${repositoryName}/pull/${number}`,
+        headSha: commitSha(String(number)),
+        acceptedHeadSha: commitSha(String(number)),
+        mergeCommitSha: commitSha(String(number + 2)),
+        state: "merged",
+        draft: false,
+        mergeability: "unknown",
+        reviewDecision: "approved",
+        checkSummary: "success",
+        observedAt: "2026-10-01T10:00:00.000Z",
+      });
+      await repository.putWorkItemPullRequest({
+        workItemId: "multi-repository-work",
+        repository: repositoryName,
+        number,
+        role: "implementation",
+      });
+    };
+
+    await linkImplementation("example/first", 1);
+    await expect(
+      repository.getCompletionCandidate("multi-repository-work"),
+    ).resolves.toMatchObject({
+      candidate: false,
+      policyId: "first-policy",
+      policyRevision: 1,
+    });
+    await expect(
+      db
+        .select({
+          policyId: schema.workItemCompletionPolicy.policyId,
+          assignmentSource:
+            schema.workItemCompletionPolicy.assignmentSource,
+        })
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([
+      { policyId: "first-policy", assignmentSource: "repository_default" },
+    ]);
+
+    await linkImplementation("example/second", 2);
+    await expect(
+      repository.getCompletionCandidate("multi-repository-work"),
+    ).resolves.toBeNull();
+    await expect(
+      db
+        .select()
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([]);
+
+    await repository.assignCompletionPolicy({
+      workItemId: "multi-repository-work",
+      policyId: "first-policy",
+      policyRevision: 1,
+      assignedAt: "2026-10-01T11:01:00.000Z",
+    });
+    await expect(
+      repository.evaluateCompletionCandidateAndReleaseIfConfigured({
+        id: recordId(907),
+        workItemId: "multi-repository-work",
+        evaluatedAt: "2026-10-01T11:02:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      automaticReleaseOutcome: "completion_requirements_not_met",
+      evaluation: { policyId: "first-policy", policyRevision: 1 },
+    });
+    await expect(
+      db
+        .select({
+          policyId: schema.workItemCompletionPolicy.policyId,
+          assignmentSource:
+            schema.workItemCompletionPolicy.assignmentSource,
+        })
+        .from(schema.workItemCompletionPolicy)
+        .where(
+          eq(
+            schema.workItemCompletionPolicy.workItemId,
+            "multi-repository-work",
+          ),
+        ),
+    ).resolves.toEqual([
+      { policyId: "first-policy", assignmentSource: "explicit" },
+    ]);
   });
 
   it("keeps an active worker lease fenced during automatic evaluation and concurrent release", async () => {
@@ -1806,6 +2390,789 @@ describe("delivery evidence persistence", () => {
         currentOnly: true,
       }),
     ).resolves.toHaveLength(6);
+  });
+
+  it("snapshots generated delivery targets and preserves earlier catalog decisions", async () => {
+    await repository.putKnowledgeScope({
+      id: "work-graph",
+      kind: "project",
+      title: "Work Graph",
+      canonicalUrl: "https://example.test/projects/work-graph",
+      markdownUrl: "https://example.test/projects/work-graph.md",
+    });
+    await repository.createWorkItem({
+      id: "generated-targets",
+      title: "Resolve generated targets",
+      schedulingProjectId: "work-graph",
+    });
+    const deliveryTarget = (id: string, environment: string) => ({
+      id: `delivery-target:work-graph/${id}`,
+      projectId: "project:work-graph",
+      repository: "example/work-graph",
+      sourcePaths: [
+        {
+          path: "packages/work-graph-domain",
+          mode: "shared" as const,
+          subjects: ["component:work-graph/work-graph-domain"],
+        },
+      ],
+      subjects: [
+        "component:work-graph/work-graph-domain",
+        `workload:work-graph/${id}`,
+      ],
+      sharedHostId: null,
+      requiredCiNames: [`${id} CI`],
+      productionEnvironments: [environment],
+    });
+    const targets = [
+      deliveryTarget("api", "production-api"),
+      deliveryTarget("observer", "production-observer"),
+    ];
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "catalog-v1",
+        targets,
+      },
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/work-graph",
+      number: 91,
+      url: "https://github.com/example/work-graph/pull/91",
+      headSha: commitSha("7"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["packages/work-graph-domain/src/evidence.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "generated-targets",
+      repository: "example/work-graph",
+      number: 91,
+      role: "implementation",
+    });
+
+    const [first] = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution);
+    expect(first).toMatchObject({
+      metadataSourceRevision: "catalog-v1",
+      changedPaths: ["packages/work-graph-domain/src/evidence.ts"],
+      failureCode: null,
+      subjects: [
+        "component:work-graph/work-graph-domain",
+        "workload:work-graph/api",
+        "workload:work-graph/observer",
+      ],
+      targets: [
+        { id: "delivery-target:work-graph/api" },
+        { id: "delivery-target:work-graph/observer" },
+      ],
+    });
+
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "catalog-v2",
+        targets: [
+          deliveryTarget("api", "production-api-v2"),
+          deliveryTarget("observer", "production-observer"),
+        ],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "catalog-redelivered-old",
+        targets,
+      },
+      "2026-09-22T08:00:00.000Z",
+    );
+    await repository.putDeliveryTargetOverride({
+      workItemId: "generated-targets",
+      targetIds: ["delivery-target:work-graph/api"],
+      updatedAt: "2026-09-22T12:00:00.000Z",
+    });
+    await expect(
+      repository.putDeliveryTargetOverride({
+        workItemId: "generated-targets",
+        targetIds: ["delivery-target:recipe-site/site-ui"],
+        updatedAt: "2026-09-22T13:00:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "delivery_override_outside_policy" });
+
+    const resolutions = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution)
+      .where(
+        eq(
+          schema.workItemPullRequestDeliveryResolution.workItemId,
+          "generated-targets",
+        ),
+      )
+      .orderBy(schema.workItemPullRequestDeliveryResolution.resolvedAt);
+    expect(resolutions).toHaveLength(3);
+    expect(
+      resolutions.find(
+        ({ metadataSourceRevision }) =>
+          metadataSourceRevision === "catalog-v1",
+      ),
+    ).toMatchObject({
+      metadataSourceRevision: "catalog-v1",
+      targets: [
+        { productionEnvironments: ["production-api"] },
+        { productionEnvironments: ["production-observer"] },
+      ],
+    });
+    expect(
+      resolutions.find(({ overrideTargetIds }) => overrideTargetIds.length > 0),
+    ).toMatchObject({
+      metadataSourceRevision: "catalog-v2",
+      overrideTargetIds: ["delivery-target:work-graph/api"],
+      targets: [
+        {
+          id: "delivery-target:work-graph/api",
+          productionEnvironments: ["production-api-v2"],
+        },
+      ],
+    });
+
+    const catalogV3 = {
+      repository: "example/work-graph",
+      sourceRevision: "catalog-v3",
+      targets: [
+        deliveryTarget("api", "production-api-v3"),
+        deliveryTarget("observer", "production-observer"),
+      ],
+    };
+    await repository.putDeliveryMetadataRevision(
+      catalogV3,
+      "2026-09-22T14:00:00.000Z",
+      { reconcileLinkedPullRequests: false },
+    );
+    const currentResolutionRevision = async () => {
+      const [current] = await db
+        .select({
+          sourceRevision:
+            schema.workItemPullRequestDeliveryResolution.metadataSourceRevision,
+        })
+        .from(schema.workItemPullRequestCurrentDeliveryResolution)
+        .innerJoin(
+          schema.workItemPullRequestDeliveryResolution,
+          eq(
+            schema.workItemPullRequestDeliveryResolution.id,
+            schema.workItemPullRequestCurrentDeliveryResolution.resolutionId,
+          ),
+        )
+        .where(
+          eq(
+            schema.workItemPullRequestCurrentDeliveryResolution.workItemId,
+            "generated-targets",
+          ),
+        );
+      return current?.sourceRevision;
+    };
+    await expect(currentResolutionRevision()).resolves.toBe("catalog-v2");
+
+    await repository.putDeliveryMetadataRevision(
+      catalogV3,
+      "2026-09-22T14:00:00.000Z",
+    );
+    await expect(currentResolutionRevision()).resolves.toBe("catalog-v3");
+  });
+
+  it("fails completion closed while delivery target resolution is stale", async () => {
+    const repositoryName = "example/stale-resolution";
+    const headSha = commitSha("e");
+    const mergeSha = commitSha("f");
+    const catalog = (sourceRevision: string, environment: string) => ({
+      repository: repositoryName,
+      sourceRevision,
+      targets: [
+        {
+          id: "delivery-target:stale-resolution/api",
+          projectId: "project:stale-resolution",
+          repository: repositoryName,
+          sourcePaths: [
+            {
+              path: "workers/api",
+              mode: "exclusive" as const,
+              subjects: ["component:stale-resolution/api"],
+            },
+          ],
+          subjects: ["component:stale-resolution/api"],
+          sharedHostId: null,
+          requiredCiNames: ["verify"],
+          productionEnvironments: [environment],
+        },
+      ],
+    });
+    await repository.createWorkItem({
+      id: "stale-resolution",
+      title: "Reject stale resolution",
+    });
+    await repository.putDeliveryMetadataRevision(
+      catalog("catalog-v1", "production-v1"),
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: repositoryName,
+      number: 93,
+      url: `https://github.com/${repositoryName}/pull/93`,
+      headSha,
+      acceptedHeadSha: headSha,
+      mergeCommitSha: mergeSha,
+      state: "merged",
+      draft: false,
+      mergeability: "unknown",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["workers/api/src/index.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "stale-resolution",
+      repository: repositoryName,
+      number: 93,
+      role: "implementation",
+    });
+    await repository.putCompletionPolicyRevision({
+      policyId: "stale-resolution-policy",
+      revision: 1,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production-v1"],
+      automaticRelease: false,
+      createdAt: "2026-09-22T09:30:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "stale-resolution",
+      policyId: "stale-resolution-policy",
+      policyRevision: 1,
+      assignedAt: "2026-09-22T09:31:00.000Z",
+    });
+    await storeObservation(80, {
+      repository: repositoryName,
+      externalId: "stale-resolution-pr",
+      commitSha: mergeSha,
+      kind: "pull_request",
+      name: null,
+      correlationKind: "pull_request_merge",
+      pullRequestRepository: repositoryName,
+      pullRequestNumber: 93,
+    });
+    await storeObservation(81, {
+      repository: repositoryName,
+      externalId: "stale-resolution-ci",
+      commitSha: headSha,
+      pullRequestRepository: repositoryName,
+      pullRequestNumber: 93,
+    });
+    await storeObservation(82, {
+      repository: repositoryName,
+      externalId: "stale-resolution-deployment",
+      commitSha: mergeSha,
+      kind: "deployment",
+      name: null,
+      environment: "production-v1",
+      correlationKind: "pull_request_merge",
+      pullRequestRepository: repositoryName,
+      pullRequestNumber: 93,
+    });
+    await expect(
+      repository.evaluateCompletionCandidate({
+        id: recordId(780),
+        workItemId: "stale-resolution",
+        evaluatedAt: "2026-09-22T12:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({ candidate: true, reasons: [] });
+
+    await repository.putDeliveryMetadataRevision(
+      catalog("catalog-v2", "production-v2"),
+      "2026-09-22T13:00:00.000Z",
+      { reconcileLinkedPullRequests: false },
+    );
+    await expect(
+      repository.evaluateCompletionCandidate({
+        id: recordId(781),
+        workItemId: "stale-resolution",
+        evaluatedAt: "2026-09-22T14:00:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      candidate: false,
+      reasons: expect.arrayContaining(["missing_delivery_target_resolution"]),
+    });
+  });
+
+  it("makes a replayed metadata revision current after a catalog revert", async () => {
+    await repository.putKnowledgeScope({
+      id: "catalog-revert-project",
+      kind: "project",
+      title: "Catalog revert project",
+      canonicalUrl: "https://example.test/projects/catalog-revert",
+      markdownUrl: "https://example.test/projects/catalog-revert.md",
+    });
+    await repository.createWorkItem({
+      id: "catalog-revert",
+      title: "Revert generated delivery metadata",
+      schedulingProjectId: "catalog-revert-project",
+    });
+    const target = (environment: string) => ({
+      id: "delivery-target:catalog-revert/api",
+      projectId: "project:catalog-revert-project",
+      repository: "example/catalog-revert",
+      sourcePaths: [
+        {
+          path: "workers/api",
+          mode: "exclusive" as const,
+          subjects: ["component:catalog-revert/api"],
+        },
+      ],
+      subjects: ["component:catalog-revert/api"],
+      sharedHostId: null,
+      requiredCiNames: ["API CI"],
+      productionEnvironments: [environment],
+    });
+    const catalogA = {
+      repository: "example/catalog-revert",
+      sourceRevision: "catalog-a",
+      targets: [target("production-a")],
+    };
+    await repository.putDeliveryMetadataRevision(
+      catalogA,
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/catalog-revert",
+      number: 95,
+      url: "https://github.com/example/catalog-revert/pull/95",
+      headSha: commitSha("5"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["workers/api/src/index.ts"],
+      deliveryMetadataSourceRevision: "catalog-a",
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "catalog-revert",
+      repository: "example/catalog-revert",
+      number: 95,
+      role: "implementation",
+    });
+
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/catalog-revert",
+        sourceRevision: "catalog-b",
+        targets: [target("production-b")],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "catalog-revert",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        kind: "delivery_target_resolution",
+        note: expect.stringContaining("delivery_metadata_stale"),
+      }),
+    ]);
+
+    await repository.putDeliveryMetadataRevision(
+      catalogA,
+      "2026-09-22T12:00:00.000Z",
+    );
+
+    await expect(
+      db
+        .select()
+        .from(schema.repositoryCurrentDeliveryMetadataRevision)
+        .where(
+          eq(
+            schema.repositoryCurrentDeliveryMetadataRevision.repository,
+            "example/catalog-revert",
+          ),
+        ),
+    ).resolves.toEqual([
+      {
+        repository: "example/catalog-revert",
+        sourceRevision: "catalog-a",
+        selectedAt: new Date("2026-09-22T12:00:00.000Z"),
+      },
+    ]);
+    const [currentResolution] = await db
+      .select({
+        metadataSourceRevision:
+          schema.workItemPullRequestDeliveryResolution
+            .metadataSourceRevision,
+        failureCode:
+          schema.workItemPullRequestDeliveryResolution.failureCode,
+      })
+      .from(schema.workItemPullRequestCurrentDeliveryResolution)
+      .innerJoin(
+        schema.workItemPullRequestDeliveryResolution,
+        eq(
+          schema.workItemPullRequestCurrentDeliveryResolution.resolutionId,
+          schema.workItemPullRequestDeliveryResolution.id,
+        ),
+      )
+      .where(
+        eq(
+          schema.workItemPullRequestCurrentDeliveryResolution.workItemId,
+          "catalog-revert",
+        ),
+      );
+    expect(currentResolution).toEqual({
+      metadataSourceRevision: "catalog-a",
+      failureCode: null,
+    });
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "catalog-revert",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([]);
+  });
+
+  it("does not resolve overrides against legacy pull requests without changed paths", async () => {
+    await repository.createWorkItem({
+      id: "legacy-delivery-paths",
+      title: "Keep legacy delivery links unchanged",
+    });
+    await repository.refreshPullRequest({
+      repository: "example/work-graph",
+      number: 93,
+      url: "https://github.com/example/work-graph/pull/93",
+      headSha: commitSha("3"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "unknown",
+      reviewDecision: null,
+      checkSummary: "unknown",
+      observedAt: "2026-09-22T10:00:00.000Z",
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "legacy-delivery-paths",
+      repository: "example/work-graph",
+      number: 93,
+      role: "implementation",
+    });
+
+    await repository.putDeliveryTargetOverride({
+      workItemId: "legacy-delivery-paths",
+      targetIds: ["delivery-target:work-graph/api"],
+      updatedAt: "2026-09-22T11:00:00.000Z",
+    });
+
+    await expect(
+      db
+        .select()
+        .from(schema.workItemPullRequestDeliveryResolution)
+        .where(
+          eq(
+            schema.workItemPullRequestDeliveryResolution.workItemId,
+            "legacy-delivery-paths",
+          ),
+        ),
+    ).resolves.toEqual([]);
+    await expect(
+      repository.listAttentionRequests({ workItemId: "legacy-delivery-paths" }),
+    ).resolves.toEqual([]);
+  });
+
+  it("makes a replayed successful delivery resolution current again", async () => {
+    await repository.putKnowledgeScope({
+      id: "replayed-delivery-project",
+      kind: "project",
+      title: "Replayed delivery project",
+      canonicalUrl: "https://example.test/projects/replayed-delivery",
+      markdownUrl: "https://example.test/projects/replayed-delivery.md",
+    });
+    await repository.createWorkItem({
+      id: "replayed-delivery-resolution",
+      title: "Replay a generated target resolution",
+      schedulingProjectId: "replayed-delivery-project",
+    });
+    const target = (id: string, path: string) => ({
+      id: `delivery-target:replayed-delivery-project/${id}`,
+      projectId: "project:replayed-delivery-project",
+      repository: "example/work-graph",
+      sourcePaths: [
+        {
+          path,
+          mode: "shared" as const,
+          subjects: [`component:replayed-delivery-project/${id}`],
+        },
+      ],
+      subjects: [`workload:replayed-delivery-project/${id}`],
+      sharedHostId: "shared-host:replayed-delivery",
+      requiredCiNames: [`${id} CI`],
+      productionEnvironments: [`production-${id}`],
+    });
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "replay-catalog-v0",
+        targets: [target("api", "packages"), target("observer", "packages")],
+      },
+      "2026-09-22T09:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/work-graph",
+      number: 94,
+      url: "https://github.com/example/work-graph/pull/94",
+      headSha: commitSha("4"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: "approved",
+      checkSummary: "success",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["packages/api/src/index.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "replayed-delivery-resolution",
+      repository: "example/work-graph",
+      number: 94,
+      role: "implementation",
+    });
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/work-graph",
+        sourceRevision: "replay-catalog-v1",
+        targets: [
+          target("api", "packages/api"),
+          target("observer", "packages/observer"),
+        ],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    const apiTargetId = "delivery-target:replayed-delivery-project/api";
+    const observerTargetId =
+      "delivery-target:replayed-delivery-project/observer";
+    await repository.putDeliveryTargetOverride({
+      workItemId: "replayed-delivery-resolution",
+      targetIds: [apiTargetId],
+      updatedAt: "2026-09-22T12:00:00.000Z",
+    });
+    const [apiResolution] = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution)
+      .where(
+        and(
+          eq(
+            schema.workItemPullRequestDeliveryResolution.workItemId,
+            "replayed-delivery-resolution",
+          ),
+          eq(
+            schema.workItemPullRequestDeliveryResolution.overrideTargetIds,
+            [apiTargetId],
+          ),
+        ),
+      );
+    if (!apiResolution) throw new Error("Expected the API resolution.");
+
+    await repository.putDeliveryTargetOverride({
+      workItemId: "replayed-delivery-resolution",
+      targetIds: [observerTargetId],
+      updatedAt: "2026-09-22T13:00:00.000Z",
+    });
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "replayed-delivery-resolution",
+        state: "unresolved",
+      }),
+    ).resolves.toHaveLength(1);
+
+    await repository.putDeliveryTargetOverride({
+      workItemId: "replayed-delivery-resolution",
+      targetIds: [apiTargetId],
+      updatedAt: "2026-09-22T14:00:00.000Z",
+    });
+
+    await expect(
+      db
+        .select()
+        .from(schema.workItemPullRequestCurrentDeliveryResolution)
+        .where(
+          eq(
+            schema.workItemPullRequestCurrentDeliveryResolution.workItemId,
+            "replayed-delivery-resolution",
+          ),
+        ),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        resolutionId: apiResolution.id,
+        selectedAt: expect.any(Date),
+      }),
+    ]);
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "replayed-delivery-resolution",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([]);
+
+    await repository.putCompletionPolicyRevision({
+      policyId: "replayed-delivery-policy",
+      revision: 1,
+      requiredCiNames: ["verify"],
+      productionEnvironments: ["production"],
+      automaticRelease: false,
+      createdAt: "2026-09-22T09:00:00.000Z",
+    });
+    await repository.assignCompletionPolicy({
+      workItemId: "replayed-delivery-resolution",
+      policyId: "replayed-delivery-policy",
+      policyRevision: 1,
+      assignedAt: "2026-09-22T09:30:00.000Z",
+    });
+    const evaluation = await repository.evaluateCompletionCandidate({
+      id: recordId(794),
+      workItemId: "replayed-delivery-resolution",
+      evaluatedAt: "2026-09-22T15:00:00.000Z",
+    });
+    expect(evaluation.reasons).not.toContain(
+      "missing_delivery_target_resolution",
+    );
+  });
+
+  it("fails closed with blocking attention when generated metadata is unavailable", async () => {
+    await repository.createWorkItem({
+      id: "missing-generated-targets",
+      title: "Missing generated targets",
+    });
+    await repository.refreshPullRequest({
+      repository: "example/missing",
+      number: 92,
+      url: "https://github.com/example/missing/pull/92",
+      headSha: commitSha("8"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: null,
+      checkSummary: "pending",
+      observedAt: "2026-09-22T10:00:00.000Z",
+      changedPaths: ["workers/missing/src/index.ts"],
+    });
+    await repository.putWorkItemPullRequest({
+      workItemId: "missing-generated-targets",
+      repository: "example/missing",
+      number: 92,
+      role: "implementation",
+    });
+
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "missing-generated-targets",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        deliveryResolutionId: expect.any(String),
+        kind: "delivery_target_resolution",
+        blocking: true,
+        resolution: null,
+      }),
+    ]);
+    const [resolution] = await db
+      .select()
+      .from(schema.workItemPullRequestDeliveryResolution)
+      .where(
+        eq(
+          schema.workItemPullRequestDeliveryResolution.workItemId,
+          "missing-generated-targets",
+        ),
+      );
+    expect(resolution).toMatchObject({
+      metadataSourceRevision: "unavailable",
+      targets: [],
+      failureCode: "delivery_metadata_missing",
+    });
+
+    await repository.putDeliveryMetadataRevision(
+      {
+        repository: "example/missing",
+        sourceRevision: "catalog-current",
+        targets: [
+          {
+            id: "delivery-target:missing/api",
+            projectId: "project:missing",
+            repository: "example/missing",
+            sourcePaths: [
+              {
+                path: "workers/missing",
+                mode: "exclusive",
+                subjects: ["component:missing/api"],
+              },
+            ],
+            subjects: ["component:missing/api"],
+            sharedHostId: null,
+            requiredCiNames: ["Missing API CI"],
+            productionEnvironments: ["production-missing"],
+          },
+        ],
+      },
+      "2026-09-22T11:00:00.000Z",
+    );
+    await repository.refreshPullRequest({
+      repository: "example/missing",
+      number: 92,
+      url: "https://github.com/example/missing/pull/92",
+      headSha: commitSha("8"),
+      acceptedHeadSha: null,
+      mergeCommitSha: null,
+      state: "open",
+      draft: false,
+      mergeability: "mergeable",
+      reviewDecision: null,
+      checkSummary: "pending",
+      observedAt: "2026-09-22T12:00:00.000Z",
+      changedPaths: ["workers/missing/src/index.ts"],
+      deliveryMetadataSourceRevision: "catalog-stale",
+    });
+    await expect(
+      repository.listAttentionRequests({
+        workItemId: "missing-generated-targets",
+        state: "unresolved",
+      }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        kind: "delivery_target_resolution",
+        note: expect.stringContaining("delivery_metadata_stale"),
+      }),
+    ]);
+    expect(
+      (
+        await db
+          .select()
+          .from(schema.workItemPullRequestDeliveryResolution)
+          .where(
+            eq(
+              schema.workItemPullRequestDeliveryResolution.workItemId,
+              "missing-generated-targets",
+            ),
+          )
+      ).some(({ failureCode }) => failureCode === "delivery_metadata_stale"),
+    ).toBe(true);
   });
 
   it("atomically releases only after every implementation pull request satisfies policy", async () => {
@@ -3259,6 +4626,252 @@ describe("lease-backed claiming", () => {
       effectiveExpedited: true,
       donatedFromWorkItemId: "urgent-child",
     });
+  });
+
+  it("matches the full queue projection across stages, scopes, cursors, and point reads", async () => {
+    await repository.putKnowledgeScope({
+      id: "delivery",
+      kind: "initiative",
+      title: "Delivery",
+      canonicalUrl: "https://example.test/initiatives/delivery",
+      markdownUrl: "https://example.test/initiatives/delivery.md",
+    });
+    await repository.putKnowledgeScope({
+      id: "work-graph",
+      kind: "project",
+      title: "Work Graph",
+      canonicalUrl: "https://example.test/projects/work-graph",
+      markdownUrl: "https://example.test/projects/work-graph.md",
+    });
+    await repository.addKnowledgeScopeRelationship({
+      parentKnowledgeScopeId: "delivery",
+      childKnowledgeScopeId: "work-graph",
+    });
+    await repository.createWorkItem({
+      id: "urgent",
+      title: "Urgent delivery",
+      schedulingInitiativeId: "delivery",
+      schedulingProjectId: "work-graph",
+      expedited: true,
+      expediteReason: "Restore delivery.",
+    });
+    await repository.createWorkItem({
+      id: "urgent-child",
+      title: "Urgent child",
+      parentId: "urgent",
+    });
+    await repository.createWorkItem({ id: "blocker", title: "Blocker" });
+    await repository.addDependency(dependency("urgent-child", "blocker"));
+    for (const id of ["routine", "active", "stale", "attention", "released", "cancelled"]) {
+      await repository.createWorkItem({ id, title: id });
+    }
+
+    const activeLease = await repository.claimWorkItem({
+      leaseId: recordId(801),
+      workerId: "active-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "active",
+    });
+    const staleLease = await repository.claimWorkItem({
+      leaseId: recordId(802),
+      workerId: "stale-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "stale",
+    });
+    const attentionLease = await repository.claimWorkItem({
+      leaseId: recordId(803),
+      workerId: "attention-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "attention",
+    });
+    const releasedLease = await repository.claimWorkItem({
+      leaseId: recordId(804),
+      workerId: "release-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "released",
+    });
+    const cancelledLease = await repository.claimWorkItem({
+      leaseId: recordId(805),
+      workerId: "cancel-worker",
+      leaseDurationSeconds: 300,
+      workItemId: "cancelled",
+    });
+    if (
+      !activeLease ||
+      !staleLease ||
+      !attentionLease ||
+      !releasedLease ||
+      !cancelledLease
+    ) {
+      throw new Error("Expected projection fixture claims to succeed.");
+    }
+    await db
+      .update(schema.lease)
+      .set({
+        acquiredAt: new Date("2000-01-01T00:00:00Z"),
+        expiresAt: new Date("2000-01-01T00:01:00Z"),
+      })
+      .where(eq(schema.lease.id, staleLease.id));
+    await repository.createAttentionRequest({
+      id: recordId(806),
+      workItemId: "attention",
+      leaseId: attentionLease.id,
+      epoch: attentionLease.epoch,
+      kind: "decision",
+      question: "Which path should continue?",
+      blocking: true,
+    });
+    await repository.terminateClaimedWorkItem({
+      leaseId: releasedLease.id,
+      epoch: releasedLease.epoch,
+      workItemId: "released",
+      outcome: "released",
+      ...completionEvidence,
+    });
+    await repository.terminateClaimedWorkItem({
+      leaseId: cancelledLease.id,
+      epoch: cancelledLease.epoch,
+      workItemId: "cancelled",
+      outcome: "cancelled",
+    });
+
+    const fullProjection = await repository.listWorkItems();
+    await expect(
+      repository.listWorkItemPage({ limit: fullProjection.length + 1 }),
+    ).resolves.toEqual(fullProjection);
+
+    const scopedProjection = await repository.listWorkItems({
+      includeProjectIds: ["work-graph"],
+    });
+    await expect(
+      repository.listWorkItemPage({
+        includeProjectIds: ["work-graph"],
+        limit: 100,
+      }),
+    ).resolves.toEqual(scopedProjection);
+
+    for (const stage of [
+      "ready",
+      "blocked",
+      "in_progress",
+      "stale",
+      "needs_attention",
+      "released",
+      "cancelled",
+    ] as const) {
+      await expect(
+        repository.listWorkItemPage({ stage, limit: 100 }),
+      ).resolves.toEqual(fullProjection.filter((item) => item.stage === stage));
+    }
+
+    const cursorIndex = fullProjection.findIndex(({ id }) => id === "active");
+    expect(cursorIndex).toBeGreaterThanOrEqual(0);
+    const expectedAfterCursor = fullProjection
+      .slice(cursorIndex + 1)
+      .filter(({ stage }) => stage === "ready")
+      .slice(0, 3);
+    await expect(
+      repository.listWorkItemPage({
+        cursor: "active",
+        stage: "ready",
+        limit: 3,
+      }),
+    ).resolves.toEqual(expectedAfterCursor);
+    await expect(
+      repository.listWorkItemPage({ cursor: "missing", limit: 3 }),
+    ).resolves.toEqual([]);
+
+    for (const expected of fullProjection) {
+      await expect(repository.getWorkItem(expected.id)).resolves.toEqual(
+        expected,
+      );
+    }
+  });
+
+  it("bounds transferred queue rows and serves the expected twelve-agent workload", async () => {
+    const itemCount = 240;
+    await db.insert(schema.workItem).values(
+      Array.from({ length: itemCount }, (_, index) => ({
+        id: `queue-${index.toString().padStart(3, "0")}`,
+        title: `Queue item ${index}`,
+      })),
+    );
+    await db.insert(schema.workItemPriorityContext).values(
+      Array.from({ length: itemCount }, (_, index) => ({
+        workItemId: `queue-${index.toString().padStart(3, "0")}`,
+        rank: (index + 1) * 1_024,
+      })),
+    );
+    const beforeMetrics = createDatabaseQueryMetrics();
+    const afterMetrics = createDatabaseQueryMetrics();
+    const beforeDb = createDb(databaseURL, { metrics: beforeMetrics });
+    const afterDb = createDb(databaseURL, { metrics: afterMetrics });
+    try {
+      await beforeDb.execute(sql`select 1`);
+      await afterDb.execute(sql`select 1`);
+      Object.assign(beforeMetrics, createDatabaseQueryMetrics());
+      Object.assign(afterMetrics, createDatabaseQueryMetrics());
+      const beforeStartedAt = performance.now();
+      const before = await new WorkGraphRepository(beforeDb).listWorkItems();
+      const beforeDurationMs = performance.now() - beforeStartedAt;
+      const afterStartedAt = performance.now();
+      const after = await new WorkGraphRepository(afterDb).listWorkItemPage({
+        stage: "ready",
+        limit: 6,
+      });
+      const afterDurationMs = performance.now() - afterStartedAt;
+      expect(before).toHaveLength(itemCount);
+      expect(after).toHaveLength(6);
+      expect(after).toEqual(before.slice(0, 6));
+      expect(afterMetrics.queryCount).toBeLessThan(beforeMetrics.queryCount);
+      expect(afterMetrics.resultRowCount).toBe(6);
+      expect(afterMetrics.resultRowCount).toBeLessThan(
+        beforeMetrics.resultRowCount,
+      );
+      console.info(
+        "queue-read-characteristics",
+        JSON.stringify({
+          before: { ...beforeMetrics, durationMs: beforeDurationMs },
+          after: { ...afterMetrics, durationMs: afterDurationMs },
+        }),
+      );
+    } finally {
+      await closeDb(beforeDb);
+      await closeDb(afterDb);
+    }
+
+    const expectedAgentWorkload = 12;
+    const concurrentDb = createDb(databaseURL, {
+      maxConnections: expectedAgentWorkload,
+    });
+    try {
+      const concurrentRepository = new WorkGraphRepository(concurrentDb);
+      const concurrencyStartedAt = performance.now();
+      const results = await Promise.allSettled(
+        Array.from({ length: expectedAgentWorkload }, () =>
+          concurrentRepository.listWorkItemPage({
+            stage: "ready",
+            limit: 6,
+          }),
+        ),
+      );
+      expect(results.every(({ status }) => status === "fulfilled")).toBe(true);
+      expect(
+        results.every(
+          (result) => result.status === "fulfilled" && result.value.length === 6,
+        ),
+      ).toBe(true);
+      console.info(
+        "queue-read-concurrency",
+        JSON.stringify({
+          agents: expectedAgentWorkload,
+          durationMs: performance.now() - concurrencyStartedAt,
+          failures: results.filter(({ status }) => status === "rejected").length,
+        }),
+      );
+    } finally {
+      await closeDb(concurrentDb);
+    }
   });
 
   it("reclaims stale work with a higher epoch and expires the old lease", async () => {

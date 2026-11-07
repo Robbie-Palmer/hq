@@ -1,60 +1,67 @@
 ---
-title: "ADR 000: Flexible work-item graph"
+title: "ADR 000: Recursive work-item graph with combined cycle checks"
 date: "2026-09-13"
 status: "Accepted"
 ideas: ["directed-acyclic-graph"]
+implements_product_decisions:
+  - "work-graph:000-adapt-plans-with-flexible-work-items"
 ---
 
 ## Context
 
-Execution changes the shape of knowledge work. An apparently small ticket can
-turn into several dependent tasks, while an apparent epic can collapse into one
-action. Fixed initiative, project, epic, task, and subtask records make those
-discoveries expensive to represent and leave stale types behind after a plan
-changes.
+[PDR 000](/projects/work-graph/pdrs/000-adapt-plans-with-flexible-work-items)
+requires one adaptable work-item concept, separate containment and blocking
+relationships, and derived readiness. The data model must support plan changes
+without losing identity or allowing the combined graph to deadlock.
 
 Initiatives and projects already have a durable source of truth in the public
-knowledge graph. Work Graph needs their priority without taking ownership of
-their prose.
+knowledge graph. The coordination store needs their scheduling identity and
+rank without copying their prose.
 
 ## Decision
 
-Keep initiative and project records as non-executable operational mirrors of
-knowledge-graph scopes. They own rank, priority weight, source revision, and
-links back to canonical prose.
+Store initiatives and projects as non-executable operational scope mirrors.
+Each mirror keeps its stable identifier, scheduling fields, source revision,
+and links to the canonical knowledge-graph page.
 
-Represent planned work with one recursive `work_item` record and an optional
-single parent. Do not store epic, task, subtask, group, or action as permanent
-types. Derive executability from current graph state. An open item is claimable
-when it has no active lease, unresolved blocking attention, unsatisfied
-dependency, or non-terminal direct child.
+Represent executable work with one recursive `work_item` record and an optional
+single parent. Derive claimability from current state. An open item is
+claimable when it has no active lease, unresolved blocking attention,
+unsatisfied dependency, or non-terminal direct child.
 
-Model containment and blocking as separate relationships. Containment organises
-and ranks work. Dependencies decide whether it can proceed. Their combined
-waits-for projection must be acyclic: parents wait for unfinished children, and
-downstream work waits for blockers. This also rejects a child depending on its
-own parent even though neither stored relationship contains a cycle by itself.
+Store containment and dependencies as separate relationships, then project
+both into one waits-for graph for validation. Parents wait for unfinished
+children, and downstream work waits for blockers. Reject a write when the
+combined projection has a cycle, including a child that depends on its own
+parent even though neither stored relationship is cyclic by itself.
+
 Released and cancelled blockers satisfy dependencies because neither remains
-required. Replacement work needs a new edge. A dependency on a parent
-constrains its descendants unless the plan moves that dependency to narrower
-work.
+required. Replacement work needs a new dependency. A dependency on a parent
+constrains its descendants until the plan moves that edge to narrower work.
 
-When a worker decomposes claimed work, create the child items and dependency
-edges atomically, end the current lease, and let the children inherit the
-parent's scope and priority position. The parent becomes executable again after
-its direct children terminate.
+Apply decomposition in one transaction. Create the child items and dependency
+edges, end the current lease, and let the children inherit the parent's scope
+and scheduling position. When the last direct child terminates, recompute the
+parent's readiness. The parent stays open until a worker claims it and makes an
+explicit terminal decision.
 
 ## Consequences
 
-Refactoring the plan preserves item identity and history. Discovery spikes use
-the same flow as implementation work and can finish directly or expand into a
-smaller work DAG.
-
 Queries must project ready, blocked, and waiting-on-children states instead of
-reading a fixed task type. A parent may need a final claim for synthesis even
-when its children did all expected implementation. Automatic parent completion
-can be considered after real use shows when that is safe.
+reading a fixed task type. Combined cycle validation is more expensive than
+validating the hierarchy and dependency graph independently, but it prevents
+deadlocks that either partial check would miss.
 
-The hierarchy uses one parent to keep ordering and reparenting understandable.
-Typed work can still link to several knowledge scopes, ADRs, pull requests, and
-references through typed context records.
+The single-parent hierarchy keeps ordering and reparenting legible. Typed
+context can still connect one item to several knowledge scopes, ADRs, pull
+requests, and references without turning those links into extra parents.
+
+Atomic decomposition couples graph writes to lease termination and inherited
+scheduling fields. Those invariants need transaction-level tests against the
+production database engine.
+
+## Migration note
+
+The 1 November 2026 PDR migration moved the adaptable planning policy into PDR
+000\. This ADR keeps the original recursive schema, graph invariants, and
+transaction design. No architecture choice changed.

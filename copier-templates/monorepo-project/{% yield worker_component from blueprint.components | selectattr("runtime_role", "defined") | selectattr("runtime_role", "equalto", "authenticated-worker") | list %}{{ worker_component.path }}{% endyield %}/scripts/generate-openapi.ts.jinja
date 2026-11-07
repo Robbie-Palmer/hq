@@ -1,0 +1,30 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { app } from "../src/index";
+
+const outputPath = fileURLToPath(new URL("../openapi.json", import.meta.url));
+app.openAPIRegistry.registerComponent("securitySchemes", "bearerAuth", {
+  type: "http",
+  scheme: "bearer",
+});
+const document = app.getOpenAPIDocument({
+  openapi: "3.1.0",
+  info: {
+    title: "{{ blueprint.project.name }} API",
+    version: "1.0.0",
+  },
+  tags: [{ name: "health", description: "Worker process health." }],
+});
+const generated = `${JSON.stringify(document, null, 2)}\n`;
+
+if (process.argv.includes("--check")) {
+  const committed = await readFile(outputPath, "utf8").catch(() => "");
+  if (committed !== generated) {
+    console.error(
+      "{{ worker_component.path }}/openapi.json is stale. Run mise //{{ worker_component.path }}:openapi:generate.",
+    );
+    process.exitCode = 1;
+  }
+} else {
+  await writeFile(outputPath, generated);
+}

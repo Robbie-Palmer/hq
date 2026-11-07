@@ -3,12 +3,19 @@ title: "ADR 019: Agent Auth for Delegated Recipe Access"
 date: "2026-07-25"
 status: "Proposed"
 tech_stack: ["Better Auth"]
+ideas: ["delegated-authority"]
+implements_product_decisions:
+  - "recipe-site:005-delegated-agent-access-with-human-publishing"
 ---
 
 # Summary
 
 Add the [Better Auth Agent Auth plugin](https://better-auth.com/docs/plugins/agent-auth) as an
 **experimental, delegated machine-access layer** for the recipe site.
+
+[PDR 005](/projects/recipe-site/pdrs/005-delegated-agent-access-with-human-publishing)
+owns the proposed user approval, capability, reversibility, and human
+publication policy. This ADR defines the protocol and enforcement design.
 
 An approved agent gets its own keypair, identity, narrowly named capabilities, short-lived
 audience-bound JWTs, audit history, and independent revocation. It never receives the user's browser

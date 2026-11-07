@@ -21,11 +21,18 @@ const repository: WorkGraphApiRepository = {
   addKnowledgeScopeRelationship: unavailable,
   removeKnowledgeScopeRelationship: unavailable,
   listWorkItems: unavailable,
+  listWorkItemPage: unavailable,
   getWorkItem: unavailable,
   resolveWorkItemContext: unavailable,
   listWorkItemDeliveryEvidence: unavailable,
   getCompletionCandidate: unavailable,
   putCompletionPolicyRevision: unavailable,
+  putRepositoryCompletionPolicyDefaultRevision: unavailable,
+  putDeliveryMetadataRevision: unavailable,
+  putDeliveryTargetOverride: unavailable,
+  putDeliveryActionRequest: unavailable,
+  listDeliveryRecoveries: unavailable,
+  reserveDeliveryRecovery: unavailable,
   assignCompletionPolicy: unavailable,
   evaluateCompletionCandidateIfConfigured: unavailable,
   evaluateCompletionCandidateAndReleaseIfConfigured: unavailable,
@@ -75,6 +82,11 @@ const document = app.getOpenAPI31Document({
     },
   ],
   tags: [
+    {
+      name: "delivery-actions",
+      description:
+        "Policy-bound merge and deployment requests, results, and recovery routing.",
+    },
     {
       name: "completion-policies",
       description: "Owner policy for evidence-backed completion candidacy.",

@@ -1245,7 +1245,7 @@ describe("Given agent-facing Work Graph commands", () => {
     });
   });
 
-  it("creates and assigns completion policies", async () => {
+  it("creates, defaults, and assigns completion policies", async () => {
     const createdAt = "2026-10-17T20:00:00.000Z";
     const assignedAt = "2026-10-17T20:01:00.000Z";
     const test = harness();
@@ -1261,6 +1261,19 @@ describe("Given agent-facing Work Graph commands", () => {
         automaticRelease: true,
         createdAt,
       }),
+    ]);
+    await test.run([
+      "completion-policy",
+      "default",
+      "put",
+      "Robbie-Palmer/hq",
+      "2",
+      "--policy-id",
+      "hq-production",
+      "--policy-revision",
+      "1",
+      "--created-at",
+      createdAt,
     ]);
     await test.run([
       "completion-policy",
@@ -1291,10 +1304,22 @@ describe("Given agent-facing Work Graph commands", () => {
       body: {
         policyId: "hq-production",
         policyRevision: 1,
-        assignedAt,
+        enabled: true,
+        createdAt,
       },
     });
     expect(test.requests[1]?.url.pathname).toBe(
+      "/root/api/github/repositories/Robbie-Palmer/hq/completion-policy-defaults/2",
+    );
+    expect(test.requests[2]).toMatchObject({
+      method: "PUT",
+      body: {
+        policyId: "hq-production",
+        policyRevision: 1,
+        assignedAt,
+      },
+    });
+    expect(test.requests[2]?.url.pathname).toBe(
       "/root/api/work-items/work-graph-ticket/completion-policy",
     );
   });

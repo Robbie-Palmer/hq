@@ -66,6 +66,7 @@ import {
   applySetMortgageTerms,
   applySetNetWorthTarget,
   applySetPlanningChecklistItemStatus,
+  applySetPropertyValueSelection,
   applySetWithdrawalRate,
   applyUpdateCashFlowDecision,
   applyVersionForecastAssumptionSet,
@@ -113,6 +114,7 @@ import {
   type SetMortgageTermsInput,
   type SetNetWorthTargetInput,
   type SetPlanningChecklistItemStatusInput,
+  type SetPropertyValueSelectionInput,
   type SetWithdrawalRateInput,
   type UpdateCashFlowDecisionInput,
   type VersionForecastAssumptionSetInput,
@@ -207,6 +209,9 @@ export interface AssetTrackerApi {
     input: SetAccountLiquidityInput,
   ): Promise<AssetTrackerData>;
   setMortgageTerms(input: SetMortgageTermsInput): Promise<AssetTrackerData>;
+  setPropertyValueSelection(
+    input: SetPropertyValueSelectionInput,
+  ): Promise<AssetTrackerData>;
   setBaseCurrency(input: SetBaseCurrencyInput): Promise<AssetTrackerData>;
   setInflation(input: SetInflationInput): Promise<AssetTrackerData>;
   setNetWorthTarget(input: SetNetWorthTargetInput): Promise<AssetTrackerData>;
@@ -631,6 +636,11 @@ export function createLocalAssetTrackerApi(storage: Storage): AssetTrackerApi {
     setMortgageTerms(input) {
       return promiseFromSync(() =>
         write(applySetMortgageTerms(current(), input)),
+      );
+    },
+    setPropertyValueSelection(input) {
+      return promiseFromSync(() =>
+        write(applySetPropertyValueSelection(current(), input)),
       );
     },
     setBaseCurrency(input) {

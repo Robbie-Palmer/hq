@@ -2,13 +2,17 @@
 title: "ADR 003: Three-Agent Temporary-Leader Protocol"
 status: "Accepted"
 date: "2016-07-01"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:000-bounded-bench-demonstration"
 ---
 
 # Context
 
-The swarm must assign a geographic objective without a permanent controller. Each agent has a
-different position, direction of travel, and energy reserve. A central ground process would bypass
-the self-management behavior that the prototype is meant to study.
+[PDR 000](/projects/autonomic-satellite-swarm/pdrs/000-bounded-bench-demonstration) defines a
+three-agent experiment in mission assignment and fail-safe withdrawal. The swarm must assign a
+geographic objective without a permanent controller. Each agent has a different position,
+direction of travel, and energy reserve. A central ground process would bypass the self-management
+behavior that the prototype is meant to study.
 
 A permanent leader would be a single point of failure in a hostile, intermittently connected
 environment. If it malfunctioned or moved out of line of sight, healthy followers could no longer
@@ -23,9 +27,8 @@ collects candidacy scores for a fixed interval, acknowledges each response, sele
 score, and broadcasts the assignment.
 
 Candidates rebroadcast the mission and forward scores so a message can reach an agent outside the
-initiator's direct infrared path. The leadership role ends after assignment. Fix the demonstration
-at three agents, enough to exercise competing candidates and one relaying path while still fitting
-the available hardware and bench space.
+initiator's direct infrared path. The leadership role ends after assignment. The protocol uses the
+three-agent scope from PDR 000 to exercise competing candidates and one relaying path.
 
 # Consequences
 

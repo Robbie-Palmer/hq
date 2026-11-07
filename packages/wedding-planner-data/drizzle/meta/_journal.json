@@ -1,0 +1,13 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1793541521714,
+      "tag": "0000_create_wedding_plan_store",
+      "breakpoints": true
+    }
+  ]
+}

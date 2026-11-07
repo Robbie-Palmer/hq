@@ -247,6 +247,12 @@ locals {
             personal_configs = false
             configs          = ["prd", "prd_work_graph", "prd_work_graph_backup", "prd_work_graph_infra"]
           }
+          analytics = {
+            name             = "Production Analytics"
+            personal_configs = false
+            configs          = []
+            imported         = false
+          }
         }
       }
       github = {
@@ -259,6 +265,11 @@ locals {
           backup = {
             name               = "production-work-graph-backup"
             protected_branches = true
+          }
+          analytics = {
+            name               = "production-work-graph-analytics"
+            protected_branches = true
+            imported           = false
           }
           infrastructure = {
             name               = "production-work-graph-infra"
@@ -343,7 +354,7 @@ locals {
         }
         environments = {
           ops = {
-            name             = "Pull request plans"
+            name             = "Production plans"
             personal_configs = false
             configs          = []
           }
@@ -357,6 +368,11 @@ locals {
             personal_configs = false
             configs          = []
           }
+          backup = {
+            name             = "Database backup and restore"
+            personal_configs = false
+            configs          = []
+          }
         }
       }
       github = {
@@ -365,6 +381,9 @@ locals {
           plan = {
             name               = "production-personal-finance-plan"
             reviewer_usernames = ["Robbie-Palmer"]
+          }
+          preview = {
+            name = "preview-personal-finance"
           }
           drift = {
             name                 = "production-personal-finance-drift"
@@ -377,7 +396,43 @@ locals {
             custom_branch_policy = true
             branch_patterns      = { main = null }
           }
+          backup = {
+            name                 = "production-personal-finance-backup"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
+          alerts = {
+            name                 = "production-personal-finance-alerting"
+            custom_branch_policy = true
+            branch_patterns      = { main = null }
+          }
         }
+      }
+    }
+    personal-finance-operations = {
+      deletion_protected = true
+      imported           = false
+      doppler = {
+        project = {
+          name        = "personal-finance-operations"
+          description = "Personal Finance preview and alert operation credentials"
+        }
+        environments = {
+          preview = {
+            name             = "Isolated previews"
+            personal_configs = false
+            configs          = []
+          }
+          alerts = {
+            name             = "Alert evaluation and delivery"
+            personal_configs = false
+            configs          = []
+          }
+        }
+      }
+      github = {
+        repository   = "hq"
+        environments = {}
       }
     }
   }
@@ -446,7 +501,7 @@ locals {
         slug             = environment_slug
         name             = environment.name
         personal_configs = environment.personal_configs
-        imported         = root.imported && var.enable_existing_imports
+        imported         = try(environment.imported, root.imported) && var.enable_existing_imports
       }
     }
   ]...)

@@ -6,6 +6,7 @@ config_roots = [
     "infra/account-foundation",
     "infra/bootstrap",
     "infra/cloudflare-access",
+    "infra/oci-registry-spike",
     "infra/personal-finance",
     "infra/project-modules",
     "infra/public-platform",
@@ -18,6 +19,11 @@ config_roots = [
     "ml-pipelines",
     "ml-pipelines/ai-review-evaluation",
     "ml-pipelines/financial-document-idp-evaluation",
+    "ml-pipelines/pathologize-benchmark-contracts",
+    "ml-pipelines/pathologize-slide-quality-benchmark",
+    "ml-pipelines/pathologize-tiling-benchmark",
+    "ml-pipelines/pathologize-cell-analysis-benchmark",
+    "ml-pipelines/pathologize-data-registry",
     "ml-pipelines/recipe-dataset",
     "ml-pipelines/recipe-parsing",
     "ml-pipelines/writing-editor-evaluation",
@@ -27,13 +33,19 @@ config_roots = [
     "packages/agent-auth-mcp",
     "packages/ai-review-domain",
     "packages/browser-base",
+    "packages/data-artifacts",
     "packages/drizzle-postgres",
+    "packages/drizzle-tooling",
     "packages/finance-inflation-indices",
     "packages/finance-housing-indices",
     "packages/finance-tax-rules",
     "packages/github-client",
+    "packages/inbox-signal-data",
+    "packages/iso-codes",
     "packages/mdx-rendering",
+    "packages/ml-evaluation",
     "packages/node-base",
+    "packages/object-storage",
     "packages/recipe-db",
     "packages/observability",
     "packages/openrouter-client",
@@ -61,6 +73,10 @@ config_roots = [
     "workers/personal-finance-api",
     "packages/personal-finance-contracts",
     "packages/personal-finance-data",
+    "infra/wedding-planner",
+    "workers/wedding-planner-api",
+    "packages/wedding-planner-contracts",
+    "packages/wedding-planner-data",
 ]
 
 [settings]
@@ -132,6 +148,15 @@ exec pnpm exec tsx scripts/launch-work-graph-agent.ts
 description = "Test Work Graph ticket routing and T3 profile selection"
 depends = ["//:install"]
 run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
+
+[tasks."project:stateful-operation"]
+description = "Validate or run one generated stateful project operation"
+run = "node scripts/project-stateful-operation.mjs"
+
+[tasks."project:stateful-operation:test"]
+description = "Test the shared stateful project operation workflow driver"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/project-stateful-operation.test.ts"
 
 [tasks."project:plan"]
 description = "Produce a machine-readable Copier project change plan"
@@ -225,7 +250,7 @@ run = "pnpm exec tsx scripts/check-cloudflare-token-migration.ts"
 
 [tasks.lint]
 description = "Lint all files across the entire repo"
-depends = ["//:layout:check", "//:opentelemetry-contract:check", "//:feature-flag-contract:check", "//:cloudflare-token-migration:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/drizzle-postgres:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/mdx-rendering:check", "//packages/node-base:check", "//packages/openrouter-client:check", "//packages/planning-case-domain:check", "//packages/platform-contracts:check", "//packages/project-economics-domain:check", "//packages/project-generator:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//data-pipelines/work-graph-analytics:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/financial-document-idp-evaluation:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/account-foundation:lint", "//infra/cloudflare-access:lint", "//infra/cloudflare-access:lint:tflint", "//infra/personal-finance:lint", "//infra/project-modules:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/personal-archive:lint", "//infra/personal-archive:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/tailnet:lint", "//infra/tailnet:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
+depends = ["//:layout:check", "//:preview:links:test:coverage", "//:opentelemetry-contract:check", "//:feature-flag-contract:check", "//:cloudflare-token-migration:check", "//:lint:markdown", "//:lint:mdx", "//:lint:yaml", "//:lint:typos", "//:lint:knip", "//:lint:actions", "//:lint:api", "//:lint:prose", "//:lint:typescript", "//packages/agent-auth:check", "//packages/agent-auth-mcp:check", "//packages/agent-coordinator-domain:check", "//packages/ai-review-domain:check", "//packages/browser-base:check", "//packages/data-artifacts:check", "//packages/drizzle-postgres:check", "//packages/drizzle-tooling:check", "//packages/finance-housing-indices:check", "//packages/finance-inflation-indices:check", "//packages/finance-tax-rules:check", "//packages/github-client:check", "//packages/inbox-signal-data:check", "//packages/iso-codes:check", "//packages/mdx-rendering:check", "//packages/ml-evaluation:check", "//packages/node-base:check", "//packages/object-storage:check", "//packages/openrouter-client:check", "//packages/personal-finance-data:check", "//packages/planning-case-domain:check", "//packages/platform-contracts:check", "//packages/project-economics-domain:check", "//packages/project-generator:check", "//packages/recipe-domain:check", "//packages/ts-base:check", "//packages/work-graph-cli:check", "//packages/work-graph-db:check", "//packages/work-graph-domain:check", "//packages/writing-editor-domain:check", "//packages/wedding-planner-data:check", "//packages/wedding-planner-domain:check", "//ai-review:check", "//data-pipelines/work-graph-analytics:check", "//ml-pipelines/ai-review-evaluation:check", "//ml-pipelines/financial-document-idp-evaluation:check", "//ml-pipelines/pathologize-benchmark-contracts:check", "//ml-pipelines/pathologize-slide-quality-benchmark:check", "//ml-pipelines/pathologize-tiling-benchmark:check", "//ml-pipelines/pathologize-cell-analysis-benchmark:check", "//ml-pipelines/writing-editor-evaluation:check", "//workers/finance-tax-monitor:check", "//workers/personal-finance-api:check", "//workers/work-graph-observer:check", "//ui:lint", "//infra/account-foundation:lint", "//infra/cloudflare-access:lint", "//infra/cloudflare-access:lint:tflint", "//infra/personal-finance:lint", "//infra/project-modules:lint", "//infra/public-platform:lint", "//infra/public-platform:lint:tflint", "//infra/bootstrap:lint", "//infra/bootstrap:lint:tflint", "//infra/personal-archive:lint", "//infra/personal-archive:lint:tflint", "//infra/remote-development:lint", "//infra/remote-development:lint:tflint", "//infra/tailnet:lint", "//infra/tailnet:lint:tflint", "//infra/work-graph:lint", "//infra/work-graph:lint:tflint"]
 
 [tasks."layout:check"]
 description = "Validate the monorepo project and package layout contract"
@@ -421,6 +446,26 @@ run = "actionlint"
 description = "Fetch an Access-protected PR preview using agent credentials"
 run = "bash scripts/fetch-preview.sh"
 
+[tasks."preview:fetch:test"]
+description = "Test the protected-preview HTTP credential boundary"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/fetch-preview.test.ts"
+
+[tasks."preview:links"]
+description = "Resolve preview links from project profiles"
+depends = ["//:install"]
+run = "pnpm exec tsx scripts/project-preview-links.ts"
+
+[tasks."preview:links:test"]
+description = "Test project-profile preview link resolution"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/project-preview-links.test.ts"
+
+[tasks."preview:links:test:coverage"]
+description = "Test project-profile preview link resolution with coverage"
+depends = ["//:install"]
+run = "pnpm --filter ui exec vitest run --root .. scripts/project-preview-links.test.ts --coverage --coverage.include=scripts/project-preview-links.ts --coverage.reporter=text --coverage.thresholds.lines=80 --coverage.thresholds.functions=80 --coverage.thresholds.statements=80 --coverage.thresholds.branches=80"
+
 [tasks."preview:access:rotate"]
 description = "Rotate preview agent Access credentials into Doppler with overlap"
 run = "bash scripts/rotate-preview-access-token.sh"
@@ -595,13 +640,20 @@ depends = [
     "//packages/agent-coordinator-domain:test:coverage",
     "//packages/ai-review-domain:test:coverage",
     "//packages/browser-base:test:coverage",
+    "//packages/data-artifacts:test:coverage",
     "//packages/drizzle-postgres:test:coverage",
     "//packages/finance-housing-indices:test:coverage",
     "//packages/finance-inflation-indices:test:coverage",
     "//packages/finance-tax-rules:test:coverage",
+    "//packages/inbox-signal-data:test:coverage",
+    "//packages/iso-codes:test:coverage",
     "//packages/mdx-rendering:test:coverage",
+    "//packages/ml-evaluation:test:coverage",
     "//packages/node-base:test:coverage",
+    "//packages/object-storage:test:coverage",
     "//packages/observability:test:coverage",
+    "//packages/personal-finance-contracts:test:coverage",
+    "//packages/personal-finance-data:test:coverage",
     "//packages/planning-case-domain:test:coverage",
     "//packages/platform-contracts:test:coverage",
     "//packages/project-economics-domain:test:coverage",
@@ -613,11 +665,14 @@ depends = [
     "//packages/work-graph-db:test:coverage",
     "//packages/work-graph-domain:test:coverage",
     "//packages/writing-editor-domain:test:coverage",
+    "//packages/wedding-planner-data:test:integration:coverage",
     "//packages/wedding-planner-domain:test:coverage",
     "//ml-pipelines/recipe-parsing:test:coverage",
     "//ml-pipelines/recipe-dataset:test:coverage",
     "//ml-pipelines/ai-review-evaluation:test:coverage",
     "//ml-pipelines/financial-document-idp-evaluation:test:coverage",
+    "//ml-pipelines/pathologize-benchmark-contracts:test:coverage",
+    "//ml-pipelines/pathologize-data-registry:test:coverage",
     "//ml-pipelines/wsi-analysis:test:coverage",
     "//data-pipelines/work-graph-analytics:test:coverage",
     "//ml-pipelines/writing-editor-evaluation:test:coverage",
@@ -625,6 +680,7 @@ depends = [
     "//workers/recipe-api:test:integration:coverage",
     "//workers/recipe-ingest:test:coverage",
     "//workers/finance-tax-monitor:test:coverage",
+    "//workers/personal-finance-api:test:coverage",
     "//workers/work-graph-api:test:coverage",
     "//workers/work-graph-observer:test:coverage",
 ]

@@ -1,0 +1,82 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked Pathologize data-registry environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the Pathologize data-registry lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format Pathologize data-registry Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint Pathologize data-registry Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check Pathologize data-registry Python code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run Pathologize data-registry tests against the bounded public subset"
+depends = ["acquire"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run Pathologize data-registry tests with Cobertura coverage"
+depends = ["acquire"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks.schemas]
+description = "Write the Pathologize registry JSON Schemas"
+depends = ["sync"]
+run = "uv run --locked pathologize-registry schemas"
+
+[tasks."schemas:check"]
+description = "Check committed Pathologize registry JSON Schemas for drift"
+depends = ["sync"]
+run = "uv run --locked pathologize-registry schemas --check"
+
+[tasks.acquire]
+description = "Acquire the bounded public starter subset and verify every SHA-256 digest"
+depends = ["sync"]
+run = "uv run --locked pathologize-registry acquire --subset cptac-coad-idc-v23-smallest-series"
+
+[tasks.validate]
+description = "Validate registry manifests and any materialized source assets"
+depends = ["sync"]
+run = "uv run --locked pathologize-registry validate"
+
+[tasks.export]
+description = "Write an independently validated Croissant 1.1 registry export"
+depends = ["sync"]
+run = "uv run --locked pathologize-registry export --revision $(git rev-parse HEAD)"
+
+[tasks."export:check"]
+description = "Validate a generated Croissant 1.1 registry export"
+depends = ["sync"]
+run = "uv run --locked pathologize-registry export-check"
+
+[tasks.verify]
+description = "Require and validate the complete bounded starter subset"
+depends = ["acquire"]
+run = "uv run --locked pathologize-registry validate --require-assets"
+
+[tasks.dvc]
+description = "Run a DVC command in the Pathologize data registry"
+run = "bash ../scripts/dvc.sh"
+
+[tasks.repro]
+description = "Reproduce the bounded public acquisition through DVC"
+run = "bash ../scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run all deterministic Pathologize data-registry checks"
+depends = ["lint", "typecheck", "test:coverage", "schemas:check", "export:check", "verify"]

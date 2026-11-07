@@ -199,18 +199,21 @@ protection. Configure its lifecycle rules, object locks, read-only Neon login,
 and bucket-scoped R2 token by following
 [the Work Graph backup runbook](../../backups/work-graph.md).
 
-The apply creates `work-graph-private-analytics` without a public development
-URL or custom domain. The Work Graph Worker receives the `ANALYTICS` binding and
-can write only through that Worker deployment. Do not reuse the backup key pair
-for analytics. The bucket name is fixed because Terraform and Wrangler must
-bind the same bucket; this deployment does not support a name override.
+The apply creates `work-graph-private-analytics` and
+`work-graph-private-analytics-models` without public development URLs or custom
+domains. The Work Graph Worker receives the raw `ANALYTICS` binding and can
+write only through that Worker deployment. Do not reuse the backup key pair for
+analytics. Bucket names are fixed because the deployment and pipeline contracts
+refer to them directly.
 
-Create a separate R2 API token named `work-graph-analytics-reader` with Object
-Read permission scoped only to `work-graph-private-analytics`. Store its S3
-access key ID and secret in the report runner's Doppler config. Do not put them
-in `work-graph/prd_work_graph`, because the exporter uses the Worker binding and
-does not need reader credentials. The infrastructure token cannot create this
-reader token. It intentionally lacks API token management permission.
+Create a raw-bucket read-only token for the dbt pipeline, a model-bucket
+read/write token for publication, and a model-bucket read-only token for
+reports. Store them only in `work-graph/analytics`. Do not put
+them in `work-graph/prd_work_graph`, because the exporter uses the Worker
+binding and does not need S3 credentials. The infrastructure token cannot
+create these tokens. It intentionally lacks API token management permission.
+The analytics report runbook defines the exact variables, bootstrap, and
+rotation proof.
 
 Objects under `work-state/v1/` are the analytics dataset. Readers must start
 from complete objects in `manifests/` and verify each listed checksum. They must

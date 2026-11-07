@@ -1,0 +1,67 @@
+---
+title: "PDR 008: Make recipe-import inference payment explicit"
+date: "2026-10-08"
+status: "Proposed"
+informed_by_adrs:
+  - "recipe-site:002-openrouter"
+  - "recipe-site:012-cloudflare-workflows-recipe-ingestion"
+---
+
+## Context
+
+Recipe Site pays for model inference through its OpenRouter account. An eligible
+user may also have a ChatGPT plan that can fund supported recipe-import calls.
+Using that allowance could reduce application spend, but not every user has an
+eligible plan or wants to spend it on an import.
+
+Failures make the payer boundary visible. If a user-funded request reaches a
+plan limit, silently retrying with the application account would complete the
+job by spending somebody else's budget. Sharing one user's plan with a
+household would create the opposite problem.
+
+## Proposed decision
+
+Show the inference payment route when a user starts a recipe import. Keep the
+application-funded OpenRouter route available to every authenticated user under
+its normal quotas. Let an eligible user connect their own ChatGPT plan, choose
+it as a default, and override the choice for one import.
+
+Copy the selected route into the job input. A resumed job does not change payer
+because account settings changed. One user's connected plan may fund only that
+user's imports, even inside a shared household.
+
+Never change payer silently. If a ChatGPT-plan request is unavailable,
+ineligible, revoked, limited, or exhausted, stop with a recoverable status. The
+user may retry the same route, explicitly switch to application-funded
+OpenRouter subject to quota, or cancel.
+
+Disconnecting a plan stops new plan-funded work and removes its authorization.
+Existing accepted recipes and non-secret import provenance remain. The product
+must not describe subscription inference as free merely because Recipe Site
+cannot assign it a per-request price.
+
+## Consequences
+
+Eligible users can apply an allowance they already have while users without a
+connected plan retain the standard import path. The interface and usage history
+must distinguish who funded each attempt and explain the effect of switching on
+retry.
+
+The proposal adds consent, connection management, provider-specific limits,
+and support cases. Initial use remains owner-only until current provider rules
+confirm that the deployment and broader user flow are eligible.
+
+## Evaluation
+
+Accept this proposal only after the owner can connect and revoke the plan
+without exposing credentials, an eligible model meets the existing import
+quality checks, and a failed user-funded attempt offers an explicit retry choice
+without spending application credit. Broader rollout needs a separate review
+of eligibility, consent, deletion, and support behavior for other accounts.
+
+## Migration note
+
+This record extracts the payer choice and no-silent-fallback policy from
+proposed ADR 027. It preserves the 8 October 2026 date, Proposed status,
+owner-only boundary, and adoption gate. ADR 027 retains the credential,
+provider-adapter, storage, and workflow design.

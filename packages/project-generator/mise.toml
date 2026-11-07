@@ -12,6 +12,10 @@ description = "Test the project generator"
 depends = ["install"]
 run = "pnpm test"
 
+[tasks."template:research-ml"]
+description = "Render and verify the research ML Copier template"
+run = "bash ../../scripts/check-research-ml-template.sh"
+
 [tasks."test:coverage"]
 description = "Test the project generator with coverage"
 depends = ["install"]
@@ -19,4 +23,4 @@ run = "pnpm test:coverage"
 
 [tasks.check]
 description = "Check the project generator"
-depends = ["typecheck", "test"]
+depends = ["typecheck", "test", "template:research-ml"]

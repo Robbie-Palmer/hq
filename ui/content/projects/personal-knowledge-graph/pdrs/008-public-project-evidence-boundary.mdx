@@ -1,0 +1,61 @@
+---
+title: "PDR 008: Publish assessable project narratives without exposing private data"
+date: "2026-09-27"
+status: "Accepted"
+decision_date: "2026-09-27"
+informed_by_adrs:
+  - "personal-knowledge-graph:033-content-graph-indexes"
+  - "personal-knowledge-graph:058-temporal-platform-layers"
+---
+
+## Context
+
+A connected public account is useful only when its project pages let a reader
+judge the work. A polished summary can name a result without exposing the
+problem, current scope, decisions, evidence, or unresolved limits behind it.
+
+The graph can also connect private notes and application data, but connection
+does not grant publication authority. Personal financial records, household
+data, unpublished notes, credentials, and other private material have different
+owners and access rules from public project documentation.
+
+## Decision
+
+Public project narratives will state the problem, intended audience, current
+boundary, important product and architecture decisions, available delivery or
+outcome evidence, and material limits. Link to canonical records rather than
+copying their rationale into a status claim.
+
+Keep private notes and application data outside the public graph. A public
+project page may describe that a private system or evidence set exists and may
+publish an approved aggregate. It must not copy the underlying data into the
+repository merely to make the public graph complete.
+
+Publication requires explicit authority over the claim and its evidence. A
+relationship discovered by code or an agent remains a proposal until the
+owner reviews it for accuracy and disclosure.
+
+## Consequences
+
+Readers receive enough context to distinguish a working result, a proposal,
+and an unsupported claim. Projects can still point to private operations
+without pretending that public evidence covers them.
+
+Some claims cannot be published with their strongest evidence. Project pages
+must state that limitation instead of filling the gap with private data or
+vague confidence. Reviewers also need to check disclosure, provenance, and
+authority in addition to prose and link validity.
+
+## Evaluation
+
+A reader should be able to identify what the project is trying to do, what is
+currently true, which decisions govern it, and what evidence is public. A
+repository scan and content review must find no private records copied in to
+support that account.
+
+## Migration note
+
+The original project narrative already promised deeper project accounts that
+show reasoning and trade-offs. ADR 059 formalised the public/private evidence
+boundary and identified this record on 2026-09-27. This migration preserves
+that date and policy. It does not broaden what the project publishes.

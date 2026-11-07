@@ -3,15 +3,17 @@ title: "ADR 013: Automated media acquisition"
 date: "2026-08-23"
 status: "Accepted"
 tech_stack: ["Sonarr", "Radarr", "Prowlarr", "qBittorrent", "Docker"]
+implements_product_decisions:
+  - "homelab:009-turn-watchlist-selections-into-library-items"
 ---
 
 # Context
 
-[Jellyfin](/projects/homelab/adrs/008-jellyfin) solves playback, but not
-supply. Each new episode needs the same mechanical treatment: locate a
-release, download it, rename it to something Jellyfin parses, file it into
-the right season folder, rescan the library. That pipeline never varies,
-which makes it software's job rather than a recurring chore.
+[PDR 009](/projects/homelab/pdrs/009-turn-watchlist-selections-into-library-items)
+requires selected films and series to enter the private library without an
+administration-panel workflow. [Jellyfin](/projects/homelab/adrs/008-jellyfin)
+solves playback, but not supply. Each new item still needs a repeatable locate,
+download, rename, file, and rescan pipeline.
 
 The hub already runs Docker under colima with launchd agents for
 self-healing, so whatever I add should follow the same shape: declared in

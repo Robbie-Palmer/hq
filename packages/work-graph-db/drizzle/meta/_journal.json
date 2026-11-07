@@ -127,6 +127,62 @@
       "when": 1792330134967,
       "tag": "0017_enable_policy_driven_automatic_release",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793550996043,
+      "tag": "0018_add_repository_completion_policy_defaults",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793555382977,
+      "tag": "0019_add_completion_policy_assignment_provenance",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793831779582,
+      "tag": "0020_add_delivery_action_recovery_ledger",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793832403755,
+      "tag": "0021_allow_shared_delivery_action_evidence",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1793854371865,
+      "tag": "0022_add_delivery_target_resolution_snapshots",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793855345659,
+      "tag": "0023_track_delivery_metadata_source_revision",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793859709523,
+      "tag": "0024_add_current_delivery_resolution",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793960820391,
+      "tag": "0025_add_current_delivery_metadata_revision",
+      "breakpoints": true
     }
   ]
 }

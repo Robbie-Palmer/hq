@@ -1,0 +1,43 @@
+[tools]
+python = "3.12"
+uv = "0.12.22"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tasks.sync]
+description = "Install the locked data artifacts environment"
+run = "uv sync --locked"
+
+[tasks.lock]
+description = "Update the data artifacts lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format data artifacts Python code"
+depends = ["sync"]
+run = "uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint data artifacts Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check data artifacts Python code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run data artifacts tests"
+depends = ["sync"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run data artifacts tests with Cobertura coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks.check]
+description = "Run all data artifacts checks"
+depends = ["lint", "typecheck", "test:coverage"]

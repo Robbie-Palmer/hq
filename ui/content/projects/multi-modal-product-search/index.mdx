@@ -8,6 +8,7 @@ tech_stack:
   - "Weaviate"
   - "DVC"
   - "Swift"
+  - "Kotlin"
 tags:
   - "machine-learning"
 status: "completed"
@@ -33,10 +34,76 @@ I architected a multi-modal search engine using **Weaviate** as the core vector 
 * **Multi-Modal Embeddings**: Configured Weaviate to index both product text descriptions and product images into a shared vector space.
 * **Visual Querying**: Allowed users to use an input image (from camera or screenshot) as the search query.
 * **ML Pipeline**: Built a **Python** pipeline managed by **DVC** to evaluate different embedding models and iterate on search relevance.
-* **Integration**: Built the search integration in **TypeScript**, and implemented the native iOS experience using **Swift** to render results.
+* **Integration**: Built the search integration in **TypeScript**, with a **Swift** iOS app, a **Kotlin** Android app, and a **SvelteKit** web app for submitting image queries and rendering results.
+
+# Search data flow
+
+Product catalogue images and descriptions entered separate embedding paths, then Weaviate stored their vectors in
+a shared index. The Swift iOS app, Kotlin Android app, and SvelteKit web app submitted image queries and displayed
+the ranked matches returned through the TypeScript search integration.
+
+<Mermaid
+  chart={`flowchart LR
+subgraph inputs["Product catalogue"]
+Images["Product images"]
+Descriptions["Product descriptions"]
+end
+
+subgraph system["Implemented multi-modal search system"]
+ImageEmbedding["Image embedding"]
+TextEmbedding["Text embedding"]
+Index[("Weaviate<br/>Shared vector index")]
+Integration["TypeScript search integration"]
+QueryEmbedding["Image query embedding"]
+Ranking["Similarity retrieval<br/>and relevance ranking"]
+end
+
+subgraph clients["Product search clients"]
+IOS["iOS app<br/>Swift"]
+Android["Android app<br/>Kotlin"]
+Web["Web app<br/>SvelteKit"]
+end
+
+Images -->|"image vectors"| ImageEmbedding
+Descriptions -->|"text vectors"| TextEmbedding
+ImageEmbedding -->|"index"| Index
+TextEmbedding -->|"index"| Index
+IOS -->|"image query"| Integration
+Android -->|"image query"| Integration
+Web -->|"image query"| Integration
+Integration -->|"visual query"| QueryEmbedding
+QueryEmbedding -->|"query vector"| Index
+Index -->|"similar candidates"| Ranking
+Ranking -->|"ranked matches"| Integration
+Integration -->|"ranked results"| IOS
+Integration -->|"ranked results"| Android
+Integration -->|"ranked results"| Web
+
+classDef implemented fill:#dbeafe,color:#1e3a5f,stroke:#2563eb,stroke-width:2px
+class Images,Descriptions,ImageEmbedding,TextEmbedding,Index,Integration,QueryEmbedding,Ranking,IOS,Android,Web implemented
+`}
+  className="w-full justify-start overflow-x-auto sm:justify-center [&>svg]:min-w-[60rem]"
+/>
+
+In equivalent text:
+
+1. Product images produced image embeddings. Product descriptions produced text embeddings. Weaviate indexed both
+   types of vector in a shared search space.
+2. The Swift iOS app, Kotlin Android app, and SvelteKit web app each passed image queries into the TypeScript search
+   integration.
+3. The search path converted each query image into a vector and compared it with the shared Weaviate index.
+4. Similar product candidates went through relevance ranking. The TypeScript integration returned the ranked
+   matches to the requesting client.
+5. Separately, a Python pipeline versioned with DVC evaluated embedding-model variants and search relevance. The
+   team used those results to iterate on the search system.
+
+# Diagram scope
+
+This logical view covers product indexing, image-query handling, ranking, and the three client applications.
+Deployment topology and infrastructure operations sit outside this data flow.
 
 # Impact
 
 * **Zero-Shot Discovery**: Users could find products they didn't know the name of, purely by visual similarity.
 * **Seamless UX**: Removed the friction of text entry, making deal-finding accessible in seconds.
-* **Mobile First**: The native iOS app integration made the "snap-to-search" flow feel like a built-in OS feature.
+* **Cross-Platform**: Swift, Kotlin, and SvelteKit clients brought the same image-search flow to iOS, Android, and the web.

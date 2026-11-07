@@ -3,13 +3,15 @@ title: "ADR 027: Optional ChatGPT Plan Usage for Recipe Imports"
 date: "2026-10-08"
 status: "Proposed"
 tech_stack: ["OpenAI"]
+implements_product_decisions:
+  - "recipe-site:008-explicit-recipe-import-inference-payment"
 ---
 
 # Summary
 
-Let an eligible recipe-site user choose their own ChatGPT plan as the inference payment route for a
-recipe import. OpenRouter remains the application-funded route and continues to serve users who do
-not connect ChatGPT or who explicitly choose it.
+[PDR 008](/projects/recipe-site/pdrs/008-explicit-recipe-import-inference-payment)
+proposes an explicit inference payment choice with no silent change of payer.
+This ADR defines the ChatGPT-plan integration that would implement that choice.
 
 The first rollout is owner-only on this open-source, self-hosted Worker deployment, subject to
 OpenAI confirming that this serverless runtime is eligible. A failed or exhausted ChatGPT-plan

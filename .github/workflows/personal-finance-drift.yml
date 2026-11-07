@@ -30,7 +30,14 @@ jobs:
       - uses: $/.github/actions/setup-mise
 
       - name: Check for Terraform drift
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY == 'true' }}
         run: mise run //infra/personal-finance:plan:drift
         env:
           CI: "true"
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Report pending Terraform bootstrap
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY != 'true' }}
+        run: |
+          echo "Drift detection deferred until PERSONAL_FINANCE_TERRAFORM_READY=true." >> "$GITHUB_STEP_SUMMARY"

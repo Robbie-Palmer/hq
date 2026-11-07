@@ -1,6 +1,7 @@
 query WorkGraphPools(
   $accountTag: string!
   $configId: string!
+  $bucketName: string!
   $start: Time!
   $end: Time!
 ) {
@@ -38,6 +39,41 @@ query WorkGraphPools(
         }
       ) {
         count
+      }
+      r2OperationsAdaptiveGroups(
+        limit: 10000
+        filter: {
+          bucketName: $bucketName
+          datetime_geq: $start
+          datetime_leq: $end
+        }
+      ) {
+        sum {
+          requests
+        }
+        dimensions {
+          actionType
+          actionStatus
+        }
+      }
+      r2StorageAdaptiveGroups(
+        limit: 1
+        filter: {
+          bucketName: $bucketName
+          datetime_geq: $start
+          datetime_leq: $end
+        }
+        orderBy: [datetime_DESC]
+      ) {
+        max {
+          objectCount
+          uploadCount
+          payloadSize
+          metadataSize
+        }
+        dimensions {
+          datetime
+        }
       }
     }
   }

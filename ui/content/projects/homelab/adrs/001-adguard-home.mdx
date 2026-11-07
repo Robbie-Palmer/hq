@@ -3,15 +3,16 @@ title: "ADR 001: AdGuard Home for DNS"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["AdGuard Home"]
+implements_product_decisions:
+  - "homelab:006-filter-tracking-for-every-household-device"
 ---
 
 # Context
 
-Every device on my home network, phones, laptops, TVs, and streaming boxes,
-was sending DNS lookups through the router's upstream, with embedded trackers
-phoning home to advertisers and analytics vendors on every device. There was
-no network-wide way to stop that. I want network-wide ad and tracker blocking
-applied at the DNS layer.
+[PDR 006](/projects/homelab/pdrs/006-filter-tracking-for-every-household-device)
+requires network-wide filtering with continued resolution through either
+host's failure. The architecture needs to cover clients that cannot install a
+local blocker and must not make one machine the household's DNS dependency.
 
 Running a local resolver adds a dependency: if the resolver is down, every
 device on the network loses DNS. Resilience is a requirement from the

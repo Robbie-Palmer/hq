@@ -29,6 +29,7 @@ state. It is the executable proof for the managed serverless path.
 | `database.relational-host=neon` | Production Neon project | `application` |
 | `database.preview-isolation` | Separate empty Neon preview project | `application` |
 | `observability.application-telemetry=posthog` | Project operations dashboard | `application` |
+| `observability.alert-evaluation=posthog` | Production-filtered PostHog log alerts | `application` |
 
 The module ignores unrelated selections. It rejects configuration for an
 unselected capability and rejects a selected capability without configuration.
@@ -57,6 +58,14 @@ routine template update. New projects use compiled roots. A deliberate legacy
 migration must keep the old provider configuration available for the destroy
 or state-move phase, move each capability address under review, and reach a
 no-change plan before removing the aggregate call.
+
+When a profile also declares `rollout.stateful_operations`, Copier adds the
+project-owned operation contract beside the compiled root. The generated
+dispatcher requires explicit mutation tokens, checks the named GitHub
+environment and redacted Doppler handoff, preserves reviewed Terraform plan
+digests, and writes schema-checked JSON evidence. Preview, migration, seed,
+deploy, smoke, cleanup, rollback, backup, restore, and alert hooks remain mise
+tasks owned by the project runtime.
 
 ## State boundaries
 
@@ -112,6 +121,18 @@ The application root uses the same pattern with
 The module output `selected_capabilities` uses the same slot names as the
 resolved profile. `resource_ownership` returns provider IDs grouped under the
 profile project ID; it never returns secret values.
+
+## Profile validation
+
+The v1 module now checks the profile through output preconditions. These checks
+stop `terraform plan` with the same messages as the former
+`terraform_data.profile_guard`, but they do not add a managed resource to
+state.
+
+Existing state needs no special migration. The next apply deletes the former
+state-only guard through its normal resource lifecycle without affecting cloud
+infrastructure or provider resource addresses. A fully disabled module then has
+no addresses in `terraform state list`.
 
 ## Environments, data, and credentials
 

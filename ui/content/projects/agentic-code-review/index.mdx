@@ -2,7 +2,7 @@
 title: "Agentic Code Review"
 description: "A stateful, model-agnostic GitHub App for high-signal code review at agentic development velocity"
 date: "2026-08-08"
-updated: "2026-10-08"
+updated: "2026-11-01"
 initiatives:
   - "semi-autonomous-software-development"
 ideas:
@@ -194,6 +194,10 @@ should change upstream.
 
 # Product Thesis
 
+[PDR 000](/projects/agentic-code-review/pdrs/000-own-review-policy-and-rent-inference)
+records the product boundary behind this thesis: own review policy and evidence,
+but keep model inference replaceable.
+
 1. **Code review is core infrastructure for agentic coding.** Generation
    velocity needs proportional verification to produce stable delivery.
 2. **Retain the review-specific layer and rent inference.** Models and inference
@@ -280,8 +284,10 @@ evidence of value before entering scope.
 
 # Current Product Scope
 
-The current output is a **GitHub App** implementing the stateful AI review
-described by
+The current output is a **GitHub App**. Its full and incremental Pull Request
+behavior comes from
+[PDR 001](/projects/agentic-code-review/pdrs/001-review-pull-requests-by-risk),
+with the stateful Cloudflare implementation described by
 [ADR 001](/projects/agentic-code-review/adrs/001-stateful-ai-code-review):
 
 * receive and verify GitHub webhook events;
@@ -422,9 +428,12 @@ will be inherited only when those decisions are actually adopted.
 
 # Success Measures
 
-The scorecard treats owner attention as the objective. It keeps useful
-discovery, cost, coverage, latency, agent work, and final-patch quality visible
-as explanations and constraints.
+[PDR 002](/projects/agentic-code-review/pdrs/002-local-outcomes-before-benchmark-scores)
+keeps local downstream outcomes primary and external benchmarks separate.
+[PDR 003](/projects/agentic-code-review/pdrs/003-recall-first-agent-mediated-review)
+treats owner attention as the objective. The scorecard keeps useful discovery,
+cost, coverage, latency, agent work, and final-patch quality visible as
+explanations and constraints.
 
 <div className="overflow-x-auto">
   | Outcome                 | Measure                                                                                                                                  |

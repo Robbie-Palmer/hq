@@ -3,16 +3,15 @@
 import { Github, Linkedin, Rss } from "lucide-react";
 import Link from "next/link";
 import posthog from "posthog-js";
+import { PageSourceLinks } from "@/components/page-source-links";
 
 interface FooterLinksProps {
   linkedInUrl: string;
-  sourceUrl: string;
   githubUrl: string;
 }
 
 export function FooterLinks({
   linkedInUrl,
-  sourceUrl,
   githubUrl,
 }: Readonly<FooterLinksProps>) {
   return (
@@ -67,20 +66,7 @@ export function FooterLinks({
         </a>
       </div>
 
-      <Link
-        href={sourceUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="hover:text-foreground transition-colors underline decoration-dotted underline-offset-4"
-        onClick={() =>
-          posthog.capture("source_code_viewed", {
-            source: "footer",
-            url: sourceUrl,
-          })
-        }
-      >
-        View Source
-      </Link>
+      <PageSourceLinks />
     </>
   );
 }

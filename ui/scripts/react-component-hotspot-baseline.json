@@ -470,14 +470,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "PropertyValueHistory",
-    "maximums": {
-      "lines": 183
-    },
-    "path": "app/_projects/personal-finance-app/components/property-value-history.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "RealIncomeHistoryChart",
     "maximums": {
       "lines": 122,
@@ -761,15 +753,6 @@
       "lines": 152
     },
     "path": "components/projects/pitch-deck/pitch-deck-presenter.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "PlatformManifest",
-    "maximums": {
-      "lines": 232,
-      "renderComplexity": 28
-    },
-    "path": "components/projects/platform-manifest.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
@@ -1216,14 +1199,6 @@
     "maximums": {
       "lines": 225,
       "renderComplexity": 14
-    },
-    "path": "components/recipes/settings/diet-panel.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
-    "component": "IngredientPicker",
-    "maximums": {
-      "lines": 113
     },
     "path": "components/recipes/settings/diet-panel.tsx",
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."

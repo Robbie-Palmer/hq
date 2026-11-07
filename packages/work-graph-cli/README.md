@@ -289,12 +289,26 @@ collection.
 
 `completion-policy put` creates an immutable policy revision.
 `completion-policy assign` assigns a revision to a ticket and immediately
-evaluates its current evidence. By default, later GitHub deliveries update the
-candidate without changing lifecycle. Pass `--automatic-release` when creating
-a revision to let Work Graph release a matching ticket that has no active
-lease. Every linked `implementation` pull request must have merge, required CI,
-and allowed production deployment evidence. Automatic release also requires
-finished children and no unresolved blocking attention.
+evaluates its current evidence. `completion-policy default put` creates an
+immutable repository-default revision. Work Graph applies the latest enabled
+default when an unassigned ticket is evaluated with an `implementation` pull
+request from that repository. Explicit ticket assignments win. A ticket linked
+to several repositories inherits a default only when every repository selects
+the same policy revision. Create a later disabled default revision to pause new
+default assignments.
+
+By default, later GitHub deliveries update the candidate without changing
+lifecycle. Pass `--automatic-release` when creating a policy revision to let
+Work Graph release matching unleased work. Every linked `implementation` pull
+request must have merge, required CI, and allowed production deployment
+evidence. Automatic release also requires finished children and no unresolved
+blocking attention.
+
+```sh
+work-graph completion-policy default put Robbie-Palmer/hq 1 \
+  --policy-id hq-production \
+  --policy-revision 1
+```
 
 `pr refresh` and `pr link` remain available as low-level automation commands.
 `pr refresh` records the latest observed snapshot independently of any ticket

@@ -77,6 +77,8 @@ import {
   zPutWorkItemSchedulingScopePath,
   zPutCompletionPolicyRevisionBody,
   zPutCompletionPolicyRevisionPath,
+  zPutRepositoryCompletionPolicyDefaultRevisionBody,
+  zPutRepositoryCompletionPolicyDefaultRevisionPath,
   zPutWorkItemCompletionPolicyBody,
   zRefreshPullRequestBody,
   zRefreshPullRequestHeaders,
@@ -360,6 +362,33 @@ const completionPolicyAssignInput = z.object({
   assignedAt: optional(
     zPutWorkItemCompletionPolicyBody.shape.assignedAt,
     "Assignment timestamp; defaults to now",
+  ),
+});
+
+const completionPolicyDefaultPutInput = z.object({
+  repository: positional(
+    z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+    "GitHub repository as owner/name",
+  ),
+  revision: positional(
+    zPutRepositoryCompletionPolicyDefaultRevisionPath.shape.revision,
+    "Default revision",
+  ),
+  policyId: described(
+    zPutRepositoryCompletionPolicyDefaultRevisionBody.shape.policyId,
+    "Completion policy ID",
+  ),
+  policyRevision: described(
+    zPutRepositoryCompletionPolicyDefaultRevisionBody.shape.policyRevision,
+    "Completion policy revision",
+  ),
+  enabled: optional(
+    z.boolean(),
+    "Apply this default to unassigned linked work",
+  ),
+  createdAt: optional(
+    zPutRepositoryCompletionPolicyDefaultRevisionBody.shape.createdAt,
+    "Default creation timestamp; defaults to now",
   ),
 });
 
@@ -1242,6 +1271,30 @@ export const workGraphRouter = t.router({
           assignedAt: input.assignedAt ?? new Date().toISOString(),
         }),
       ),
+    default: t.router({
+      put: command
+        .meta({
+          description: "Create an immutable repository completion-policy default",
+        })
+        .input(completionPolicyDefaultPutInput)
+        .mutation(({ ctx, input }) => {
+          const [owner, repository] = input.repository.split("/");
+          if (!owner || !repository) {
+            throw usageError("Repository must use owner/name format.");
+          }
+          return resolveClient(ctx).putRepositoryCompletionPolicyDefaultRevision(
+            owner,
+            repository,
+            input.revision,
+            {
+              policyId: input.policyId,
+              policyRevision: input.policyRevision,
+              enabled: input.enabled ?? true,
+              createdAt: input.createdAt ?? new Date().toISOString(),
+            },
+          );
+        }),
+    }),
   }),
   metadata: t.router({
     notes: command

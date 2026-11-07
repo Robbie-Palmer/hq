@@ -192,6 +192,7 @@ describe("Asset Tracker project routes", () => {
         activeScope: { kind: "household" },
       },
       taxEstimate: getHouseholdTaxEstimate(getDemoAssetTrackerData()),
+      soleTraderScenarios: getDemoAssetTrackerData().soleTraderScenarios ?? [],
       exportTaxEstimate: vi.fn(),
     } as unknown as ReturnType<typeof useAssetTracker>);
   });
@@ -386,6 +387,22 @@ describe("Asset Tracker project routes", () => {
       screen.getByRole("button", { name: "Export calculation" }),
     ).toBeVisible();
     expect(screen.queryByText("No total shown")).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Sole-trader side income" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("button", { name: "Alex: Freelance design" }),
+    ).toHaveAttribute("aria-pressed", "true");
+    expect(screen.getByText("£3,468.00")).toBeVisible();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Alex: VAT-threshold growth" }),
+    );
+
+    expect(screen.getAllByText("£95,000.00")).toHaveLength(2);
+    expect(screen.getAllByText("Required", { selector: "span" })).toHaveLength(
+      2,
+    );
   });
 
   it("offers demo-backed defaults when tax setup is missing", () => {
@@ -437,6 +454,7 @@ describe("Asset Tracker project routes", () => {
     const tracker = {
       ...current,
       household: {
+        id: "household",
         members: [{ id: "alex", displayName: "Alex" }],
         activeScope: { kind: "household" as const },
       },

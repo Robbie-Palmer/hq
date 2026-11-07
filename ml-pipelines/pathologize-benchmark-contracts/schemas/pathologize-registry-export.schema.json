@@ -1,0 +1,45 @@
+{
+  "additionalProperties": true,
+  "properties": {
+    "@context": {
+      "additionalProperties": true,
+      "title": "@Context",
+      "type": "object"
+    },
+    "@type": {
+      "const": "sc:Dataset",
+      "title": "@Type",
+      "type": "string"
+    },
+    "conformsTo": {
+      "const": "http://mlcommons.org/croissant/1.1",
+      "title": "Conformsto",
+      "type": "string"
+    },
+    "name": {
+      "minLength": 1,
+      "title": "Name",
+      "type": "string"
+    },
+    "pathologize:contract": {
+      "const": "pathologize.data-registry-export/v1",
+      "title": "Pathologize:Contract",
+      "type": "string"
+    },
+    "pathologize:registryRevision": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Pathologize:Registryrevision",
+      "type": "string"
+    }
+  },
+  "required": [
+    "@context",
+    "@type",
+    "name",
+    "conformsTo",
+    "pathologize:contract",
+    "pathologize:registryRevision"
+  ],
+  "title": "RegistryExport",
+  "type": "object"
+}

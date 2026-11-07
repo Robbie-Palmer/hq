@@ -6,20 +6,38 @@ import {
   type GithubPageItems,
 } from "github-client";
 import { bytesToHex, sha256Bytes, sha256Hex } from "ts-base/crypto";
+import { receiverSafeFetch } from "ts-base/http";
 import { canonicalJson } from "ts-base/json";
 import { base64UrlEncode } from "ts-base/strings";
-import type {
-  GitHubDeliveryConsumer,
-  GitHubReconciliationTarget,
+import {
+  classifyRetryableDatabaseFailure,
+  type GitHubDeliveryConsumer,
+  type GitHubReconciliationTarget,
 } from "work-graph-db";
-import type { GitHubDelivery } from "work-graph-domain";
+import type { GeneratedDeliveryMetadataRevision, GitHubDelivery } from "work-graph-domain";
+import { parse } from "yaml";
 
 const MAX_PAGES = 10;
 const REQUEST_TIMEOUT_MS = 15_000;
+const DELIVERY_ATTEMPTS = 3;
+const TARGET_FETCH_CONCURRENCY = 3;
 
 type JsonRecord = Record<string, unknown>;
 type Disposition = Awaited<ReturnType<GitHubDeliveryConsumer["consume"]>>;
 type ReconciliationPayload = { event: string; payload: JsonRecord };
+
+interface RepositoryContext {
+  readonly client: GithubClient;
+  readonly deliveryMetadata: GeneratedDeliveryMetadataRevision;
+  readonly deliveryMetadataCreatedAt: string;
+  readonly encodedRepository: string;
+  readonly installationId: number;
+  readonly repository: string;
+}
+
+type TargetFetchResult =
+  | { readonly deliveries: readonly GitHubDelivery[] }
+  | { readonly error: unknown };
 
 export interface GitHubReconciliationConfig {
   readonly appId: string;
@@ -39,6 +57,11 @@ export interface GitHubReconciliationSummary {
 export interface GitHubReconciliationDependencies {
   readonly fetch?: typeof fetch;
   readonly now?: () => Date;
+}
+
+export interface GitHubReconciliationConsumer {
+  consume(delivery: GitHubDelivery): Promise<Disposition>;
+  finishTarget?(): Promise<void>;
 }
 
 export class GitHubReconciliationError extends Error {}
@@ -143,6 +166,9 @@ function pullRequestPayload(
   source: JsonRecord,
   repository: string,
   installationId: number,
+  changedPaths: readonly string[],
+  deliveryMetadata: GeneratedDeliveryMetadataRevision,
+  deliveryMetadataCreatedAt: string,
 ): JsonRecord {
   const head = record(source.head, "pull request head");
   const state = text(source.state, "pull request state");
@@ -161,9 +187,82 @@ function pullRequestPayload(
       mergeable: source.mergeable,
       html_url: text(source.html_url, "pull request URL"),
       updated_at: text(source.updated_at, "pull request update time"),
+      changed_paths: changedPaths,
+      delivery_metadata_source_revision: deliveryMetadata.sourceRevision,
     },
     repository: { full_name: repository },
+    work_graph_delivery_metadata: deliveryMetadata,
+    work_graph_delivery_metadata_created_at: deliveryMetadataCreatedAt,
   };
+}
+
+function deliveryMetadataFromPlatform(
+  source: string,
+  repository: string,
+  sourceRevision: string,
+): GeneratedDeliveryMetadataRevision {
+  const document = record(parse(source), "platform catalog");
+  const catalog = record(document.catalog, "platform catalog records");
+  const records = array(catalog.records, "platform catalog records");
+  const targets = records.flatMap((value) => {
+    const target = record(value, "delivery target");
+    if (target.kind !== "delivery-target") return [];
+    if (text(target.repository, "delivery target repository").toLowerCase() !== repository) {
+      return [];
+    }
+    const github = record(target.github, "delivery target GitHub bindings");
+    return [
+      {
+        id: text(target.id, "delivery target ID"),
+        projectId: text(target.project, "delivery target project"),
+        repository,
+        sourcePaths: array(
+          target.source_path_bindings,
+          "delivery target source paths",
+        ).map((bindingValue) => {
+          const binding = record(bindingValue, "delivery target source path");
+          const rawMode = text(binding.mode, "delivery target source path mode");
+          if (rawMode !== "exclusive" && rawMode !== "shared") {
+            throw new GitHubReconciliationError(
+              "Platform catalog has an invalid delivery target source-path mode.",
+            );
+          }
+          const mode: "exclusive" | "shared" = rawMode;
+          return {
+            path: text(binding.path, "delivery target source path"),
+            mode,
+            subjects: array(
+              binding.subjects,
+              "delivery target source-path subjects",
+            ).map((subject) => text(subject, "delivery target subject")),
+          };
+        }),
+        subjects: array(target.subjects, "delivery target subjects").map(
+          (subject) => text(subject, "delivery target subject"),
+        ),
+        sharedHostId:
+          target.shared_host_id === undefined
+            ? null
+            : text(target.shared_host_id, "delivery target shared host"),
+        requiredCiNames: array(
+          github.required_ci_names,
+          "delivery target CI names",
+        ).map((name) => text(name, "delivery target CI name")),
+        productionEnvironments: array(
+          github.production_environments,
+          "delivery target production environments",
+        ).map((environment) =>
+          text(environment, "delivery target production environment"),
+        ),
+      },
+    ];
+  });
+  if (targets.length === 0) {
+    throw new GitHubReconciliationError(
+      `Platform catalog has no delivery targets for ${repository}.`,
+    );
+  }
+  return { repository, sourceRevision, targets };
 }
 
 function workflowPayload(
@@ -220,13 +319,17 @@ export class GitHubReconciler {
   private readonly fetcher: typeof fetch;
   private readonly now: () => Date;
   private readonly installationTokens = new Map<number, string>();
+  private readonly repositoryContexts = new Map<
+    string,
+    Promise<RepositoryContext>
+  >();
 
   constructor(
     private readonly config: GitHubReconciliationConfig,
-    private readonly consumer: Pick<GitHubDeliveryConsumer, "consume">,
+    private readonly consumer: GitHubReconciliationConsumer,
     dependencies: GitHubReconciliationDependencies = {},
   ) {
-    this.fetcher = dependencies.fetch ?? fetch;
+    this.fetcher = receiverSafeFetch(dependencies.fetch);
     this.now = dependencies.now ?? (() => new Date());
   }
 
@@ -240,14 +343,37 @@ export class GitHubReconciler {
       failed: 0,
     };
     let deliveries = 0;
-    for (const target of targets) {
-      // Targets stay serial to bound GitHub API traffic for scheduled runs.
-      const targetDeliveries = await this.fetchTarget(target); // NOSONAR
-      for (const delivery of targetDeliveries) {
-        // The consumer owns one database connection and must remain serial.
-        const disposition = await this.consumer.consume(delivery); // NOSONAR
-        counts[disposition] += 1;
-        deliveries += 1;
+    const fetches: Array<Promise<TargetFetchResult> | undefined> = targets
+      .slice(0, TARGET_FETCH_CONCURRENCY)
+      .map((target) => this.prefetchTarget(target));
+    for (const [index] of targets.entries()) {
+      const slot = index % TARGET_FETCH_CONCURRENCY;
+      const fetchResult = await fetches[slot];
+      if (fetchResult === undefined) {
+        throw new GitHubReconciliationError(
+          "GitHub reconciliation target prefetch was unavailable.",
+        );
+      }
+      const nextIndex = index + TARGET_FETCH_CONCURRENCY;
+      const nextTarget = targets[nextIndex];
+      fetches[slot] =
+        nextTarget === undefined
+          ? undefined
+          : this.prefetchTarget(nextTarget);
+      if ("error" in fetchResult) throw fetchResult.error;
+      let hasPrimaryError = false;
+      try {
+        for (const delivery of fetchResult.deliveries) {
+          // GitHub reads overlap, but database commits remain serial and ordered.
+          const disposition = await this.consume(delivery); // NOSONAR
+          counts[disposition] += 1;
+          deliveries += 1;
+        }
+      } catch (error) {
+        hasPrimaryError = true;
+        throw error;
+      } finally {
+        await this.finishTarget(hasPrimaryError);
       }
     }
     if (counts.failed > 0) {
@@ -264,6 +390,58 @@ export class GitHubReconciler {
     };
   }
 
+  private prefetchTarget(
+    target: GitHubReconciliationTarget,
+  ): Promise<TargetFetchResult> {
+    return this.fetchTarget(target).then(
+      (deliveries) => ({ deliveries }),
+      (error: unknown) => ({ error }),
+    );
+  }
+
+  private async finishTarget(hasPrimaryError: boolean): Promise<void> {
+    try {
+      await this.consumer.finishTarget?.();
+    } catch (error) {
+      console.error(
+        JSON.stringify({
+          operation: "github-reconciliation-target-finish-failed",
+          primaryError: hasPrimaryError,
+        }),
+      );
+      if (!hasPrimaryError) throw error;
+    }
+  }
+
+  private async consume(delivery: GitHubDelivery): Promise<Disposition> {
+    for (let attempt = 1; attempt <= DELIVERY_ATTEMPTS; attempt += 1) {
+      try {
+        return await this.consumer.consume(delivery);
+      } catch (error) {
+        const failure = classifyRetryableDatabaseFailure(error);
+        if (failure === undefined) {
+          throw error;
+        }
+        const retry = {
+          operation: "github-reconciliation-delivery-retry",
+          deliveryId: delivery.deliveryId,
+          event: delivery.event,
+          attempt,
+          failure,
+        };
+        if (attempt === DELIVERY_ATTEMPTS) {
+          console.error(JSON.stringify({ ...retry, exhausted: true }));
+          throw error;
+        }
+        console.warn(JSON.stringify(retry));
+        await this.finishTarget(true);
+      }
+    }
+    throw new GitHubReconciliationError(
+      "GitHub reconciliation exhausted delivery retries.",
+    );
+  }
+
   private async fetchTarget(
     target: GitHubReconciliationTarget,
   ): Promise<readonly GitHubDelivery[]> {
@@ -273,6 +451,92 @@ export class GitHubReconciler {
         `Repository ${repository} is outside observer policy.`,
       );
     }
+    const {
+      client,
+      deliveryMetadata,
+      deliveryMetadataCreatedAt,
+      encodedRepository,
+      installationId,
+    } = await this.repositoryContext(repository);
+    const [pullRequestValue, changedFiles] = await Promise.all([
+      client.request(
+        "GET",
+        `/repos/${encodedRepository}/pulls/${target.number}`,
+      ),
+      this.arrayPages(
+        client,
+        `/repos/${encodedRepository}/pulls/${target.number}/files`,
+      ),
+    ]);
+    const pullRequest = record(pullRequestValue, "pull request");
+    const changedPaths = [
+      ...new Set(
+        changedFiles.flatMap((value) => {
+          const file = record(value, "pull request file");
+          return [
+            text(file.filename, "pull request filename"),
+            ...(file.previous_filename === undefined
+              ? []
+              : [text(file.previous_filename, "pull request previous filename")]),
+          ];
+        }),
+      ),
+    ].toSorted((left, right) => left.localeCompare(right));
+    const receivedAt = this.now().toISOString();
+    const payloads: ReconciliationPayload[] = [
+      {
+        event: "pull_request",
+        payload: pullRequestPayload(
+          pullRequest,
+          repository,
+          installationId,
+          changedPaths,
+          deliveryMetadata,
+          deliveryMetadataCreatedAt,
+        ),
+      },
+    ];
+    const head = record(pullRequest.head, "pull request head");
+    const commits = new Set([text(head.sha, "pull request head SHA")]);
+    if (
+      pullRequest.merged === true ||
+      typeof pullRequest.merged_at === "string"
+    ) {
+      commits.add(text(pullRequest.merge_commit_sha, "pull request merge SHA"));
+    }
+    const [workflowPayloads, deploymentPayloads] = await Promise.all([
+      this.fetchWorkflowPayloads(
+        encodedRepository,
+        repository,
+        installationId,
+        commits,
+        client,
+      ),
+      this.fetchDeploymentPayloads(
+        encodedRepository,
+        repository,
+        installationId,
+        commits,
+        client,
+      ),
+    ]);
+    payloads.push(...workflowPayloads, ...deploymentPayloads);
+    return Promise.all(
+      payloads.map(({ event, payload }) =>
+        reconciliationDelivery({
+          event,
+          installationId,
+          payload,
+          receivedAt,
+          repository,
+        }),
+      ),
+    );
+  }
+
+  private async loadRepositoryContext(
+    repository: string,
+  ): Promise<RepositoryContext> {
     const encodedRepository = repositoryPath(repository);
     const jwt = createGitHubAppJwt(
       this.config.appId,
@@ -301,59 +565,74 @@ export class GitHubReconciler {
       fetch: this.fetcher,
       timeoutMs: REQUEST_TIMEOUT_MS,
     });
-    const pullRequest = record(
+    const repositoryDetails = record(
+      await client.request("GET", `/repos/${encodedRepository}`),
+      "repository",
+    );
+    const defaultBranch = text(
+      repositoryDetails.default_branch,
+      "repository default branch",
+    );
+    const defaultBranchCommit = record(
       await client.request(
         "GET",
-        `/repos/${encodedRepository}/pulls/${target.number}`,
+        `/repos/${encodedRepository}/commits/${encodeURIComponent(defaultBranch)}`,
       ),
-      "pull request",
+      "default branch commit",
     );
-    const receivedAt = this.now().toISOString();
-    const payloads: ReconciliationPayload[] = [
-      {
-        event: "pull_request",
-        payload: pullRequestPayload(
-          pullRequest,
-          repository,
-          installationId,
-        ),
-      },
-    ];
-    const head = record(pullRequest.head, "pull request head");
-    const commits = new Set([text(head.sha, "pull request head SHA")]);
-    if (
-      pullRequest.merged === true ||
-      typeof pullRequest.merged_at === "string"
-    ) {
-      commits.add(text(pullRequest.merge_commit_sha, "pull request merge SHA"));
+    const defaultBranchCommitDetails = record(
+      defaultBranchCommit.commit,
+      "default branch commit details",
+    );
+    const defaultBranchCommitter = record(
+      defaultBranchCommitDetails.committer,
+      "default branch committer",
+    );
+    const deliveryMetadataCreatedAt = text(
+      defaultBranchCommitter.date,
+      "default branch commit time",
+    );
+    const platformContent = record(
+      await client.request(
+        "GET",
+        `/repos/${encodedRepository}/contents/ui/content/projects/personal-engineering-platform/platform.yaml`,
+        { query: { ref: defaultBranch } },
+      ),
+      "platform catalog",
+    );
+    const encoding = text(platformContent.encoding, "platform catalog encoding");
+    if (encoding !== "base64") {
+      throw new GitHubReconciliationError(
+        "GitHub returned an unsupported platform catalog encoding.",
+      );
     }
-    payloads.push(
-      ...(await this.fetchWorkflowPayloads(
-        encodedRepository,
-        repository,
-        installationId,
-        commits,
-        client,
-      )),
-      ...(await this.fetchDeploymentPayloads(
-        encodedRepository,
-        repository,
-        installationId,
-        commits,
-        client,
-      )),
+    const deliveryMetadata = deliveryMetadataFromPlatform(
+      Buffer.from(
+        text(platformContent.content, "platform catalog content").replace(
+          /\s/gu,
+          "",
+        ),
+        "base64",
+      ).toString("utf8"),
+      repository,
+      text(platformContent.sha, "platform catalog revision"),
     );
-    return Promise.all(
-      payloads.map(({ event, payload }) =>
-        reconciliationDelivery({
-          event,
-          installationId,
-          payload,
-          receivedAt,
-          repository,
-        }),
-      ),
-    );
+    return {
+      client,
+      deliveryMetadata,
+      deliveryMetadataCreatedAt,
+      encodedRepository,
+      installationId,
+      repository,
+    };
+  }
+
+  private repositoryContext(repository: string): Promise<RepositoryContext> {
+    const cached = this.repositoryContexts.get(repository);
+    if (cached) return cached;
+    const context = this.loadRepositoryContext(repository);
+    this.repositoryContexts.set(repository, context);
+    return context;
   }
 
   private async fetchWorkflowPayloads(

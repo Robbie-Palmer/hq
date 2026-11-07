@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { coverageContract, validateCoverageContract } from "./coverage";
 import { ruleDataset } from "./data";
 import { datasetSchema, type RuleDataset } from "./schema";
 import { validateValidationCorpus } from "./validation";
@@ -235,6 +236,11 @@ export const buildArtifacts = (packageRoot: string) => {
   const dataset = validateDataset(ruleDataset);
   validateReleaseLineage(packageRoot, dataset);
   const validatedCorpus = validateValidationCorpus(validationCorpus);
+  const validatedCoverageContract = validateCoverageContract(
+    packageRoot,
+    dataset,
+    validatedCorpus,
+  );
   assert(
     validatedCorpus.ruleDatasetVersion === dataset.datasetVersion,
     "Validation corpus must pin the built rule dataset version",
@@ -275,6 +281,7 @@ export const buildArtifacts = (packageRoot: string) => {
   );
   const coverage = {
     ...commonArtifact,
+    ...validatedCoverageContract,
     supportedTaxYears: [
       "2015-16",
       "2016-17",
@@ -367,7 +374,10 @@ export const buildArtifacts = (packageRoot: string) => {
   const version = dataset.datasetVersion;
   const artifacts = new Map([
     [`artifacts/enacted/${version}.json`, canonicalJson(enacted)],
-    [`artifacts/coverage-matrix/${version}.json`, canonicalJson(coverage)],
+    [
+      `artifacts/coverage-matrix/${coverageContract.coverageContractVersion}.json`,
+      canonicalJson(coverage),
+    ],
     [
       `artifacts/validation/${validatedCorpus.corpusVersion}.json`,
       canonicalJson(validatedCorpus),

@@ -3,12 +3,15 @@ title: "ADR 008: GitHub OAuth Login"
 date: "2026-06-19"
 status: "Accepted"
 tech_stack: ["GitHub OAuth"]
+implements_product_decisions:
+  - "recipe-site:002-federated-sign-in-without-first-party-passwords"
 ---
 
 # Summary
 
-Offer **Sign in with GitHub** (GitHub's OAuth 2.0 implementation) as a secondary sign-in method
-alongside Google.
+Implement the secondary provider selected by
+[PDR 002](/projects/recipe-site/pdrs/002-federated-sign-in-without-first-party-passwords)
+with **Sign in with GitHub**, using GitHub's OAuth 2.0 implementation.
 
 [ADR 003](/projects/recipe-site/adrs/003-better-auth) chose Better Auth and named GitHub as a
 "useful secondary path for technical friends". [ADR 007](/projects/recipe-site/adrs/007-google-oidc-login)
@@ -23,9 +26,9 @@ baseline ([ADR 006](/projects/recipe-site/adrs/006-application-security-baseline
 
 # Context
 
-The same two goals that drove Google as the default ([ADR 007](/projects/recipe-site/adrs/007-google-oidc-login)),
-frictionless sign-up and keeping password handling with someone else, also argue for a second
-federated provider rather than email/password. GitHub is that second provider for two reasons:
+PDR 002 owns the product rationale for federated sign-in and the provider
+order. This ADR evaluates GitHub as the selected secondary provider. GitHub is
+the technical fit for two reasons:
 
 1. **It fits the technical-friend slice of the audience.** Developers are usually already
    authenticated to GitHub, so for them "Sign in with GitHub" is the lowest-friction path,

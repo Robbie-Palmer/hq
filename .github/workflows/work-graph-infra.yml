@@ -48,6 +48,7 @@ jobs:
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           TF_VAR_neon_org_id: ${{ secrets.NEON_ORG_ID }}
+          DOPPLER_WORK_GRAPH_TERRAFORM_ENV_WRAPPED: "1"
           WORK_GRAPH_DOPPLER_SERVICE_TOKEN: ${{ secrets.WORK_GRAPH_DOPPLER_SERVICE_TOKEN }}
 
       - name: Add Terraform plan to summary
@@ -67,6 +68,7 @@ jobs:
           TF_VAR_cloudflare_account_id: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
           TF_VAR_neon_org_id: ${{ secrets.NEON_ORG_ID }}
+          DOPPLER_WORK_GRAPH_TERRAFORM_ENV_WRAPPED: "1"
           WORK_GRAPH_DOPPLER_SERVICE_TOKEN: ${{ secrets.WORK_GRAPH_DOPPLER_SERVICE_TOKEN }}
 
       - name: Remove Terraform plan

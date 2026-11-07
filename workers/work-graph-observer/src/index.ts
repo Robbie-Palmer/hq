@@ -2,6 +2,7 @@ import {
   closeDb,
   createDb,
   GitHubDeliveryConsumer,
+  type GitHubReconciliationTarget,
   WorkGraphRepository,
 } from "work-graph-db";
 import type { GitHubDelivery } from "work-graph-domain";
@@ -22,6 +23,8 @@ const SUPPORTED_EVENTS = new Set([
   "pull_request",
   "workflow_run",
 ]);
+const RECONCILIATION_INTERVAL_MS = 6 * 60 * 60 * 1_000;
+const RECONCILIATION_TARGET_LIMIT = 3;
 
 export interface ObserverBindings {
   readonly HYPERDRIVE: Hyperdrive;
@@ -285,23 +288,72 @@ export async function runScheduledReconciliation(
   if (!allowedInstallationIds || !allowedRepositories) {
     throw new Error("Observer policy is unavailable for reconciliation.");
   }
-  const db = createDb(env.HYPERDRIVE.connectionString, { maxConnections: 1 });
-  try {
-    const targets =
-      await new WorkGraphRepository(db).listGitHubReconciliationTargets();
-    return new GitHubReconciler(
-      {
-        appId: env.GITHUB_APP_ID,
-        privateKey: env.GITHUB_APP_PRIVATE_KEY,
-        allowedInstallationIds,
-        allowedRepositories,
-      },
-      new GitHubDeliveryConsumer(db),
-      dependencies,
-    ).reconcile(targets);
-  } finally {
-    await closeDb(db);
-  }
+  const discoveredTargets = await (async () => {
+    const discoveryDb = createDb(env.HYPERDRIVE.connectionString, {
+      maxConnections: 1,
+    });
+    try {
+      return await new WorkGraphRepository(
+        discoveryDb,
+      ).listGitHubReconciliationTargets();
+    } finally {
+      await closeDb(discoveryDb);
+    }
+  })();
+  const targets = selectReconciliationTargets(
+    discoveredTargets,
+    dependencies.now?.() ?? new Date(),
+  );
+  return new GitHubReconciler(
+    {
+      appId: env.GITHUB_APP_ID,
+      privateKey: env.GITHUB_APP_PRIVATE_KEY,
+      allowedInstallationIds,
+      allowedRepositories,
+    },
+    createTargetScopedDeliveryConsumer(env.HYPERDRIVE.connectionString),
+    dependencies,
+  ).reconcile(targets);
+}
+
+export function selectReconciliationTargets(
+  targets: readonly GitHubReconciliationTarget[],
+  at: Date,
+): readonly GitHubReconciliationTarget[] {
+  if (targets.length <= RECONCILIATION_TARGET_LIMIT) return targets;
+  const slot = Math.floor(at.getTime() / RECONCILIATION_INTERVAL_MS);
+  const start =
+    (slot * RECONCILIATION_TARGET_LIMIT) % targets.length;
+  return Array.from(
+    { length: RECONCILIATION_TARGET_LIMIT },
+    (_, offset) => {
+      const target = targets[(start + offset) % targets.length];
+      if (target === undefined) {
+        throw new Error("Reconciliation target rotation was unavailable.");
+      }
+      return target;
+    },
+  );
+}
+
+export function createTargetScopedDeliveryConsumer(
+  connectionString: string,
+) {
+  let db: ReturnType<typeof createDb> | undefined;
+  let consumer: GitHubDeliveryConsumer | undefined;
+  return {
+    async consume(delivery: GitHubDelivery) {
+      db ??= createDb(connectionString, { maxConnections: 1 });
+      consumer ??= new GitHubDeliveryConsumer(db);
+      return consumer.consume(delivery);
+    },
+    async finishTarget() {
+      const targetDb = db;
+      db = undefined;
+      consumer = undefined;
+      await closeDb(targetDb);
+    },
+  };
 }
 
 export default {

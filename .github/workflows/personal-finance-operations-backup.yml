@@ -1,0 +1,26 @@
+name: Personal Finance operations backup
+
+on:
+  schedule:
+    - cron: "23 4 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-finance-operations-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: ${{ vars.PERSONAL_FINANCE_OPERATIONS_READY == 'true' }}
+    uses: ./.github/workflows/project-stateful-operations.yml # zizmor: ignore[self-repository]
+    with:
+      action: backup
+      operations_root: "infra/personal-finance"
+      github_environment: "production-personal-finance-backup"
+      secret_config_ref: "doppler://personal-finance/backup"
+      checkout_ref: ${{ github.sha }}
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.PROJECT_BACKUP_DOPPLER_TOKEN }}

@@ -7,6 +7,19 @@ household estimates.
 
 ## Coverage
 
+The generated coverage matrix is a versioned product contract, separate from the
+rule dataset version. `artifacts/coverage-matrix/2026.11.0.json` inventories
+salary history, job-move forecasts, household tax position, and side-income
+scenarios. Each claim states whether it is implemented, approximate, explicitly
+unavailable, or untracked. It also names the calculation kind, code, tests,
+official-rule sources, validation fixtures, and accepted Work Graph gaps.
+
+The same artifact records third-party engine and API decisions against the
+versioned salary corpus. Runtime fit, licence, version selection,
+reproducibility, historical depth, and failure behavior are recorded for every
+candidate. A package or provider's broad feature list is not treated as product
+coverage.
+
 | Area | Supported |
 | --- | --- |
 | Tax years | 2015/16 through 2026/27 |
@@ -33,9 +46,14 @@ name without deleting the earlier evidence.
 The calculator does not show a total for Scottish taxpayers, partial-year or
 non-UK residence, taxable benefits, company directors, unsupported National
 Insurance categories, Capital Gains Tax reliefs, or a pension annual allowance
-excess. It also does not model foreign savings, accrued income securities,
+excess. The separate `annual-allowance` entry point models statutory threshold
+and adjusted income, the historical taper, three-year carry forward, MPAA and
+alternative-allowance tests, the annual allowance charge, and Scheme Pays. It
+returns an unavailable result instead of inferring omitted statutory facts. The
+household summary does not invoke that specialist calculation without those
+facts. It also does not model foreign savings, accrued income securities,
 chargeable-event gains, property income, Marriage Allowance, Blind Person's
-Allowance, pension carry forward, or defined benefit input amounts.
+Allowance, or foreign pension-scheme carry-forward exceptions.
 
 The workplace-pension calculator does not infer a scheme basis. Percentage
 contributions must name full gross pay, qualifying earnings, or an explicit

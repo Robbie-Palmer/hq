@@ -13,6 +13,7 @@ import {
   buildHouseholdAdoptedDecisionForecast,
   useAssetTracker,
 } from "@/app/_projects/personal-finance-app/components/asset-tracker-provider";
+import { applySetPropertyValueSelection } from "@/app/_projects/personal-finance-app/domain";
 import { getDemoAssetTrackerData } from "@/app/_projects/personal-finance-app/lib";
 import AssetTrackerLayout from "@/app/assettracker/layout";
 
@@ -136,6 +137,34 @@ describe("AssetTrackerLayoutClient", () => {
         ({ accountId }) => accountId === "nationwide-current",
       )?.balance,
     ).toBe(3_400);
+  });
+
+  it("builds adopted forecasts from the selected property value", () => {
+    const data = getDemoAssetTrackerData();
+    const recordedData = applySetPropertyValueSelection(data, {
+      accountId: "home",
+      anchorValuationId: "home-formal-valuation-2024-12",
+      valueSelection: {
+        mode: "recorded-value",
+        valuationId: "home-formal-valuation-2024-12",
+      },
+    });
+    const input = {
+      decisionIds: ["single-storey-extension"],
+      horizonMonths: 36,
+      reserveMonths: 6,
+    };
+    const automatic = buildHouseholdAdoptedDecisionForecast(data, input);
+    const recorded = buildHouseholdAdoptedDecisionForecast(recordedData, input);
+    const latestHomeBalance = (
+      forecast: ReturnType<typeof buildHouseholdAdoptedDecisionForecast>,
+    ) =>
+      forecast.balanceCheckpoints
+        .flatMap(({ accounts }) => accounts)
+        .filter(({ accountId }) => accountId === "home")
+        .at(-1)?.expectedBalance;
+
+    expect(latestHomeBalance(automatic)).not.toBe(latestHomeBalance(recorded));
   });
 
   it("links every application section and marks the current route", () => {

@@ -1,5 +1,6 @@
 import { generateKeyPairSync } from "node:crypto";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { previewReviewRules } from "ai-review-domain/rule-resolution";
 import {
   DEFAULT_OPENROUTER_SCOUTS,
   Reviewer,
@@ -63,6 +64,201 @@ function environment(put = vi.fn()): Env {
 
 function json(payload: unknown): Response {
   return Response.json(payload);
+}
+
+function guardrailFetch(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  publish: (body: string) => void,
+): Response {
+  const url = new URL(String(input));
+  const route = `${init?.method ?? "GET"} ${url.pathname}`;
+  switch (route) {
+    case "POST /app/installations/456/access_tokens":
+      return json({ token: "installation-token" });
+    case "GET /repos/Robbie-Palmer/hq/pulls/42":
+      return json({ head: { sha: params.headSha } });
+    case "GET /repos/Robbie-Palmer/hq/issues/42/comments":
+    case "GET /repos/Robbie-Palmer/hq/pulls/42/comments":
+      return json([]);
+    case "POST /repos/Robbie-Palmer/hq/issues/42/comments": {
+      publish(String((JSON.parse(String(init?.body)) as { body: string }).body));
+      return json({ id: 987 });
+    }
+    default:
+      throw new Error(`Unexpected request: ${route}`);
+  }
+}
+
+function ensembleRepositoryResponse(url: URL): Response | undefined {
+  switch (url.pathname) {
+    case "/app/installations/456/access_tokens":
+      return json({ token: "installation-token" });
+    case "/repos/Robbie-Palmer/hq/pulls/42":
+      return json({
+        state: "open",
+        draft: false,
+        author_association: "OWNER",
+        user: { login: "robbie" },
+        head: { sha: params.headSha, repo: { full_name: params.repository } },
+      });
+    case "/repos/Robbie-Palmer/hq/pulls/42/files":
+      return json([{
+        filename: "app.ts",
+        status: "modified",
+        patch: "@@ -1 +1 @@\n-return false\n+return true",
+      }]);
+    case "/repos/Robbie-Palmer/hq/contents/app.ts":
+      return json({
+        encoding: "base64",
+        size: 18,
+        content: Buffer.from("export default true").toString("base64"),
+      });
+    case "/repos/Robbie-Palmer/hq/contents/AGENTS.md":
+      return json({
+        encoding: "base64",
+        size: 20,
+        content: Buffer.from("Review correctness.").toString("base64"),
+      });
+    case "/repos/Robbie-Palmer/hq/contents/CLAUDE.md":
+    case "/repos/Robbie-Palmer/hq/contents/.github%2Fcopilot-instructions.md":
+      return new Response("missing", { status: 404 });
+    default:
+      return undefined;
+  }
+}
+
+function ensembleGraphqlResponse(
+  url: URL,
+  init: RequestInit | undefined,
+): Response | undefined {
+  if (url.pathname !== "/graphql") return undefined;
+  const body = JSON.parse(String(init?.body)) as { query: string };
+  if (body.query.includes("query FileContext")) {
+    return json({
+      data: {
+        repository: {
+          file0: {
+            byteSize: 18,
+            isBinary: false,
+            isTruncated: false,
+            text: "export default true",
+          },
+        },
+      },
+    });
+  }
+  return json({
+    data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } },
+  });
+}
+
+function scoutContent(model: string) {
+  return {
+    findings:
+      model === "moonshotai/kimi-k2.6"
+        ? [{
+            severity: "high",
+            file: "app.ts",
+            line: 1,
+            title: "Incorrect return value",
+            evidence: "The changed return value violates the contract.",
+            recommendation: "Restore the expected value.",
+            confidence: 0.9,
+          }]
+        : [],
+  };
+}
+
+function ensembleModelResponse(
+  url: URL,
+  init: RequestInit | undefined,
+): Response | undefined {
+  if (url.hostname === "opencode.ai" && url.pathname.endsWith("/models")) {
+    return json({
+      data: [
+        { id: "big-pickle" },
+        { id: "nemotron-3-ultra-free" },
+        { id: "deepseek-v4-flash-free" },
+      ],
+    });
+  }
+  if (!url.pathname.endsWith("/chat/completions")) return undefined;
+  const body = JSON.parse(String(init?.body)) as {
+    model: string;
+    provider?: { allow_fallbacks?: boolean };
+  };
+  if (url.hostname === "openrouter.ai") {
+    expect(body.provider?.allow_fallbacks).toBe(true);
+  }
+  const isMerger = body.model === "google/gemini-3.7-flash";
+  const content = isMerger
+    ? {
+        summary: "One concrete issue.",
+        findings: [{
+          severity: "high",
+          file: "app.ts",
+          line: 1,
+          title: "Incorrect return value",
+          evidence: "The changed return value violates the contract.",
+          recommendation: "Restore the expected value.",
+          confidence: 0.9,
+          source_models: ["moonshotai/kimi-k2.6"],
+          status: "open",
+          resolution_note: "",
+        }],
+      }
+    : scoutContent(body.model);
+  return json({
+    choices: [{
+      finish_reason: "stop",
+      message: { content: JSON.stringify(content) },
+    }],
+    usage: {
+      prompt_tokens: 100,
+      completion_tokens: 20,
+      prompt_tokens_details: { cached_tokens: 10 },
+      cost: isMerger ? 0.02 : 0.01,
+    },
+  });
+}
+
+function ensembleCommentResponse(
+  url: URL,
+  init: RequestInit | undefined,
+  publishedBodies: string[],
+): Response | undefined {
+  const route = `${init?.method ?? "GET"} ${url.pathname}`;
+  if (
+    route === "GET /repos/Robbie-Palmer/hq/issues/42/comments" ||
+    route === "GET /repos/Robbie-Palmer/hq/pulls/42/comments"
+  ) {
+    return json([]);
+  }
+  if (
+    route === "POST /repos/Robbie-Palmer/hq/pulls/42/comments" ||
+    route === "POST /repos/Robbie-Palmer/hq/issues/42/comments"
+  ) {
+    const body = JSON.parse(String(init?.body)) as { body: string };
+    publishedBodies.push(body.body);
+    return json({ id: route.includes("/pulls/") ? 654 : 987 });
+  }
+  return undefined;
+}
+
+function ensembleFetch(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+  publishedBodies: string[],
+): Response {
+  const url = new URL(String(input));
+  const response =
+    ensembleRepositoryResponse(url) ??
+    ensembleGraphqlResponse(url, init) ??
+    ensembleModelResponse(url, init) ??
+    ensembleCommentResponse(url, init, publishedBodies);
+  if (response) return response;
+  throw new Error(`Unexpected request: ${init?.method ?? "GET"} ${url}`);
 }
 
 function reviewer(): Reviewer {
@@ -370,7 +566,9 @@ describe("stateful review engine", () => {
       omitted: [],
     });
     vi.spyOn(Reviewer.prototype, "fileContext").mockResolvedValue("");
-    vi.spyOn(Reviewer.prototype, "headGuidelines").mockResolvedValue("");
+    vi.spyOn(Reviewer.prototype, "headGuidelineDocument").mockResolvedValue(
+      undefined,
+    );
     vi.spyOn(Reviewer.prototype, "pullRequestReviewContext").mockResolvedValue({ threads: "", reviewers: [] });
 
     const automatic = await prepareReview(environment(), params);
@@ -419,7 +617,9 @@ describe("stateful review engine", () => {
       omitted: [],
     });
     vi.spyOn(Reviewer.prototype, "fileContext").mockResolvedValue("");
-    vi.spyOn(Reviewer.prototype, "headGuidelines").mockResolvedValue("");
+    vi.spyOn(Reviewer.prototype, "headGuidelineDocument").mockResolvedValue(
+      undefined,
+    );
     vi.spyOn(Reviewer.prototype, "pullRequestReviewContext").mockResolvedValue({ threads: "", reviewers: [] });
 
     const prepared = await prepareReview(environment(), params);
@@ -427,6 +627,21 @@ describe("stateful review engine", () => {
     expect(prepared.skipReason).toBeUndefined();
     expect(prepared.coverage).toMatchObject({ mode: "full", totalHunks: 1 });
     expect(prepared.diff).toContain("----\n++++");
+    expect(prepared.rulePreview).toMatchObject({
+      schemaVersion: 1,
+      resolverVersion: "layered-review-rules-v1",
+      ruleSetVersion: "production-review-rules-v1",
+      conflicts: [],
+      paths: [{
+        path: "config.txt",
+        effectiveRules: [{
+          key: "review-focus",
+          layer: "global",
+          ruleIds: ["builtin:concrete-defects"],
+        }],
+      }],
+    });
+    expect(prepared.guidelines).toContain('"path":"config.txt"');
   });
 
   it("does not resend an unchanged hunk after synchronize", async () => {
@@ -438,6 +653,7 @@ describe("stateful review engine", () => {
     const [reviewedHunk, newHunk] = await identifyDiffHunks(fullDiff);
     expect(reviewedHunk).toBeDefined();
     expect(newHunk).toBeDefined();
+    if (!reviewedHunk || !newHunk) throw new Error("Expected two diff hunks");
 
     vi.stubGlobal(
       "fetch",
@@ -508,7 +724,7 @@ describe("stateful review engine", () => {
             Promise.resolve(
               json({
                 headSha: "b".repeat(40),
-                hunkIds: [reviewedHunk!.hunkId],
+                hunkIds: [reviewedHunk.hunkId],
                 openFindings: [],
               }),
             ),
@@ -521,8 +737,8 @@ describe("stateful review engine", () => {
 
     expect(prepared.coverage).toMatchObject({
       mode: "incremental",
-      reviewedHunkIds: [newHunk!.hunkId],
-      unchangedHunkIds: [reviewedHunk!.hunkId],
+      reviewedHunkIds: [newHunk.hunkId],
+      unchangedHunkIds: [reviewedHunk.hunkId],
     });
     expect(prepared.diff).toContain("+new second");
     expect(prepared.diff).not.toContain("+reviewed first");
@@ -568,6 +784,46 @@ describe("stateful review engine", () => {
         omitted: [],
       }),
     ).rejects.toThrow("without a prepared diff");
+  });
+
+  it("rejects unresolved file-rule conflicts before model dispatch", async () => {
+    const modelCall = vi.spyOn(
+      Reviewer.prototype,
+      "callOpenRouterScout",
+    );
+    const rulePreview = previewReviewRules({
+      repository: params.repository,
+      paths: ["app.ts"],
+      ruleSet: {
+        schemaVersion: 1,
+        ruleSetVersion: "conflict-v1",
+        rules: [
+          {
+            ruleId: "file-a",
+            key: "focus",
+            instruction: "Review behavior.",
+            scope: { kind: "file", path: "app.ts" },
+            source: { kind: "configuration", reference: "rules/a" },
+          },
+          {
+            ruleId: "file-b",
+            key: "focus",
+            instruction: "Review types.",
+            scope: { kind: "file", path: "app.ts" },
+            source: { kind: "configuration", reference: "rules/b" },
+          },
+        ],
+      },
+    });
+
+    await expect(runScouts(environment(), params, {
+      headSha: params.headSha,
+      diff: "diff",
+      paths: ["app.ts"],
+      omitted: [],
+      rulePreview,
+    })).rejects.toThrow("Unresolved review rule conflicts: app.ts:focus");
+    expect(modelCall).not.toHaveBeenCalled();
   });
 
   it("uses reviewer defaults when optional model settings are absent", async () => {
@@ -1514,38 +1770,11 @@ describe("stateful review engine", () => {
     let rollingComment = "";
     vi.stubGlobal(
       "fetch",
-      // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-        const url = new URL(String(input));
-        if (url.pathname === "/app/installations/456/access_tokens") {
-          return json({ token: "installation-token" });
-        }
-        if (url.pathname.endsWith("/pulls/42")) {
-          return json({ head: { sha: params.headSha } });
-        }
-        if (
-          url.pathname.endsWith("/issues/42/comments") &&
-          init?.method === "GET"
-        ) {
-          return json([]);
-        }
-        if (
-          url.pathname.endsWith("/pulls/42/comments") &&
-          init?.method === "GET"
-        ) {
-          return json([]);
-        }
-        if (
-          url.pathname.endsWith("/issues/42/comments") &&
-          init?.method === "POST"
-        ) {
-          rollingComment = String(
-            (JSON.parse(String(init.body)) as { body: string }).body,
-          );
-          return json({ id: 987 });
-        }
-        throw new Error(`Unexpected request: ${init?.method ?? "GET"} ${url}`);
-      }),
+      vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+        guardrailFetch(input, init, (body) => {
+          rollingComment = body;
+        }),
+      ),
     );
     const env = environment();
     env.AI_REVIEW_PUBLICATION_POLICY_VERSION = "publication-test-v2";
@@ -1625,166 +1854,9 @@ describe("stateful review engine", () => {
 
   it("runs and visibly publishes the same OpenRouter plus OpenCode ensemble", async () => {
     const publishedBodies: string[] = [];
-    // biome-ignore lint/complexity/noExcessiveCognitiveComplexity: Existing function predates the complexity limit; new violations remain prohibited.
-    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const url = new URL(String(input));
-      if (url.pathname === "/app/installations/456/access_tokens") {
-        return json({ token: "installation-token" });
-      }
-      if (url.pathname === "/repos/Robbie-Palmer/hq/pulls/42") {
-        return json({
-          state: "open",
-          draft: false,
-          author_association: "OWNER",
-          user: { login: "robbie" },
-          head: {
-            sha: params.headSha,
-            repo: { full_name: params.repository },
-          },
-        });
-      }
-      if (url.pathname.endsWith("/pulls/42/files")) {
-        return json([
-          {
-            filename: "app.ts",
-            status: "modified",
-            patch: "@@ -1 +1 @@\n-return false\n+return true",
-          },
-        ]);
-      }
-      if (url.pathname.endsWith("/contents/app.ts")) {
-        return json({
-          encoding: "base64",
-          size: 18,
-          content: Buffer.from("export default true").toString("base64"),
-        });
-      }
-      if (url.pathname.endsWith("/contents/AGENTS.md")) {
-        return json({
-          encoding: "base64",
-          size: 20,
-          content: Buffer.from("Review correctness.").toString("base64"),
-        });
-      }
-      if (
-        url.pathname.endsWith("/contents/CLAUDE.md") ||
-        url.pathname.endsWith("/contents/.github%2Fcopilot-instructions.md")
-      ) {
-        return new Response("missing", { status: 404 });
-      }
-      if (url.pathname === "/graphql") {
-        const body = JSON.parse(String(init?.body)) as {
-          query: string;
-          variables: Record<string, string>;
-        };
-        if (body.query.includes("query FileContext")) {
-          return json({
-            data: {
-              repository: {
-                file0: {
-                  byteSize: 18,
-                  isBinary: false,
-                  isTruncated: false,
-                  text: "export default true",
-                },
-              },
-            },
-          });
-        }
-        return json({
-          data: {
-            repository: {
-              pullRequest: { reviewThreads: { nodes: [] } },
-            },
-          },
-        });
-      }
-      if (url.hostname === "opencode.ai" && url.pathname.endsWith("/models")) {
-        return json({
-          data: [
-            { id: "big-pickle" },
-            { id: "nemotron-3-ultra-free" },
-            { id: "deepseek-v4-flash-free" },
-          ],
-        });
-      }
-      if (url.pathname.endsWith("/chat/completions")) {
-        const body = JSON.parse(String(init?.body)) as {
-          model: string;
-          provider?: { allow_fallbacks?: boolean };
-        };
-        if (url.hostname === "openrouter.ai") {
-          expect(body.provider?.allow_fallbacks).toBe(true);
-        }
-        const isMerger = body.model === "google/gemini-3.7-flash";
-        const content = isMerger
-          ? {
-              summary: "One concrete issue.",
-              findings: [
-                {
-                  severity: "high",
-                  file: "app.ts",
-                  line: 1,
-                  title: "Incorrect return value",
-                  evidence: "The changed return value violates the contract.",
-                  recommendation: "Restore the expected value.",
-                  confidence: 0.9,
-                  source_models: ["moonshotai/kimi-k2.6"],
-                  status: "open",
-                  resolution_note: "",
-                },
-              ],
-            }
-          : {
-              findings:
-                body.model === "moonshotai/kimi-k2.6"
-                  ? [
-                      {
-                        severity: "high",
-                        file: "app.ts",
-                        line: 1,
-                        title: "Incorrect return value",
-                        evidence:
-                          "The changed return value violates the contract.",
-                        recommendation: "Restore the expected value.",
-                        confidence: 0.9,
-                      },
-                    ]
-                  : [],
-            };
-        return json({
-          choices: [
-            {
-              finish_reason: "stop",
-              message: { content: JSON.stringify(content) },
-            },
-          ],
-          usage: {
-            prompt_tokens: 100,
-            completion_tokens: 20,
-            prompt_tokens_details: { cached_tokens: 10 },
-            cost: isMerger ? 0.02 : 0.01,
-          },
-        });
-      }
-      if (url.pathname.endsWith("/issues/42/comments") && init?.method === "GET") {
-        return json([]);
-      }
-      if (url.pathname.endsWith("/pulls/42/comments") && init?.method === "GET") {
-        return json([]);
-      }
-      if (url.pathname.endsWith("/pulls/42/comments") && init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { body: string };
-        publishedBodies.push(body.body);
-        return json({ id: 654 });
-      }
-      if (url.pathname.endsWith("/issues/42/comments") && init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { body: string };
-        publishedBodies.push(body.body);
-        return json({ id: 987 });
-      }
-      throw new Error(`Unexpected request: ${init?.method ?? "GET"} ${url}`);
-    });
+    const fetchMock = vi.fn((input: RequestInfo | URL, init?: RequestInit) =>
+      ensembleFetch(input, init, publishedBodies),
+    );
     vi.stubGlobal("fetch", fetchMock);
 
     const put = vi.fn();
@@ -1859,6 +1931,16 @@ describe("stateful review engine", () => {
         paths: Array<{ path: string; decision: string; reasonCode: string }>;
         summary: Record<string, number>;
       };
+      rulePreview: {
+        resolverVersion: string;
+        ruleSetVersion: string;
+        paths: Array<{
+          path: string;
+          effectiveRules: Array<{
+            sources: Array<{ reference: string; revision?: string }>;
+          }>;
+        }>;
+      };
     };
     expect(record.status).toBe("published");
     expect(record.schemaVersion).toBe(2);
@@ -1885,6 +1967,21 @@ describe("stateful review engine", () => {
       }],
       summary: { selected: 0, completed: 1 },
     });
+    expect(record.rulePreview).toMatchObject({
+      resolverVersion: "layered-review-rules-v1",
+      ruleSetVersion: "production-review-rules-v1",
+      paths: [{ path: "app.ts" }],
+    });
+    expect(
+      record.rulePreview.paths[0]?.effectiveRules.flatMap(
+        ({ sources }) => sources.map(({ revision }) => revision),
+      ),
+    ).toContain(HEAD_SHA);
+    expect(
+      record.rulePreview.paths[0]?.effectiveRules.flatMap(
+        ({ sources }) => sources.map(({ reference }) => reference),
+      ),
+    ).toContain("AGENTS.md");
   });
 
   it("does not synthesize coverage for a resumed legacy review", async () => {

@@ -1,0 +1,89 @@
+---
+title: "Randomisation"
+description: "Assigning treatments or conditions by a known chance process so the assignment design supports comparisons."
+source_url: "https://www.nber.org/papers/t0333.pdf"
+related_ideas:
+  - "study-design"
+  - "sampling-bias"
+---
+
+Randomisation assigns treatments or experimental conditions using a known chance process. The
+researcher specifies the possible assignments and their probabilities before observing outcomes.
+That assignment mechanism becomes part of the evidence used to compare the groups.
+
+In a simple two-group experiment, each unit may have the same known probability of receiving the
+treatment. Other designs randomise within blocks, assign whole clusters, vary the probabilities,
+or restrict the possible allocations to improve balance. The analysis must reflect the procedure
+that generated the assignment.
+
+## The assignment mechanism supports the comparison
+
+Randomisation breaks deliberate and systematic links between treatment assignment and the units'
+pre-treatment characteristics. It does not guarantee identical groups in the realised experiment.
+Chance imbalances can still occur. Instead, the known assignment probabilities support unbiased
+estimators under the design and allow randomisation tests to compare the observed result with
+results under other assignments that could have occurred.
+
+[Duflo, Glennerster, and Kremer](https://www.nber.org/papers/t0333.pdf) describe practical choices
+about the unit of randomisation, stratification, sample size, data collection, non-compliance, and
+spillovers. [Kennes and colleagues](https://pmc.ncbi.nlm.nih.gov/articles/PMC8366748/) show that
+restricted procedures trade some randomness for balance and that the planned analysis must match
+that choice.
+
+Allocation concealment is part of the mechanism. If someone can predict or change the next
+assignment, the nominal probabilities no longer describe the process that produced the groups.
+Blinding addresses a different problem. It limits changes in behaviour, treatment, or measurement
+after assignment.
+
+## Random allocation is not random sampling
+
+Random allocation chooses a condition for units already in a study. Random sampling chooses units
+from a population. Allocation helps estimate a causal effect for the study units. Sampling helps
+generalise an estimate to the population represented by the sampling frame.
+
+A trial can randomise treatment among a convenience sample. The treatment comparison may have
+strong internal validity while saying less about people who were not recruited. A survey can draw
+a probability sample without assigning any treatment. The word "random" does not make these two
+operations interchangeable.
+
+[Study design](/ideas/study-design) decides which operation the question needs. [Sampling
+bias](/ideas/sampling-bias) concerns systematic distortion in who enters or remains in the observed
+sample, not imbalance created by treatment assignment.
+
+## Statistical randomisation is an operational claim
+
+The originating essay, ["Are All Experiments Actually
+Quasi-Experiments?"](/blog/2022-03-28-quasi-experiments), asks whether objective randomness exists
+in nature. That is a philosophical question about indeterminism. Statistical randomisation makes a
+narrower claim. It requires a specified assignment procedure with known probabilities that people
+cannot manipulate using information about the units or their potential outcomes.
+
+A reproducible pseudorandom generator can run such a procedure when researchers choose the seed by
+an unpredictable process, conceal it until assignment, and keep outcome information out of the
+algorithm. The validity of the design does not require proof that the universe is metaphysically
+indeterministic.
+
+Randomisation also has limits. It cannot correct biased recruitment, outcome measurement,
+non-adherence, interference between units, selective attrition, or selective reporting. Those
+problems need their own design and analysis choices.
+
+## Questions it prompts
+
+* What are the possible assignments, and what probability does each one have?
+* Can anyone predict or alter an assignment before a unit enters the experiment?
+* Does the analysis use the assignment mechanism that the experiment actually followed?
+* Is blocking, clustering, or restricted allocation needed for the scientific question?
+* Which claims concern the assigned units, and which require a separate sampling argument?
+
+## Sources
+
+* Duflo, Esther, Rachel Glennerster, and Michael Kremer. ["Using Randomization in Development
+  Economics Research: A Toolkit"](https://www.nber.org/papers/t0333.pdf). NBER Technical Working
+  Paper 333, 2006.
+* Kennes, Leonhard N., et al. ["A roadmap to using randomization in clinical
+  trials"](https://pmc.ncbi.nlm.nih.gov/articles/PMC8366748/). *BMC Medical Research Methodology*,
+  2021\.
+* Hernán, Miguel A., and James M. Robins. [*Causal Inference: What
+  If*](https://miguelhernan.org/whatifbook). Chapman & Hall/CRC, 2020, updated online edition.
+* Palmer, Robbie. ["Are All Experiments Actually
+  Quasi-Experiments?"](/blog/2022-03-28-quasi-experiments). 2022. Originating essay.

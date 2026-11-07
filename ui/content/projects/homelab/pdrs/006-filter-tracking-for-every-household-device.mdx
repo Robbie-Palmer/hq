@@ -1,0 +1,45 @@
+---
+title: "PDR 006: Filter tracking for every household device"
+date: "2026-08-02"
+status: "Accepted"
+decision_date: "2026-08-02"
+---
+
+## Context
+
+Phones, televisions, streaming boxes, and other home devices make advertising
+and analytics requests even when they cannot run a local blocker. Per-device
+tools leave those clients uncovered. Moving filtering into a shared network
+service can cover them, but it also makes name resolution household-critical.
+
+Filtering that disappears during routine maintenance would trade privacy for a
+fragile internet connection.
+
+## Decision
+
+Apply DNS-level ad and tracker filtering to every device on the home network,
+including devices that cannot install their own blocker. Make the same
+protection available to approved personal devices away from home.
+
+Keep resolution available through the failure or reboot of either lab host.
+The household should not lose DNS because one filtering node is down. Manage
+the filtering policy once and keep the redundant nodes aligned.
+
+## Consequences
+
+The policy covers embedded and unmanaged clients, but the lab now owns a
+household-critical dependency. False positives need allowlisting, blocklists
+need maintenance, and a failure of every resolver can still make the internet
+appear unavailable.
+
+## Evaluation
+
+A representative LAN client and a remote personal device should receive the
+same filtering. Resolution must continue while either filtering host is
+stopped, and a configuration change must reach both nodes.
+
+## Migration note
+
+This PDR preserves the network-wide coverage and failover promise from the
+original project narrative and ADR 001. ADR 001 retains the AdGuard Home
+deployment and synchronization design. ADR 006 retains the monitoring choice.

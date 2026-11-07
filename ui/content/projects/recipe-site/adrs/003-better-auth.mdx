@@ -3,6 +3,8 @@ title: "ADR 003: Better Auth"
 date: "2026-05-25"
 status: "Accepted"
 tech_stack: ["Better Auth"]
+implements_product_decisions:
+  - "recipe-site:002-federated-sign-in-without-first-party-passwords"
 ---
 
 # Summary
@@ -28,8 +30,9 @@ The auth choice needs to satisfy a small number of constraints:
    can read and edit TypeScript or Terraform; they cannot reliably own a SaaS dashboard.
 2. **The choice should stay portable.** Auth should not create hard vendor lock-in.
 3. **Costs should stay predictable.** A personal project does not need per-MAU pricing pressure.
-4. **Social OAuth is the primary sign-in model.** Google is the default path; GitHub is a useful
-   secondary provider. Email/password is out of scope.
+4. **The library must implement the sign-in policy.**
+   [PDR 002](/projects/recipe-site/pdrs/002-federated-sign-in-without-first-party-passwords)
+   selects Google and GitHub federated sign-in without first-party passwords.
 5. **MVP can tolerate some operational ownership.** At inner-circle scale, owning the runtime is
    acceptable if it keeps the system simpler and more portable.
 
@@ -45,19 +48,9 @@ Use **[Better Auth](https://better-auth.com)** as the recipe site's authenticati
 Auth configuration lives in repository code. Social OAuth credentials live in the project's secrets
 layer. The runtime, database, and deployment target are outside this ADR's scope.
 
-At MVP, the intended scope is:
-
-| Method               | MVP?         | Notes                                                       |
-| -------------------- | ------------ | ----------------------------------------------------------- |
-| **Google OAuth**     | **Yes**      | Expected primary sign-in path.                              |
-| **GitHub OAuth**     | **Yes**      | Useful secondary path for technical friends.                |
-| **Apple OAuth**      | **Deferred** | Add only if a real user need appears.                       |
-| **Email + password** | **No**       | Not worth the support and security overhead.                |
-| **Magic links**      | **Deferred** | Adds email-delivery and link-consumption edge cases.        |
-| **Passkeys**         | **Deferred** | Worth revisiting later, not necessary for MVP.              |
-| **First-party MFA**  | **Deferred** | Social providers handle MFA at the identity-provider layer. |
-
-The initial shape is intentionally small:
+PDR 002 owns the supported methods and their product rationale. This ADR owns
+the library that implements them. The initial configuration is intentionally
+small:
 
 ```ts
 export const auth = betterAuth({

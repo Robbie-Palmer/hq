@@ -773,6 +773,43 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     ideas: ["directed-acyclic-graph"],
   },
   {
+    name: "DICOM",
+    added: "2026-11-06",
+    description:
+      "Standard for medical imaging information, storage, and interchange",
+    website: "https://www.dicomstandard.org/",
+    type: "tool",
+  },
+  {
+    name: "OME-Zarr",
+    added: "2026-11-06",
+    description:
+      "OME-NGFF representation for chunked multiscale bioimaging data",
+    website: "https://ngff.openmicroscopy.org/",
+    type: "tool",
+  },
+  {
+    name: "MLCommons Croissant",
+    added: "2026-11-06",
+    description: "JSON-LD vocabulary for machine-learning dataset metadata",
+    website: "https://mlcommons.org/working-groups/data/croissant/",
+    type: "tool",
+  },
+  {
+    name: "W3C PROV",
+    added: "2026-11-06",
+    description: "W3C model and vocabulary for interoperable provenance",
+    website: "https://www.w3.org/TR/prov-overview/",
+    type: "tool",
+  },
+  {
+    name: "RO-Crate",
+    added: "2026-11-06",
+    description: "JSON-LD format for packaging research data with its metadata",
+    website: "https://www.researchobject.org/ro-crate/",
+    type: "tool",
+  },
+  {
     name: "ModelPack",
     added: "2026-09-14",
     description: "OCI-based format specification for AI and ML model packages",
@@ -1531,6 +1568,14 @@ Timers can also have names. For example, \`~pasta{10%minutes}\` creates a ten-mi
       "Reproducible Linux distribution built on the Nix package manager with declarative system configuration",
     website: "https://nixos.org",
     type: "platform",
+  },
+  {
+    name: "msi-ec",
+    added: "2026-11-02",
+    description:
+      "Linux embedded-controller driver exposing supported MSI laptop controls and telemetry",
+    website: "https://github.com/BeardOverflow/msi-ec",
+    type: "tool",
   },
   {
     name: "Hetzner Cloud",

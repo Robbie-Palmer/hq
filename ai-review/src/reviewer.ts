@@ -605,12 +605,20 @@ export class Reviewer {
     return blocks.join("\n");
   }
 
-  async headGuidelines(headSha: string): Promise<string> {
+  async headGuidelineDocument(
+    headSha: string,
+  ): Promise<{ path: string; content: string } | undefined> {
     for (const path of ["AGENTS.md", "CLAUDE.md", ".github/copilot-instructions.md"]) {
       const content = await this.fileContent(path, headSha);
-      if (content !== undefined) return content.slice(0, MAX_GUIDELINES_CHARS);
+      if (content !== undefined) {
+        return { path, content: content.slice(0, MAX_GUIDELINES_CHARS) };
+      }
     }
-    return "";
+    return undefined;
+  }
+
+  async headGuidelines(headSha: string): Promise<string> {
+    return (await this.headGuidelineDocument(headSha))?.content ?? "";
   }
 
   async openCodeScoutModels(): Promise<{ models: string[]; unavailable: string[] }> {

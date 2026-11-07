@@ -3,7 +3,15 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { useAssetTracker } from "@/app/_projects/personal-finance-app/components/asset-tracker-provider";
 import { MortgageInvestmentComparison } from "@/app/_projects/personal-finance-app/components/mortgage-investment-comparison";
-import type { AccountDetailView } from "@/app/_projects/personal-finance-app/domain";
+import { buildMortgageInvestmentModel } from "@/app/_projects/personal-finance-app/components/mortgage-investment-model";
+import {
+  housePriceIndexArchive,
+  propertyIndexHistories,
+} from "@/app/_projects/personal-finance-app/content/propertyIndexHistory";
+import {
+  type AccountDetailView,
+  buildPropertyValueHistoryViews,
+} from "@/app/_projects/personal-finance-app/domain";
 
 vi.mock(
   "@/app/_projects/personal-finance-app/components/asset-tracker-provider",
@@ -36,6 +44,10 @@ function account(overrides: Partial<AccountDetailView>): AccountDetailView {
 }
 
 function mockTracker(accountDetails: AccountDetailView[] = []): void {
+  const propertyValue = buildPropertyValueHistoryViews(
+    propertyIndexHistories,
+    housePriceIndexArchive,
+  )[0]?.selectedValue;
   mockUseAssetTracker.mockReturnValue({
     accountDetails,
     baseCurrency: "GBP",
@@ -44,8 +56,14 @@ function mockTracker(accountDetails: AccountDetailView[] = []): void {
       totalNetWorth: 500_000,
       withdrawalCapital: 100_000,
       homeValue: 300_000,
+      homeValueRange: { lower: 280_000, upper: 320_000 },
+      propertyValueRanges: {
+        home: { lower: 280_000, upper: 320_000 },
+      },
       mortgageBalance: 100_000,
       homeEquity: 200_000,
+      homeEquityRange: { lower: 180_000, upper: 220_000 },
+      valuationBasis: propertyValue == null ? [] : [propertyValue],
       annualNonHousingExpenditure: 24_000,
       annualInvestableIncome: 54_000,
       annualMortgageExpenditureRemoved: 12_000,
@@ -53,7 +71,7 @@ function mockTracker(accountDetails: AccountDetailView[] = []): void {
       withdrawalRate: 0.04,
       mortgagePayoffDate: "2036-01-01",
     },
-  } as ReturnType<typeof useAssetTracker>);
+  } as unknown as ReturnType<typeof useAssetTracker>);
 }
 
 function decisionAccounts(withAllowance = true): AccountDetailView[] {
@@ -112,6 +130,17 @@ describe("MortgageInvestmentComparison", () => {
     expect(
       screen.getByRole("table", { name: "Mortgage strategy summary" }),
     ).toBeVisible();
+    expect(
+      screen.getByText("Property value used in this comparison"),
+    ).toBeVisible();
+    await userEvent.click(
+      screen.getByText("Property value used in this comparison"),
+    );
+    expect(
+      screen.getByText(
+        /future property growth remain separate, editable assumptions/,
+      ),
+    ).toBeVisible();
     expect(screen.getByLabelText("Capital available now")).not.toBeVisible();
     expect(
       screen.getByRole("table", {
@@ -164,5 +193,36 @@ describe("MortgageInvestmentComparison", () => {
       10_000,
     );
     expect(screen.getByLabelText("Charge above allowance")).toHaveValue(1);
+  });
+
+  it("uses the linked property's range when the position has multiple homes", () => {
+    const [property, mortgage] = decisionAccounts();
+    const model = buildMortgageInvestmentModel({
+      editedAssumptions: null,
+      mortgage,
+      property,
+      position: {
+        asOfDate: "2026-01-01",
+        totalNetWorth: 800_000,
+        withdrawalCapital: 100_000,
+        homeValue: 500_000,
+        homeValueRange: { lower: 450_000, upper: 550_000 },
+        propertyValueRanges: {
+          home: { lower: 280_000, upper: 320_000 },
+          rental: { lower: 170_000, upper: 230_000 },
+        },
+        mortgageBalance: 100_000,
+        homeEquity: 400_000,
+        annualNonHousingExpenditure: 24_000,
+        annualInvestableIncome: 54_000,
+        annualMortgageExpenditureRemoved: 12_000,
+        expectedRealReturn: 0.04,
+        withdrawalRate: 0.04,
+        mortgagePayoffDate: "2036-01-01",
+      },
+    });
+
+    expect(model?.valuationSensitivity.lower.input.propertyValue).toBe(280_000);
+    expect(model?.valuationSensitivity.upper.input.propertyValue).toBe(320_000);
   });
 });

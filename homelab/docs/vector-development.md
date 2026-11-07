@@ -6,6 +6,10 @@ the MSI Vector GP68HX described by
 It installs NixOS 26.05, GNOME, Brave, T3 Code, Tailscale, and an independent
 single-node K3s development plane.
 
+[ADR 028](../../ui/content/projects/homelab/adrs/028-guarded-msi-ec-fan-control.mdx)
+records why this host uses the out-of-tree `msi-ec` module and a guarded EC
+write for its idle fan curve.
+
 ## Storage layout
 
 The internal drive is a 1 TB WD PC SN560 NVMe SSD. Linux reports 953.9 GiB.
@@ -47,10 +51,13 @@ machine.
 
 Set the live installer's address. The task checks the NixOS live environment
 and the NVMe EUI, model, serial, and size. It requires the disk serial to be
-typed before erasing the disk and prompts twice for the LUKS passphrase.
+typed before erasing the disk and prompts twice for the LUKS passphrase. Read
+the installer's Ed25519 host-key fingerprint on its local console before the
+first connection.
 
 ```bash
 export VECTOR_DEVELOPMENT_TARGET=root@192.0.2.10
+export VECTOR_DEVELOPMENT_HOST_KEY_SHA256=SHA256:verified-console-fingerprint
 export VECTOR_DEVELOPMENT_INSTALL=WIPE
 mise run //homelab:vector-install
 ```
@@ -102,7 +109,69 @@ mise run //homelab:vector-health
 
 The health check covers GNOME, encrypted storage, zram, the host NVIDIA driver,
 the K3s NVIDIA runtime, GPU advertisement and allocation, the T3 rollout, and
-the local HTTP endpoint.
+the local HTTP endpoint. It also waits for DCGM Exporter, proves that the host
+OpenTelemetry Collector has sent GPU metric points to Netdata, and checks the
+benchmark RBAC boundary.
+
+## GPU telemetry
+
+NixOS owns the NVIDIA driver and container toolkit. The Vector overlay owns the
+NVIDIA device plugin and a standalone DCGM Exporter DaemonSet. This keeps the
+driver, runtime, device plugin, and telemetry ownership explicit.
+
+The exporter image uses an immutable digest. Its reviewed counter list covers
+utilization, framebuffer memory, clocks, temperature, power, energy, PCIe
+retries, XID errors, and row remapping. The container runs under the restricted
+Pod Security Standard with a read-only mount of the kubelet pod-resources
+directory. That socket supplies the `pod`, `namespace`, and `container` labels
+on metrics while a GPU workload is running. The exporter and device plugin both
+use NVIDIA GPU UUIDs for this mapping.
+
+The host OpenTelemetry Collector scrapes the ClusterIP Service through a
+loopback-only K3s API proxy. It adds the `vector-development` cluster and
+environment attributes, then exports metrics over OTLP to the local Netdata
+agent. Netdata retains seven days and binds its dashboard to loopback. Use an
+SSH forward when the dashboard is needed:
+
+```bash
+ssh -L 19999:127.0.0.1:19999 root@vector-development.tailaa0e46.ts.net
+```
+
+Open `http://127.0.0.1:19999` locally. NVIDIA documents the standalone
+deployment and pod attribution in the
+[DCGM Exporter installation guide](https://docs.nvidia.com/datacenter/dcgm/latest/gpu-telemetry/dcgm-exporter.html).
+
+## Bounded GPU benchmark Jobs
+
+T3 Code manages Jobs in `gpu-benchmarks`. Its Role permits Job create, read,
+watch, and delete operations plus pod inspection and log reads. Benchmark pods
+run under an inert service account, while the T3 launcher uses a short-lived,
+namespace-scoped token.
+
+The namespace applies the restricted Pod Security Standard and isolates
+benchmark network traffic. A validating admission policy accepts the fixed
+benchmark contract: the NVIDIA runtime, the Vector node, one container, one
+GPU, a non-root security context, bounded CPU and memory, a digest-pinned image,
+and a 1 GiB `emptyDir` mounted at `/tmp`. Jobs run once for at most 30 minutes
+and expire within one hour.
+
+Bundle benchmark inputs in the image. The launcher accepts digest-pinned images
+under `nvcr.io/nvidia`, `docker.io/nvidia`, or `ghcr.io/robbie-palmer`. From a
+Vector T3 Code session, run it from this repository:
+
+```bash
+mise run //homelab:vector-gpu-benchmark -- create smoke-001 \
+  nvcr.io/nvidia/example@sha256:<64-hex-digest> -- --benchmark-argument
+mise run //homelab:vector-gpu-benchmark -- status smoke-001
+mise run //homelab:vector-gpu-benchmark -- logs smoke-001
+mise run //homelab:vector-gpu-benchmark -- delete smoke-001
+```
+
+Use a unique run ID for each Job. The launcher writes the same run ID to the
+Job and pod under `gpu-benchmark.homelab.dev/run-id`. DCGM emits the generated
+pod name, namespace, and container name from the kubelet pod-resources socket,
+so the run can be matched to GPU samples. Benchmark output must go to stdout or
+stderr; `/tmp` is deleted with the pod.
 
 ## Agent GitHub and Doppler access
 
@@ -170,12 +239,34 @@ Tunnel. T3 Connect supplies the public webhook URL and holds requests while
 Vector is offline.
 
 Create one persistent controller thread in the `hq` project and bind one
-enabled webhook task to it. Copy the task schedule from
+disabled webhook task to it. Copy the task schedule from
 `controller-policy.json`. Configure the GitHub webhook with JSON content and
 the same secret as the task's HMAC-SHA256 signature. Subscribe only to
 `dependabot_alert`. The task must retain its repository, action, severity, and
 alert-number filters, `X-GitHub-Delivery` replay key, and 15-minute delivery age
 limit.
+
+Reconcile the repository webhook with the checked-in task. Supply the T3
+Connect URL and both secrets through the environment and private files so they
+do not enter Git, Terraform state, command arguments, or logs:
+
+```bash
+CONTROLLER_WEBHOOK_URL="https://relay.t3.codes/v1/hooks/..." \
+CONTROLLER_WEBHOOK_SECRET_FILE=/private/path/hmac-secret \
+CONTROLLER_GITHUB_TOKEN_FILE=/private/path/github-token \
+CONTROLLER_WEBHOOK_ACTIVE=false \
+  mise run //homelab:vector-controller-webhook-configure
+```
+
+`CONTROLLER_GITHUB_TOKEN_FILE` must contain a separate, short-lived fine-grained
+token limited to `Robbie-Palmer/hq` with repository **Webhooks: Read and write**.
+Do not use the ordinary Vector agent token for this commissioning operation.
+The HMAC secret file must contain the exact secret without a terminal newline.
+
+The commissioning command is idempotent for the exact T3 Connect URL. It
+creates the hook inactive, or reconciles that hook without modifying other
+repository hooks. Keep the GitHub hook inactive while running the admission
+matrix directly against the T3 Connect URL.
 
 The controller uses one Cedar decision point with separate policy modules for
 GitHub, T3 Code, Work Graph, and deployment operations. It evaluates concrete
@@ -186,13 +277,17 @@ Repository writes must use a controller-owned non-default ref. Cedar forbids
 direct default-branch writes, while the GitHub ruleset remains an independent
 provider-side control.
 
-Run the admission test before enabling unattended incident work. Send a signed
-candidate with a unique delivery ID, then repeat that request with the same ID.
-Also send an invalid signature, an out-of-policy repository, and a relay-held
-request older than 15 minutes. Inspect T3 Code's delivery records and the bound
-thread. The candidate must reach the controller once. The other requests must
-not start a controller turn or worker thread. Keep the task disabled if any
-case fails.
+Run the admission test before enabling unattended incident work. Enable the T3
+webhook task while leaving the GitHub hook inactive. Send a signed candidate
+with a unique delivery ID, then repeat that request with the same ID. Also send
+an invalid signature, a wrong repository, an out-of-policy severity, an
+out-of-policy action, and a relay-held request older than 15 minutes. Inspect
+T3 Code's delivery records and the bound thread. The candidate must reach the
+controller exactly once. The other requests must not start a controller turn
+or worker thread. If any case fails, disable the T3 task and leave the GitHub
+hook inactive. Only after every case passes, keep the task enabled and rerun
+the guarded commissioning command with `CONTROLLER_WEBHOOK_ACTIVE=true` to
+enable normal GitHub delivery.
 
 Deploy later host changes from another tailnet member:
 
@@ -205,6 +300,21 @@ the lid on battery still suspends the laptop. On external power or while docked,
 closing the lid leaves the machine running. Host activation refreshes the active
 GNOME power daemon so a logged-in session cannot retain the old idle timeout
 after a rebuild.
+
+The MSI firmware starts the CPU fan at 60°C in advanced fan mode. The 50°C
+monitor point captures the observed lower edge of its release hysteresis.
+The guarded curve service changes only the first two CPU temperature
+thresholds and keeps the factory fan speeds and every threshold from 64°C
+upward. It reapplies the curve after resume. Stopping the service, including a
+rollback to a generation that does not contain it, restores the factory
+thresholds and silent fan mode. The helper refuses EC writes unless the laptop
+model, board, firmware, and complete factory fan data match the verified Vector
+values.
+
+The thermal monitor keeps fourteen days of one-minute samples in
+`/var/lib/vector-development-thermal-monitor/history.jsonl`. It also logs every
+configured CPU temperature threshold crossing, the 50°C release point, fan
+starts and stops, and changes to the EC fan percentage in the system journal.
 
 ## Remote power and encrypted boot
 

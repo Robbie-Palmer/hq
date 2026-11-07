@@ -11,7 +11,14 @@ import {
 
 describe("ideas API", () => {
   it("lists every idea with canonical reference counts", () => {
-    expect(getAllIdeaSlugs()).toHaveLength(43);
+    expect(getAllIdeaSlugs()).toHaveLength(49);
+    expect(getAllIdeaSlugs()).toEqual(
+      expect.arrayContaining([
+        "study-design",
+        "randomization",
+        "sampling-bias",
+      ]),
+    );
 
     const ideas = getAllIdeas();
     expect(ideas.map((idea) => idea.title)).toEqual(
@@ -227,6 +234,44 @@ describe("ideas API", () => {
       "digital-twins-for-everyday-life",
       "semi-autonomous-software-development",
     ]);
+  });
+
+  it("exposes approved source backlinks for safe coordination ideas", () => {
+    const distributedLocking = getIdea("distributed-locking");
+    const idempotency = getIdea("idempotency");
+    const delegatedAuthority = getIdea("delegated-authority");
+
+    expect(distributedLocking?.relatedContent.adrs).toContainEqual(
+      expect.objectContaining({
+        projectSlug: "work-graph",
+        slug: "002-leases-with-fencing",
+      }),
+    );
+    expect(idempotency?.relatedContent.adrs).toContainEqual(
+      expect.objectContaining({
+        projectSlug: "work-graph",
+        slug: "008-github-delivery-evidence-ingestion",
+      }),
+    );
+    expect(delegatedAuthority?.relatedContent.adrs).toContainEqual(
+      expect.objectContaining({
+        projectSlug: "agent-friendly-remote-development",
+        slug: "006-delegated-resource-access",
+      }),
+    );
+    expect(
+      getIdeasForADR("agentic-code-review:001-stateful-ai-code-review").map(
+        (idea) => idea.slug,
+      ),
+    ).toEqual(["distributed-locking", "idempotency"]);
+    expect(
+      getIdeasForADR("recipe-site:019-agent-auth").map((idea) => idea.slug),
+    ).toEqual(["delegated-authority"]);
+    expect(
+      getIdeasForADR("recipe-site:024-batch-recipe-import-staging").map(
+        (idea) => idea.slug,
+      ),
+    ).toEqual(["idempotency"]);
   });
 
   it("returns null and empty links for unknown content", () => {

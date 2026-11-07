@@ -1,0 +1,163 @@
+---
+title: "Pathologize"
+description: "An open computational-pathology research programme for reproducible data, image-analysis benchmarks, and inspectable machine-learning experiments"
+date: "2026-11-06"
+status: "in_progress"
+initiatives:
+  - "personalized-medicine"
+tech_stack:
+  - "Python"
+  - "DVC"
+  - "Pydantic"
+  - "DICOM"
+  - "OME-Zarr"
+  - "MLCommons Croissant"
+  - "W3C PROV"
+  - "RO-Crate"
+  - "OpenSlide"
+  - "PyTorch"
+  - "DuckDB"
+  - "Parquet"
+tags:
+  - "computational-pathology"
+  - "data-engineering"
+  - "machine-learning"
+  - "open-source"
+---
+
+# Vision
+
+Show what one engineer can contribute to modern computational pathology by combining public research,
+reproducible data engineering, strong software delivery, and bounded machine-learning experiments.
+
+Pathologize will build public research infrastructure and benchmarks rather than claim to produce a clinical
+device. It will make whole-slide data, transformations, model inputs, spatial outputs, experiment decisions,
+and limitations inspectable. The work should be useful to open-source contributors and credible to teams
+building pathology research or products.
+
+The project starts years after my earlier commercial pathology work. It will use only public papers, public
+datasets, appropriately licensed public software and new implementation. It will not recreate or disclose a
+former employer's code, data, weights, annotations, configuration, internal architecture, unpublished results,
+or private product knowledge.
+
+# Product decisions
+
+The initial proposals define the intended research boundary:
+
+* [PDR 000](/projects/pathologize/pdrs/000-open-evidence-bounded-research) proposes an open,
+  evidence-bounded research programme rather than a clinical product claim.
+* [PDR 001](/projects/pathologize/pdrs/001-one-versioned-pathology-data-registry) proposes one
+  versioned source registry with independently reproducible downstream projects.
+* [PDR 002](/projects/pathologize/pdrs/002-public-source-provenance-boundary) proposes a documented
+  public-source boundary from former-employer work.
+* [PDR 003](/projects/pathologize/pdrs/003-independent-pathology-benchmark-families) proposes separate
+  benchmarks for image quality, tiling, tissue, cells, slide representations and biomarkers.
+* [PDR 004](/projects/pathologize/pdrs/004-inspectable-spatial-evidence) proposes publishing spatial
+  outputs and failures alongside aggregate scores.
+* [PDR 005](/projects/pathologize/pdrs/005-restoration-as-reconstruction-and-model-input) proposes
+  evaluating image restoration as uncertain reconstruction and as a possible input to downstream models.
+
+# Architecture decisions
+
+The accepted implementation boundaries are:
+
+* [ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary) makes the registry's
+  portable artifact a source-only Croissant export and assigns DICOM WSI, OME-Zarr, RO-Crate and PROV-O
+  to distinct downstream roles.
+* [ADR 001](/projects/pathologize/adrs/001-resource-and-cost-contract-boundary) keeps provider funding
+  policy outside benchmark manifests and defers money fields until the platform has one cross-language contract.
+* [ADR 002](/projects/pathologize/adrs/002-shared-python-package-boundaries) separates generic data
+  artifact helpers, reusable ML evaluation contracts, and Pathologize domain code.
+* [ADR 003](/projects/pathologize/adrs/003-on-demand-source-acquisition) acquires source data when an
+  experiment needs it, retains bounded verified inputs locally, and defers paid hosted storage.
+
+# Research programme
+
+## Data registry
+
+One authoritative registry will describe public datasets, licences, checksums, retrieval evidence, and the
+patient, case, specimen, slide and image identities needed to keep related records on one side of each train,
+validation and test boundary. It will preserve source-native labels, scanner metadata, physical pixel spacing
+and stain information without forcing every dataset into one false universal ontology.
+
+New annotation layers may apply a finer ontology or replace source categories with an incommensurable ontology.
+The registry will preserve both label systems, their annotation protocols and any partial mappings instead of
+overwriting the source account or claiming equivalence where none exists.
+
+Downstream projects will pin a registry revision and own their task-specific partitions, transformations,
+tiles, embeddings, models and scorecards. Raw slides remain source artifacts. A tile set is a parameterised
+experimental result, not another copy of the truth.
+
+## Whole-slide quality and tissue analysis
+
+Whole-slide ingestion should measure tissue coverage and detect blur, folds, pen, bubbles, debris, glass edges,
+foreign material and other unusable regions. Tissue analysis can then distinguish relevant compartments such as
+tumour, stroma, normal epithelium, muscle, fat, mucus and necrosis where a public labelled dataset supports the
+task. New project-authored annotations may introduce finer or different compartments when their ontology,
+annotators and evidence are versioned independently from the source labels.
+
+These outputs are shared research inputs. A model that improves an aggregate slide score by exploiting scanner
+or preparation artifacts has not improved the pathology task.
+
+## Tiling and multiresolution representation
+
+Tiling policy is part of the hypothesis. Experiments can vary physical resolution, field of view, overlap,
+tissue thresholds, artifact exclusion, stain transforms, scanner pyramid levels, multiresolution context,
+sampling strategy, coordinate encoding, and compute budget.
+
+Comparisons should report downstream quality, calibration, scanner and cohort robustness, latency, GPU time,
+tile count and storage. This makes a faster or smaller policy assessable even when it does not win on one
+accuracy metric.
+
+## Cell and tissue models
+
+Cell analysis separates nucleus detection, instance segmentation, cell-type classification and spatial
+phenotyping. Tissue segmentation remains a separate task with its own label ontology and scale. Their outputs
+can later inform slide-level models, but each task must first stand on public reference labels and task-specific
+metrics.
+
+## Whole-slide and multimodal models
+
+Frozen pathology encoders can turn tiles into reusable features. Whole-slide encoders can then model the set and
+spatial arrangement of those features rather than reducing a slide to independent tile votes. Multimodal
+experiments may align slides with public reports, molecular labels or other permitted evidence when provenance
+and evaluation support the pairing.
+
+Biomarker prediction, including MSI or MMR status, is one downstream benchmark rather than the organising
+architecture for all pathology work. Patient-level partitioning and independent cohorts are required before a
+result can support a generalisation claim.
+
+# Evidence contract
+
+Every published result should identify:
+
+* the registry and code revisions;
+* source rights, licence and retrieval evidence;
+* patient-level split isolation and frozen partitions;
+* preprocessing, physical scale and scanner assumptions;
+* model weights and their permitted use;
+* primary, guardrail and resource metrics;
+* failed runs and excluded samples; and
+* whether the result is development, validation, external validation or a sealed holdout evaluation.
+
+The project should prefer a modest result that another person can reproduce over a stronger number whose data
+lineage, split or model selection cannot be audited.
+
+# Initial delivery
+
+The first phase will establish the project template, registry contract and synthetic end-to-end fixtures. It
+will then register a bounded public corpus and build three downstream scorecards: whole-slide quality and tissue
+artifacts, tiling and magnification policy, and nucleus or cell analysis.
+
+Foundation-model and biomarker experiments follow after the shared data and evaluation boundaries can reproduce
+a trivial baseline. Image-restoration experiments follow after the project can measure structural insertion and
+deletion, downstream signal, and robustness to blur, missing tiles and unavailable resolutions.
+
+# Non-goals
+
+* Recreating a former employer's commercial system or unpublished research
+* Making diagnostic, prognostic or clinical-performance claims from a research benchmark
+* Building another general-purpose annotation viewer before the experiment and evidence layers exist
+* Treating public availability as permission to redistribute a dataset or model
+* Optimising a test or external-validation cohort through repeated inspection
+* Presenting generated or super-resolved morphology as observed source evidence

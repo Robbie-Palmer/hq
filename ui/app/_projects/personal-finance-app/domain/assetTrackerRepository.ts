@@ -1,3 +1,4 @@
+import type { HousingValue } from "finance-housing-indices/browser";
 import {
   type Account,
   type AccountId,
@@ -10,6 +11,16 @@ import {
   AssetTrackerDataSchema,
 } from "./assetTrackerData";
 import type { BalanceSnapshot } from "./balanceSnapshot";
+import {
+  type AccountOwnershipRecord,
+  type CompanyEquityValuation,
+  type EntityObligation,
+  type EntityTransfer,
+  type FinancialEntityRecord,
+  migrateLegacyBusinessWealth,
+  type ShareOwnershipInterest,
+  validateBusinessWealth,
+} from "./businessWealth";
 import { type CapitalFlow, capitalFlowKind } from "./capitalFlow";
 import type { FinancialDecisionRecord } from "./decisionRecord";
 import type { EmergencyFundPlan } from "./emergencyFund";
@@ -26,7 +37,10 @@ import {
   type HmrcEmploymentObservation,
   validateHmrcObservationHistory,
 } from "./hmrcStaticImport";
-import { validateHouseholdOwnership } from "./household";
+import {
+  migrateHouseholdOwnership,
+  validateHouseholdOwnership,
+} from "./household";
 import type { IncomeRecord } from "./incomeRecord";
 import type { JobMoveScenario } from "./jobMoveScenario";
 import type { MortgageScenario } from "./mortgageCalculator";
@@ -66,10 +80,17 @@ export interface AssetTrackerRepository {
   decisionRecords: FinancialDecisionRecord[];
   propertyComparableSearches: PropertyComparableSearchDefinition[];
   propertyIndexHistories: PropertyIndexHistoryDefinition[];
+  selectedPropertyValues: Map<AccountId, HousingValue>;
   instruments: Map<string, Instrument>;
   holdingObservations: HoldingObservation[];
   priceObservations: PriceObservation[];
   exchangeRateObservations: ExchangeRateObservation[];
+  financialEntities: FinancialEntityRecord[];
+  accountOwnerships: AccountOwnershipRecord[];
+  shareOwnershipInterests: ShareOwnershipInterest[];
+  entityObligations: EntityObligation[];
+  entityTransfers: EntityTransfer[];
+  companyEquityValuations: CompanyEquityValuation[];
   settings: AssetTrackerData["settings"];
 }
 
@@ -658,7 +679,8 @@ function validateValuationReferences(
   assertValidCorrections(
     data.exchangeRateObservations ?? [],
     "Exchange-rate",
-    (record) => `${record.fromCurrency}\0${record.toCurrency}`,
+    (record) =>
+      `${record.fromCurrency}\0${record.toCurrency}\0${record.rateClass ?? "reference"}\0${record.source.id}`,
   );
 }
 
@@ -909,6 +931,16 @@ function validateHmrcHouseholdMembers(data: AssetTrackerData): void {
   }
 }
 
+function validateBusinessWealthData(data: AssetTrackerData): void {
+  try {
+    validateBusinessWealth(data);
+  } catch (error) {
+    throw new AssetTrackerDataError(
+      error instanceof Error ? error.message : "Invalid business wealth data",
+    );
+  }
+}
+
 export function buildRepository(
   data: AssetTrackerData,
 ): AssetTrackerRepository {
@@ -920,6 +952,10 @@ export function buildRepository(
   );
   const accounts = indexAccounts(data.accounts);
   validateReferences(data, accounts);
+  const businessData = migrateLegacyBusinessWealth(
+    migrateHouseholdOwnership(data),
+  );
+  validateBusinessWealthData(businessData);
   const snapshots = [...data.snapshots].sort((a, b) =>
     a.date.localeCompare(b.date),
   );
@@ -967,12 +1003,19 @@ export function buildRepository(
     decisionRecords: data.decisionRecords ?? [],
     propertyComparableSearches: data.propertyComparableSearches ?? [],
     propertyIndexHistories: data.propertyIndexHistories ?? [],
+    selectedPropertyValues: new Map(),
     instruments: new Map(
       (data.instruments ?? []).map((instrument) => [instrument.id, instrument]),
     ),
     holdingObservations: [...(data.holdingObservations ?? [])],
     priceObservations: [...(data.priceObservations ?? [])],
     exchangeRateObservations: [...(data.exchangeRateObservations ?? [])],
+    financialEntities: [...businessData.financialEntities],
+    accountOwnerships: [...businessData.accountOwnerships],
+    shareOwnershipInterests: [...businessData.shareOwnershipInterests],
+    entityObligations: [...businessData.entityObligations],
+    entityTransfers: [...businessData.entityTransfers],
+    companyEquityValuations: [...businessData.companyEquityValuations],
     settings: data.settings,
   };
 }

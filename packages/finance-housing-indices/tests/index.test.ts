@@ -59,14 +59,26 @@ describe("versioned UK HPI archive", () => {
     expect(repeated).toEqual(stored);
     expect(revised.releases).toHaveLength(2);
     expect(selectHousePriceIndexRelease(revised, first.versionId)).toEqual(first);
+    const revisedRelease = selectHousePriceIndexRelease(
+      revised,
+      revision.versionId,
+    );
     expect(
-      compareHousePriceIndices(revision, {
+      compareHousePriceIndices(revisedRelease, {
         geographyCode: "N09000003",
         propertyType: "all",
         anchorDate: "2024-01-01",
         targetDate: "2024-03-01",
-      }).target.index,
-    ).toBe(111);
+      }).target,
+    ).toMatchObject({ index: 111, revisionStatus: "revised" });
+    expect(
+      compareHousePriceIndices(revisedRelease, {
+        geographyCode: "N09000003",
+        propertyType: "all",
+        anchorDate: "2024-01-01",
+        targetDate: "2024-03-01",
+      }).anchor.revisionStatus,
+    ).toBeUndefined();
   });
 
   it("stores raw bytes before normalized observations and is idempotent", async () => {

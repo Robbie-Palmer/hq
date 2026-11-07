@@ -1,0 +1,66 @@
+---
+title: "PDR 001: Review Pull Requests by risk, not commit count"
+date: "2026-07-25"
+status: "Proposed"
+informed_by_adrs:
+  - "agentic-code-review:000-custom-agentic-code-review"
+---
+
+## Context
+
+The first custom reviewer ran on qualifying pushes. A Pull Request with a
+sequence of small commits repeatedly sent much of the same diff and repository
+context to the same review models. Commit frequency drove cost and duplicate commentary,
+even when a new commit did not create new review risk.
+
+Developers experience review as one evolving change. They need a timely second
+opinion on material work, but they do not need every push treated as a fresh
+change or every resolved finding posted again.
+
+## Proposed decision
+
+Make the Pull Request the unit of review. Keep durable review state for the
+current change, distinguish full review from incremental review, and decide
+when to spend by material risk rather than commit count.
+
+Run a full review when a non-draft Pull Request becomes ready, when an
+authorised person requests one, or before merge when material work lacks
+coverage. After later pushes, review only materially changed hunks unless risk
+or lost context calls for another full pass. Skip superseded events,
+already-reviewed content, generated files, lockfile-only changes, and small
+non-semantic edits unless somebody explicitly requests review.
+
+Update or resolve existing findings instead of publishing duplicates. Report
+coverage gaps, model failures, and budget exhaustion in the review result. A
+degraded run must not look like complete coverage.
+
+The reviewer remains advisory during evaluation. Tests, deterministic checks,
+required approvals, and human judgment continue to decide whether a change is
+safe.
+
+## Consequences
+
+Review timing follows the risk of the evolving change. Developers receive less
+repeated commentary, and unchanged context does not consume the same inference
+budget after every push.
+
+Incremental review can miss interactions outside the changed hunks. The
+product needs explicit coverage records, risk rules, and a final full-review
+path for material unreviewed work. Durable state can also become stale, so a
+head check must prevent publication against superseded code.
+
+## Evaluation
+
+Accept this proposal when representative replays and live Pull Requests show
+fewer model calls and uncached input tokens than the stateless baseline without
+losing useful coverage. Track duplicate findings, unreviewed material, time to
+a useful result, and manual intervention. Reject it if state and incremental
+selection create missed defects or maintenance that outweigh the saved review
+cost.
+
+## Migration note
+
+This record extracts the Pull Request behavior and evaluation gate first mixed
+into ADR 001. It keeps the original date and Proposed status. ADR 001 retains
+the Cloudflare architecture chosen to implement the proposal. The migration
+does not claim that the acceptance gate has passed.

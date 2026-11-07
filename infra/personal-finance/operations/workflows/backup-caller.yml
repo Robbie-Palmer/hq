@@ -1,0 +1,50 @@
+name: Personal Finance App database backup
+
+on:
+  schedule:
+    - cron: "23 4 * * 0"
+  workflow_dispatch:
+    inputs:
+      operation:
+        description: Create a backup or run a scratch restore drill
+        required: true
+        default: backup
+        type: choice
+        options: [backup, restore]
+      restore_drill_id:
+        description: Unique drill ID required for restore
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: personal-finance-app-database-backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    if: ${{ github.event_name == 'schedule' || inputs.operation == 'backup' }}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: backup
+      operations_root: "infra/personal-finance"
+      github_environment: "production-personal-finance-backup"
+      secret_config_ref: "doppler://personal-finance/backup"
+      checkout_ref: ${{ github.sha }}
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.PROJECT_BACKUP_DOPPLER_TOKEN }}
+
+  restore:
+    if: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'restore' && inputs.restore_drill_id != '' }}
+    uses: ./.github/workflows/project-stateful-operations.yml
+    with:
+      action: restore
+      operations_root: "infra/personal-finance"
+      github_environment: "production-personal-finance-backup"
+      secret_config_ref: "doppler://personal-finance/backup"
+      subject: ${{ inputs.restore_drill_id }}
+      checkout_ref: ${{ github.sha }}
+    secrets:
+      DOPPLER_TOKEN: ${{ secrets.PROJECT_BACKUP_DOPPLER_TOKEN }}

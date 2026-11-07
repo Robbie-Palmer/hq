@@ -12,6 +12,7 @@
     "./compatibility": "./src/compatibility.ts",
     "./complexity": "./src/complexity.ts",
     "./controller-authorization": "./src/controller-authorization.ts",
+    "./delivery-recovery": "./src/delivery-recovery.ts",
     "./matching": "./src/matching.ts",
     "./policy": "./src/policy.ts",
     "./native-client": "./src/native-client.ts",

@@ -16,6 +16,7 @@ export const CatalogRecordKindSchema = z.enum([
   "package",
   "artifact",
   "environment",
+  "delivery-target",
   "decision",
   "evidence",
   "adoption",
@@ -25,7 +26,7 @@ export const CatalogRecordKindSchema = z.enum([
 export type CatalogRecordKind = z.infer<typeof CatalogRecordKindSchema>;
 
 const CATALOG_ID_PATTERN =
-  /^(project|system|component|api|workload|resource|capability|slot|technology|package|artifact|environment|decision|evidence|adoption|override):[a-z0-9][a-z0-9./:@+-]*$/;
+  /^(project|system|component|api|workload|resource|capability|slot|technology|package|artifact|environment|delivery-target|decision|evidence|adoption|override):[a-z0-9][a-z0-9./:@+-]*$/;
 
 export const CatalogIdSchema = z
   .string()
@@ -114,6 +115,7 @@ const PROJECT_OWNED_KINDS = new Set<CatalogRecordKind>([
   "package",
   "artifact",
   "environment",
+  "delivery-target",
   "adoption",
   "override",
 ]);
@@ -263,6 +265,7 @@ const RELATION_ENDPOINTS: Record<
       "package",
       "artifact",
       "environment",
+      "delivery-target",
       "slot",
     ]),
     to: new Set(["project", "system", "component", "capability"]),

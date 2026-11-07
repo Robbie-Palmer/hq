@@ -2,6 +2,8 @@
 title: "ADR 015: Static Site Generation"
 date: "2025-10-19"
 status: "Accepted"
+implements_product_decisions:
+  - "personal-knowledge-graph:001-one-public-account-of-the-work"
 ---
 
 # Context
@@ -13,7 +15,8 @@ status: "Accepted"
 * **ISR (Incremental Static Regeneration)**: Hybrid approach, static pages with background revalidation
 * **CSR (Client-Side Rendering)**: Ship minimal HTML, render everything in the browser
 
-For a personal portfolio and blog, I need to choose a rendering strategy that balances:
+[PDR 001](/projects/personal-knowledge-graph/pdrs/001-one-public-account-of-the-work)
+sets the public-account requirement. The rendering strategy must balance:
 
 * **Performance**: Fast page loads globally, minimal Time to First Byte (TTFB)
 * **Cost**: Predictable, ideally free for a side project

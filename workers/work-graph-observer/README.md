@@ -116,9 +116,12 @@ attempt numbers and deployment status IDs determine order; merged PR evidence
 takes precedence over an unmerged snapshot. CI reruns share the workflow
 run identity, so a newer failed attempt supersedes an older successful attempt.
 PR snapshots preserve the accepted head and merge commit separately. Open PRs'
-speculative merge SHAs are never treated as merged commits. Evidence ingestion
-does not release, cancel, block, claim, or renew work and leaves completion
-policy evaluation to its existing operation.
+speculative merge SHAs are never treated as merged commits. Ordinary evidence
+ingestion does not release, cancel, claim, or renew work and leaves completion
+policy evaluation to its existing operation. A failed or cancelled observation
+that matches a recorded delivery action creates one durable recovery and
+blocking attention request. Webhook redelivery and scheduled reconciliation
+reuse the same recovery.
 
 To rotate the webhook secret, set the new value in GitHub and Doppler during
 one maintenance window, redeploy the Worker, then redeliver a recent event.

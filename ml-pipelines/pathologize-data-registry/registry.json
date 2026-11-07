@@ -1,0 +1,34 @@
+{
+  "schema_version": 1,
+  "registry_id": "pathologize-public-data",
+  "description": "Canonical public source data and metadata for Pathologize computational-pathology projects.",
+  "collections": [
+    "manifests/collections/camelyon16.json",
+    "manifests/collections/cptac-coad-idc.json",
+    "manifests/collections/panda.json"
+  ],
+  "subsets": [
+    "manifests/subsets/cptac-coad-idc-v23-smallest-series.json"
+  ],
+  "asset_manifests": [
+    "manifests/assets/cptac-coad-idc-v23-smallest-series.json"
+  ],
+  "slide_records": [
+    "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json"
+  ],
+  "ownership": {
+    "owns": [
+      "unaltered source assets selected for the registry",
+      "source, access, provenance, citation, and licence manifests",
+      "source patient, case, specimen, slide, study, series, and instance identities",
+      "source scanner and physical-resolution metadata",
+      "source-native public labels"
+    ],
+    "excludes": [
+      "derived tiles, embeddings, features, masks, and model outputs",
+      "task-specific labels or label reinterpretations",
+      "train, validation, test, fold, or split-isolation assignments",
+      "private data, weights, annotations, configuration, thresholds, product knowledge, and unpublished results"
+    ]
+  }
+}

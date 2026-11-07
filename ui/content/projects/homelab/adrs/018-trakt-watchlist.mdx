@@ -3,16 +3,16 @@ title: "ADR 018: Trakt drives the watchlist"
 date: "2026-08-23"
 status: "Accepted"
 tech_stack: ["Trakt", "Sonarr", "Radarr", "Jellyfin"]
+implements_product_decisions:
+  - "homelab:009-turn-watchlist-selections-into-library-items"
 ---
 
 # Context
 
-Adding media through Sonarr and Radarr's web UIs works, but the natural place
-to decide what to watch next is a phone, on a couch, in a recommendations
-feed, not an administration panel. A social tracking service turns "that
-looked interesting" into a library entry: tap watchlist, the stack fetches
-it. Watched-state should flow the other way too, so the tracker's
-recommendations improve off what Jellyfin actually plays.
+[PDR 009](/projects/homelab/pdrs/009-turn-watchlist-selections-into-library-items)
+defines the watchlist selection and playback-feedback workflow. This ADR
+chooses the external service and integration path that connect it to Sonarr,
+Radarr, and Jellyfin.
 
 The family's taste lives on Letterboxd, which publishes no open API (its
 partner program is closed), so it cannot be the automation source. Trakt is

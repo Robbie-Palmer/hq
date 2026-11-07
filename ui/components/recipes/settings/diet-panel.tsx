@@ -1,8 +1,8 @@
 "use client";
 
 import { Check, Leaf, LoaderCircle, Plus, Search, X } from "lucide-react";
-import type { ReactNode } from "react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { SaveStatus } from "@/components/recipes/settings/save-status";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,11 +176,17 @@ function IngredientBadge({
 }
 
 function IngredientMatches({
+  activeIndex,
+  listboxId,
   matches,
   onAdd,
+  onActiveIndexChange,
 }: Readonly<{
+  activeIndex: number;
+  listboxId: string;
   matches: DietIngredientOption[];
   onAdd: (ingredient: DietIngredientOption) => void;
+  onActiveIndexChange: (index: number) => void;
 }>) {
   if (matches.length === 0) {
     return (
@@ -189,13 +195,20 @@ function IngredientMatches({
       </p>
     );
   }
-  return matches.map((ingredient) => (
-    <button
+  return matches.map((ingredient, index) => (
+    <button // NOSONAR -- A native option cannot serve an editable combobox.
+      id={`${listboxId}-option-${index}`}
       key={ingredient.slug}
       type="button"
+      role="option"
+      aria-selected={activeIndex === index}
       onMouseDown={(event) => event.preventDefault()}
       onClick={() => onAdd(ingredient)}
-      className="flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--butter-soft)]"
+      onMouseEnter={() => onActiveIndexChange(index)}
+      className={cn(
+        "flex w-full min-w-0 items-center justify-between gap-3 rounded-md px-3 py-2 text-left transition-colors hover:bg-[var(--butter-soft)]",
+        activeIndex === index && "bg-[var(--butter-soft)]",
+      )}
     >
       <span className="min-w-0">
         <span className="block truncate text-sm font-medium text-[var(--ink)]">
@@ -211,21 +224,34 @@ function IngredientMatches({
 }
 
 function CustomIngredientButton({
+  active,
   canAdd,
   customText,
+  optionId,
   onAdd,
+  onActive,
 }: Readonly<{
+  active: boolean;
   canAdd: boolean;
   customText: string;
+  optionId: string;
   onAdd: () => void;
+  onActive: () => void;
 }>) {
   if (!canAdd) return null;
   return (
-    <button
+    <button // NOSONAR -- A native option cannot serve an editable combobox.
+      id={optionId}
       type="button"
+      role="option"
+      aria-selected={active}
       onMouseDown={(event) => event.preventDefault()}
       onClick={onAdd}
-      className="mt-1 flex w-full items-center gap-3 rounded-md border-t border-dashed border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--butter-soft)]"
+      onMouseEnter={onActive}
+      className={cn(
+        "mt-1 flex w-full items-center gap-3 rounded-md border-t border-dashed border-[var(--line)] px-3 py-2 text-left text-sm text-[var(--ink)] hover:bg-[var(--butter-soft)]",
+        active && "bg-[var(--butter-soft)]",
+      )}
     >
       <Plus className="size-4 shrink-0 text-[var(--terracotta)]" />
       Save "{customText}" as written
@@ -233,21 +259,24 @@ function CustomIngredientButton({
   );
 }
 
-function IngredientPicker({
-  ingredients,
-  onAdd,
-  onAddCustom,
-  selectedSlugs,
-}: Readonly<{
+type IngredientPickerProps = Readonly<{
   ingredients: DietIngredientOption[];
   onAdd: (ingredient: DietIngredientOption) => void;
   onAddCustom: (rawText: string) => void;
   selectedSlugs: string[];
-}>) {
+}>;
+
+function useIngredientPicker({
+  ingredients,
+  onAdd,
+  onAddCustom,
+  selectedSlugs,
+}: IngredientPickerProps) {
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
   const closeTimeoutRef = useRef<number | null>(null);
-  const hasIngredients = ingredients.length > 0;
+  const listboxId = useId();
   const selected = useMemo(() => new Set(selectedSlugs), [selectedSlugs]);
   const matches = useMemo(() => {
     const normalized = normalizeQuery(query);
@@ -273,6 +302,16 @@ function IngredientPicker({
         normalizeQuery(ingredient.name) === normalizedCustomText ||
         normalizeQuery(ingredient.slug) === normalizedCustomText,
     );
+  const optionCount = matches.length + (canAddCustom ? 1 : 0);
+  const activeOptionId =
+    open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined;
+
+  useEffect(() => {
+    if (!activeOptionId) return;
+    document
+      .getElementById(activeOptionId)
+      ?.scrollIntoView?.({ block: "nearest" });
+  }, [activeOptionId]);
 
   useEffect(() => {
     return () => {
@@ -292,6 +331,7 @@ function IngredientPicker({
     cancelScheduledClose();
     closeTimeoutRef.current = window.setTimeout(() => {
       setOpen(false);
+      setActiveIndex(-1);
       closeTimeoutRef.current = null;
     }, 120);
   }
@@ -301,43 +341,131 @@ function IngredientPicker({
     onAdd(ingredient);
     setQuery("");
     setOpen(false);
+    setActiveIndex(-1);
   }
+
+  function addCustomIngredient() {
+    onAddCustom(customText);
+    setQuery("");
+    setOpen(false);
+    setActiveIndex(-1);
+  }
+
+  function moveActiveOption(direction: "next" | "previous") {
+    cancelScheduledClose();
+    setOpen(true);
+    if (optionCount === 0) {
+      setActiveIndex(-1);
+      return;
+    }
+    setActiveIndex((current) => {
+      if (direction === "next") {
+        return current < optionCount - 1 ? current + 1 : 0;
+      }
+      return current > 0 ? current - 1 : optionCount - 1;
+    });
+  }
+
+  function selectActiveOption() {
+    if (activeIndex < matches.length) {
+      const ingredient = matches[activeIndex];
+      if (ingredient) addIngredient(ingredient);
+      return;
+    }
+    if (canAddCustom) addCustomIngredient();
+  }
+
+  function handlePickerKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Escape") {
+      setOpen(false);
+      setActiveIndex(-1);
+    } else if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveActiveOption(event.key === "ArrowDown" ? "next" : "previous");
+    } else if (event.key === "Enter" && open && activeIndex >= 0) {
+      event.preventDefault();
+      selectActiveOption();
+    }
+  }
+
+  function updateQuery(value: string) {
+    setQuery(value);
+    setOpen(true);
+    setActiveIndex(-1);
+  }
+
+  function openPicker() {
+    cancelScheduledClose();
+    setOpen(true);
+  }
+
+  return {
+    activeIndex,
+    activeOptionId,
+    addCustomIngredient,
+    addIngredient,
+    canAddCustom,
+    customText,
+    handlePickerKeyDown,
+    listboxId,
+    matches,
+    open,
+    openPicker,
+    query,
+    scheduleClose,
+    setActiveIndex,
+    updateQuery,
+  };
+}
+
+function IngredientPicker(props: IngredientPickerProps) {
+  const { ingredients } = props;
+  const picker = useIngredientPicker(props);
 
   return (
     <div className="relative max-w-lg">
       <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[var(--ink-3)]" />
       <Input
-        value={query}
-        onBlur={scheduleClose}
-        onChange={(event) => {
-          setQuery(event.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => {
-          cancelScheduledClose();
-          setOpen(true);
-        }}
+        role="combobox"
+        value={picker.query}
+        onBlur={picker.scheduleClose}
+        onChange={(event) => picker.updateQuery(event.target.value)}
+        onFocus={picker.openPicker}
+        onKeyDown={picker.handlePickerKeyDown}
         placeholder={
-          hasIngredients
+          ingredients.length > 0
             ? `Search ${ingredients.length} ingredients or enter your own...`
             : "Enter an ingredient"
         }
         aria-autocomplete="list"
-        aria-expanded={open}
+        aria-controls={picker.listboxId}
+        aria-expanded={picker.open}
+        aria-haspopup="listbox"
+        aria-activedescendant={picker.activeOptionId}
         aria-label="Search or enter ingredients to exclude"
         className="bg-[var(--card)] pl-9"
       />
-      {open && (
-        <div className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-[var(--line-strong)] bg-[var(--card)] p-2 shadow-lg">
-          <IngredientMatches matches={matches} onAdd={addIngredient} />
+      {picker.open && (
+        <div // NOSONAR -- This custom popup is owned by the editable combobox.
+          id={picker.listboxId}
+          role="listbox"
+          aria-label="Matching ingredients"
+          className="absolute z-20 mt-2 max-h-72 w-full overflow-auto rounded-lg border border-[var(--line-strong)] bg-[var(--card)] p-2 shadow-lg"
+        >
+          <IngredientMatches
+            activeIndex={picker.activeIndex}
+            listboxId={picker.listboxId}
+            matches={picker.matches}
+            onAdd={picker.addIngredient}
+            onActiveIndexChange={picker.setActiveIndex}
+          />
           <CustomIngredientButton
-            canAdd={canAddCustom}
-            customText={customText}
-            onAdd={() => {
-              onAddCustom(customText);
-              setQuery("");
-              setOpen(false);
-            }}
+            active={picker.activeIndex === picker.matches.length}
+            canAdd={picker.canAddCustom}
+            customText={picker.customText}
+            optionId={`${picker.listboxId}-option-${picker.matches.length}`}
+            onAdd={picker.addCustomIngredient}
+            onActive={() => picker.setActiveIndex(picker.matches.length)}
           />
         </div>
       )}

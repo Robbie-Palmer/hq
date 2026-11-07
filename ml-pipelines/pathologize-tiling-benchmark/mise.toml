@@ -1,0 +1,31 @@
+[tools]
+python = "3.12"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tasks.sync]
+description = "Install the locked tiling benchmark environment"
+run = "uv sync --locked"
+
+[tasks.lock]
+description = "Update the tiling benchmark lockfile"
+run = "uv lock"
+
+[tasks.dvc]
+description = "Run a DVC command in the tiling benchmark"
+run = "bash ../scripts/dvc.sh"
+
+[tasks.repro]
+description = "Reproduce the deterministic tiling benchmark"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro"
+
+[tasks.verify]
+description = "Verify tiling contracts, leakage boundaries, and scorecards"
+depends = ["sync", "repro"]
+run = "uv run --locked pathologize-benchmark verify"
+
+[tasks.check]
+description = "Check the tiling benchmark"
+depends = ["verify"]

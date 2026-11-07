@@ -7,6 +7,8 @@ on:
       - "packages/recipe-parsing/**"
       - "packages/recipe-domain/**"
       - "packages/ai-review-domain/**"
+      - "packages/data-artifacts/**"
+      - "packages/ml-evaluation/**"
       - "patches/@cooklang__cooklang@*.patch"
       - "pnpm-lock.yaml"
       - "pnpm-workspace.yaml"
@@ -16,6 +18,30 @@ permissions:
   contents: read
 
 jobs:
+  data-artifacts-package-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check shared data artifacts package
+        run: mise run //packages/data-artifacts:check
+
+  ml-evaluation-package-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check shared ML evaluation package
+        run: mise run //packages/ml-evaluation:check
+
   ai-review-evaluation-check:
     runs-on: ubuntu-latest
     steps:
@@ -39,6 +65,48 @@ jobs:
 
       - name: Check financial-document IDP evaluation pipeline
         run: mise run //ml-pipelines/financial-document-idp-evaluation:check
+
+  pathologize-benchmark-contracts-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check shared Pathologize benchmark contracts
+        run: mise run //ml-pipelines/pathologize-benchmark-contracts:check
+
+  pathologize-benchmark-check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project:
+          - pathologize-slide-quality-benchmark
+          - pathologize-tiling-benchmark
+          - pathologize-cell-analysis-benchmark
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check ${{ matrix.project }}
+        run: mise run //ml-pipelines/${{ matrix.project }}:check
+
+  pathologize-data-registry-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Check Pathologize data registry
+        run: mise run //ml-pipelines/pathologize-data-registry:check
 
   wsi-analysis-check:
     runs-on: ubuntu-latest

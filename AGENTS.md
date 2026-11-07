@@ -86,9 +86,10 @@ This exact `doppler run` command is the documented local access path. Do not lis
 search for the credential values, and do not use a broader Doppler config. If the scoped command is
 unavailable, report the limitation and stop HTTP preview QA.
 
-For browser QA in T3 Code, use the shared browser and its existing Cloudflare account session. If
-Cloudflare redirects to sign-in, ask the user to complete that interactive login before continuing.
-Do not copy the service-token values into browser controls, page fields, logs, or repository files.
+T3 Code's browser tools cannot currently consume Access headers or cookies. If the shared browser
+redirects to Cloudflare sign-in, stop browser QA and report the limitation. Do not copy service-token
+values into browser controls, page fields, logs, repository files, Playwright storage state, or a
+proxy. Browser authentication must be implemented in the trusted T3 Code browser host.
 
 ## Sandboxed GitHub Commands
 

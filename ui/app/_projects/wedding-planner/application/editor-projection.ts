@@ -1,6 +1,5 @@
 import {
   accommodationState,
-  type Couple,
   parseWeddingPlan,
   tableInput,
   type WeddingPlan,
@@ -42,21 +41,6 @@ export function defaultTablePlan(plan: WeddingPlanDraft): TablePlan {
         () => 8,
       ),
     }
-  );
-}
-
-function migrateCouples(plan: WeddingPlanDraft): Couple[] {
-  if (plan.couples) return structuredClone(plan.couples);
-  const groups = new Map<string, string[]>();
-  for (const guest of plan.guests) {
-    if (guest.fixed_bed_group_id)
-      groups.set(guest.fixed_bed_group_id, [
-        ...(groups.get(guest.fixed_bed_group_id) ?? []),
-        guest.id,
-      ]);
-  }
-  return [...groups].flatMap(([id, guests]) =>
-    guests.length === 2 ? [{ id, guest_ids: guests as [string, string] }] : [],
   );
 }
 
@@ -102,7 +86,7 @@ export function editorStateToPlan(state: WeddingPlanDraft): WeddingPlan {
           ? ["wedding_party"]
           : []),
     })),
-    couples: migrateCouples(state),
+    couples: structuredClone(couples ?? []),
     hosts: hosts ?? ["You", "Your fiancé"],
     reviewed_non_couples,
     guest_directory,

@@ -3,66 +3,28 @@ title: "ADR 011: Basic Memory and SilverBullet for an extensible agentic knowled
 date: "2026-08-15"
 status: "Proposed"
 tech_stack: ["Basic Memory", "SilverBullet"]
+implements_product_decisions:
+  - "homelab:007-keep-private-knowledge-agent-operable"
 ---
 
 # Context
 
-I want a private second brain for personal, free-form, structured, and
-semi-structured writing, potentially including diary-like material. It is not
-the publication system for this site: useful ideas can graduate into blog posts
-or project documentation later, but the working knowledge base should optimize
-for thinking rather than publishing.
+[PDR 007](/projects/homelab/pdrs/007-keep-private-knowledge-agent-operable)
+defines a private, single-user corpus in durable files, with comfortable human
+editing and reviewable agent changes. This ADR chooses the applications,
+indexes, deployment, and extension boundary for a pilot that could satisfy
+that proposal.
 
-I previously used Roam Research and Notion. Notion is good when collaborating
-with non-technical people, but collaboration is not a requirement here. Roam's
-linked blocks were powerful, but its daily-note-first workflow did not fit how I
-work, and maintaining its ontology and connections became more work than
-creating the content. A new system must not reproduce that failure with a
-self-hosted graph.
+The existing Claude Code, Codex, Grok Build, and OpenCode agents already run
+through [t3-code](/projects/homelab/adrs/004-t3-code) and are reachable over
+[Tailscale](/projects/homelab/adrs/000-tailscale). The knowledge system should
+reuse those agents rather than add another AI subscription or chat surface.
+Its canonical data must remain readable outside either selected application,
+and its derived indexes must be rebuildable.
 
-The main interface is different now. I already run Claude Code, Codex, Grok
-Build, and OpenCode through
-[t3-code](/projects/homelab/adrs/004-t3-code) on the Mac mini and can reach
-those agents from Android, macOS, and Ubuntu over
-[Tailscale](/projects/homelab/adrs/000-tailscale). I want to ask an agent to
-capture, find, connect, reorganize, summarize, or critique material in natural
-language. The notes application does not need its own AI subscription or chat
-surface; it needs to be an **agent-operable knowledge substrate** behind the
-interface I already have.
-
-Beads has proved this interaction model for task management at work: a focused
-CLI and structured graph give both me and the agents one durable system to
-operate, without making me translate every intent into application clicks. I
-want the knowledge equivalent, less task-oriented, comfortable with free-form
-writing, and able to accumulate durable context across agent sessions.
-
-Requirements, in priority order:
-
-1. **Agent-operable data.** Local agents must be able to search and change the
-   complete corpus using ordinary filesystem tools, a CLI, HTTP API, or MCP.
-   Agent access cannot be limited to copying text through a GUI.
-2. **Durable ownership.** The canonical content must remain readable outside
-   the application and straightforward to version, back up, migrate, and
-   inspect.
-3. **Flexible structure without mandatory gardening.** Plain prose, links,
-   tags, and typed metadata should coexist. The system may help produce a
-   knowledge graph, but it must not require me to maintain a perfect ontology
-   before I can write.
-4. **Good access everywhere.** A polished application is preferred, but a good
-   PWA is acceptable. Android, macOS, and Ubuntu must all work; offline mobile
-   editing is useful but not essential.
-5. **Private and single-user.** No collaboration or public publishing is
-   required. Agent and administrative access should remain on the tailnet with
-   no public ingress. A hosted sync relay is acceptable only with end-to-end
-   encryption.
-6. **Low incremental cost.** Prefer free and self-hosted. A service costing no
-   more than about $5/month is acceptable only after it proves its value.
-7. **Extensible without trapping the corpus.** The client should have credible
-   paths into future workflows, but extensions must remain optional views and
-   tools over durable knowledge rather than make their private formats the
-   source of truth. Prefer extension models benefiting from broader agent,
-   Markdown, and local-first adoption; bespoke customization must stay small
-   enough that owning it is an advantage rather than a new hobby.
+Roam Research previously made ontology maintenance more work than writing.
+Notion kept the live source in a hosted application. Those constraints favor a
+file-first architecture with optional graph structure and replaceable clients.
 
 # Decision (proposed)
 

@@ -2,16 +2,21 @@
 title: "ADR 000: Use provider-supported authentication for routed sessions"
 date: "2026-09-19"
 status: "Accepted"
+implements_product_decisions:
+  - "agent-coordinator:000-advisory-work-graph-routing"
 ---
 
 ## Context
 
-Agent Coordinator can draw from prepaid coding-agent subscriptions and metered
-APIs. Limits, reset periods, models, prices, and available clients change
-frequently. The useful optimisation target is completed valuable work. Raw
-token consumption is only a cost signal. Unused prepaid capacity can influence
-a choice between otherwise suitable workers, but it cannot make unsuitable
-work valuable.
+[PDR 000](/projects/agent-coordinator/pdrs/000-advisory-work-graph-routing)
+starts with owner-visible matching and permits automatic routing only inside
+owner policy. Once the product has selected suitable work and an eligible
+actor, the system still needs to start a session without misusing subscription
+credentials or losing attribution during provider fallback and handoff.
+
+Limits, reset periods, models, prices, and available clients change frequently.
+The technical boundary must support prepaid coding-agent subscriptions and
+metered APIs without treating every authentication path as interchangeable.
 
 [9Router](https://9router.com/) offers an appealing abstraction: one
 OpenAI-compatible endpoint, OAuth or API-key connections, quota tracking,
@@ -50,10 +55,8 @@ customer-owned API key through a documented API. OpenRouter may be used as a
 metered API provider under explicit budgets because its API credentials and
 billing model are intended for programmatic routing.
 
-The coordinator selects a worker only after matching capability, authority,
-context, expected value, budget, and available capacity. Expiring prepaid
-capacity breaks ties between workers that have passed those constraints; it
-never overrides them. The selected worker owns the complete execution session.
+Apply the matching and authority policy from PDR 000 before creating a session.
+The selected worker owns the complete execution session.
 
 An approved API gateway may choose or change providers and models below that
 session. Propagate one stable session ID on every request and record the route
@@ -142,3 +145,10 @@ use a gateway inside the API-funded adapter.
 Manual selection respects provider boundaries and is a sensible bootstrap
 path. It does not continuously match work to capacity, enforce budgets,
 coordinate leases, or capture enough evidence to improve later routing.
+
+## Migration note
+
+The 2026-11-01 product-decision audit moved the first-workflow policy and the
+outcome-over-utilization rule into PDR 000. This record still owns the original
+technical choice for session boundaries, authentication, provenance, budgets,
+and handoff. Its 2026-09-19 decision and Accepted status did not change.

@@ -1,92 +1,104 @@
 import { createHash } from "node:crypto";
 import {
   createRoute,
-  OpenAPIHono,
   type Hook,
+  OpenAPIHono,
 } from "@hono/zod-openapi";
 import type { Env } from "hono";
 import { routePath } from "hono/route";
 import {
-  classifyRetryableDatabaseFailure,
-  type DatabaseQueryMetrics,
-  type AttentionRequestReadModel,
   type ArchiveKnowledgeScopeInput,
   type AssignCompletionPolicyInput,
+  type AttentionRequestReadModel,
   type ClaimWorkItemInput,
   type CompletionPolicyEvaluationResult,
   type CreateAttentionRequestInput,
   type CreateAttentionRequestResult,
   type CreateNoteInput,
   type CreatePostReleaseNoteInput,
+  classifyRetryableDatabaseFailure,
+  type DatabaseQueryMetrics,
   type DecomposeClaimedWorkItemInput,
   type DecomposeClaimedWorkItemResult,
   type EvaluateCompletionCandidateInput,
   type IdempotentMutationOptions,
   type KnowledgeScopeRelationshipCursor,
   type ListAttentionRequestsInput,
-  type ListWorkItemDeliveryEvidenceInput,
+  type ListDeliveryRecoveriesInput,
   type ListEventsInput,
   type ListKnowledgeScopeRelationshipsInput,
   type ListKnowledgeScopesInput,
+  type ListWorkItemDeliveryEvidenceInput,
   type ListWorkItemDependenciesInput,
   type ListWorkItemLeasesInput,
   type ListWorkItemNotesInput,
+  type ListWorkItemPageInput,
   type ListWorkItemsInput,
   type PriorityMoveInput,
   type ProjectCriticalPathInput,
+  type PutDeliveryTargetOverrideInput,
   type RenewLeaseInput,
   type ResolveAttentionRequestInput,
   type ResolveAttentionRequestResult,
   type RetryableDatabaseFailure,
   type StoredAttentionRequest,
   type StoredAttentionResolution,
+  type StoredCompletionCandidateEvaluation,
+  type StoredDeliveryRecoveryDelivery,
   type StoredEvent,
   type StoredLease,
   type StoredNote,
-  type StoredCompletionCandidateEvaluation,
   type StoredWorkItemDeliveryEvidence,
   type TerminateClaimedWorkItemInput,
   type TerminateClaimedWorkItemResult,
+  type WORK_GRAPH_EVENT_TYPES,
   type WorkItemDependencyCursor,
   type WorkItemReadModel,
   type WorkItemSchedulingScopeInput,
-  type WORK_GRAPH_EVENT_TYPES,
 } from "work-graph-db";
 import {
   ARCHITECTURE_DECISION_ROLES,
   COMPLETION_CANDIDATE_REASONS,
+  type CompletionPolicyRevision,
+  type CriticalPathProjection,
+  DELIVERY_ACTION_KINDS,
   DELIVERY_EVIDENCE_KINDS,
   DELIVERY_EVIDENCE_STATES,
+  DELIVERY_RECOVERY_DELIVERY_KINDS,
+  DELIVERY_RECOVERY_FALLBACKS,
+  type DeliveryActionRequest,
+  type DeliveryRecoveryDelivery,
+  type DeliveryRecoveryRecord,
   EVIDENCE_CORRELATION_KINDS,
+  type GeneratedDeliveryMetadataRevision,
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
+  type KnowledgeScope,
+  type KnowledgeScopeInput,
+  type KnowledgeScopeRelationship,
   LEASE_OUTCOMES,
   MAX_CRITICAL_PATH_BLOCKING_PATHS,
   MAX_CRITICAL_PATH_NODES,
+  type NewWorkItemInput,
   normalizeWorkItemSelectionScope,
   PULL_REQUEST_CHECK_SUMMARIES,
   PULL_REQUEST_MERGEABILITIES,
   PULL_REQUEST_REVIEW_DECISIONS,
   PULL_REQUEST_ROLES,
   PULL_REQUEST_STATES,
-  WORK_ITEM_LIFECYCLES,
+  type PullRequestSnapshot,
+  type RepositoryCompletionPolicyDefaultRevision,
+  type ResolvedWorkItemContext,
   WORK_ITEM_CONTEXT_KINDS,
+  WORK_ITEM_LIFECYCLES,
   WORK_STAGES,
   WorkGraphError,
-  type CriticalPathProjection,
-  type CompletionPolicyRevision,
-  type KnowledgeScope,
-  type KnowledgeScopeInput,
-  type KnowledgeScopeRelationship,
-  type NewWorkItemInput,
-  type PullRequestSnapshot,
-  type ResolvedWorkItemContext,
   type WorkItem,
   type WorkItemArchitectureDecision,
   type WorkItemContext,
   type WorkItemDependency,
-  type WorkItemReference,
   type WorkItemPullRequest,
+  type WorkItemReference,
   type WorkItemSelectionScope,
 } from "work-graph-domain";
 import { z } from "zod";
@@ -131,11 +143,16 @@ const WORK_ITEM_EVENT_TYPES = [
   "attention.resolved",
   "dependency.added",
   "dependency.removed",
+  "delivery_action.requested",
+  "delivery_action.result_recorded",
+  "delivery_recovery.recorded",
+  "delivery_recovery.delivery_reserved",
   "context.put",
   "lease.claimed",
   "lease.ended",
   "lease.renewed",
   "note.created",
+  "pull_request.delivery_targets_resolved",
   "pull_request.linked",
   "reference.put",
   "work_item.created",
@@ -389,6 +406,8 @@ const pullRequestSnapshotSchema = z
       z.null(),
     ]),
     checkSummary: z.enum(PULL_REQUEST_CHECK_SUMMARIES),
+    changedPaths: z.array(z.string().trim().min(1).max(1_024)).max(3_000).optional(),
+    deliveryMetadataSourceRevision: identifierSchema.optional(),
     observedAt: timestampSchema,
   })
   .openapi("PullRequestSnapshot");
@@ -452,7 +471,12 @@ const completionCandidateSchema = z
 const completionPolicyRevisionSchema = z
   .object({
     policyId: identifierSchema,
-    revision: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    revision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
     requiredCiNames: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
     productionEnvironments: z.array(z.string().trim().min(1).max(MAX_TITLE_LENGTH)).min(1).max(100),
     automaticRelease: z.boolean(),
@@ -463,6 +487,47 @@ const completionPolicyRevisionPathSchema = z.object({
   policyId: identifierSchema,
   revision: z.coerce.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
 });
+const repositoryCompletionPolicyDefaultRevisionSchema = z
+  .object({
+    repository: z
+      .string()
+      .max(MAX_IDENTIFIER_LENGTH)
+      .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+    revision: z.number().int().min(1).max(MAX_INT32).openapi({ format: "int32" }),
+    policyId: identifierSchema,
+    policyRevision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
+    enabled: z.boolean(),
+    createdAt: timestampSchema,
+  })
+  .openapi("RepositoryCompletionPolicyDefaultRevision");
+const repositoryCompletionPolicyDefaultRevisionPathSchema = z.object({
+  owner: z
+    .string()
+    .max(MAX_IDENTIFIER_LENGTH)
+    .regex(/^[A-Za-z0-9_.-]+$/u),
+  repository: z
+    .string()
+    .max(MAX_IDENTIFIER_LENGTH)
+    .regex(/^[A-Za-z0-9_.-]+$/u),
+  revision: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_INT32)
+    .openapi({ format: "int32" }),
+});
+const putRepositoryCompletionPolicyDefaultRevisionBodySchema =
+  repositoryCompletionPolicyDefaultRevisionSchema
+    .omit({
+      repository: true,
+      revision: true,
+    })
+    .extend({ enabled: z.boolean().default(true) });
 const putCompletionPolicyRevisionBodySchema = completionPolicyRevisionSchema.omit({
   policyId: true,
   revision: true,
@@ -478,6 +543,123 @@ const workItemCompletionPolicySchema = z
 const putWorkItemCompletionPolicyBodySchema = workItemCompletionPolicySchema.omit({
   workItemId: true,
 });
+const generatedDeliveryTargetSchema = z
+  .object({
+    id: identifierSchema,
+    projectId: identifierSchema,
+    repository: z
+      .string()
+      .max(MAX_IDENTIFIER_LENGTH)
+      .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+    sourcePaths: z
+      .array(
+        z
+          .object({
+            path: z.string().trim().min(1).max(1_024),
+            mode: z.enum(["exclusive", "shared"]),
+            subjects: z.array(identifierSchema).max(1_000),
+          })
+          .strict(),
+      )
+      .min(1)
+      .max(1_000),
+    subjects: z.array(identifierSchema).max(1_000),
+    sharedHostId: z.union([identifierSchema, z.null()]),
+    requiredCiNames: z.array(z.string().trim().min(1).max(500)).min(1).max(100),
+    productionEnvironments: z
+      .array(z.string().trim().min(1).max(500))
+      .min(1)
+      .max(100),
+  })
+  .strict()
+  .openapi("GeneratedDeliveryTarget");
+const deliveryMetadataPathSchema = z.object({
+  owner: z.string().max(MAX_IDENTIFIER_LENGTH).regex(/^[A-Za-z0-9_.-]+$/u),
+  repository: z
+    .string()
+    .max(MAX_IDENTIFIER_LENGTH)
+    .regex(/^[A-Za-z0-9_.-]+$/u),
+  sourceRevision: identifierSchema,
+});
+const putDeliveryMetadataBodySchema = z
+  .object({
+    targets: z.array(generatedDeliveryTargetSchema).min(1).max(1_000),
+    createdAt: timestampSchema,
+  })
+  .strict();
+const putDeliveryTargetOverrideBodySchema = z
+  .object({
+    targetIds: z.array(identifierSchema).min(1).max(100),
+    updatedAt: timestampSchema,
+  })
+  .strict();
+const deliveryActionRequestSchema = z
+  .object({
+    id: z.uuid().max(36),
+    workItemId: identifierSchema,
+    kind: z.enum(DELIVERY_ACTION_KINDS),
+    provider: z.literal("github"),
+    evidenceKind: z.enum(["pull_request", "deployment"]),
+    evidenceExternalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+    repository: z
+      .string()
+      .max(MAX_IDENTIFIER_LENGTH)
+      .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+    commitSha: commitShaSchema,
+    policyId: identifierSchema,
+    policyRevision: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_INT32)
+      .openapi({ format: "int32" }),
+    initiatingSessionId: z.union([identifierSchema, z.null()]),
+    unavailableSessionFallback: z.enum(DELIVERY_RECOVERY_FALLBACKS),
+    requestedAt: timestampSchema,
+  })
+  .openapi("DeliveryActionRequest");
+const deliveryRecoveryEvidenceSchema = z.object({
+  provider: z.string().trim().min(1).max(MAX_IDENTIFIER_LENGTH),
+  externalId: z.string().trim().min(1).max(MAX_TITLE_LENGTH),
+  repository: z
+    .string()
+    .max(MAX_IDENTIFIER_LENGTH)
+    .regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/u),
+  commitSha: commitShaSchema,
+  kind: z.enum(["pull_request", "deployment"]),
+  state: z.enum(["failure", "cancelled"]),
+  sourceUrl: contextUrlSchema,
+  observedAt: timestampSchema,
+});
+const deliveryRecoverySchema = z
+  .object({
+    id: z.uuid().max(36),
+    workItemId: identifierSchema,
+    actionRequestId: z.uuid().max(36),
+    actionResultId: z.uuid().max(36),
+    initiatingSessionId: z.union([identifierSchema, z.null()]),
+    unavailableSessionFallback: z.enum(DELIVERY_RECOVERY_FALLBACKS),
+    attentionRequestId: z.uuid().max(36),
+    createdAt: timestampSchema,
+    resolvedAt: z.union([timestampSchema, z.null()]),
+    evidence: deliveryRecoveryEvidenceSchema,
+  })
+  .openapi("DeliveryRecovery");
+const deliveryRecoveryListSchema = z
+  .object({
+    items: z.array(deliveryRecoverySchema).max(100),
+    nextCursor: z.union([z.uuid().max(36), z.null()]),
+  })
+  .openapi("DeliveryRecoveryList");
+const deliveryRecoveryDeliverySchema = z
+  .object({
+    id: z.uuid().max(36),
+    recoveryId: z.uuid().max(36),
+    kind: z.enum(DELIVERY_RECOVERY_DELIVERY_KINDS),
+    targetSessionId: z.union([identifierSchema, z.null()]),
+    reservedAt: timestampSchema,
+  })
+  .openapi("DeliveryRecoveryDelivery");
 const workItemContextRecordSchema = z
   .union([workItemTextContextSchema, workItemArchitectureDecisionSchema])
   .openapi("WorkItemContextRecord");
@@ -642,7 +824,9 @@ const attentionRequestSchema = z
   .object({
     id: z.uuid().max(36),
     workItemId: identifierSchema,
-    requestingLeaseId: leaseIdSchema,
+    requestingLeaseId: z.union([leaseIdSchema, z.null()]),
+    deliveryRecoveryId: z.union([z.uuid().max(36), z.null()]),
+    deliveryResolutionId: z.union([z.uuid().max(36), z.null()]),
     kind: z.string().min(1).max(100),
     question: z.string().min(1).max(MAX_TITLE_LENGTH),
     note: z.union([
@@ -890,6 +1074,25 @@ const listWorkItemEvidenceQuerySchema = z.object({
     .openapi({ format: "int32" }),
   cursor: z.uuid().max(36).optional(),
 });
+const listDeliveryRecoveriesQuerySchema = z.object({
+  initiatingSessionId: identifierSchema.optional(),
+  workItemId: identifierSchema.optional(),
+  includeResolved: z.enum(["true"]).optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(100)
+    .default(DEFAULT_LIST_LIMIT)
+    .openapi({ format: "int32" }),
+  cursor: z.uuid().max(36).optional(),
+});
+const deliveryRecoveryParamsSchema = z.object({
+  recoveryId: z.uuid().max(36),
+});
+const reserveDeliveryRecoveryBodySchema = deliveryRecoveryDeliverySchema
+  .omit({ recoveryId: true })
+  .strict();
 const knowledgeScopeParamsSchema = z.object({
   knowledgeScopeId: identifierSchema,
 });
@@ -1507,6 +1710,39 @@ const putCompletionPolicyRevisionRoute = createRoute({
   },
 });
 
+const putRepositoryCompletionPolicyDefaultRevisionRoute = createRoute({
+  method: "put",
+  path: "/api/github/repositories/{owner}/{repository}/completion-policy-defaults/{revision}",
+  operationId: "putRepositoryCompletionPolicyDefaultRevision",
+  summary: "Create an immutable repository completion-policy default",
+  description:
+    "Stores one versioned owner selection for unassigned work linked to implementation pull requests in the repository. A later disabled revision pauses automatic default assignment.",
+  tags: ["completion-policies", "pull-requests"],
+  security: accessSecurity,
+  request: {
+    params: repositoryCompletionPolicyDefaultRevisionPathSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": {
+          schema: putRepositoryCompletionPolicyDefaultRevisionBodySchema,
+        },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Repository completion-policy default created or matched",
+      content: {
+        "application/json": {
+          schema: repositoryCompletionPolicyDefaultRevisionSchema,
+        },
+      },
+    },
+    ...standardErrors,
+  },
+});
+
 const putWorkItemCompletionPolicyRoute = createRoute({
   method: "put",
   path: "/api/work-items/{workItemId}/completion-policy",
@@ -1522,6 +1758,150 @@ const putWorkItemCompletionPolicyRoute = createRoute({
   },
   responses: {
     200: { description: "Policy assigned", content: { "application/json": { schema: workItemCompletionPolicySchema } } },
+    ...standardErrors,
+  },
+});
+
+const putDeliveryMetadataRevisionRoute = createRoute({
+  method: "put",
+  path: "/api/github/repositories/{owner}/{repository}/delivery-metadata-revisions/{sourceRevision}",
+  operationId: "putDeliveryMetadataRevision",
+  summary: "Create an immutable generated delivery-metadata revision",
+  description:
+    "Stores Copier-compiled target IDs, path bindings, subjects, CI names, and production environments at one catalog source revision.",
+  tags: ["completion-policies", "pull-requests"],
+  security: accessSecurity,
+  request: {
+    params: deliveryMetadataPathSchema,
+    body: {
+      required: true,
+      content: { "application/json": { schema: putDeliveryMetadataBodySchema } },
+    },
+  },
+  responses: {
+    200: {
+      description: "Delivery metadata revision created or matched",
+      content: {
+        "application/json": {
+          schema: z.object({
+            repository: z.string().max(MAX_IDENTIFIER_LENGTH),
+            sourceRevision: identifierSchema,
+            targets: z.array(generatedDeliveryTargetSchema).max(1_000),
+          }),
+        },
+      },
+    },
+    ...standardErrors,
+  },
+});
+
+const putDeliveryTargetOverrideRoute = createRoute({
+  method: "put",
+  path: "/api/work-items/{workItemId}/delivery-target-override",
+  operationId: "putDeliveryTargetOverride",
+  summary: "Narrow a ticket to owner-approved delivery targets",
+  description:
+    "Stores an explicit target subset and re-resolves linked pull requests. Targets outside the generated owner selection fail closed.",
+  tags: ["completion-policies", "work-items"],
+  security: accessSecurity,
+  request: {
+    params: workItemParamsSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: putDeliveryTargetOverrideBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Delivery-target override stored",
+      content: {
+        "application/json": {
+          schema: putDeliveryTargetOverrideBodySchema.extend({
+            workItemId: identifierSchema,
+          }),
+        },
+      },
+    },
+    ...standardErrors,
+  },
+});
+
+const createDeliveryActionRequestRoute = createRoute({
+  method: "post",
+  path: "/api/delivery-action-requests",
+  operationId: "createDeliveryActionRequest",
+  summary: "Record a policy-controlled delivery action request",
+  description:
+    "Binds one merge or deployment request to a work item, immutable policy revision, exact GitHub evidence identity, and initiating session when one exists.",
+  tags: ["delivery-actions"],
+  security: accessSecurity,
+  request: {
+    body: {
+      required: true,
+      content: { "application/json": { schema: deliveryActionRequestSchema } },
+    },
+  },
+  responses: {
+    201: {
+      description: "Delivery action request created or matched",
+      content: { "application/json": { schema: deliveryActionRequestSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const listDeliveryRecoveriesRoute = createRoute({
+  method: "get",
+  path: "/api/delivery-recoveries",
+  operationId: "listDeliveryRecoveries",
+  summary: "Pull unresolved delivery recovery work",
+  description:
+    "Returns sanitized failed delivery evidence. Initiating sessions use their stable session ID to pull recovery on their next Work Graph interaction.",
+  tags: ["delivery-actions"],
+  security: accessSecurity,
+  request: { query: listDeliveryRecoveriesQuerySchema },
+  responses: {
+    200: {
+      description: "Delivery recoveries in stable recovery-ID order",
+      content: { "application/json": { schema: deliveryRecoveryListSchema } },
+    },
+    ...standardErrors,
+  },
+});
+
+const reserveDeliveryRecoveryRoute = createRoute({
+  method: "post",
+  path: "/api/delivery-recoveries/{recoveryId}/deliveries",
+  operationId: "reserveDeliveryRecovery",
+  summary: "Reserve one deduplicated recovery delivery",
+  description:
+    "Reserves a push to the recorded initiating session or one owner-authorized replacement launch before the coordinator performs the external action.",
+  tags: ["delivery-actions"],
+  security: accessSecurity,
+  request: {
+    params: deliveryRecoveryParamsSchema,
+    body: {
+      required: true,
+      content: {
+        "application/json": { schema: reserveDeliveryRecoveryBodySchema },
+      },
+    },
+  },
+  responses: {
+    200: {
+      description: "Existing matching reservation returned",
+      content: {
+        "application/json": { schema: deliveryRecoveryDeliverySchema },
+      },
+    },
+    201: {
+      description: "Recovery delivery reserved",
+      content: {
+        "application/json": { schema: deliveryRecoveryDeliverySchema },
+      },
+    },
     ...standardErrors,
   },
 });
@@ -2263,6 +2643,9 @@ export interface WorkGraphApiRepository {
   listWorkItems(
     input?: ListWorkItemsInput,
   ): Promise<readonly WorkItemReadModel[]>;
+  listWorkItemPage(
+    input: ListWorkItemPageInput,
+  ): Promise<readonly WorkItemReadModel[]>;
   getWorkItem(workItemId: string): Promise<WorkItemReadModel>;
   listWorkItemDeliveryEvidence(
     input: ListWorkItemDeliveryEvidenceInput,
@@ -2273,6 +2656,26 @@ export interface WorkGraphApiRepository {
   putCompletionPolicyRevision(
     input: CompletionPolicyRevision,
   ): Promise<CompletionPolicyRevision>;
+  putRepositoryCompletionPolicyDefaultRevision(
+    input: RepositoryCompletionPolicyDefaultRevision,
+  ): Promise<RepositoryCompletionPolicyDefaultRevision>;
+  putDeliveryMetadataRevision(
+    input: GeneratedDeliveryMetadataRevision,
+    createdAt?: string,
+  ): Promise<GeneratedDeliveryMetadataRevision>;
+  putDeliveryTargetOverride(input: PutDeliveryTargetOverrideInput): Promise<void>;
+  putDeliveryActionRequest(
+    input: DeliveryActionRequest,
+  ): Promise<DeliveryActionRequest>;
+  listDeliveryRecoveries(
+    input?: ListDeliveryRecoveriesInput,
+  ): Promise<readonly DeliveryRecoveryRecord[]>;
+  reserveDeliveryRecovery(
+    input: DeliveryRecoveryDelivery,
+  ): Promise<{
+    readonly delivery: StoredDeliveryRecoveryDelivery;
+    readonly created: boolean;
+  }>;
   assignCompletionPolicy(input: AssignCompletionPolicyInput): Promise<void>;
   evaluateCompletionCandidateIfConfigured(
     input: EvaluateCompletionCandidateInput,
@@ -2778,24 +3181,18 @@ export const createWorkGraphApp = (
 
   app.openapi(listWorkItemsRoute, async (context) => {
     const query = context.req.valid("query");
-    const items = await repository.listWorkItems(selectionScopeFrom(query));
-    const cursorIndex =
-      query.cursor === undefined
-        ? -1
-        : items.findIndex((item) => item.id === query.cursor);
-    const remainingItems =
-      query.cursor !== undefined && cursorIndex === -1
-        ? []
-        : items.slice(cursorIndex + 1);
-    const matchingItems = remainingItems.filter(
-      (item) => query.stage === undefined || item.stage === query.stage,
-    );
-    const page = matchingItems.slice(0, query.limit);
+    const items = await repository.listWorkItemPage({
+      ...selectionScopeFrom(query),
+      ...(query.cursor === undefined ? {} : { cursor: query.cursor }),
+      limit: query.limit + 1,
+      ...(query.stage === undefined ? {} : { stage: query.stage }),
+    });
+    const page = items.slice(0, query.limit);
     return context.json(
       {
         items: page.map(serializeWorkItem),
         nextCursor:
-          page.length < matchingItems.length
+          items.length > query.limit
             ? (page.at(-1)?.id ?? null)
             : null,
       },
@@ -3008,6 +3405,24 @@ export const createWorkGraphApp = (
     );
   });
 
+  app.openapi(
+    putRepositoryCompletionPolicyDefaultRevisionRoute,
+    async (context) => {
+      const {
+        owner,
+        repository: repositoryName,
+        revision,
+      } = context.req.valid("param");
+      const stored =
+        await repository.putRepositoryCompletionPolicyDefaultRevision({
+          repository: `${owner}/${repositoryName}`,
+          revision,
+          ...context.req.valid("json"),
+        });
+      return context.json(stored, 200);
+    },
+  );
+
   app.openapi(putWorkItemCompletionPolicyRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
     const assignment = { workItemId, ...context.req.valid("json") };
@@ -3023,6 +3438,85 @@ export const createWorkGraphApp = (
       evaluatedAt: assignment.assignedAt,
     });
     return context.json(assignment, 200);
+  });
+
+  app.openapi(putDeliveryMetadataRevisionRoute, async (context) => {
+    const { owner, repository: repositoryName, sourceRevision } =
+      context.req.valid("param");
+    const { createdAt, targets } = context.req.valid("json");
+    const stored = await repository.putDeliveryMetadataRevision(
+      {
+        repository: `${owner}/${repositoryName}`,
+        sourceRevision,
+        targets,
+      },
+      createdAt,
+    );
+    return context.json(
+      {
+        ...stored,
+        targets: stored.targets.map((target) => ({
+          ...target,
+          sourcePaths: target.sourcePaths.map((binding) => ({
+            ...binding,
+            subjects: [...binding.subjects],
+          })),
+          subjects: [...target.subjects],
+          requiredCiNames: [...target.requiredCiNames],
+          productionEnvironments: [...target.productionEnvironments],
+        })),
+      },
+      200,
+    );
+  });
+
+  app.openapi(putDeliveryTargetOverrideRoute, async (context) => {
+    const { workItemId } = context.req.valid("param");
+    const request = { workItemId, ...context.req.valid("json") };
+    await repository.putDeliveryTargetOverride(request);
+    return context.json(request, 200);
+  });
+
+  app.openapi(createDeliveryActionRequestRoute, async (context) => {
+    return context.json(
+      await repository.putDeliveryActionRequest(context.req.valid("json")),
+      201,
+    );
+  });
+
+  app.openapi(listDeliveryRecoveriesRoute, async (context) => {
+    const {
+      cursor,
+      includeResolved,
+      initiatingSessionId,
+      limit,
+      workItemId,
+    } = context.req.valid("query");
+    const recoveries = await repository.listDeliveryRecoveries({
+      ...(initiatingSessionId === undefined ? {} : { initiatingSessionId }),
+      ...(workItemId === undefined ? {} : { workItemId }),
+      unresolvedOnly: includeResolved !== "true",
+      ...(cursor === undefined ? {} : { cursor }),
+      limit: limit + 1,
+    });
+    const page = recoveries.slice(0, limit);
+    return context.json(
+      {
+        items: page,
+        nextCursor:
+          recoveries.length > limit ? (page.at(-1)?.id ?? null) : null,
+      },
+      200,
+    );
+  });
+
+  app.openapi(reserveDeliveryRecoveryRoute, async (context) => {
+    const { recoveryId } = context.req.valid("param");
+    const result = await repository.reserveDeliveryRecovery({
+      ...context.req.valid("json"),
+      recoveryId,
+    });
+    return context.json(result.delivery, result.created ? 201 : 200);
   });
 
   app.openapi(listWorkItemContextsRoute, async (context) => {
@@ -3104,15 +3598,14 @@ export const createWorkGraphApp = (
 
   app.openapi(putWorkItemPullRequestRoute, async (context) => {
     const { workItemId } = context.req.valid("param");
-    return context.json(
-      await repository.putWorkItemPullRequest(
-        { workItemId, ...context.req.valid("json") },
-        idempotencyOptions(
-          context.req.valid("header")["idempotency-key"],
-        ),
+    const request = { workItemId, ...context.req.valid("json") };
+    const linked = await repository.putWorkItemPullRequest(
+      request,
+      idempotencyOptions(
+        context.req.valid("header")["idempotency-key"],
       ),
-      200,
     );
+    return context.json(linked, 200);
   });
 
   app.openapi(createWorkItemRoute, async (context) => {

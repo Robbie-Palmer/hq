@@ -3,21 +3,20 @@ title: "ADR 000: Tailscale"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["Tailscale"]
+implements_product_decisions:
+  - "homelab:003-keep-home-lab-services-private"
 ---
 
 # Context
 
-The home lab spans several machines in different roles, an always-on hub, a
-small always-on sidekick, and desktop-class hardware I expect to bring in
-later, and I want to reach all of them from any of my personal devices
-(laptops, phones) with no port forwarding, no public exposure, and no
-per-machine VPN configuration. The machines are behind a home router doing
-NAT; some of them are only ever on the tailnet.
+[PDR 003](/projects/homelab/pdrs/003-keep-home-lab-services-private) requires
+remote access for approved personal devices without a public service route.
+The home lab spans several machines behind a home router doing NAT, and some
+of them are only ever on the private network. The architecture needs one join
+and addressing model across laptops, phones, and lab nodes.
 
 Requirements:
 
-* **No public exposure.** None of the lab services should be reachable from
-  the internet. No ports forwarded, no public DNS, no dashboards exposed.
 * **Zero-config joining.** A new node (a desktop, a laptop, a phone) should
   join the network in one command and be reachable by name, not by
   remembering IP addresses.

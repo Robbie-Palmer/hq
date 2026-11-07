@@ -81,6 +81,16 @@ describe("Northern Ireland HPI market trends", () => {
         provider: "Land & Property Services / NISRA",
         dataset: "Northern Ireland House Price Index",
       },
+      housingValue: {
+        kind: "regional-index-statistic",
+        asOf: "2026-06-30",
+        amount: 184_768,
+        dataStatus: "provisional",
+        source: {
+          kind: "official-index",
+          geography: { name: "Belfast", precision: "local-authority" },
+        },
+      },
     });
     expect(result.annualChangePercent).toBeCloseTo(7.66, 2);
   });

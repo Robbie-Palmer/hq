@@ -1,0 +1,67 @@
+---
+title: "PDR 005: Delegate bounded recipe work while keeping publication human"
+date: "2026-07-25"
+status: "Proposed"
+---
+
+## Context
+
+An agent can answer useful questions from a person's recipes, pantry, diet,
+and cooking history. It can also reconcile pantry items, record a cook, or
+prepare an imported recipe. Giving the agent a browser session or a broad API
+key would hide which agent acted and make one credential cover unrelated work.
+
+Delegated access also changes the recovery burden. A mistaken read reveals
+private data. A mistaken write may alter a household's current state. A recipe
+publication, deletion, or membership change can affect other people and may be
+hard to reverse.
+
+## Proposed decision
+
+Let a user approve a named agent for a narrow set of task-oriented capabilities.
+The approval shows the agent and host, target account or household, allowed
+actions, limits, and expiry. A grant can reduce the user's existing permission,
+but it cannot expand it. Removing household access also removes the agent's
+derived access.
+
+Allow bounded recipe, pantry, shopping-list, and cooking-history reads without
+a prompt on every call after the user approves the grant. Separate read grants
+from writes and cost-incurring imports. Pantry and cooking-log writes must be
+attributable, idempotent, grouped into a reviewable change set, and reversible
+without erasing their history.
+
+An agent may submit and monitor an import and suggest draft corrections. A
+person must still review and publish the draft under PDR 004. Do not delegate
+recipe deletion, bulk export, household membership, visibility changes, quota
+changes, raw private evaluation data, or secret and administrative operations
+in the initial capability set.
+
+Users can inspect and revoke one agent without ending their own sessions or
+another agent's grant. The product records approval, execution, failure,
+expiry, and revocation without logging private recipe or pantry payloads.
+
+## Consequences
+
+Agents can help with repeated kitchen work without becoming indistinguishable
+from the person who delegated it. The service gains approval, revocation,
+attribution, undo, and capability-management interfaces before it can expose
+private state safely.
+
+Some useful actions remain human-only even when an agent can prepare all of
+their inputs. That limit protects household governance and the publication
+boundary at the cost of an extra handoff.
+
+## Evaluation
+
+Accept this proposal only after a user can identify an agent, approve exact
+capabilities, observe attributed activity, reverse supported writes, and revoke
+the grant promptly. Tests must prove that an agent cannot use a grant after the
+user loses the underlying resource permission and cannot publish an imported
+draft.
+
+## Migration note
+
+This record extracts the product delegation policy from proposed ADR 019. It
+keeps the original date, Proposed status, capability boundary, and human-only
+publication rule. The migration does not approve the Agent Auth protocol or
+broaden the proposed agent permissions.

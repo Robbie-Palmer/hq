@@ -1,0 +1,73 @@
+---
+title: "PDR 000: Bound the research to a three-agent bench demonstration"
+date: "2016-07-01"
+status: "Accepted"
+decision_date: "2016-07-01"
+evidence:
+  - title: "Autonomic Providing Pre-Programmed Death of Cubesats for Avoiding Space JUNK"
+    url: "https://doi.org/10.1109/SMC-IT.2019.00015"
+---
+
+## Context
+
+The summer research asked whether a small satellite swarm could assign a
+temporary mission without a permanent controller and withdraw an unhealthy
+agent from further work. The internship had enough time and hardware for a
+three-node physical demonstration, not a flight system or a validated model of
+spacecraft dynamics.
+
+A useful demonstration needed competing candidates, a temporary coordinator,
+observable message loss, and a reversible way to exercise fault policy on a
+desk. It also needed to keep the hardware intact after every run. The paper used
+"apoptosis" for the fail-safe behavior, but that biological metaphor could
+easily imply physical destruction or deorbiting that the prototype could not
+perform.
+
+## Decision
+
+Build a three-agent bench demonstration of temporary-leader mission assignment
+and local fail-safe withdrawal. Keep the agents independently programmable and
+use inexpensive, replaceable components so another researcher can inspect and
+repeat the experiment.
+
+The experiment may use visible stand-ins for spacecraft capabilities. A bench
+transport may represent a shared radio, a rover may represent an actuator, and
+a bounded score may represent candidacy. Every result must identify those
+stand-ins and avoid claiming that they validate a spacecraft link, maneuver,
+or guidance model.
+
+In this product, "apoptosis" means a safe-disabled software state that lasts
+until reset. It does not destroy hardware, command a deorbit, or establish that
+an irreversible spacecraft action is safe. Reversible quiescence and
+safe-disablement are separate behaviors even when the bench uses simple sensor
+and communication faults to demonstrate both.
+
+## Consequences
+
+Three agents are enough to show competing candidates and one relaying path
+within the available internship hardware. The demonstration can make the
+coordination and failure policies observable without pretending to reproduce a
+space environment.
+
+The result is evidence about the implemented protocol and software state
+transitions. It is not evidence of flight readiness, physical fault detection,
+radio performance, orbit mechanics, collision avoidance, or deorbit safety.
+Those claims require separate models, hardware, and validation.
+
+## Evaluation
+
+The demonstration succeeds when any idle agent can introduce a mission, the
+three nodes can compare candidacy and assign one node, and a fault scenario can
+show reversible quiescence and safe-disablement without damaging hardware.
+Documentation and results must name every stand-in and state what the run did
+not validate.
+
+## Migration note
+
+This record extracts the original research scope and evidence boundary from the
+project narrative and ADRs 000, 002, 003, 004, and 005. The date is the shared
+historical date used when those 2016 decisions were reconstructed. The linked
+2019 paper is later publication evidence. This migration does not change the
+experiment, reinterpret the software state, or add a flight claim. The ADRs
+retain the separate hardware, transport, protocol, scoring, and health-state
+choices.

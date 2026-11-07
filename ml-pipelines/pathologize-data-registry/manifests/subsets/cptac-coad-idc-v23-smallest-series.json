@@ -1,0 +1,19 @@
+{
+  "schema_version": 1,
+  "subset_id": "cptac-coad-idc-v23-smallest-series",
+  "collection_id": "cptac-coad-idc",
+  "description": "One complete DICOM slide-microscopy series used to exercise the registry without acquiring a large cohort.",
+  "selection": {
+    "method": "Select CPTAC-COAD rows with Modality SM from idc-index-data 23.10.1 for IDC v23, order by series_size_MB then SeriesInstanceUID, and take the first row.",
+    "source_index_version": "idc-index-data 23.10.1; IDC v23; series object first indexed in IDC v10",
+    "selected_at": "2026-11-06",
+    "task_split": null
+  },
+  "asset_root": "data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6",
+  "asset_manifest_id": "cptac-coad-idc-v23-smallest-series-assets",
+  "slide_ids": [
+    "cptac-coad-idc:09co003:0b1ee2c0"
+  ],
+  "asset_count": 6,
+  "total_bytes": 18701962
+}

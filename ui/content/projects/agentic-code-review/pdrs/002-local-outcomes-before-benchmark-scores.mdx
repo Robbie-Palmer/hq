@@ -1,0 +1,62 @@
+---
+title: "PDR 002: Put local review outcomes before benchmark scores"
+date: "2026-09-30"
+status: "Accepted"
+decision_date: "2026-09-30"
+informed_by_adrs:
+  - "agentic-code-review:002-duckdb-ai-review-scorecard"
+---
+
+## Context
+
+The production scorecard records what happened after this reviewer commented
+on real changes. Those outcomes reflect the repository, its risk policy, and
+the owner's judgment. They can also overfit one codebase and one person's
+preferences.
+
+External review benchmarks broaden the languages, repositories, and defect
+classes under test. Their labels answer a different question. A technically
+correct reference comment is not automatically useful to this workflow, and a
+generated finding that misses the reference set is not automatically noise.
+
+## Decision
+
+Use observed local outcomes as the primary evidence for changing review policy,
+prompts, and model selection. Keep external benchmarks as separate challenge
+sets that can expose generalisation regressions. Do not merge their labels with
+local dispositions into one score or treat benchmark agreement as a model of
+the owner's preferences.
+
+A benchmark may block a change that causes a clear, predeclared regression. It
+cannot promote a candidate that loses useful local findings, creates harmful
+local churn, or increases owner attention. Report unmatched benchmark findings
+as unadjudicated until a fixed blind sample has been reviewed.
+
+Keep provenance visible. Separate human-seeded and model-seeded references,
+flag model-family overlap, and compare candidates on the same pinned cohort,
+runner, budget, and matching policy.
+
+## Consequences
+
+The scorecard can detect narrow overfitting without pretending that a public
+dataset defines product value. Model changes need evidence from both the
+workflow they serve and a reproducible external check.
+
+The project must maintain separate reports and explain disagreements instead
+of publishing one convenient ranking. External reference recall can understate
+novel correct findings, while an incomplete reference set can make valid output
+look noisy.
+
+## Evaluation
+
+The policy is working when model and prompt decisions cite local downstream
+outcomes and show the external challenge result separately. A benchmark result
+must be reproducible from its pinned source, and every promotion must account
+for local useful discovery, owner attention, safety, cost, and coverage.
+
+## Migration note
+
+This record extracts the evidence policy that was mixed into ADR 004 on the
+same date. ADR 004 retains the technical decision to import AACR-Bench through
+the DVC evaluation pipeline. The migration changes the record boundary, not
+the policy or its Accepted status.

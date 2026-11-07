@@ -307,6 +307,7 @@ describe("project profile contracts", () => {
       opentelemetry: { enabled: false },
     }));
     expect(parsed.components[0]?.task_exceptions).toEqual([]);
+    expect(parsed.preview_links).toEqual([]);
     expect(parsed).toMatchObject({
       requirements: [],
       overrides: [],
@@ -316,16 +317,45 @@ describe("project profile contracts", () => {
   });
 
   it.each([
-    [{ schema_version: 3 }, /schema_version/],
+    [{ schema_version: 4 }, /schema_version/],
     [{ capabilities: { container: { base: "alpine" } } }, /not supported by project profile schema version 1/],
     [{ project: { id: "bad", name: "Bad", kind: "data-pipeline" } }, /compatible primary component/],
     [{ components: [{ id: "web", name: "One", kind: "ui" }, { id: "web", name: "Two", kind: "ui" }] }, /duplicate component ids/],
     [{ components: [{ id: "web", name: "Web", kind: "project-ui" }] }, /required for a project-ui/],
     [{ components: [{ id: "web", name: "Web", kind: "ui", mount_path: "/web" }] }, /only valid for a project-ui/],
+    [{ components: [{
+      id: "api",
+      name: "API",
+      kind: "worker",
+      template_ownership: "structure-only",
+      runtime_role: "authenticated-worker",
+    }] }, /requires one authenticated-worker, one api-contracts, and one relational-data/],
+    [{ components: [{
+      id: "api",
+      name: "API",
+      kind: "worker",
+      template_ownership: "project",
+      runtime_role: "authenticated-worker",
+    }] }, /requires template_ownership 'structure-only'/],
+    [{ components: [{
+      id: "data",
+      name: "Data",
+      kind: "worker",
+      template_ownership: "structure-only",
+      runtime_role: "relational-data",
+    }] }, /relational-data requires component kind 'typescript-package'/],
     [{ components: [
       { id: "first", name: "First", kind: "project-ui", mount_path: "/same" },
       { id: "second", name: "Second", kind: "project-ui", mount_path: "/same" },
-    ] }, /duplicate project UI mount paths/],
+    ] }, /duplicate preview mount paths/],
+    [{
+      components: [{ id: "web", name: "Web", kind: "project-ui", mount_path: "/same" }],
+      preview_links: [{ name: "Shared UI", mount_path: "/same" }],
+    }, /duplicate preview mount paths/],
+    [{ preview_links: [
+      { name: "Shared UI", mount_path: "/one" },
+      { name: "Shared UI", mount_path: "/two" },
+    ] }, /duplicate preview link names/],
     [{ layers: [{ layer: "base" }, { layer: "base" }] }, /duplicate layers/],
     [{ requirements: ["one", "one"] }, /duplicate requirements/],
     [{ overrides: [

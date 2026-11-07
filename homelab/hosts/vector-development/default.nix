@@ -85,6 +85,16 @@ let
     ];
     text = builtins.readFile ./scripts/apply-quiet-profile.bash;
   };
+  fanCurveScript = pkgs.writeShellApplication {
+    name = "vector-development-fan-curve";
+    runtimeInputs = with pkgs; [
+      coreutils
+      gnugrep
+      kmod
+      util-linux
+    ];
+    text = builtins.readFile ./scripts/apply-fan-curve.bash;
+  };
   thermalMonitor = pkgs.writeShellApplication {
     name = "vector-development-thermal-monitor";
     runtimeInputs = with pkgs; [
@@ -103,8 +113,43 @@ in
     ./hardware-configuration.nix
   ];
 
-  networking = {
+  homelab.hostLifecycle = {
+    enable = true;
+    profile = "hardware";
     hostName = "vector-development";
+    stateVersion = "26.05";
+    operator = {
+      authorizedKeys = operatorKeys;
+      extraGroups = [
+        "docker"
+        "networkmanager"
+        "video"
+        "wheel"
+      ];
+      mutablePassword = true;
+      wheelNeedsPassword = true;
+    };
+    k3s = {
+      nodeLabels = [
+        "homelab.dev/location=home"
+        "homelab.dev/capability=agent-workspace"
+        "homelab.dev/power-profile=mains-dependent"
+        "homelab.dev/accelerator=nvidia"
+      ];
+      extraFlags = [
+        "--kubelet-arg=node-ip=0.0.0.0"
+        "--kube-proxy-arg=nodeport-addresses=127.0.0.0/8"
+      ];
+      extraKubeletConfig.systemReserved = {
+        cpu = "2";
+        memory = "4Gi";
+      };
+    };
+    requiredMounts = [ "/" ];
+    secretBootstrapPaths = [ initrdHostKey ];
+  };
+
+  networking = {
     networkmanager = {
       enable = true;
       # NetworkManager.conf requires the numeric NMSettingWiredWakeOnLan flag.
@@ -129,15 +174,6 @@ in
     interfaces.enp58s0.wakeOnLan = {
       enable = true;
       policy = [ "magic" ];
-    };
-    firewall = {
-      enable = true;
-      checkReversePath = "loose";
-      allowedUDPPorts = [ config.services.tailscale.port ];
-      trustedInterfaces = [
-        "cni0"
-        "tailscale0"
-      ];
     };
   };
 
@@ -175,12 +211,8 @@ in
         };
       };
     };
-    loader.systemd-boot = {
-      enable = true;
-      configurationLimit = 10;
-    };
+    loader.systemd-boot.enable = true;
     loader.efi.canTouchEfiVariables = true;
-    tmp.cleanOnBoot = true;
   };
 
   nixpkgs.config.allowUnfree = true;
@@ -242,54 +274,21 @@ in
       alsa.support32Bit = true;
       pulse.enable = true;
     };
-    openssh = {
+    netdata = {
       enable = true;
-      openFirewall = true;
-      settings = {
-        AllowUsers = [
-          "root"
-          "robbie"
-        ];
-        KbdInteractiveAuthentication = false;
-        PasswordAuthentication = false;
-        PermitRootLogin = "prohibit-password";
-        X11Forwarding = false;
-      };
-    };
-    tailscale = {
-      enable = true;
-      extraSetFlags = [ "--ssh" ];
-    };
-    k3s = {
-      enable = true;
-      role = "server";
-      nodeName = "vector-development";
-      nodeLabel = [
-        "homelab.dev/location=home"
-        "homelab.dev/capability=agent-workspace"
-        "homelab.dev/power-profile=mains-dependent"
-        "homelab.dev/accelerator=nvidia"
-      ];
-      disable = [
-        "servicelb"
-        "traefik"
-      ];
-      extraFlags = [
-        "--kubelet-arg=node-ip=0.0.0.0"
-        "--kube-proxy-arg=nodeport-addresses=127.0.0.0/8"
-        "--secrets-encryption"
-        "--write-kubeconfig-mode=0640"
-      ];
-      gracefulNodeShutdown.enable = true;
-      extraKubeletConfig = {
-        containerLogMaxFiles = 3;
-        containerLogMaxSize = "20Mi";
-        failSwapOn = false;
-        memorySwap.swapBehavior = "NoSwap";
-        systemReserved = {
-          cpu = "2";
-          memory = "4Gi";
+      enableAnalyticsReporting = false;
+      config = {
+        global.hostname = "vector-development";
+        db = {
+          mode = "dbengine";
+          retention = "7d";
         };
+        web = {
+          "bind to" = "tcp:127.0.0.1:19999";
+          "allow connections from" = "localhost";
+          "allow dashboard from" = "localhost";
+        };
+        cloud.enabled = "no";
       };
     };
     logind.settings.Login = {
@@ -322,33 +321,16 @@ in
       '';
     };
     rtkit.enable = true;
-    sudo.wheelNeedsPassword = true;
   };
 
   users = {
-    mutableUsers = true;
     groups.t3code.gid = 2000;
-    users = {
-      root.openssh.authorizedKeys.keys = operatorKeys;
-      robbie = {
-        isNormalUser = true;
-        uid = 1000;
-        description = "Robbie Palmer";
-        extraGroups = [
-          "docker"
-          "networkmanager"
-          "video"
-          "wheel"
-        ];
-        openssh.authorizedKeys.keys = operatorKeys;
-      };
-      t3code = {
-        isSystemUser = true;
-        uid = 2000;
-        group = "t3code";
-        home = "${operatorDataPath}/home";
-        createHome = false;
-      };
+    users.t3code = {
+      isSystemUser = true;
+      uid = 2000;
+      group = "t3code";
+      home = "${operatorDataPath}/home";
+      createHome = false;
     };
   };
 
@@ -367,6 +349,7 @@ in
   environment = {
     etc = {
       "nvidia-container-runtime/config.toml".source = nvidiaContainerConfig;
+      "opentelemetry-collector/config.yaml".source = ./opentelemetry-collector.yaml;
       projects.text = ''
         ${operatorProjectId}:${operatorDataPath}
         ${cacheProjectId}:${cacheDataPath}
@@ -381,6 +364,7 @@ in
       curl
       e2fsprogs
       ethtool
+      fanCurveScript
       git
       gh
       htop
@@ -424,6 +408,10 @@ in
       ];
     }
   ];
+
+  powerManagement.resumeCommands = ''
+    ${fanCurveScript}/bin/vector-development-fan-curve apply
+  '';
 
   system.activationScripts.vectorDevelopmentRefreshGnomePower =
     lib.stringAfter
@@ -513,9 +501,24 @@ in
     };
   };
 
+  systemd.services.vector-development-fan-curve = {
+    description = "Apply the Vector zero-RPM idle fan curve";
+    after = [ "vector-development-quiet-profile.service" ];
+    requires = [ "vector-development-quiet-profile.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = "${fanCurveScript}/bin/vector-development-fan-curve apply";
+      ExecStop = "${fanCurveScript}/bin/vector-development-fan-curve restore";
+      RemainAfterExit = true;
+      TimeoutSec = "15s";
+      Type = "oneshot";
+    };
+  };
+
   systemd.services.vector-development-thermal-monitor = {
     description = "Record fan, temperature, and busy-process evidence";
-    after = [ "vector-development-quiet-profile.service" ];
+    after = [ "vector-development-fan-curve.service" ];
+    requires = [ "vector-development-fan-curve.service" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
       CapabilityBoundingSet = "";
@@ -563,6 +566,66 @@ in
     ];
   };
 
+  systemd.services.netdata.serviceConfig = {
+    MemoryHigh = "320M";
+    MemoryMax = "384M";
+  };
+
+  systemd.services.vector-development-dcgm-proxy = {
+    description = "Expose DCGM Exporter metrics to the host collector through the K3s API";
+    after = [ "k3s.service" ];
+    requires = [ "k3s.service" ];
+    wantedBy = [ "multi-user.target" ];
+    serviceConfig = {
+      ExecStart = ''
+        ${pkgs.k3s}/bin/k3s kubectl \
+          --kubeconfig=/etc/rancher/k3s/k3s.yaml \
+          proxy \
+          --address=127.0.0.1 \
+          --port=19400 \
+          --accept-paths=^/api/v1/namespaces/gpu-telemetry/services/http:dcgm-exporter:9400/proxy/(health|metrics)$
+      '';
+      Restart = "on-failure";
+      RestartSec = "5s";
+      PrivateTmp = true;
+      ProtectHome = true;
+      ProtectSystem = "strict";
+    };
+  };
+
+  systemd.services.opentelemetry-collector = {
+    description = "Route Vector GPU metrics to the local infrastructure metrics backend";
+    after = [
+      "netdata.service"
+      "vector-development-dcgm-proxy.service"
+    ];
+    requires = [ "vector-development-dcgm-proxy.service" ];
+    wants = [ "netdata.service" ];
+    wantedBy = [ "multi-user.target" ];
+    restartTriggers = [ ./opentelemetry-collector.yaml ];
+    serviceConfig = {
+      DynamicUser = true;
+      ExecStart = "${pkgs.opentelemetry-collector-contrib}/bin/otelcol-contrib --config=/etc/opentelemetry-collector/config.yaml";
+      Restart = "on-failure";
+      RestartSec = "5s";
+      MemoryHigh = "112M";
+      MemoryMax = "128M";
+      NoNewPrivileges = true;
+      PrivateDevices = true;
+      PrivateTmp = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectKernelModules = true;
+      ProtectKernelTunables = true;
+      ProtectSystem = "strict";
+      RestrictAddressFamilies = [
+        "AF_INET"
+        "AF_INET6"
+        "AF_UNIX"
+      ];
+    };
+  };
+
   systemd.services.t3-code-tailscale-serve = {
     description = "Publish vector-development T3 Code to the tailnet";
     after = [
@@ -583,23 +646,6 @@ in
     };
   };
 
-  nix = {
-    settings = {
-      experimental-features = [
-        "nix-command"
-        "flakes"
-      ];
-      auto-optimise-store = true;
-    };
-    gc = {
-      automatic = true;
-      dates = "Sun 04:15";
-      options = "--delete-older-than 30d";
-    };
-  };
-
-  system.autoUpgrade.enable = false;
   time.timeZone = "Europe/London";
   i18n.defaultLocale = "en_GB.UTF-8";
-  system.stateVersion = "26.05";
 }

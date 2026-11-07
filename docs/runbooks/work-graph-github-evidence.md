@@ -10,7 +10,45 @@ Reconciliation uses a GitHub App JWT only to obtain a short-lived installation
 token. Repository and installation allowlists apply to both webhook and
 reconciliation traffic. Reconciled facts use deterministic delivery IDs and
 the normal database consumer, so rerunning the operation neither duplicates
-evidence nor replaces a newer projection with an older provider observation.
+evidence, recovery work, nor replacement-launch reservations. It also cannot
+replace a newer projection with an older provider observation.
+
+## Concepts and processing flow
+
+Four terms describe different parts of ingestion:
+
+| Term | Meaning |
+| --- | --- |
+| GitHub delivery | One webhook envelope identified by `X-GitHub-Delivery`. Reconciliation creates an equivalent envelope with a deterministic ID. A separate deployment-status observation proves production deployment. |
+| Observation | One normalized PR, completed workflow run, or deployment-status fact extracted from a delivery. The observation records what GitHub reported, when GitHub reported it, and the exact commit. |
+| Disposition | Work Graph's processing result for the delivery. `processed` means its observation was correlated and stored, `ignored` means it carried no relevant fact, `unmatched` means no unique linked implementation PR owned the commit yet, and `failed` means parsing or persistence failed. |
+| Transaction | The PostgreSQL atomicity boundary used while correlating and storing an observation and its disposition. It exists only while the database work commits. |
+
+The ingestion path is:
+
+```text
+GitHub webhook or reconciliation
+  -> GitHub delivery receipt
+  -> normalized observation, or no relevant fact
+  -> correlation by repository, commit, and linked implementation PR
+  -> historical evidence plus current-evidence projection
+  -> completion-policy evaluation and optional ticket release
+```
+
+The delivery receipt is stored before the database transaction. Inside the
+transaction, Work Graph refreshes any PR snapshot, correlates and stores the
+observation, updates current evidence, and records the disposition together.
+Completion-policy evaluation runs after that transaction commits.
+If processing rolls back, Work Graph records the `failed` disposition in a
+separate error path.
+
+`processed` and `ignored` are terminal for a delivery ID. An `unmatched`
+delivery remains available for reconciliation after the relevant PR is linked.
+A `failed` delivery is retryable after its underlying problem is fixed.
+
+"Delivery evidence" is the broader Work Graph term for facts that prove a
+change progressed through PR, CI, and deployment stages. A GitHub delivery is
+the transport envelope that carried one of those facts.
 
 ## Verify normal processing
 
@@ -29,6 +67,31 @@ evidence nor replaces a newer projection with an older provider observation.
 The deployment state `waiting` is a valid pending observation. It must be
 accepted and later superseded by the provider's terminal status rather than
 sent to the DLQ as an invalid observation.
+
+## Recover a requested delivery action
+
+The delivery executor records each merge or deployment request before it acts.
+The request names the Work Graph item, immutable owner-policy revision, exact
+GitHub evidence identity, commit, and initiating agent session when one exists.
+GitHub evidence that is not tied to a recorded action remains ordinary evidence.
+
+A failed or cancelled requested action creates one recovery record and one
+blocking attention request. Work Graph stores only the normalized evidence
+identity, state, source URL, and provider timestamp. It does not copy webhook
+payloads or job logs into the recovery record.
+
+The initiating session pulls unresolved records from
+`GET /api/delivery-recoveries?initiatingSessionId=<session>`. A coordinator with
+inbound session delivery can reserve one push through
+`POST /api/delivery-recoveries/<recovery>/deliveries`. The reservation must
+target the initiating session recorded on the action request. If that session
+cannot resume, the stored policy fallback permits either owner attention or one
+replacement-launch reservation. Repeated webhook delivery and reconciliation
+reuse the same result, recovery, attention, and delivery reservations.
+
+Resolve the linked attention request only after recovery succeeds or the owner
+records another disposition. Resolution removes the record from the unresolved
+session pull without deleting its action, result, evidence, or routing history.
 
 ## Redeliver a missed webhook
 
@@ -96,18 +159,29 @@ repository file.
 
 Use one real `hq` change to verify the full path:
 
-Before the pilot, create an immutable owner policy and assign it to the ticket.
-Assignment evaluates evidence that has already arrived. Later webhook and
-reconciliation deliveries reevaluate the same ticket and may release it when
-the policy opts in.
+Before the pilot, create an immutable owner policy. Assign it directly for a
+one-off pilot, or make it the repository default. Direct assignment evaluates
+evidence that has already arrived. Repository defaults apply when an unassigned
+ticket with linked implementation pull requests is next evaluated. PR linking,
+webhook delivery, and reconciliation all trigger evaluation.
 
 ```bash
 work-graph completion-policy put --json '{"policyId":"hq-production","revision":1,"requiredCiNames":["Work Graph Observer CI"],"productionEnvironments":["production-work-graph"],"automaticRelease":true}'
 work-graph completion-policy assign <ticket> --policy-id hq-production --policy-revision 1
+work-graph completion-policy default put Robbie-Palmer/hq 1 --policy-id hq-production --policy-revision 1
 ```
 
 Use a new revision when requirements change. Reusing a policy ID and revision
-with different contents is rejected.
+with different contents is rejected. The highest repository-default revision
+wins. Add a later revision with `--enabled false` to pause new default
+assignments. Existing explicit ticket assignments remain unchanged.
+
+For the `hq` repository, production CD jobs publish distinct GitHub deployment
+environments. Examples include `production-site-ui`, `production-recipe-api`,
+`production-recipe-ingest`, `production-ai-review`, `production-work-graph`,
+and `production-infra`. Put every owner-approved environment in the policy's
+`productionEnvironments` list. A successful deployment in any listed
+environment can satisfy the deployment requirement for its exact merge commit.
 
 1. Attach its pull request to the ticket with
    `work-graph pr attach <ticket> <url> --role implementation`.

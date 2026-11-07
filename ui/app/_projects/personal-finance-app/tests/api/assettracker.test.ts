@@ -433,6 +433,7 @@ describe("createLocalAssetTrackerApi", () => {
 
     const { data } = await createApi().load();
     expect(data.household).toEqual({
+      id: "household",
       members: [
         { id: "alex", displayName: "Alexandra" },
         { id: "sam", displayName: "Sam" },

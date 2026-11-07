@@ -1,0 +1,133 @@
+---
+title: "ADR 048: Compile project delivery evidence from project profiles"
+date: "2026-11-04"
+status: "Accepted"
+---
+
+## Context
+
+GitHub records CI checks and deployments against repositories, commits, and
+environment names. Work Graph tickets belong to projects. A monorepo needs a
+deterministic link between those two views before a successful deployment can
+complete a ticket.
+
+Repository-wide defaults are safe only when one repository has one release
+target. This repository has several Workers, infrastructure roots, data
+pipelines, and one shared Next.js host. A deployment of the Recipe API must not
+complete a Work Graph API ticket merely because both commits came from `hq`.
+
+[ADR 030](/projects/personal-engineering-platform/adrs/030-repository-owned-component-identities)
+gives components identities that survive source moves. [ADR 040](/projects/personal-engineering-platform/adrs/040-executable-project-profile)
+makes the project profile the source declaration and the resolved blueprint the
+input to Copier. [ADR 042](/projects/personal-engineering-platform/adrs/042-project-owned-ui-in-the-shared-app)
+keeps project UI code in named project directories while several projects still
+ship in one frontend deployment.
+
+The repository already contains most of the ownership data needed for delivery
+resolution. Adding a second path map inside Work Graph would drift as Copier
+moves shared code into project directories.
+
+## Decision
+
+Add version 1 of the `project-delivery-evidence` contract to project profile
+schema version 3. The contract names the GitHub repository and one or more
+delivery targets. Each target declares stable component or workload subjects,
+optional source paths, optional shared-host membership, required GitHub CI
+names, and accepted production environments.
+
+```yaml
+schema_version: 3
+capabilities:
+  delivery_evidence:
+    contract: project-delivery-evidence
+    contract_version: 1
+    repository: Robbie-Palmer/hq
+    targets:
+      - id: site-ui
+        subjects: [component:recipe-site/web]
+        shared_host: site-ui
+        source_paths:
+          - path: .github/workflows/ui-cd.yml
+            mode: shared
+        github:
+          required_ci_names: [UI CI]
+          production_environments: [production-site-ui]
+```
+
+The project profile owns the target declaration and stable subject references.
+The repository layout and platform catalog own the current source paths for
+those subjects. An explicit `source_paths` entry covers workflow files or a
+temporary shared path that no component owns yet. `exclusive` means one target
+owns that path. `shared` means the author expects the path to select more than
+one target.
+
+The profile compiler resolves version 3 profiles into blueprint version 4. It
+replaces local target IDs with `delivery-target:<project>/<target>` and shared
+host IDs with `shared-host:<host>`. It resolves subject paths from the current
+component declaration first, then from the checked-in catalog. This order keeps
+the stable identity when a component moves. It sorts all targets, paths, check
+names, and environments before serialization.
+
+The compiler stops on an unknown subject, a target without a resolved path, a
+duplicate identity, or overlapping exclusive paths owned by different
+subjects. The same subject may feed several targets. Shared paths may also feed
+several targets. The profile declares both cases explicitly.
+
+Resolved delivery targets become catalog records in the Copier plan. Copier
+renders the blueprint and reconciles those records with compare-before-replace
+edits. Its answers file proves which template revision and blueprint produced a
+checkout. The receipt does not replace the profile as the declaration.
+
+The checked-in catalog is the runtime input for Work Graph. When Work Graph
+links a pull request, it will resolve changed files against the catalog and
+store the target IDs and catalog revision with the ticket. Later profile or
+path changes cannot rewrite that historical decision. Work Graph must fail
+closed when the catalog is absent, stale, or ambiguous. It must not infer a
+target from a workflow filename or accept any deployment from the repository.
+
+Profile schema version 1 remains valid and resolves to blueprint version 2.
+Schema version 2 workload profiles remain valid and resolve to blueprint
+version 3. Neither older version gains an implicit delivery policy. Repositories
+with one unambiguous release target may continue to use a repository default
+until they adopt this contract.
+
+Changes to a resolved delivery target appear as manual decisions in project
+reconciliation. A changed CI name or production environment can change which
+evidence completes work, so reconciliation must not hide it among routine
+template edits.
+
+## Alternatives
+
+Maintaining a path-to-workflow table in Work Graph would make webhook handling
+independent of the project generator. It would also duplicate project
+ownership and require coordinated edits for every Copier path move.
+
+Reading GitHub Actions path filters as the ownership model would reuse existing
+configuration. Those filters optimize workflow execution. They contain shared
+setup files, exclusions, and compatibility paths that do not define project
+identity. Several workflows can also deploy one logical target.
+
+Treating Copier receipts as the source declaration would make applied output
+authoritative. A receipt records one render and can lag the current profile.
+That makes it useful evidence, but a poor place for an intentional policy edit.
+
+Assigning the whole `ui` directory to every hosted project would match today's
+frontend deployment. It would erase project ownership. Shared-host membership
+keeps the deployment coupling explicit while Copier moves product code into
+stable project directories.
+
+## Consequences
+
+Project and component ownership now determines which GitHub evidence matters
+to a ticket. Workflow and environment names remain explicit because GitHub
+uses those names as event identities.
+
+The Work Graph and Recipe Site profiles provide the first production mappings.
+Recipe Site's web target still resolves through the existing shared `ui` catalog
+record. When Copier moves that code to `ui/app/_projects/recipe-site`, the
+subject and target IDs remain unchanged and only the resolved path changes.
+
+The compiler can expose gaps that workflows currently paper over. A component
+with CI but no production target remains unbound until its real release process
+exists. That is safer than marking its tickets released after an unrelated
+deployment.

@@ -1125,7 +1125,7 @@ if [[ "$url" == */channels/ ]]; then
   printf '%s' '{"channels":[{"id":"slack-id","name":"remote-development-alerts","kind":"slack"}]}' >"$output"
 elif [[ "$url" == */checks/ ]]; then
   cp -- "\${payload#@}" "$CAPTURE_DIRECTORY/check-payload.json"
-  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
+  printf '%s' '{"slug":"remote-development-host","timeout":60,"grace":120,"manual_resume":true,"methods":"POST","channels":"slack-id","ping_url":"https://hc-ping.com/test-check"}' >"$output"
 else
   exit 2
 fi
@@ -1161,6 +1161,7 @@ fi
       desc: "External reachability check for the remote-development host",
       timeout: 60,
       grace: 120,
+      manual_resume: true,
       methods: "POST",
       channels: "slack-id",
       unique: ["slug"],
@@ -1169,6 +1170,106 @@ fi
       readFileSync(join(captureDirectory, "stored-ping-url"), "utf8"),
       "https://hc-ping.com/test-check",
     );
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the Healthchecks state task pauses and resumes the declared check", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "healthchecks-state-"));
+  const binaryDirectory = join(temporaryDirectory, "bin");
+  const stateFile = join(temporaryDirectory, "state");
+  const actionsFile = join(temporaryDirectory, "actions");
+
+  try {
+    mkdirSync(binaryDirectory);
+    writeFileSync(stateFile, "up");
+    const dopplerPath = join(binaryDirectory, "doppler");
+    writeFileSync(
+      dopplerPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$1" = secrets ] && [ "$2" = get ] && [ "$3" = HEALTHCHECKS_API_KEY ]; then
+  printf 'test-api-key'
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(dopplerPath, 0o755);
+
+    const curlPath = join(binaryDirectory, "curl");
+    writeFileSync(
+      curlPath,
+      `#!/usr/bin/env bash
+set -euo pipefail
+output=
+method=GET
+url=
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --output)
+      output=$2
+      shift 2
+      ;;
+    --request)
+      method=$2
+      shift 2
+      ;;
+    --connect-timeout|--max-time|--header|--data)
+      shift 2
+      ;;
+    --fail|--silent|--show-error)
+      shift
+      ;;
+    http*)
+      url=$1
+      shift
+      ;;
+    *)
+      exit 2
+      ;;
+  esac
+done
+status=$(cat "$STATE_FILE")
+if [ "$method" = POST ] && [[ "$url" == */pause ]]; then
+  status=paused
+  printf 'pause\n' >>"$ACTIONS_FILE"
+  printf '%s' "$status" >"$STATE_FILE"
+elif [ "$method" = POST ] && [[ "$url" == */resume ]]; then
+  status=new
+  printf 'resume\n' >>"$ACTIONS_FILE"
+  printf '%s' "$status" >"$STATE_FILE"
+elif [[ "$url" == */checks/ ]]; then
+  printf '{"checks":[{"uuid":"803f680d-e89b-492b-82ef-2be7b774a92d","slug":"remote-development-host","status":"%s"}]}' "$status" >"$output"
+elif [[ "$url" == */checks/803f680d-e89b-492b-82ef-2be7b774a92d ]]; then
+  printf '{"slug":"remote-development-host","status":"%s"}' "$status" >"$output"
+else
+  exit 2
+fi
+`,
+    );
+    chmodSync(curlPath, 0o755);
+
+    const script = fileURLToPath(
+      new URL(
+        "../scripts/set-remote-development-healthchecks-state.sh",
+        import.meta.url,
+      ),
+    );
+    const environment = {
+      ...process.env,
+      ACTIONS_FILE: actionsFile,
+      PATH: `${binaryDirectory}:${process.env.PATH}`,
+      STATE_FILE: stateFile,
+    };
+    run("bash", [script, "pause"], undefined, environment);
+    run("bash", [script, "pause"], undefined, environment);
+    run("bash", [script, "resume"], undefined, environment);
+    run("bash", [script, "resume"], undefined, environment);
+
+    assert.equal(readFileSync(stateFile, "utf8"), "new");
+    assert.equal(readFileSync(actionsFile, "utf8"), "pause\nresume\n");
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
@@ -1580,7 +1681,7 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     devicePluginEnvironment.find(
       (variable) => variable.name === "DEVICE_ID_STRATEGY",
     ),
-    { name: "DEVICE_ID_STRATEGY", value: "index" },
+    { name: "DEVICE_ID_STRATEGY", value: "uuid" },
   );
   assert.match(
     String(
@@ -1599,6 +1700,438 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     valueAt(devicePlugin, ["spec", "template", "spec", "runtimeClassName"]),
     "nvidia",
   );
+});
+
+test("Vector exports bounded DCGM metrics through OpenTelemetry to Netdata", () => {
+  const resources = parseResources(overlays.vector);
+  const namespace = resource(resources, "Namespace", "gpu-telemetry");
+  const serviceAccount = resource(
+    resources,
+    "ServiceAccount",
+    "dcgm-exporter",
+    "gpu-telemetry",
+  );
+  const daemonSet = resource(
+    resources,
+    "DaemonSet",
+    "dcgm-exporter",
+    "gpu-telemetry",
+  );
+  const service = resource(
+    resources,
+    "Service",
+    "dcgm-exporter",
+    "gpu-telemetry",
+  );
+  const networkPolicy = resource(
+    resources,
+    "NetworkPolicy",
+    "dcgm-exporter",
+    "gpu-telemetry",
+  );
+  const metricsConfig = resource(
+    resources,
+    "ConfigMap",
+    "dcgm-exporter-metrics",
+    "gpu-telemetry",
+  );
+  const podSpec = valueAt(daemonSet, ["spec", "template", "spec"]);
+  assert.ok(typeof podSpec === "object" && podSpec !== null);
+  const containers = valueAt(podSpec, ["containers"]);
+  assert.ok(Array.isArray(containers));
+  assert.equal(containers.length, 1);
+  const exporter = containers[0] as Record<string, unknown>;
+  const securityContext = valueAt(exporter, ["securityContext"]);
+  assert.ok(typeof securityContext === "object" && securityContext !== null);
+  const metrics = String(valueAt(metricsConfig, ["data", "counters.csv"]));
+
+  assert.equal(
+    valueAt(namespace, ["metadata", "labels", "pod-security.kubernetes.io/audit"]),
+    "restricted",
+  );
+  assert.equal(valueAt(serviceAccount, ["automountServiceAccountToken"]), false);
+  assert.equal(valueAt(podSpec, ["automountServiceAccountToken"]), false);
+  assert.equal(valueAt(podSpec, ["runtimeClassName"]), "nvidia");
+  assert.deepEqual(valueAt(podSpec, ["nodeSelector"]), {
+    "homelab.dev/accelerator": "nvidia",
+    "kubernetes.io/hostname": "vector-development",
+  });
+  assert.equal((podSpec as Record<string, unknown>).hostPID, undefined);
+  assert.equal((podSpec as Record<string, unknown>).hostNetwork, undefined);
+  assert.match(
+    String(valueAt(exporter, ["image"])),
+    /^nvcr\.io\/nvidia\/k8s\/dcgm-exporter:4\.6\.1-4\.8\.4-distroless@sha256:[a-f0-9]{64}$/,
+  );
+  const exporterEnvironment = valueAt(exporter, ["env"]);
+  assert.ok(Array.isArray(exporterEnvironment));
+  assert.deepEqual(
+    exporterEnvironment.find(
+      ({ name }) => name === "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE",
+    ),
+    {
+      name: "DCGM_EXPORTER_KUBERNETES_GPU_ID_TYPE",
+      value: "uid",
+    },
+  );
+  assert.deepEqual(valueAt(securityContext, ["capabilities", "drop"]), ["ALL"]);
+  assert.equal(valueAt(securityContext, ["allowPrivilegeEscalation"]), false);
+  assert.equal((securityContext as Record<string, unknown>).privileged, undefined);
+  assert.equal(valueAt(securityContext, ["readOnlyRootFilesystem"]), true);
+  const volumes = valueAt(podSpec, ["volumes"]);
+  assert.ok(Array.isArray(volumes));
+  assert.deepEqual(
+    volumes.filter((volume) => "hostPath" in volume),
+    [
+      {
+        hostPath: {
+          path: "/var/lib/kubelet/pod-resources",
+          type: "Directory",
+        },
+        name: "pod-resources",
+      },
+    ],
+  );
+  for (const probe of ["startupProbe", "readinessProbe", "livenessProbe"]) {
+    assert.equal(valueAt(exporter, [probe, "httpGet", "path"]), "/health");
+  }
+  assert.match(metrics, /^DCGM_FI_DEV_GPU_UTIL,/m);
+  assert.match(metrics, /^DCGM_FI_DEV_FB_USED,/m);
+  assert.match(metrics, /^DCGM_FI_DEV_POWER_USAGE,/m);
+  assert.doesNotMatch(metrics, /DCGM_FI_PROF_/);
+  assert.equal(valueAt(service, ["spec", "type"]), "ClusterIP");
+  assert.equal(valueAt(service, ["spec", "internalTrafficPolicy"]), "Local");
+  assert.deepEqual(valueAt(networkPolicy, ["spec", "policyTypes"]), [
+    "Ingress",
+    "Egress",
+  ]);
+  assert.deepEqual(valueAt(networkPolicy, ["spec", "egress"]), []);
+
+  const collectorText = readFileSync(
+    new URL(
+      "../hosts/vector-development/opentelemetry-collector.yaml",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const collectorDocuments = parseAllDocuments(collectorText);
+  assert.deepEqual(collectorDocuments[0]?.errors, []);
+  const collector = collectorDocuments[0]?.toJS() as Record<string, unknown>;
+  assert.equal(
+    valueAt(collector, [
+      "receivers",
+      "prometheus/dcgm",
+      "config",
+      "scrape_configs",
+      0,
+      "static_configs",
+      0,
+      "targets",
+      0,
+    ]),
+    "127.0.0.1:19400",
+  );
+  assert.equal(
+    valueAt(collector, ["exporters", "otlp/netdata", "endpoint"]),
+    "127.0.0.1:4317",
+  );
+  assert.equal((valueAt(collector, ["exporters"]) as Record<string, unknown>)["otlphttp/posthog"], undefined);
+  assert.deepEqual(
+    valueAt(collector, ["service", "pipelines", "metrics/gpu", "exporters"]),
+    ["otlp/netdata"],
+  );
+
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+  assert.match(hostConfig, /services = \{[\s\S]*?netdata = \{[\s\S]*?retention = "7d"/);
+  assert.match(hostConfig, /systemd\.services\.vector-development-dcgm-proxy/);
+  assert.match(hostConfig, /systemd\.services\.opentelemetry-collector/);
+  assert.doesNotMatch(collectorText, /posthog/i);
+});
+
+test("Vector T3 sessions can launch only bounded GPU benchmark Jobs", () => {
+  const resources = parseResources(overlays.vector);
+  const namespace = resource(resources, "Namespace", "gpu-benchmarks");
+  const serviceAccount = resource(
+    resources,
+    "ServiceAccount",
+    "gpu-benchmark",
+    "gpu-benchmarks",
+  );
+  const role = resource(
+    resources,
+    "Role",
+    "gpu-benchmark-launcher",
+    "gpu-benchmarks",
+  );
+  const roleBinding = resource(
+    resources,
+    "RoleBinding",
+    "t3-code-gpu-benchmark-launcher",
+    "gpu-benchmarks",
+  );
+  const networkPolicy = resource(
+    resources,
+    "NetworkPolicy",
+    "deny-all",
+    "gpu-benchmarks",
+  );
+  const policyNames = [
+    "vector-gpu-benchmark-job-contract",
+    "vector-gpu-benchmark-pod-isolation",
+    "vector-gpu-benchmark-workload",
+  ] as const;
+  const policies = policyNames.map((name) =>
+    resource(resources, "ValidatingAdmissionPolicy", name),
+  );
+  const bindings = policyNames.map((name) =>
+    resource(resources, "ValidatingAdmissionPolicyBinding", name),
+  );
+
+  assert.equal(
+    valueAt(namespace, ["metadata", "labels", "pod-security.kubernetes.io/enforce"]),
+    "restricted",
+  );
+  assert.equal(valueAt(serviceAccount, ["automountServiceAccountToken"]), false);
+  assert.deepEqual(valueAt(roleBinding, ["subjects"]), [
+    {
+      kind: "ServiceAccount",
+      name: "t3-code",
+      namespace: "t3-code",
+    },
+  ]);
+  assert.deepEqual(valueAt(roleBinding, ["roleRef"]), {
+    apiGroup: "rbac.authorization.k8s.io",
+    kind: "Role",
+    name: "gpu-benchmark-launcher",
+  });
+  assert.deepEqual(valueAt(role, ["rules"]), [
+    {
+      apiGroups: ["batch"],
+      resources: ["jobs"],
+      verbs: ["create", "delete", "get", "list", "watch"],
+    },
+    {
+      apiGroups: [""],
+      resources: ["pods"],
+      verbs: ["get", "list", "watch"],
+    },
+    {
+      apiGroups: [""],
+      resources: ["pods/log"],
+      verbs: ["get"],
+    },
+  ]);
+  assert.deepEqual(valueAt(networkPolicy, ["spec", "ingress"]), []);
+  assert.deepEqual(valueAt(networkPolicy, ["spec", "egress"]), []);
+  for (const [index, policy] of policies.entries()) {
+    const binding = bindings[index]!;
+    assert.equal(valueAt(policy, ["spec", "failurePolicy"]), "Fail");
+    assert.deepEqual(valueAt(policy, ["spec", "matchConditions"]), [
+      {
+        expression: "request.namespace == 'gpu-benchmarks'",
+        name: "gpu-benchmarks-namespace",
+      },
+    ]);
+    assert.equal(valueAt(binding, ["spec", "policyName"]), policyNames[index]);
+    assert.deepEqual(valueAt(binding, ["spec", "validationActions"]), ["Deny"]);
+    assert.equal(
+      (valueAt(binding, ["spec"]) as Record<string, unknown>).matchResources,
+      undefined,
+    );
+  }
+  const validationsByPolicy = policies.map((policy) => {
+    const validations = valueAt(policy, ["spec", "validations"]);
+    assert.ok(Array.isArray(validations));
+    return validations;
+  });
+  assert.deepEqual(
+    validationsByPolicy.map((validations) => validations.length),
+    [3, 4, 3],
+  );
+  const expressions = validationsByPolicy
+    .flat()
+    .map(({ expression }) => expression)
+    .join("\n");
+  for (const requiredControl of [
+    "activeDeadlineSeconds <= 1800",
+    "ttlSecondsAfterFinished <= 3600",
+    "automountServiceAccountToken == false",
+    "runtimeClassName == 'nvidia'",
+    "hostNetwork == false",
+    "hostPID == false",
+    "hostIPC == false",
+    "!has(object.spec.template.spec.initContainers)",
+    "!has(object.spec.template.spec.ephemeralContainers)",
+    "!has(object.spec.template.spec.imagePullSecrets)",
+    "securityContext.privileged == false",
+    "capabilities.drop == ['ALL']",
+    "!has(variable.valueFrom)",
+    "'nvidia.com/gpu'",
+    "quantity('16Gi')",
+    "quantity('8Gi')",
+    "emptyDir",
+    "subPathExpr",
+    "mountPropagation",
+  ]) {
+    assert.ok(expressions.includes(requiredControl), requiredControl);
+  }
+  assert.match(expressions, /@sha256:\[a-f0-9\]\{64\}/);
+
+  const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
+  const podSpec = valueAt(deployment, ["spec", "template", "spec"]);
+  const containers = valueAt(podSpec, ["containers"]);
+  assert.ok(Array.isArray(containers));
+  const t3Container = containers.find(({ name }) => name === "t3-code");
+  const dockerContainer = containers.find(({ name }) => name === "docker");
+  assert.ok(t3Container);
+  assert.ok(dockerContainer);
+  const t3Mounts = valueAt(t3Container, ["volumeMounts"]);
+  assert.ok(Array.isArray(t3Mounts));
+  assert.deepEqual(
+    t3Mounts.find(({ name }) => name === "gpu-benchmark-kubernetes-api"),
+    {
+      mountPath: "/var/run/secrets/kubernetes.io/serviceaccount",
+      name: "gpu-benchmark-kubernetes-api",
+      readOnly: true,
+    },
+  );
+  const dockerMounts = valueAt(dockerContainer, ["volumeMounts"]);
+  assert.ok(Array.isArray(dockerMounts));
+  assert.equal(
+    dockerMounts.find(({ name }) => name === "gpu-benchmark-kubernetes-api"),
+    undefined,
+  );
+  const podVolumes = valueAt(podSpec, ["volumes"]);
+  assert.ok(Array.isArray(podVolumes));
+  const tokenVolume = podVolumes.find(
+    ({ name }) => name === "gpu-benchmark-kubernetes-api",
+  );
+  assert.ok(tokenVolume);
+  assert.equal(
+    valueAt(tokenVolume, ["projected", "sources", 0, "serviceAccountToken", "expirationSeconds"]),
+    3600,
+  );
+  assert.equal(
+    (
+      valueAt(tokenVolume, [
+        "projected",
+        "sources",
+        0,
+        "serviceAccountToken",
+      ]) as Record<string, unknown>
+    ).audience,
+    undefined,
+  );
+});
+
+test("the Vector benchmark launcher renders the admitted Job contract", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "gpu-benchmark-"));
+  const kubectl = join(temporaryDirectory, "kubectl");
+  const launcher = fileURLToPath(
+    new URL("../scripts/vector-gpu-benchmark.sh", import.meta.url),
+  );
+  const image = `nvcr.io/nvidia/cuda-sample@sha256:${"a".repeat(64)}`;
+
+  try {
+    writeFileSync(
+      kubectl,
+      `#!/usr/bin/env bash
+set -euo pipefail
+test "$1" = --namespace
+test "$2" = gpu-benchmarks
+test "$3" = create
+test "$4" = --filename
+test "$5" = -
+cat
+`,
+    );
+    chmodSync(kubectl, 0o755);
+    const rendered = run(
+      "bash",
+      [launcher, "create", "smoke-001", image, "--", "--iterations", "10"],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${temporaryDirectory}:${process.env.PATH ?? ""}`,
+      },
+    ).stdout;
+    const job = JSON.parse(rendered) as KubernetesResource;
+    assert.equal(job.apiVersion, "batch/v1");
+    assert.equal(job.kind, "Job");
+    assert.equal(job.metadata.name, "gpu-smoke-001");
+    assert.equal(job.metadata.namespace, "gpu-benchmarks");
+    assert.equal(
+      valueAt(job, ["metadata", "labels", "gpu-benchmark.homelab.dev/run-id"]),
+      "smoke-001",
+    );
+    assert.equal(valueAt(job, ["spec", "activeDeadlineSeconds"]), 1800);
+    assert.equal(valueAt(job, ["spec", "backoffLimit"]), 0);
+    assert.equal(valueAt(job, ["spec", "ttlSecondsAfterFinished"]), 3600);
+    const podSpec = valueAt(job, ["spec", "template", "spec"]);
+    assert.equal(valueAt(podSpec, ["automountServiceAccountToken"]), false);
+    assert.equal(valueAt(podSpec, ["serviceAccountName"]), "gpu-benchmark");
+    assert.equal(valueAt(podSpec, ["runtimeClassName"]), "nvidia");
+    assert.deepEqual(valueAt(podSpec, ["nodeSelector"]), {
+      "homelab.dev/accelerator": "nvidia",
+      "kubernetes.io/hostname": "vector-development",
+    });
+    const container = valueAt(podSpec, ["containers", 0]);
+    assert.equal(valueAt(container, ["image"]), image);
+    assert.deepEqual(valueAt(container, ["args"]), ["--iterations", "10"]);
+    assert.equal(
+      valueAt(container, ["resources", "limits", "nvidia.com/gpu"]),
+      "1",
+    );
+    assert.equal(valueAt(container, ["securityContext", "privileged"]), false);
+    assert.deepEqual(valueAt(container, ["securityContext", "capabilities"]), {
+      drop: ["ALL"],
+    });
+    assert.deepEqual(valueAt(podSpec, ["volumes"]), [
+      {
+        name: "tmp",
+        emptyDir: { medium: "", sizeLimit: "1Gi" },
+      },
+    ]);
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
+});
+
+test("the Vector workspace image provides the required glibc version", () => {
+  const dockerfile = readFileSync(
+    new URL("../images/t3-code/Dockerfile", import.meta.url),
+    "utf8",
+  );
+  const imageCheck = readFileSync(
+    new URL("../scripts/check-t3-image.sh", import.meta.url),
+    "utf8",
+  );
+  const packagePins = readFileSync(
+    new URL("../images/t3-code/bindep.txt", import.meta.url),
+    "utf8",
+  );
+  const renovateConfig = readFileSync(
+    new URL("../../renovate.json", import.meta.url),
+    "utf8",
+  );
+  const nodeBaseImages = dockerfile.match(/^FROM node:[^\n]+$/gm) ?? [];
+
+  assert.equal(nodeBaseImages.length, 3);
+  for (const image of nodeBaseImages) {
+    assert.match(
+      image,
+      /^FROM node:\d+\.\d+\.\d+-trixie-slim@sha256:[a-f0-9]{64}(?: AS [a-z-]+)?$/,
+    );
+  }
+  assert.match(
+    imageCheck,
+    /dpkg --compare-versions "\$\{glibc_version#glibc \}" ge 2\.39/,
+  );
+  assert.doesNotMatch(packagePins, /deb12|bookworm/i);
+  assert.doesNotMatch(renovateConfig, /bookworm/i);
+  assert.match(renovateConfig, /suite=trixie(?:-updates|-security)?/);
 });
 
 test("the Vector vulnerability controller keeps ingress narrow and mounts its policy", () => {
@@ -2404,6 +2937,10 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
     new URL("../hosts/remote-development/default.nix", import.meta.url),
     "utf8",
   );
+  const hostLifecycleModule = readFileSync(
+    new URL("../modules/host-lifecycle.nix", import.meta.url),
+    "utf8",
+  );
   const agentCoordinatorRunner = readFileSync(
     new URL(
       "../scripts/run-work-graph-agent-coordinator.sh",
@@ -2450,11 +2987,11 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(hostDefinition.includes('cacheBlockHardLimit = "30G"'));
   assert.ok(hostDefinition.includes('operatorInodeHardLimit = "3000000"'));
   assert.ok(hostDefinition.includes('cacheInodeHardLimit = "2000000"'));
-  assert.ok(hostDefinition.includes('containerLogMaxFiles = 3'));
-  assert.ok(hostDefinition.includes('containerLogMaxSize = "20Mi"'));
+  assert.ok(hostLifecycleModule.includes("containerLogMaxFiles = 3"));
+  assert.ok(hostLifecycleModule.includes('containerLogMaxSize = "20Mi"'));
   assert.match(
-    hostDefinition,
-    /trustedInterfaces = \[\s*"cni0"\s*"tailscale0"\s*\];/,
+    hostLifecycleModule,
+    /firewall\.trustedInterfaces = mkOption \{[\s\S]*?default = \[\s*"cni0"\s*"tailscale0"\s*\];/,
   );
   assert.ok(hostDefinition.includes("--request POST"));
   assert.ok(hostDefinition.includes('--data ""'));
@@ -2469,7 +3006,9 @@ test("the NixOS host publishes, prepares, and limits workspace storage", () => {
   assert.ok(!netdataNotificationConfig.includes("robbie"));
   assert.ok(hostDefinition.includes("zramSwap = {"));
   assert.ok(hostDefinition.includes("memoryPercent = 25"));
-  assert.ok(hostDefinition.includes('memorySwap.swapBehavior = "NoSwap"'));
+  assert.ok(
+    hostLifecycleModule.includes('memorySwap.swapBehavior = "NoSwap"'),
+  );
   assert.ok(hostDefinition.includes('projectQuotaLayoutVersion = "2"'));
   assert.ok(hostDefinition.includes("chattr +P ${operatorDataPath}"));
   assert.ok(hostDefinition.includes("chattr +P ${cacheDataPath}"));
@@ -2766,6 +3305,82 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   assert.match(workGraphWrapper, /exec \/usr\/local\/bin\/work-graph "\$@"/);
 });
 
+test("the Vector controller webhook reconciler is fixed to the pilot boundary", () => {
+  const reconciler = readFileSync(
+    new URL(
+      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(reconciler.includes('repository="Robbie-Palmer/hq"'));
+  assert.doesNotMatch(reconciler, /CONTROLLER_GITHUB_REPOSITORY/);
+  assert.ok(reconciler.includes('events: ["dependabot_alert"]'));
+  assert.ok(reconciler.includes('content_type: "json"'));
+  assert.ok(reconciler.includes('insecure_ssl: "0"'));
+  assert.ok(reconciler.includes('export GH_TOKEN="$github_token"'));
+  assert.ok(reconciler.includes('github_token=$(<"$github_token_file")'));
+  assert.ok(
+    reconciler.includes('--rawfile webhook_secret "$webhook_secret_file"'),
+  );
+  assert.doesNotMatch(reconciler, /mapfile/);
+  assert.doesNotMatch(reconciler, /--arg webhook_(?:secret|url)/);
+  assert.doesNotMatch(
+    reconciler,
+    /^\s*(?:echo|printf|cat)\s+[^\n]*(webhook_secret|github_token)/m,
+  );
+  assert.doesNotMatch(
+    reconciler,
+    /^\s*set\s+(?:-[A-Za-z]*x\b|-o\s+xtrace\b)/m,
+  );
+  assert.ok(
+    reconciler.includes('active="${CONTROLLER_WEBHOOK_ACTIVE:-false}"'),
+  );
+});
+
+test("the Vector controller webhook rejects a terminal secret newline", () => {
+  const temporaryDirectory = mkdtempSync(
+    join(tmpdir(), "vector-controller-webhook-"),
+  );
+  const binDirectory = join(temporaryDirectory, "bin");
+  const secretPath = join(temporaryDirectory, "webhook-secret");
+  const tokenPath = join(temporaryDirectory, "github-token");
+  const reconciler = fileURLToPath(
+    new URL(
+      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
+      import.meta.url,
+    ),
+  );
+
+  try {
+    mkdirSync(binDirectory);
+    writeFileSync(secretPath, "test-secret\n");
+    writeFileSync(tokenPath, "test-token");
+    writeFileSync(join(binDirectory, "gh"), "#!/usr/bin/env bash\nexit 99\n");
+    chmodSync(join(binDirectory, "gh"), 0o755);
+
+    const result = spawnSync("bash", [reconciler], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
+        CONTROLLER_WEBHOOK_URL: "https://relay.t3.codes/v1/hooks/test",
+        CONTROLLER_WEBHOOK_SECRET_FILE: secretPath,
+        CONTROLLER_GITHUB_TOKEN_FILE: tokenPath,
+      },
+    });
+
+    assert.equal(result.status, 2);
+    assert.match(
+      result.stderr,
+      /controller webhook secret file must not end with a newline/i,
+    );
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
 test("the Vector Doppler wrapper confines callers to declared dev configs", () => {
   const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-doppler-wrapper-"));
   const dopplerWrapper = fileURLToPath(
@@ -2866,6 +3481,22 @@ test("the Vector tailnet scripts avoid local DNS collisions", () => {
   assert.ok(fetchKubeconfig.includes('--tls-server-name="${tls_server_name}"'));
 });
 
+test("the Vector rebuild excludes local credentials from its flake input", () => {
+  const rebuild = readFileSync(
+    new URL("../scripts/rebuild-vector-development.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    rebuild,
+    /git -C "\$\{homelab_dir\}" ls-files -z --cached -- \./,
+  );
+  assert.match(rebuild, /\[\[ -e \$\{staging_dir\}\/\.kube \]\]/);
+  assert.match(rebuild, /-v "\$\{staging_dir\}:\/workspace"/);
+  assert.match(rebuild, /tar --no-xattrs -C "\$\{staging_dir\}"/);
+  assert.doesNotMatch(rebuild, /-v "\$\{homelab_dir\}:\/workspace"/);
+});
+
 test("the Vector K3s service exposes runc to the NVIDIA runtime", () => {
   const hostConfig = readFileSync(
     new URL("../hosts/vector-development/default.nix", import.meta.url),
@@ -2909,6 +3540,71 @@ test("the Vector stays awake while serving workloads", () => {
   assert.ok(hostConfig.includes('HandleLidSwitchExternalPower = "ignore"'));
   assert.ok(hostConfig.includes("vectorDevelopmentRefreshGnomePower"));
   assert.ok(hostConfig.includes("org.gnome.SettingsDaemon.Power.target"));
+});
+
+test("the Vector applies a guarded zero-RPM idle fan curve", () => {
+  const hostConfig = readFileSync(
+    new URL("../hosts/vector-development/default.nix", import.meta.url),
+    "utf8",
+  );
+  const fanCurve = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/apply-fan-curve.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const health = readFileSync(
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
+    "utf8",
+  );
+  const thermalMonitor = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/thermal-monitor.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+
+  assert.ok(hostConfig.includes("vector-development-fan-curve"));
+  assert.ok(hostConfig.includes("powerManagement.resumeCommands"));
+  assert.match(
+    hostConfig,
+    /ExecStop = ".*vector-development-fan-curve restore"/,
+  );
+  assert.ok(
+    hostConfig.includes(
+      'requires = [ "vector-development-fan-curve.service" ]',
+    ),
+  );
+  assert.ok(fanCurve.includes('firmware} != "15M1IMS1.109"'));
+  assert.ok(
+    fanCurve.includes(
+      'factory_cpu_temperatures="50 57 64 70 76 82 100"',
+    ),
+  );
+  assert.ok(
+    fanCurve.includes(
+      'quiet_cpu_temperatures="60 62 64 70 76 82 100"',
+    ),
+  );
+  assert.ok(
+    fanCurve.includes('expected_cpu_speeds="0 40 50 60 75 89 103"'),
+  );
+  assert.ok(fanCurve.includes("modprobe ec_sys write_support=1"));
+  assert.ok(fanCurve.includes("count=3 conv=notrunc"));
+  assert.ok(fanCurve.includes("printf 'advanced\\n'"));
+  assert.ok(fanCurve.includes("printf 'silent\\n'"));
+  assert.ok(
+    thermalMonitor.includes(
+      "cpu_thresholds_celsius=(50 60 62 64 70 76 82 100)",
+    ),
+  );
+  assert.ok(thermalMonitor.includes("log_event fan_state"));
+  assert.ok(thermalMonitor.includes("log_event fan_percent"));
+  assert.ok(thermalMonitor.includes("history_retention_samples"));
+  assert.ok(health.includes("vector-development-fan-curve check"));
+  assert.ok(health.includes("history.jsonl"));
 });
 
 test("the Vector remote boot path keeps LUKS and limits initrd SSH to unlock", () => {

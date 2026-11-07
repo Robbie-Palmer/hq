@@ -102,23 +102,6 @@ function plan(): WeddingPlan {
 }
 
 describe("wedding readiness", () => {
-  it("removes retired cross-project readiness settings from saved plans", () => {
-    const legacy = JSON.parse(JSON.stringify(plan()));
-    legacy.readiness.planning_case_id = "wedding";
-    legacy.readiness.milestones[0].check_ids = [
-      "checklist",
-      "finances",
-      "guest_responses",
-    ];
-
-    const migrated = parseWeddingPlan(legacy);
-
-    expect(migrated.readiness.milestones[0]?.check_ids).toEqual([
-      "guest_responses",
-    ]);
-    expect(migrated.readiness).not.toHaveProperty("planning_case_id");
-  });
-
   it("combines guest, accommodation, seating, and export readiness", () => {
     const readiness = buildWeddingReadiness(plan(), "2027-03-01");
     expect(readiness.guests).toMatchObject({

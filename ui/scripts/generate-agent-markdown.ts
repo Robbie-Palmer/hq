@@ -1020,6 +1020,24 @@ function buildTechnologyPages(projects: ProjectWithADRs[]): GeneratedPage[] {
   });
 }
 
+function buildTechnologiesIndexPage(
+  technologyPages: GeneratedPage[],
+): GeneratedPage {
+  return {
+    htmlPath: "/technologies",
+    filePath: "technologies.md",
+    title: "Technologies",
+    description:
+      "Tools, languages, frameworks, and platforms used across my professional work and personal projects.",
+    content: technologyPages
+      .map((page) => {
+        const description = page.description ? `: ${page.description}` : "";
+        return `- [${page.title}](${markdownUrl(page.htmlPath)})${description}`;
+      })
+      .join("\n"),
+  };
+}
+
 function buildIdeasIndexPage(
   ideas: ReturnType<typeof getAllIdeas>,
 ): GeneratedPage {
@@ -1119,7 +1137,8 @@ function buildHomePage(): GeneratedPage {
       "",
       "## Sections",
       "",
-      `- [Experience](${markdownUrl("/experience")}): career history, roles, and technologies`,
+      `- [Experience](${markdownUrl("/experience")}): career history and roles`,
+      `- [Technologies](${markdownUrl("/technologies")}): tools, languages, frameworks, and platforms`,
       `- [Projects](${markdownUrl("/projects")}): projects and architecture decision records (ADRs)`,
       `- [Building philosophy](${markdownUrl(buildingPhilosophyPage.path)}): engineering principles that guide architectural decisions and technology choices`,
       `- [Ideas](${markdownUrl("/ideas")}): recurring laws, methods, and mental models`,
@@ -1156,7 +1175,8 @@ function buildLlmsTxt(
     "## Overview",
     "",
     `- [About](${markdownUrl("/")}): site overview and contact links`,
-    `- [Experience](${markdownUrl("/experience")}): career history, roles, responsibilities, and technologies`,
+    `- [Experience](${markdownUrl("/experience")}): career history, roles, and responsibilities`,
+    `- [Technologies](${markdownUrl("/technologies")}): tools, languages, frameworks, and platforms`,
     `- [Projects](${markdownUrl("/projects")}): all projects and their architecture decision records (ADRs)`,
     `- [Building philosophy](${markdownUrl(buildingPhilosophyPage.path)}): ${buildingPhilosophyPage.description}`,
     `- [Component catalog](${siteConfig.url}/catalog.json): derived project, technology, decision, platform-policy, and component records`,
@@ -1215,6 +1235,7 @@ function buildLlmsTxt(
     "",
     "Each page lists the ideas the technology builds on or exposes, plus the projects, ADRs, blog posts, and roles using it.",
     "",
+    `- [Technology index](${markdownUrl("/technologies")}): all technologies with summaries`,
     ...technologyPages.map((page) => {
       const descriptionSuffix = page.description ? `: ${page.description}` : "";
       return `- [${page.title}](${markdownUrl(page.htmlPath)})${descriptionSuffix}`;
@@ -1283,6 +1304,7 @@ function buildRoutesJson(): string {
         "/recipes/*",
         "/satellite-swarm",
         "/posthog",
+        "/technologies",
         "/technologies/*",
         "/ideas",
         "/ideas/*",
@@ -1381,6 +1403,7 @@ function main(): void {
     buildRecipesIndexPage(recipes),
     buildSatelliteSwarmPage(),
     buildPostHogApplicationPage(),
+    buildTechnologiesIndexPage(technologyPages),
     ...technologyPages,
   ];
 

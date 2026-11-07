@@ -7,7 +7,7 @@ python = "3.12.14"
 "aqua:lima-vm/lima" = "2.2.1"
 "pipx:ansible-core" = "2.21.4"
 "pipx:ansible-lint" = "26.9.0"
-"aqua:kubernetes/kubernetes/kubectl" = "1.37.1"
+"aqua:kubernetes/kubernetes/kubectl" = "1.37.2"
 "aqua:kubernetes-sigs/kustomize" = "5.8.1"
 "github:fluxcd/flux-schema" = "0.15.0"
 "aqua:restic/restic" = "0.18.0"
@@ -207,17 +207,32 @@ run = "ansible/scripts/deploy_asus.sh"
 
 [tasks.nix-flake-check]
 description = "Check the Nix flake contract and outputs for this system"
-run = "bash scripts/nix-command.sh flake check"
+depends = ["//homelab:host-ssh-test"]
+run = "bash scripts/nix-command.sh flake check --no-build"
 
 [tasks.nix-flake-show]
 description = "Show the Nix flake outputs without building them"
 run = "bash scripts/nix-command.sh flake show"
+
+[tasks.host-lifecycle-check]
+description = "Build the reusable host lifecycle contract checks"
+run = "bash scripts/nix-command.sh build --no-link .#checks.x86_64-linux.host-lifecycle-contract"
+
+[tasks.host-lifecycle-vm-test]
+description = "Boot the disposable NixOS host lifecycle VM test on a KVM-capable Linux host"
+run = "bash scripts/nix-command.sh build --no-link .#packages.x86_64-linux.host-lifecycle-vm-test"
+
+[tasks.host-ssh-test]
+description = "Test fail-closed SSH host-key verification"
+run = "bash tests/host-ssh.test.sh"
 
 [tasks.nix-format]
 description = "Format all homelab Nix declarations"
 run = '''
 bash scripts/nix-command.sh develop --command nixfmt \
   flake.nix \
+  modules/*.nix \
+  hosts/remote-development/*.nix \
   hosts/vector-development/*.nix \
   packages/*.nix
 '''
@@ -266,6 +281,10 @@ run = "bash scripts/rebuild-vector-development.sh"
 description = "Verify the laptop desktop, encrypted disk, NVIDIA GPU, Tailscale, K3s, and T3 Code"
 run = "bash scripts/vector-development-health.sh"
 
+[tasks.vector-gpu-benchmark]
+description = "Create, inspect, stream logs from, or delete a bounded Vector GPU benchmark Job"
+run = "bash scripts/vector-gpu-benchmark.sh"
+
 [tasks.vector-agent-auth-health]
 description = "Verify Vector T3 GitHub and scoped Doppler authentication without printing secrets"
 run = "bash scripts/vector-development-agent-auth-health.sh"
@@ -273,6 +292,10 @@ run = "bash scripts/vector-development-agent-auth-health.sh"
 [tasks.vector-agent-auth-install]
 description = "Install Vector T3 GitHub and Doppler credentials after an idle guard"
 run = "bash scripts/install-vector-development-agent-credentials.sh"
+
+[tasks.vector-controller-webhook-configure]
+description = "Create or reconcile the severe-vulnerability controller GitHub webhook"
+run = "bash scripts/configure-severe-vulnerability-controller-webhook.sh"
 
 [tasks.vector-remote-boot-provision]
 description = "Create the scoped vault config and enroll the dedicated Vector LUKS unlock key"
@@ -293,9 +316,11 @@ bash -n \
   hosts/vector-development/scripts/create-data-layout.bash \
   hosts/vector-development/scripts/apply-project-quotas.bash \
   hosts/vector-development/scripts/configure-tailscale-serve.bash \
+  hosts/vector-development/scripts/apply-fan-curve.bash \
   hosts/vector-development/scripts/apply-quiet-profile.bash \
   hosts/vector-development/scripts/thermal-monitor.bash \
   hosts/vector-development/scripts/vector-remote-unlock.bash \
+  scripts/host-ssh.sh \
   scripts/vector-development-ssh.sh \
   scripts/install-vector-development.sh \
   scripts/set-vector-development-password.sh \
@@ -303,8 +328,10 @@ bash -n \
   scripts/fetch-vector-development-kubeconfig.sh \
   scripts/rebuild-vector-development.sh \
   scripts/vector-development-health.sh \
+  scripts/vector-gpu-benchmark.sh \
   scripts/vector-development-agent-auth-health.sh \
   scripts/install-vector-development-agent-credentials.sh \
+  scripts/configure-severe-vulnerability-controller-webhook.sh \
   k3s/overlays/vector-development/workspaces/operator/doppler-wrapper.sh \
   k3s/overlays/vector-development/workspaces/operator/work-graph-wrapper.sh \
   scripts/provision-vector-development-remote-boot.sh \
@@ -401,6 +428,14 @@ run = "bash scripts/install-remote-development-observability-credentials.sh"
 description = "Reconcile the Healthchecks.io host check and store its ping URL in Doppler"
 run = "bash scripts/reconcile-remote-development-healthchecks.sh"
 
+[tasks.remote-healthchecks-pause]
+description = "Pause the remote host Healthchecks.io alert using its Doppler-managed credential"
+run = "bash scripts/set-remote-development-healthchecks-state.sh pause"
+
+[tasks.remote-healthchecks-resume]
+description = "Resume the remote host Healthchecks.io alert using its Doppler-managed credential"
+run = "bash scripts/set-remote-development-healthchecks-state.sh resume"
+
 [tasks.remote-backup-test]
 description = "Test workspace backup, restore, retention, failure, and export behavior"
 depends = ["//:install"]
@@ -440,7 +475,7 @@ docker build \
   --build-context agent-auth-mcp=../packages/agent-auth-mcp \
   --build-context work-graph-cli=../packages/work-graph-cli \
   --pull=false \
-  --tag ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-20 \
+  --tag ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-21 \
   images/t3-code
 '''
 
@@ -454,7 +489,7 @@ run = "bash scripts/build-and-check-t3-image.sh"
 
 [tasks.t3-image-push]
 description = "Push the checked t3-code image to GHCR"
-run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-20"
+run = "docker push ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-21"
 
 [tasks.t3-image-load-remote]
 description = "Load the checked image into remote-development K3s over SSH"

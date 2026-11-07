@@ -471,8 +471,13 @@ catalog:
       name: Wedding planner
       project: project:wedding-planner
       source_paths:
+        - infra/wedding-planner
+        - packages/wedding-planner-contracts
+        - packages/wedding-planner-data
         - packages/wedding-planner-domain
+        - ui/app/_projects/wedding-planner
         - ui/content/projects/wedding-planner
+        - workers/wedding-planner-api
     - id: component:wedding-planner/publication
       kind: component
       name: Wedding planner publication
@@ -518,6 +523,304 @@ catalog:
       relations:
         - type: part_of
           target: system:personal-finance-app/application
+    - id: component:wedding-planner/web
+      kind: component
+      name: Wedding planner
+      project: project:wedding-planner
+      source_paths:
+        - ui/app/_projects/wedding-planner
+      mount_path: /wedding-planner
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner
+      kind: component
+      name: Wedding Planner infrastructure
+      project: project:wedding-planner
+      source_paths:
+        - infra/wedding-planner
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner-api
+      kind: component
+      name: Wedding Planner API
+      project: project:wedding-planner
+      source_paths:
+        - workers/wedding-planner-api
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner-contracts
+      kind: component
+      name: Wedding Planner API contracts
+      project: project:wedding-planner
+      source_paths:
+        - packages/wedding-planner-contracts
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: component:wedding-planner/wedding-planner-data
+      kind: component
+      name: Wedding Planner relational data boundary
+      project: project:wedding-planner
+      source_paths:
+        - packages/wedding-planner-data
+      relations:
+        - type: part_of
+          target: system:wedding-planner/application
+    - id: delivery-target:work-graph/api
+      kind: delivery-target
+      name: Work Graph api delivery target
+      project: project:work-graph
+      repository: Robbie-Palmer/hq
+      source_paths:
+        - .github/workflows/work-graph-api-cd.yml
+        - .github/workflows/work-graph-api-ci.yml
+        - packages/work-graph-db
+        - packages/work-graph-domain
+        - workers/work-graph-api
+      source_path_bindings:
+        - path: .github/workflows/work-graph-api-cd.yml
+          mode: exclusive
+          subjects: []
+        - path: .github/workflows/work-graph-api-ci.yml
+          mode: exclusive
+          subjects: []
+        - path: packages/work-graph-db
+          mode: exclusive
+          subjects:
+            - component:work-graph/work-graph-db
+        - path: packages/work-graph-domain
+          mode: exclusive
+          subjects:
+            - component:work-graph/work-graph-domain
+        - path: workers/work-graph-api
+          mode: exclusive
+          subjects:
+            - component:work-graph/work-graph-api
+      subjects:
+        - component:work-graph/work-graph-api
+        - component:work-graph/work-graph-db
+        - component:work-graph/work-graph-domain
+      github:
+        required_ci_names:
+          - Work Graph API CI
+        production_environments:
+          - production-work-graph
+      relations:
+        - type: part_of
+          target: system:work-graph/service
+    - id: delivery-target:work-graph/infrastructure
+      kind: delivery-target
+      name: Work Graph infrastructure delivery target
+      project: project:work-graph
+      repository: Robbie-Palmer/hq
+      source_paths:
+        - .github/workflows/work-graph-infra-ci.yml
+        - .github/workflows/work-graph-infra.yml
+        - infra/work-graph
+      source_path_bindings:
+        - path: .github/workflows/work-graph-infra-ci.yml
+          mode: exclusive
+          subjects: []
+        - path: .github/workflows/work-graph-infra.yml
+          mode: exclusive
+          subjects: []
+        - path: infra/work-graph
+          mode: exclusive
+          subjects:
+            - component:work-graph/work-graph
+      subjects:
+        - component:work-graph/work-graph
+      github:
+        required_ci_names:
+          - Work Graph Infrastructure CI
+        production_environments:
+          - production-work-graph-infra
+      relations:
+        - type: part_of
+          target: system:work-graph/service
+    - id: delivery-target:work-graph/observer
+      kind: delivery-target
+      name: Work Graph observer delivery target
+      project: project:work-graph
+      repository: Robbie-Palmer/hq
+      source_paths:
+        - .github/workflows/work-graph-observer-ci.yml
+        - packages/work-graph-db
+        - packages/work-graph-domain
+        - workers/work-graph-observer
+      source_path_bindings:
+        - path: .github/workflows/work-graph-observer-ci.yml
+          mode: exclusive
+          subjects: []
+        - path: packages/work-graph-db
+          mode: exclusive
+          subjects:
+            - component:work-graph/work-graph-db
+        - path: packages/work-graph-domain
+          mode: exclusive
+          subjects:
+            - component:work-graph/work-graph-domain
+        - path: workers/work-graph-observer
+          mode: exclusive
+          subjects:
+            - component:work-graph/work-graph-observer
+      subjects:
+        - component:work-graph/work-graph-db
+        - component:work-graph/work-graph-domain
+        - component:work-graph/work-graph-observer
+      github:
+        required_ci_names:
+          - Work Graph Observer CI
+        production_environments:
+          - production-work-graph
+      relations:
+        - type: part_of
+          target: system:work-graph/service
+    - id: delivery-target:work-graph/site-ui
+      kind: delivery-target
+      name: Work Graph site-ui delivery target
+      project: project:work-graph
+      repository: Robbie-Palmer/hq
+      source_paths:
+        - ui/content/projects/work-graph
+      source_path_bindings:
+        - path: ui/content/projects/work-graph
+          mode: shared
+          subjects: []
+      subjects: []
+      shared_host_id: shared-host:site-ui
+      github:
+        required_ci_names:
+          - UI CI
+        production_environments:
+          - production-site-ui
+      relations:
+        - type: part_of
+          target: system:work-graph/service
+    - id: delivery-target:recipe-site/api
+      kind: delivery-target
+      name: Recipe Site api delivery target
+      project: project:recipe-site
+      repository: Robbie-Palmer/hq
+      source_paths:
+        - .github/workflows/recipe-api-cd.yml
+        - .github/workflows/recipe-api-ci.yml
+        - packages/recipe-db
+        - packages/recipe-domain
+        - workers/recipe-api
+      source_path_bindings:
+        - path: .github/workflows/recipe-api-cd.yml
+          mode: exclusive
+          subjects: []
+        - path: .github/workflows/recipe-api-ci.yml
+          mode: exclusive
+          subjects: []
+        - path: packages/recipe-db
+          mode: exclusive
+          subjects:
+            - component:recipe-site/recipe-db
+        - path: packages/recipe-domain
+          mode: exclusive
+          subjects:
+            - component:recipe-site/recipe-domain
+        - path: workers/recipe-api
+          mode: exclusive
+          subjects:
+            - component:recipe-site/recipe-api
+      subjects:
+        - component:recipe-site/recipe-api
+        - component:recipe-site/recipe-db
+        - component:recipe-site/recipe-domain
+      github:
+        required_ci_names:
+          - Recipe API CI
+        production_environments:
+          - production-recipe-api
+      relations:
+        - type: part_of
+          target: system:recipe-site/application
+    - id: delivery-target:recipe-site/ingest
+      kind: delivery-target
+      name: Recipe Site ingest delivery target
+      project: project:recipe-site
+      repository: Robbie-Palmer/hq
+      source_paths:
+        - .github/workflows/recipe-ingest-cd.yml
+        - .github/workflows/recipe-ingest-ci.yml
+        - packages/recipe-db
+        - packages/recipe-domain
+        - packages/recipe-parsing
+        - workers/recipe-ingest
+      source_path_bindings:
+        - path: .github/workflows/recipe-ingest-cd.yml
+          mode: exclusive
+          subjects: []
+        - path: .github/workflows/recipe-ingest-ci.yml
+          mode: exclusive
+          subjects: []
+        - path: packages/recipe-db
+          mode: exclusive
+          subjects:
+            - component:recipe-site/recipe-db
+        - path: packages/recipe-domain
+          mode: exclusive
+          subjects:
+            - component:recipe-site/recipe-domain
+        - path: packages/recipe-parsing
+          mode: exclusive
+          subjects:
+            - component:recipe-site/recipe-parsing
+        - path: workers/recipe-ingest
+          mode: exclusive
+          subjects:
+            - component:recipe-site/recipe-ingest
+      subjects:
+        - component:recipe-site/recipe-db
+        - component:recipe-site/recipe-domain
+        - component:recipe-site/recipe-ingest
+        - component:recipe-site/recipe-parsing
+      github:
+        required_ci_names:
+          - Recipe Ingest CI
+        production_environments:
+          - production-recipe-ingest
+      relations:
+        - type: part_of
+          target: system:recipe-site/application
+    - id: delivery-target:recipe-site/site-ui
+      kind: delivery-target
+      name: Recipe Site site-ui delivery target
+      project: project:recipe-site
+      repository: Robbie-Palmer/hq
+      source_paths:
+        - .github/workflows/ui-cd.yml
+        - .github/workflows/ui-ci.yml
+        - ui
+      source_path_bindings:
+        - path: .github/workflows/ui-cd.yml
+          mode: shared
+          subjects: []
+        - path: .github/workflows/ui-ci.yml
+          mode: shared
+          subjects: []
+        - path: ui
+          mode: shared
+          subjects:
+            - component:recipe-site/web
+      subjects:
+        - component:recipe-site/web
+      shared_host_id: shared-host:site-ui
+      github:
+        required_ci_names:
+          - UI CI
+        production_environments:
+          - production-site-ui
+      relations:
+        - type: part_of
+          target: system:recipe-site/application
 layers:
   - slug: "base"
     title: "Base"

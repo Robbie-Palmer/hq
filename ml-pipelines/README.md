@@ -4,12 +4,26 @@ ML projects in this directory use [DVC](https://dvc.org/) to version data,
 with a shared private Cloudflare R2 bucket (`dvc`) as remote storage.
 Each project stores data under its own prefix (e.g. `s3://dvc/recipe-parsing`).
 
+The `pathologize-data-registry` is the exception: it reconstructs its bounded
+raw subset from allowlisted public sources and has no R2 remote. Use its
+`acquire` or `repro` task; do not run the shared `pull` or `push` workflow for
+that project.
+
 Current projects:
 
 - `ai-review-evaluation`: versioned Pull Request replay corpora, controlled
   reviewer experiments, and DuckDB decision scorecards.
 - `financial-document-idp-evaluation`: synthetic financial-document extraction,
   normalization, reconciliation, abstention, and release-gate evaluation.
+- `pathologize-benchmark-contracts`: pathology manifests, leakage checks,
+  registry references, deterministic adapters, metrics, and scorecard schemas.
+- `pathologize-slide-quality-benchmark`: tissue segmentation, artifact quality,
+  artifact-free tissue, and slide rejection.
+- `pathologize-tiling-benchmark`: tissue-aware tiling and physical-scale policy.
+- `pathologize-cell-analysis-benchmark`: nucleus detection, instance
+  segmentation, and synthetic cell classification.
+- `pathologize-data-registry`: public computational-pathology source assets,
+  provenance, licences, identities, scanner metadata, and source-native labels.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
   evaluation.
 - `recipe-dataset`: acquisition and preparation of reusable recipe text
@@ -18,6 +32,11 @@ Current projects:
   tile datasets, with Python tooling for validation and WSI tiling.
 - `writing-editor-evaluation`: Git-revision writing pairs, frozen evaluation
   cohorts, producer outputs, edit matching, and writing-quality scorecards.
+
+Python projects share deterministic JSON, hashing, and safe path helpers through
+`packages/data-artifacts`. Evaluation projects add domain-neutral contracts,
+resource gates, adapter loading, and schema writing through
+`packages/ml-evaluation`.
 
 ## Prerequisites
 

@@ -92,6 +92,7 @@ export function projectPlanFromBlueprint(input: {
   const catalogTargets = [
     systemCatalogRecord,
     ...blueprint.catalog.components,
+    ...(blueprint.catalog.delivery_targets ?? []),
   ].map((record) => jsonRecord(record, "resolved catalog record"));
   const componentKinds = new Map(
     contracts.layout.component_kinds.map((kind) => [kind.id, kind]),
@@ -100,6 +101,9 @@ export function projectPlanFromBlueprint(input: {
     blueprint.components
       .filter(({ kind }) => componentKinds.get(kind)?.[field] === true)
       .map(({ path }) => path);
+  const needsPnpmLockfile = blueprint.components.some(
+    ({ runtime_role: runtimeRole }) => runtimeRole !== undefined,
+  );
 
   return projectPlanSchema.parse({
     schema_version: 1,
@@ -112,6 +116,7 @@ export function projectPlanFromBlueprint(input: {
     },
     owned_paths: blueprint.ownership.owned_paths,
     shared_manifest_edits: [
+      ...(needsPnpmLockfile ? [{ kind: "pnpm_lockfile" as const }] : []),
       ...registeredRoots("mise_config_root").map((value) => ({
         kind: "mise_config_root",
         value,

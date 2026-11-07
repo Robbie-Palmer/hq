@@ -46,4 +46,17 @@ describe("markdownCodeHighlighting", () => {
       .toBe(source);
     expect(tokens?.flat().some((token) => token.content === "salt")).toBe(true);
   });
+
+  it("escapes HTML-like Cooklang instructions", async () => {
+    const highlighter = await highlighterPromise;
+    const source = '<script>alert("hot")</script> & add @salt{1%tsp}.';
+    const html = highlighter?.codeToHtml(source, {
+      lang: cooklang,
+      theme: "github-dark",
+    });
+
+    expect(html).toContain("&#x3C;script>");
+    expect(html).toContain("&#x26; add");
+    expect(html).not.toContain("<script>");
+  });
 });

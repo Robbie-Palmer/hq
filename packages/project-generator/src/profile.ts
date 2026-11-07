@@ -1,5 +1,7 @@
-import { parse } from "yaml";
-import { z } from "zod";
+import {
+  type DeliveryEvidenceContract,
+  deliveryEvidenceContractSchema,
+} from "platform-contracts/delivery-evidence";
 import {
   type DeploymentMaturityContract,
   parseDeploymentMaturityContract,
@@ -14,8 +16,8 @@ import {
   parseOpenTelemetryContract,
 } from "platform-contracts/opentelemetry";
 import {
-  parsePlatformManifestSource,
   type PlatformManifestSource,
+  parsePlatformManifestSource,
 } from "platform-contracts/platform-manifest";
 import {
   parseRepositoryLayoutContract,
@@ -36,12 +38,14 @@ import {
   LOWERCASE_KEBAB_CASE_PATTERN,
   normalizeSlug,
 } from "ts-base/strings";
+import { parse } from "yaml";
+import { z } from "zod";
 
 const SLOT_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*\.[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const ADR_REF_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*:\d{3}-[a-z0-9]+(?:-[a-z0-9]+)*$/;
 
-export const PROJECT_PROFILE_SCHEMA_VERSION = 2;
-export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 3;
+export const PROJECT_PROFILE_SCHEMA_VERSION = 3;
+export const RESOLVED_BLUEPRINT_SCHEMA_VERSION = 4;
 
 const slugSchema = z.string().regex(LOWERCASE_KEBAB_CASE_PATTERN);
 const slotSchema = z.string().regex(SLOT_PATTERN);
@@ -95,6 +99,13 @@ const webMountPathSchema = z
   .string()
   .regex(/^\/[a-z0-9]+(?:[a-z0-9/-]*[a-z0-9])?$/);
 
+const previewLinkSchema = z
+  .object({
+    name: z.string().min(1),
+    mount_path: webMountPathSchema,
+  })
+  .strict();
+
 const taskExceptionSchema = z
   .object({
     task: taskNameSchema,
@@ -104,9 +115,29 @@ const taskExceptionSchema = z
 
 const templateOwnershipSchema = z.enum(["structure-only", "project"]);
 
+const runtimeRoleSchema = z.enum([
+  "authenticated-worker",
+  "api-contracts",
+  "relational-data",
+]);
+
 const miseCommandSchema = z
   .string()
   .regex(/^mise \/\//, "must invoke a repository task through mise");
+
+const statefulHookCommandSchema = z
+  .string()
+  .regex(
+    /^mise \/\/[a-z0-9./-]*:[a-z0-9][a-z0-9:._-]*$/,
+    "must invoke one repository task through mise without inline shell syntax",
+  );
+
+const dopplerReferenceSchema = z
+  .string()
+  .regex(
+    /^doppler:\/\/[a-z0-9]+(?:-[a-z0-9]+)*\/[a-z0-9]+(?:_[a-z0-9]+)*$/,
+    "must be a redacted doppler://project/config reference",
+  );
 
 const operationalCheckSchema = z
   .object({
@@ -134,10 +165,89 @@ const migrationCheckpointSchema = z
     }
   });
 
+const statefulPreviewOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    secret_config_ref: dopplerReferenceSchema,
+    provision: statefulHookCommandSchema,
+    migrate: statefulHookCommandSchema,
+    seed_synthetic: statefulHookCommandSchema,
+    deploy: statefulHookCommandSchema,
+    smoke_authenticated: statefulHookCommandSchema,
+    smoke_telemetry: statefulHookCommandSchema,
+    cleanup: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulProductionOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    plan_secret_config_ref: dopplerReferenceSchema,
+    apply_secret_config_ref: dopplerReferenceSchema,
+    migrate: statefulHookCommandSchema,
+    deploy: statefulHookCommandSchema,
+    smoke: statefulHookCommandSchema,
+    rollback: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulBackupOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    secret_config_ref: dopplerReferenceSchema,
+    schedule: z
+      .string()
+      .regex(
+        /^(?:[0-5]?\d) (?:[01]?\d|2[0-3]) \* \* [0-6]$/,
+        "must be a weekly UTC cron expression",
+      ),
+    create: statefulHookCommandSchema,
+    restore: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulAlertOperationsSchema = z
+  .object({
+    github_environment: z.string().min(1),
+    secret_config_ref: dopplerReferenceSchema,
+    responder: z.string().min(1),
+    smoke: statefulHookCommandSchema,
+  })
+  .strict();
+
+const statefulOperationsSchema = z
+  .object({
+    preview: statefulPreviewOperationsSchema,
+    production: statefulProductionOperationsSchema,
+    backup: statefulBackupOperationsSchema.optional(),
+    alerting: statefulAlertOperationsSchema.optional(),
+  })
+  .strict()
+  .superRefine((operations, context) => {
+    const references = [
+      operations.preview.secret_config_ref,
+      operations.production.plan_secret_config_ref,
+      operations.production.apply_secret_config_ref,
+      ...(operations.backup ? [operations.backup.secret_config_ref] : []),
+      ...(operations.alerting ? [operations.alerting.secret_config_ref] : []),
+    ];
+    const duplicate = references.find(
+      (reference, index) => references.indexOf(reference) !== index,
+    );
+    if (duplicate) {
+      context.addIssue({
+        code: "custom",
+        path: ["production", "apply_secret_config_ref"],
+        message: `secret handoff references must be distinct; duplicate '${duplicate}'`,
+      });
+    }
+  });
+
 const rolloutSchema = z
   .object({
     operational_checks: z.array(operationalCheckSchema).default([]),
     migration_checkpoints: z.array(migrationCheckpointSchema).default([]),
+    stateful_operations: statefulOperationsSchema.optional(),
   })
   .strict()
   .superRefine((rollout, context) => {
@@ -160,6 +270,7 @@ const componentSchema = z
     name: z.string().min(1),
     mount_path: webMountPathSchema.optional(),
     template_ownership: templateOwnershipSchema.optional(),
+    runtime_role: runtimeRoleSchema.optional(),
     task_exceptions: z.array(taskExceptionSchema).default([]),
   })
   .strict()
@@ -176,6 +287,37 @@ const componentSchema = z
         code: "custom",
         path: ["mount_path"],
         message: "is only valid for a project-ui component",
+      });
+    }
+    if (
+      component.runtime_role !== undefined &&
+      component.template_ownership !== "structure-only"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["runtime_role"],
+        message: "requires template_ownership 'structure-only'",
+      });
+    }
+    if (
+      component.runtime_role === "authenticated-worker" &&
+      component.kind !== "worker"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["runtime_role"],
+        message: "authenticated-worker requires component kind 'worker'",
+      });
+    }
+    if (
+      component.runtime_role !== undefined &&
+      component.runtime_role !== "authenticated-worker" &&
+      component.kind !== "typescript-package"
+    ) {
+      context.addIssue({
+        code: "custom",
+        path: ["runtime_role"],
+        message: `${component.runtime_role} requires component kind 'typescript-package'`,
       });
     }
     addDuplicateIssues(
@@ -324,6 +466,7 @@ const projectProfileVersion1FieldsSchema = z
       })
       .strict(),
     components: z.array(componentSchema).min(1),
+    preview_links: z.array(previewLinkSchema).default([]),
     layers: z.array(layerUseSchema).min(1),
     requirements: z.array(slugSchema).default([]),
     overrides: z.array(overrideSchema).default([]),
@@ -342,7 +485,7 @@ const projectProfileVersion1FieldsSchema = z
 const projectProfileVersion2FieldsSchema = projectProfileVersion1FieldsSchema
   .omit({ schema_version: true, capabilities: true })
   .extend({
-    schema_version: z.literal(PROJECT_PROFILE_SCHEMA_VERSION),
+    schema_version: z.literal(2),
     capabilities: z
       .object({
         workloads: z.array(workloadDefinitionSchema).min(1),
@@ -351,9 +494,23 @@ const projectProfileVersion2FieldsSchema = projectProfileVersion1FieldsSchema
   })
   .strict();
 
+const projectProfileVersion3FieldsSchema = projectProfileVersion1FieldsSchema
+  .omit({ schema_version: true, capabilities: true })
+  .extend({
+    schema_version: z.literal(PROJECT_PROFILE_SCHEMA_VERSION),
+    capabilities: z
+      .object({
+        workloads: z.array(workloadDefinitionSchema).default([]),
+        delivery_evidence: deliveryEvidenceContractSchema,
+      })
+      .strict(),
+  })
+  .strict();
+
 type ProjectProfileInput =
   | z.infer<typeof projectProfileVersion1FieldsSchema>
-  | z.infer<typeof projectProfileVersion2FieldsSchema>;
+  | z.infer<typeof projectProfileVersion2FieldsSchema>
+  | z.infer<typeof projectProfileVersion3FieldsSchema>;
 
 function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx): void {
   addDuplicateIssues(
@@ -362,12 +519,35 @@ function validateProfile(profile: ProjectProfileInput, context: z.RefinementCtx)
     context,
   );
   addDuplicateIssues(
-    profile.components.flatMap(({ mount_path }) =>
-      mount_path === undefined ? [] : [mount_path],
-    ),
-    "project UI mount paths",
+    [
+      ...profile.components.flatMap(({ mount_path }) =>
+        mount_path === undefined ? [] : [mount_path],
+      ),
+      ...profile.preview_links.map(({ mount_path }) => mount_path),
+    ],
+    "preview mount paths",
     context,
   );
+  addDuplicateIssues(
+    profile.preview_links.map(({ name }) => name),
+    "preview link names",
+    context,
+  );
+  const runtimeRoles = profile.components.flatMap(({ runtime_role }) =>
+    runtime_role === undefined ? [] : [runtime_role],
+  );
+  addDuplicateIssues(runtimeRoles, "runtime roles", context);
+  if (
+    runtimeRoles.length > 0 &&
+    runtimeRoleSchema.options.some((role) => !runtimeRoles.includes(role))
+  ) {
+    context.addIssue({
+      code: "custom",
+      path: ["components"],
+      message:
+        "authenticated runtime generation requires one authenticated-worker, one api-contracts, and one relational-data component",
+    });
+  }
   addDuplicateIssues(
     profile.layers.map(({ layer }) => layer),
     "layers",
@@ -407,6 +587,7 @@ export const projectProfileSchema = z
   .discriminatedUnion("schema_version", [
     projectProfileVersion1FieldsSchema,
     projectProfileVersion2FieldsSchema,
+    projectProfileVersion3FieldsSchema,
   ])
   .superRefine(validateProfile);
 export type ProjectProfile = z.infer<typeof projectProfileSchema>;
@@ -477,8 +658,8 @@ export interface ResolvedFulfillmentCheckpoint {
 }
 
 export interface ResolvedProjectBlueprint {
-  readonly schema_version: 2 | 3;
-  readonly profile_schema_version: 1 | 2;
+  readonly schema_version: 2 | 3 | 4;
+  readonly profile_schema_version: 1 | 2 | 3;
   readonly effective_at: string;
   readonly project: {
     readonly id: string;
@@ -495,6 +676,7 @@ export interface ResolvedProjectBlueprint {
     readonly path: string;
     readonly mount_path?: string;
     readonly template_ownership?: "structure-only" | "project";
+    readonly runtime_role?: z.infer<typeof runtimeRoleSchema>;
     readonly tasks: readonly {
       readonly name: string;
       readonly disposition:
@@ -516,6 +698,7 @@ export interface ResolvedProjectBlueprint {
   readonly catalog: {
     readonly system: Record<string, unknown>;
     readonly components: readonly Record<string, unknown>[];
+    readonly delivery_targets?: readonly Record<string, unknown>[];
   };
   readonly ownership: {
     readonly owned_paths: readonly string[];
@@ -524,6 +707,7 @@ export interface ResolvedProjectBlueprint {
   readonly nix: Record<string, unknown>;
   readonly opentelemetry: Record<string, unknown>;
   readonly workloads?: readonly WorkloadDefinition[];
+  readonly delivery_evidence?: ResolvedDeliveryEvidence;
   readonly fulfillment_checkpoints: readonly ResolvedFulfillmentCheckpoint[];
   readonly rollout: {
     readonly operational_checks: readonly {
@@ -537,7 +721,33 @@ export interface ResolvedProjectBlueprint {
       readonly status: "pending" | "verified";
       readonly evidence: readonly string[];
     }[];
+    readonly stateful_operations?: z.infer<typeof statefulOperationsSchema>;
   };
+}
+
+export interface ResolvedDeliverySourcePath {
+  readonly path: string;
+  readonly mode: "exclusive" | "shared";
+  readonly subjects: readonly string[];
+}
+
+export interface ResolvedDeliveryTarget {
+  readonly id: string;
+  readonly project_id: string;
+  readonly subjects: readonly string[];
+  readonly shared_host_id?: string;
+  readonly source_paths: readonly ResolvedDeliverySourcePath[];
+  readonly github: {
+    readonly required_ci_names: readonly string[];
+    readonly production_environments: readonly string[];
+  };
+}
+
+export interface ResolvedDeliveryEvidence {
+  readonly contract: "resolved-project-delivery-evidence";
+  readonly contract_version: 1;
+  readonly repository: string;
+  readonly targets: readonly ResolvedDeliveryTarget[];
 }
 
 function addDuplicateIssues(values: readonly string[], label: string, context: z.RefinementCtx): void {
@@ -585,6 +795,232 @@ function resolveProfileWorkloads(
     }
     return parseWorkloadDefinition(workload, contracts.deployment_maturity);
   });
+}
+
+function platformCatalogRecords(
+  contracts: ProjectProfileContracts,
+): readonly Record<string, unknown>[] {
+  const catalog = contracts.platform.catalog;
+  if (catalog === null || typeof catalog !== "object" || Array.isArray(catalog)) {
+    return [];
+  }
+  const records = (catalog as { records?: unknown }).records;
+  if (!Array.isArray(records)) return [];
+  return records.filter(
+    (record): record is Record<string, unknown> =>
+      record !== null && typeof record === "object" && !Array.isArray(record),
+  );
+}
+
+function recordSourcePaths(record: Record<string, unknown>): readonly string[] {
+  const sourcePaths = record.source_paths;
+  if (sourcePaths === undefined) return [];
+  if (
+    !Array.isArray(sourcePaths) ||
+    sourcePaths.some((sourcePath) => typeof sourcePath !== "string")
+  ) {
+    throw new Error(
+      `Catalog record '${String(record.id)}' has invalid source_paths`,
+    );
+  }
+  return sourcePaths as string[];
+}
+
+function pathsOverlap(left: string, right: string): boolean {
+  return (
+    left === right ||
+    left.startsWith(`${right}/`) ||
+    right.startsWith(`${left}/`)
+  );
+}
+
+function shareSubject(
+  left: ResolvedDeliverySourcePath,
+  right: ResolvedDeliverySourcePath,
+): boolean {
+  const rightSubjects = new Set(right.subjects);
+  return left.subjects.some((subject) => rightSubjects.has(subject));
+}
+
+function assertCompatibleDeliveryPaths(
+  left: ResolvedDeliveryTarget,
+  right: ResolvedDeliveryTarget,
+): void {
+  for (const leftPath of left.source_paths) {
+    for (const rightPath of right.source_paths) {
+      if (!pathsOverlap(leftPath.path, rightPath.path)) continue;
+      if (leftPath.mode === "shared" && rightPath.mode === "shared") continue;
+      if (shareSubject(leftPath, rightPath)) continue;
+      throw new Error(
+        `Delivery targets '${left.id}' and '${right.id}' have conflicting source paths '${leftPath.path}' and '${rightPath.path}'`,
+      );
+    }
+  }
+}
+
+export function validateResolvedDeliveryEvidenceCatalog(
+  contracts: readonly ResolvedDeliveryEvidence[],
+): void {
+  const targets = contracts.flatMap((contract) =>
+    contract.targets.map((target) => ({
+      repository: contract.repository,
+      target,
+    })),
+  );
+  const duplicateTarget = targets.find(
+    (candidate, index) =>
+      targets.findIndex(
+        ({ repository, target }) =>
+          repository === candidate.repository &&
+          target.id === candidate.target.id,
+      ) !== index,
+  );
+  if (duplicateTarget) {
+    throw new Error(
+      `Duplicate delivery target '${duplicateTarget.target.id}' in '${duplicateTarget.repository}'`,
+    );
+  }
+
+  for (let leftIndex = 0; leftIndex < targets.length; leftIndex += 1) {
+    const left = targets[leftIndex];
+    if (!left) continue;
+    for (
+      let rightIndex = leftIndex + 1;
+      rightIndex < targets.length;
+      rightIndex += 1
+    ) {
+      const right = targets[rightIndex];
+      if (left.repository !== right?.repository) continue;
+      assertCompatibleDeliveryPaths(left.target, right.target);
+    }
+  }
+}
+
+type DeliveryTargetDeclaration = DeliveryEvidenceContract["targets"][number];
+type MutableDeliverySourcePath = {
+  mode: "exclusive" | "shared";
+  subjects: Set<string>;
+};
+
+function addDeliverySourcePath(
+  sourcePaths: Map<string, MutableDeliverySourcePath>,
+  targetId: string,
+  input: {
+    path: string;
+    mode: "exclusive" | "shared";
+    subject?: string;
+  },
+): void {
+  const existing = sourcePaths.get(input.path);
+  if (existing && existing.mode !== input.mode) {
+    throw new Error(
+      `Delivery target '${targetId}' assigns both exclusive and shared ownership to '${input.path}'`,
+    );
+  }
+  const entry = existing ?? {
+    mode: input.mode,
+    subjects: new Set<string>(),
+  };
+  if (input.subject) entry.subjects.add(input.subject);
+  sourcePaths.set(input.path, entry);
+}
+
+function resolveDeliveryTarget(
+  target: DeliveryTargetDeclaration,
+  projectId: string,
+  subjectPaths: ReadonlyMap<string, readonly string[]>,
+): ResolvedDeliveryTarget {
+  const sourcePaths = new Map<string, MutableDeliverySourcePath>();
+  for (const subject of target.subjects) {
+    const paths = subjectPaths.get(subject);
+    if (paths === undefined) {
+      throw new Error(
+        `Delivery target '${target.id}' references unknown project subject '${subject}'`,
+      );
+    }
+    for (const sourcePath of paths) {
+      addDeliverySourcePath(sourcePaths, target.id, {
+        path: sourcePath,
+        mode: target.shared_host ? "shared" : "exclusive",
+        subject,
+      });
+    }
+  }
+  for (const sourcePath of target.source_paths) {
+    addDeliverySourcePath(sourcePaths, target.id, sourcePath);
+  }
+  if (sourcePaths.size === 0) {
+    throw new Error(
+      `Delivery target '${target.id}' does not resolve any source paths`,
+    );
+  }
+
+  return {
+    id: `delivery-target:${projectId}/${target.id}`,
+    project_id: `project:${projectId}`,
+    subjects: [...target.subjects].toSorted(compareStrings),
+    ...(target.shared_host
+      ? { shared_host_id: `shared-host:${target.shared_host}` }
+      : {}),
+    source_paths: [...sourcePaths.entries()]
+      .map(([sourcePath, binding]) => ({
+        path: sourcePath,
+        mode: binding.mode,
+        subjects: [...binding.subjects].toSorted(compareStrings),
+      }))
+      .toSorted((left, right) => compareStrings(left.path, right.path)),
+    github: {
+      required_ci_names: [...target.github.required_ci_names].toSorted(
+        compareStrings,
+      ),
+      production_environments: [
+        ...target.github.production_environments,
+      ].toSorted(compareStrings),
+    },
+  };
+}
+
+function resolveDeliveryEvidence(
+  profile: ProjectProfile,
+  contracts: ProjectProfileContracts,
+  components: ResolvedProjectBlueprint["components"],
+  workloads: readonly WorkloadDefinition[],
+): ResolvedDeliveryEvidence | undefined {
+  if (profile.schema_version !== 3) {
+    return undefined;
+  }
+  const declaration: DeliveryEvidenceContract =
+    profile.capabilities.delivery_evidence;
+  const projectId = profile.project.id;
+  const expectedProject = `project:${projectId}`;
+  const subjectPaths = new Map<string, readonly string[]>();
+  for (const record of platformCatalogRecords(contracts)) {
+    if (record.project !== expectedProject || typeof record.id !== "string") {
+      continue;
+    }
+    if (!/^(?:component|workload):/.test(record.id)) continue;
+    subjectPaths.set(record.id, recordSourcePaths(record));
+  }
+  for (const component of components) {
+    subjectPaths.set(component.stable_id, [component.path]);
+  }
+  for (const workload of workloads) {
+    const id = `workload:${projectId}/${workload.workload.id}`;
+    if (!subjectPaths.has(id)) subjectPaths.set(id, []);
+  }
+
+  const targets = declaration.targets
+    .map((target) => resolveDeliveryTarget(target, projectId, subjectPaths))
+    .toSorted((left, right) => compareStrings(left.id, right.id));
+
+  const resolved: ResolvedDeliveryEvidence = {
+    contract: "resolved-project-delivery-evidence",
+    contract_version: 1,
+    repository: declaration.repository,
+    targets,
+  };
+  validateResolvedDeliveryEvidenceCatalog([resolved]);
+  return resolved;
 }
 
 function isEffectiveAt(period: { effective_from: string; effective_until?: string }, instant: string): boolean {
@@ -678,6 +1114,9 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       ...(component.template_ownership === undefined
         ? {}
         : { template_ownership: component.template_ownership }),
+      ...(component.runtime_role === undefined
+        ? {}
+        : { runtime_role: component.runtime_role }),
       tasks: requiredTasks
         .toSorted(compareStrings)
         .map((name) =>
@@ -1026,6 +1465,101 @@ function resolveSelections(
   };
 }
 
+function resolvedBlueprintSchemaVersion(
+  profileSchemaVersion: ProjectProfile["schema_version"],
+): ResolvedProjectBlueprint["schema_version"] {
+  if (profileSchemaVersion === 1) return 2;
+  if (profileSchemaVersion === 2) return 3;
+  return RESOLVED_BLUEPRINT_SCHEMA_VERSION;
+}
+
+function validateStatefulOperations(
+  profile: ProjectProfile,
+  components: ResolvedProjectBlueprint["components"],
+  selections: readonly ResolvedSelection[],
+): void {
+  const operations = profile.rollout.stateful_operations;
+  if (!operations) return;
+
+  const terraformRoots = components.filter(
+    ({ kind }) => kind === "terraform-root",
+  );
+  if (terraformRoots.length !== 1) {
+    throw new Error(
+      `Stateful operations require one terraform-root component, found ${terraformRoots.length}`,
+    );
+  }
+
+  const selectedSlots = new Set(selections.map(({ slot }) => slot));
+  const requiredSlots = [
+    "backend-api.runtime",
+    "database.migration-discipline",
+    "database.preview-isolation",
+    "database.relational-host",
+    "delivery.ci",
+    "delivery.preview-environment",
+    "infrastructure.provisioner",
+    "infrastructure.state-backend",
+    "security.preview-access",
+  ];
+  const missingSlots = requiredSlots.filter((slot) => !selectedSlots.has(slot));
+  if (missingSlots.length > 0) {
+    throw new Error(
+      `Stateful operations require selected capabilities: ${missingSlots.join(", ")}`,
+    );
+  }
+
+  const backupSelected = selectedSlots.has("database.backup-restore");
+  if (backupSelected !== (operations.backup !== undefined)) {
+    throw new Error(
+      "Stateful backup operations must be declared exactly when database.backup-restore is selected",
+    );
+  }
+
+  const alertingSelected = selectedSlots.has(
+    "observability.alert-evaluation",
+  );
+  if (alertingSelected !== (operations.alerting !== undefined)) {
+    throw new Error(
+      "Stateful alert operations must be declared exactly when observability.alert-evaluation is selected",
+    );
+  }
+}
+
+const AUTHENTICATED_WORKER_STACK = new Map<string, string>([
+  ["api-governance.compatibility-check", "oasdiff"],
+  ["api-governance.contract-linter", "spectral"],
+  ["backend-api.contract-format", "openapi"],
+  ["backend-api.contract-generator", "honozod-openapi"],
+  ["backend-api.http-framework", "hono"],
+  ["backend-api.relational-connection", "hyperdrive"],
+  ["backend-api.runtime", "cloudflare-workers"],
+  ["database.migration-discipline", "Committed ordered migrations with drift checks and one serialized deployment runner"],
+  ["database.relational-access", "drizzle"],
+  ["database.relational-engine", "postgresql"],
+  ["database.relational-host", "neon"],
+  ["identity.authentication-library", "better-auth"],
+  ["identity.authorization-policy", "Project-owned server-side resource and action policy"],
+  ["identity.login-provider", "google-oauth"],
+  ["identity.session-transport", "Same-origin Secure HttpOnly first-party cookie session"],
+]);
+
+function assertAuthenticatedWorkerStack(
+  components: ResolvedProjectBlueprint["components"],
+  selections: readonly ResolvedSelection[],
+): void {
+  if (!components.some(({ runtime_role }) => runtime_role !== undefined)) return;
+  const selected = new Map(selections.map(({ slot, value }) => [slot, value]));
+  const mismatch = [...AUTHENTICATED_WORKER_STACK].find(
+    ([slot, value]) => selected.get(slot) !== value,
+  );
+  if (!mismatch) return;
+  const [slot, value] = mismatch;
+  throw new Error(
+    `Authenticated runtime generation requires '${slot}' to resolve to '${value}'`,
+  );
+}
+
 export function resolveProjectProfile(
   profile: ProjectProfile,
   contracts: ProjectProfileContracts,
@@ -1035,7 +1569,15 @@ export function resolveProjectProfile(
   validateAgainstContracts(profile, contracts);
   const components = resolveComponents(profile, contracts);
   const workloads = resolveProfileWorkloads(profile, contracts);
+  const deliveryEvidence = resolveDeliveryEvidence(
+    profile,
+    contracts,
+    components,
+    workloads,
+  );
   const { selections, checkpoints } = resolveSelections(profile, contracts, instant);
+  validateStatefulOperations(profile, components, selections);
+  assertAuthenticatedWorkerStack(components, selections);
   const paths = contracts.layout.knowledge_graph;
   const substituteProject = (template: string) => substitutePath(template, { project: profile.project.id, sequence: "{sequence}", slug: "{slug}" });
   const componentRecords = components.map((component) => ({
@@ -1049,6 +1591,27 @@ export function resolveProjectProfile(
       : { mount_path: component.mount_path }),
     relations: [{ type: "part_of", target: `system:${profile.project.id}/${profile.project.kind}` }],
   }));
+  const deliveryTargetRecords =
+    deliveryEvidence?.targets.map((target) => ({
+      id: target.id,
+      kind: "delivery-target",
+      name: `${profile.project.name} ${target.id.split("/").at(-1)} delivery target`,
+      project: `project:${profile.project.id}`,
+      repository: deliveryEvidence.repository,
+      source_paths: target.source_paths.map(({ path: sourcePath }) => sourcePath),
+      source_path_bindings: target.source_paths,
+      subjects: target.subjects,
+      ...(target.shared_host_id
+        ? { shared_host_id: target.shared_host_id }
+        : {}),
+      github: target.github,
+      relations: [
+        {
+          type: "part_of",
+          target: `system:${profile.project.id}/${profile.project.kind}`,
+        },
+      ],
+    })) ?? [];
   const ownedPaths = [
     ...new Set([
       ...components.map(({ path: componentPath }) => componentPath),
@@ -1062,10 +1625,7 @@ export function resolveProjectProfile(
   if (otelRuntime && !transport) throw new Error(`OpenTelemetry runtime '${otelRuntime}' has no current transport default`);
 
   return {
-    schema_version:
-      profile.schema_version === PROJECT_PROFILE_SCHEMA_VERSION
-        ? RESOLVED_BLUEPRINT_SCHEMA_VERSION
-        : 2,
+    schema_version: resolvedBlueprintSchemaVersion(profile.schema_version),
     profile_schema_version: profile.schema_version,
     effective_at: instant,
     project: {
@@ -1094,6 +1654,9 @@ export function resolveProjectProfile(
           .toSorted(compareStrings),
       },
       components: componentRecords,
+      ...(deliveryTargetRecords.length > 0
+        ? { delivery_targets: deliveryTargetRecords }
+        : {}),
     },
     ownership: {
       owned_paths: ownedPaths,
@@ -1137,6 +1700,7 @@ export function resolveProjectProfile(
       failure_mode: contracts.opentelemetry.processing.failure_mode,
     } : { enabled: false },
     ...(workloads.length > 0 ? { workloads } : {}),
+    ...(deliveryEvidence ? { delivery_evidence: deliveryEvidence } : {}),
     fulfillment_checkpoints: checkpoints,
     rollout: {
       operational_checks: [...profile.rollout.operational_checks]
@@ -1147,6 +1711,9 @@ export function resolveProjectProfile(
           evidence: [...checkpoint.evidence].toSorted(compareStrings),
         }))
         .toSorted((left, right) => compareStrings(left.id, right.id)),
+      ...(profile.rollout.stateful_operations
+        ? { stateful_operations: profile.rollout.stateful_operations }
+        : {}),
     },
   };
 }

@@ -5,7 +5,7 @@ date: "2026-02-14"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 demo_url: "https://robbiepalmer.me/recipes"
 status: "in_progress"
-updated: "2026-10-20"
+updated: "2026-11-01"
 platform_layers:
   - layer: "governance"
     adopted: "2026-09-15T00:00:00Z"
@@ -425,6 +425,14 @@ while candidates, leftovers, meals out, and undecided slots stay out of shopping
 * **Diet-aware browsing and planning** using presets and ingredient exclusions
 * **Portable Cooklang, Markdown, and schema.org Recipe JSON representations** rather than a closed data silo
 
+The account and sharing boundaries are recorded in
+[PDR 002](/projects/recipe-site/pdrs/002-federated-sign-in-without-first-party-passwords)
+and [PDR 003](/projects/recipe-site/pdrs/003-private-user-state-and-household-sharing).
+Imported recipes stay in review under
+[PDR 004](/projects/recipe-site/pdrs/004-review-imported-recipes-before-publication),
+and [PDR 006](/projects/recipe-site/pdrs/006-live-household-state-with-explicit-conflicts)
+defines how shared household state handles live updates and offline conflicts.
+
 These are meaningful pieces of the larger vision, but they do not yet form the social learning loop. Public
 recipes and profiles create the beginnings of a commons; follows shape discovery; recommendations are
 person-to-person hand-offs; cooking sessions record starts and completions; and the pantry represents household
@@ -581,6 +589,9 @@ Turn the existing single URL, Cooklang file, and photo flows into a durable batc
 should become an independently reviewable draft with provenance, duplicate detection, retry/skip states,
 autosaved corrections, and **Save and next**. Collection archives need whole-batch recovery; photo batches need
 an explicit thumbnail grouping and ordering step before extraction.
+
+[PDR 007](/projects/recipe-site/pdrs/007-durable-item-level-collection-migration)
+records this proposed migration workflow.
 
 Tandoor's broad
 [recipe-manager import support](https://docs.tandoor.dev/features/import_export/) makes migration breadth a
@@ -1213,6 +1224,10 @@ Batch migration is the next architectural step. One URL or ordinary file should 
 collection archives should expand into independently recoverable items with shared provenance. Photo batches
 need an explicit grouping board because one recipe may span several images. Failures and ambiguity must remain
 item-scoped so one bad source never blocks the rest of a collection.
+
+[PDR 008](/projects/recipe-site/pdrs/008-explicit-recipe-import-inference-payment)
+separately proposes an explicit choice between application-funded inference and
+an eligible user's connected plan.
 
 # Building Philosophy
 

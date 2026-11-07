@@ -43,3 +43,68 @@ The goal of this project was to evolve Sonrai's bioinformatics platform from a t
 * **Interactive Annotations**: Support for drawing and editing regions of interest (polygons, points) overlaid on the slide.
 * **Geospatial Analysis**: Performing aggregations and feature extraction on image data, treating biological structures with the same logic as geospatial features.
 * **Pipeline Integration**: Full compatibility with Sonrai's no-code GUI ecosystem for multi-omic workflows.
+
+# Reconstructed component view
+
+This view reconstructs the implemented design from the surviving project record. Dashed boxes are external to the
+viewer. The solid boxes record capabilities from the completed Pathology Viewer.
+
+<Mermaid
+  chart={`flowchart TB
+Slides["Whole-slide images · external input<br/>Leica · Aperio · Philips"]
+Platform["Sonrai-owned bioinformatics platform<br/>Outside viewer boundary · no-code pipelines"]
+
+subgraph Viewer["Pathology Viewer · implemented historical design"]
+Formats["Slide-format access<br/>OpenSlide"]
+Tiles["Pyramid and tile access<br/>Regions read at the requested zoom"]
+Canvas["Interactive slide canvas<br/>Leaflet"]
+Annotations["Annotation editor<br/>Points and polygons"]
+Geo["Geospatial analysis<br/>Shapely · GeoPandas"]
+Results["Analysis presentation<br/>Plotly and slide overlays"]
+Bridge["Pipeline integration"]
+
+Formats -->|"normalised slide access"| Tiles
+Tiles -->|"visible tiles"| Canvas
+Canvas -->|"draw or edit regions"| Annotations
+Annotations -->|"region overlay"| Canvas
+Tiles -->|"selected image regions"| Geo
+Annotations -->|"region geometry"| Geo
+Geo -->|"features and aggregations"| Results
+Results -->|"analysis overlays"| Canvas
+Bridge -->|"slide references and analysis inputs"| Formats
+Geo -->|"annotations, features, and results"| Bridge
+end
+
+Slides -->|"proprietary slide file"| Formats
+Platform -->|"workflow inputs"| Bridge
+Bridge -->|"workflow outputs"| Platform
+
+classDef external stroke-dasharray:5 5
+class Slides,Platform external
+`}
+  className="w-full justify-start overflow-x-auto sm:justify-center [&>svg]:min-w-[42rem]"
+/>
+
+## Diagram reading guide
+
+The following text is the Markdown equivalent of the visual:
+
+1. The viewer accepted whole-slide images from several scanner vendors. OpenSlide provided access across the recorded
+   Leica, Aperio, and Philips formats.
+2. Pyramid and tile access read only the image region needed for the current zoom. Leaflet displayed those tiles as an
+   interactive slide instead of loading a multi-gigabyte image at full resolution.
+3. A pathologist or researcher could draw and edit points and polygons on the slide. The viewer returned those regions
+   as overlays and passed their geometry into the analysis path.
+4. Shapely and GeoPandas handled region geometry, aggregations, and feature extraction. Plotly and the slide canvas
+   presented the resulting plots and overlays.
+5. The pipeline integration exchanged slide references, analysis inputs, annotations, features, and results with
+   Sonrai's no-code multi-omic workflows.
+
+## Ownership, evidence, and reconstruction limits
+
+Sonrai owned the historical viewer and the bioinformatics platform around it. Scanner-vendor slide files crossed into
+the viewer as external inputs. The project narrative and recorded technology stack support the functional boundaries
+and data flows shown here. The surviving public record does not preserve the exact process boundaries, APIs, storage
+model, deployment topology, authentication scheme, or vendor-specific adapter code. The technology labels therefore
+identify recorded responsibilities without claiming an exact runtime layout. No planned component is shown, and the
+view omits customer data and private infrastructure details.

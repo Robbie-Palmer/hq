@@ -7,6 +7,7 @@ import fire
 from pydantic import ValidationError
 
 from work_graph_analytics.manifest import DatasetError, StagedManifest, stage_dataset
+from work_graph_analytics.operations import operate_pipeline, retention_status
 from work_graph_analytics.publication import (
     PublicationScopeSnapshot,
     ensure_new_version,
@@ -79,6 +80,12 @@ class WorkGraphAnalytics:
         )
         print(report.model_dump_json(by_alias=True))
 
+    def operate(self) -> None:
+        print(operate_pipeline().model_dump_json(by_alias=True))
+
+    def retention(self) -> None:
+        print(retention_status().model_dump_json(by_alias=True))
+
 
 def main(command: Sequence[str] | None = None) -> int:
     try:
@@ -89,6 +96,8 @@ def main(command: Sequence[str] | None = None) -> int:
                 "prepare": application.prepare,
                 "publish": application.publish,
                 "report": application.report,
+                "operate": application.operate,
+                "retention": application.retention,
             },
             command=list(command) if command is not None else None,
             name="work-graph-analytics",

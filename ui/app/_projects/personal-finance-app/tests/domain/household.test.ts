@@ -840,6 +840,7 @@ describe("browser household ownership", () => {
       validateHouseholdOwnership({
         ...data,
         household: {
+          id: data.household.id,
           members: [
             { id: "primary", displayName: "Alex" },
             { id: "primary", displayName: "Sam" },

@@ -1,0 +1,31 @@
+[tools]
+python = "3.12"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tasks.sync]
+description = "Install the locked slide-quality benchmark environment"
+run = "uv sync --locked"
+
+[tasks.lock]
+description = "Update the slide-quality benchmark lockfile"
+run = "uv lock"
+
+[tasks.dvc]
+description = "Run a DVC command in the slide-quality benchmark"
+run = "bash ../scripts/dvc.sh"
+
+[tasks.repro]
+description = "Reproduce the deterministic slide-quality benchmark"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro"
+
+[tasks.verify]
+description = "Verify slide-quality contracts, leakage boundaries, and scorecards"
+depends = ["sync", "repro"]
+run = "uv run --locked pathologize-benchmark verify"
+
+[tasks.check]
+description = "Check the slide-quality benchmark"
+depends = ["verify"]

@@ -1,0 +1,26 @@
+from pathlib import Path
+
+import fire
+
+from {{ component.id | replace('-', '_') }} import pipeline
+
+
+class PipelineCommands:
+    def build_fixture(self, parameters: str = "params.yaml") -> str:
+        return pipeline.dump_result(pipeline.build_fixture(Path(parameters)))
+
+    def train(self, parameters: str = "params.yaml") -> str:
+        return pipeline.dump_result(pipeline.train(Path(parameters)))
+
+    def evaluate(self, parameters: str = "params.yaml") -> str:
+        return pipeline.dump_result(pipeline.evaluate(Path(parameters)))
+
+    def verify(self, parameters: str = "params.yaml") -> None:
+        pipeline.verify(Path(parameters))
+
+    def clean(self, parameters: str = "params.yaml") -> None:
+        pipeline.clean(Path(parameters))
+
+
+def main() -> None:
+    fire.Fire(PipelineCommands())

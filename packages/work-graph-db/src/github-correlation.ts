@@ -2,6 +2,7 @@ import { and, eq, inArray, lt, or, sql } from "drizzle-orm";
 import {
   InvalidGitHubDelivery,
   type DeliveryEvidenceObservation,
+  type GitHubDeliveryDisposition,
   type GitHubObservation,
   type PullRequestSnapshot,
 } from "work-graph-domain";
@@ -13,10 +14,10 @@ import {
   pullRequest,
   workItemPullRequest,
 } from "./schema";
-type Disposition = typeof githubDeliveryProcessing.$inferSelect.disposition;
 type EvidenceRecorder = (
   observation: DeliveryEvidenceObservation,
 ) => Promise<DeliveryEvidenceObservation>;
+type DeliveryActionRecorder = (observationId: string) => Promise<void>;
 
 function factIdentity(observation: DeliveryEvidenceObservation): string {
   return JSON.stringify([
@@ -34,7 +35,8 @@ export async function appendCorrelatedEvidence(
   transaction: DbTransaction,
   observation: GitHubObservation,
   recordEvidence: EvidenceRecorder,
-): Promise<Disposition> {
+  recordDeliveryAction?: DeliveryActionRecorder,
+): Promise<GitHubDeliveryDisposition> {
   const fact = observation.evidence;
   const [existing] = await transaction
     .select()
@@ -62,6 +64,7 @@ export async function appendCorrelatedEvidence(
       throw new InvalidGitHubDelivery();
     }
     await projectObservation(transaction, existing.id, observation);
+    await recordDeliveryAction?.(existing.id);
     return "processed";
   }
   const candidates = await transaction
@@ -109,6 +112,7 @@ export async function appendCorrelatedEvidence(
     pullRequestNumber: match.number,
   });
   await projectObservation(transaction, stored.id, observation);
+  await recordDeliveryAction?.(stored.id);
   return "processed";
 }
 
@@ -157,6 +161,7 @@ export async function correlateWaitingDeliveries(
   transaction: DbTransaction,
   snapshot: PullRequestSnapshot,
   recordEvidence: EvidenceRecorder,
+  recordDeliveryAction?: DeliveryActionRecorder,
 ): Promise<void> {
   const commits = [
     snapshot.headSha,
@@ -175,7 +180,12 @@ export async function correlateWaitingDeliveries(
     );
   for (const item of waiting) {
     if (!item.observation) continue;
-    const disposition = await appendCorrelatedEvidence(transaction, item.observation, recordEvidence); // NOSONAR: Nested savepoints share one transaction and must run serially.
+    const disposition = await appendCorrelatedEvidence( // NOSONAR: Nested savepoints share one transaction and must run serially.
+      transaction,
+      item.observation,
+      recordEvidence,
+      recordDeliveryAction,
+    );
     await transaction // NOSONAR: Persist each disposition after its evidence transaction completes.
       .update(githubDeliveryProcessing)
       .set({ disposition, updatedAt: new Date() })

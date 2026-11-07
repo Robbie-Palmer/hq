@@ -28,14 +28,17 @@ systemctl is-active --quiet k3s.service
 systemctl is-active --quiet apparmor.service
 systemctl is-active --quiet vector-development-power-profile.service
 systemctl is-active --quiet vector-development-quiet-profile.service
+systemctl is-active --quiet vector-development-fan-curve.service
 systemctl is-active --quiet vector-development-thermal-monitor.service
 test -x /sbin/apparmor_parser
 test -r /etc/apparmor.d/tunables/global
 grep -Fx 't3-code-agent-browser (unconfined)' /sys/kernel/security/apparmor/profiles >/dev/null
 test "$(powerprofilesctl get)" = power-saver
-test "$(cat /sys/devices/platform/msi-ec/fan_mode)" = silent
+test "$(cat /sys/devices/platform/msi-ec/fan_mode)" = advanced
 test "$(cat /sys/devices/platform/msi-ec/shift_mode)" = eco
+vector-development-fan-curve check >/dev/null
 test -s /var/lib/vector-development-thermal-monitor/status.json
+test -s /var/lib/vector-development-thermal-monitor/history.jsonl
 nvidia-smi --query-gpu=name,memory.total --format=csv,noheader \
   | grep -F 'NVIDIA GeForce RTX 4080 Laptop GPU' >/dev/null
 test "$(cat /sys/module/nvidia_drm/parameters/modeset)" = Y
@@ -68,6 +71,44 @@ if k3s kubectl --namespace kube-system get daemonset nvidia-device-plugin-daemon
   done
   test "${gpu_allocatable}" = 1
 fi
+if k3s kubectl --namespace gpu-telemetry get daemonset dcgm-exporter >/dev/null 2>&1; then
+  k3s kubectl --namespace gpu-telemetry rollout status \
+    daemonset/dcgm-exporter --timeout=180s
+  systemctl is-active --quiet netdata.service
+  systemctl is-active --quiet vector-development-dcgm-proxy.service
+  systemctl is-active --quiet opentelemetry-collector.service
+  curl --fail --silent --show-error http://127.0.0.1:13133/ >/dev/null
+  dcgm_metrics_url=http://127.0.0.1:19400/api/v1/namespaces/gpu-telemetry/services/http:dcgm-exporter:9400/proxy/metrics
+  dcgm_metrics=
+  for _ in $(seq 1 30); do
+    dcgm_metrics=$(curl --fail --silent --show-error "${dcgm_metrics_url}" || true)
+    grep -q '^DCGM_FI_DEV_GPU_UTIL{' <<<"${dcgm_metrics}" && break
+    sleep 2
+  done
+  grep -q '^DCGM_FI_DEV_GPU_UTIL{' <<<"${dcgm_metrics}"
+  collector_metrics=
+  for _ in $(seq 1 30); do
+    collector_metrics=$(curl --fail --silent --show-error http://127.0.0.1:8888/metrics || true)
+    awk '
+      /^otelcol_exporter_sent_metric_points(_total)?\{/ && /exporter="otlp\/netdata"/ && $2 > 0 { found = 1 }
+      END { exit !found }
+    ' <<<"${collector_metrics}" && break
+    sleep 2
+  done
+  awk '
+    /^otelcol_exporter_sent_metric_points(_total)?\{/ && /exporter="otlp\/netdata"/ && $2 > 0 { found = 1 }
+    END { exit !found }
+  ' <<<"${collector_metrics}"
+  test "$(k3s kubectl auth can-i create jobs.batch \
+    --as=system:serviceaccount:t3-code:t3-code \
+    --namespace=gpu-benchmarks)" = yes
+  test "$(k3s kubectl auth can-i create pods \
+    --as=system:serviceaccount:t3-code:t3-code \
+    --namespace=gpu-benchmarks)" = no
+  test "$(k3s kubectl auth can-i create jobs.batch \
+    --as=system:serviceaccount:t3-code:t3-code \
+    --namespace=default)" = no
+fi
 if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
   k3s kubectl --namespace t3-code rollout status deployment/t3-code --timeout=180s
   pod=$(k3s kubectl --namespace t3-code get pod \
@@ -94,5 +135,5 @@ if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
   ' >/dev/null
   curl --fail --silent --show-error http://127.0.0.1:30773/ >/dev/null
 fi
-echo "desktop, encrypted remote boot, sandboxed browser, NVIDIA, Tailscale, and the independent K3s server are healthy"
+echo "desktop, encrypted remote boot, sandboxed browser, NVIDIA telemetry, Tailscale, and the independent K3s server are healthy"
 REMOTE

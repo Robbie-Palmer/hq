@@ -9,6 +9,7 @@ juni = "juni" # coding agent referenced in ADR 012
 symetry = "symetry" # SymetryML, streaming ML product
 vertica = "vertica" # Vertica analytics database
 sie = "sie" # split from the SIEM(s) acronym
+ome = "ome" # Open Microscopy Environment
 
 [default.extend-identifiers]
 CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
@@ -16,6 +17,9 @@ CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
 
 [files]
 extend-exclude = [
+    # Versioned ISO code data contains short assigned identifiers that resemble
+    # common misspellings, such as BA, FO, PN, and JOD.
+    "packages/iso-codes/artifacts/",
     # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
     # comments so local changes remain auditable against the pinned source.
     "cpp/autonomic-satellite-swarm/third_party/sgp4/",

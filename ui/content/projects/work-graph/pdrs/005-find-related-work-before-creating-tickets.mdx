@@ -1,0 +1,96 @@
+---
+title: "PDR 005: Find related work before creating tickets"
+date: "2026-11-01"
+status: "Accepted"
+decision_date: "2026-11-01"
+informed_by_adrs:
+  - "work-graph:003-rest-api-and-cli-first"
+---
+
+## Context
+
+Work often begins as a conversation. A person and an agent may be shaping an
+idea before either knows whether it deserves a ticket. At that point, the same
+outcome may already exist under different wording, inside another project's
+plan, or as released or cancelled work whose history changes the next decision.
+
+The current CLI can list tickets in scheduling order and narrow them by scope,
+stage, parent, or an exact ancestor title. It cannot search ticket intent. An
+agent has to page through `queue --all`, search the returned JSON, and inspect
+individual tickets. That is cumbersome enough that agents will often rely on
+the visible queue or create a new ticket instead.
+
+Duplicate tickets split context, dependencies, priority, and delivery evidence.
+Treating a weak textual resemblance as proof of duplication creates the
+opposite problem by combining outcomes that should remain separate.
+
+## Decision
+
+Work Graph will let people and agents search for related work while an idea is
+still being discussed. The normal agent workflow will call this search before
+proposing or creating a ticket when the conversation has become task-like, or
+when a person asks whether the work is already tracked.
+
+Search will cover the durable fields that describe ticket intent: ticket ID,
+title, brief, and acceptance criteria. It will include open, released, and
+cancelled work by default. Each result will identify its ticket, title, stage,
+scheduling project, matched fields, and a short matching excerpt so an agent can
+decide which candidates need inspection.
+
+Results suggest candidates. The command does not decide that two tickets are
+duplicates. A match will not block ticket creation, and an empty result will
+mean that the search found no candidates. It will not claim that no related
+ticket exists. The agent remains responsible for comparing the outcome, scope,
+and completion state before recommending reuse, revision, or new work.
+
+The search operation will be read-only. Looking for related work will not claim
+a ticket, alter priority, or create a durable record merely because an idea was
+mentioned.
+
+## Consequences
+
+An agent can check the graph in one bounded operation instead of dumping the
+backlog. Released and cancelled work remains visible when it explains that an
+idea already shipped, failed, or was deliberately abandoned.
+
+Search quality becomes part of the agent experience. Ticket titles, briefs, and
+acceptance criteria need enough concrete language to be found later. Agents may
+need to try a second set of terms when the first query is too broad or uses
+different language from the stored work.
+
+The workflow adds a small read before ticket creation. That cost is acceptable
+because the command has no mutation or lease side effect, and because recovering
+from duplicate operational history costs more.
+
+## Evaluation
+
+Before treating the workflow as complete, test it against known related and
+unrelated tickets across open, released, and cancelled stages. An agent should
+be able to find and inspect a plausible candidate without listing the complete
+queue. Search output must make the matched field and lifecycle state clear, and
+must not describe an empty result as proof that the idea is absent.
+
+Revisit the decision if agents repeatedly miss known related tickets after
+reasonable query reformulation, or if noisy results cause them to skip the
+check.
+
+## Alternatives considered
+
+### Rely on queue inspection and agent memory
+
+This requires no product change. It works for a small visible queue, but it
+misses terminal work, hidden pages, and tickets whose wording the current agent
+has never seen.
+
+### Check only when a ticket is created
+
+A create-time warning would catch some late duplicates. It would not help the
+conversation decide whether to revise existing work, reopen the underlying
+question, or avoid writing a new ticket at all. It may be added later as a
+second use of the same search capability.
+
+### Prevent creation when related work is found
+
+Textual similarity does not establish identical intent. Blocking creation would
+turn false positives into a planning constraint and encourage users to evade
+the check with different wording.

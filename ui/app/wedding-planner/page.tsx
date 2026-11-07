@@ -1,5 +1,5 @@
-import { AccommodationEditor } from "@/app/_projects/wedding-planner/components/accommodation-editor";
+import { redirect } from "next/navigation";
 
 export default function WeddingPlannerPage() {
-  return <AccommodationEditor />;
+  redirect("/wedding-planner/readiness");
 }

@@ -7,3 +7,9 @@ export TF_DATA_DIR="$test_data_dir"
 
 terraform -chdir=v1 init -backend=false -input=false > /dev/null
 terraform -chdir=v1 test
+
+export TF_DATA_DIR="$test_data_dir/posthog-alerts"
+terraform -chdir=v1/modules/posthog-alerts init -backend=false -input=false > /dev/null
+terraform -chdir=v1/modules/posthog-alerts test
+
+bash scripts/test-stateless-validation.sh

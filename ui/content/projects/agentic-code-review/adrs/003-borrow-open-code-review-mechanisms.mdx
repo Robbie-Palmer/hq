@@ -2,6 +2,8 @@
 title: "ADR 003: Borrow OpenCodeReview Selection and Rule Contracts"
 date: "2026-09-29"
 status: "Accepted"
+implements_product_decisions:
+  - "agentic-code-review:001-review-pull-requests-by-risk"
 ---
 
 ## Context
@@ -10,6 +12,9 @@ status: "Accepted"
 stateful GitHub App whose Durable Object and Workflow own the pull-request
 lifecycle. [ADR 002](/projects/agentic-code-review/adrs/002-duckdb-ai-review-scorecard)
 then established controlled replay as the route for changing that reviewer.
+The coverage manifest in this ADR makes the full and incremental behavior from
+[PDR 001](/projects/agentic-code-review/pdrs/001-review-pull-requests-by-risk)
+inspectable rather than inferred from a successful run.
 
 Alibaba's [OpenCodeReview](https://github.com/alibaba/open-code-review) is a
 well-maintained Apache-2.0 Go CLI with useful
@@ -107,3 +112,9 @@ Markdown and test surfaces, and a funded model-parity replay beats the current
 reviewer on incremental accepted findings, duplicate rate, coverage, latency,
 and cost. Any replacement must still preserve reconciled publication and the
 outcome-learning records.
+
+## Migration note
+
+This structural edit links the coverage manifest to the earlier Pull Request
+review policy. It does not change the original date, Accepted status, evaluated
+OpenCodeReview revision, adapted contracts, or rejection of a second publisher.

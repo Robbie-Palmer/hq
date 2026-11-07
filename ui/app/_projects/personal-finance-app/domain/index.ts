@@ -8,15 +8,27 @@ export * from "./assetTrackerQueries";
 export * from "./assetTrackerRepository";
 export * from "./assetTrackerViews";
 export * from "./balanceSnapshot";
+export * from "./businessValuation";
+export * from "./businessWealth";
+export {
+  consolidateHouseholdWealth,
+  type HouseholdBusinessReconciliation,
+  type HouseholdConsolidationInput,
+  type HouseholdConsolidationIssue,
+  type HouseholdWealthConsolidation,
+  type HouseholdWealthContribution,
+} from "./businessWealthConsolidation";
 export * from "./capitalFlow";
 export * from "./compoundGrowth";
 export * from "./currency";
 export * from "./currentExchangeRate";
 export * from "./decisionRecord";
 export * from "./decisionScenario";
+export * from "./ecbExchangeRateProvider";
 export * from "./emergencyFund";
 export * from "./exchangeRateDecimal";
 export * from "./exchangeRateImport";
+export * from "./exchangeRateIngestion";
 export * from "./forecastAssumption";
 export * from "./futureCashFlow";
 export * from "./grossSalaryTrajectory";
@@ -39,6 +51,7 @@ export * from "./propertyComparables";
 export * from "./propertyIndexHistory";
 export * from "./recurringFlow";
 export * from "./redundancyPackage";
+export * from "./replacementIncomeThreshold";
 export * from "./retirementCapital";
 export * from "./retirementIncome";
 export * from "./retirementProjectionRange";
@@ -46,6 +59,7 @@ export * from "./runwayForecast";
 export * from "./salaryCalculation";
 export * from "./salaryHistory";
 export * from "./salaryHistoryImport";
+export * from "./soleTraderScenario";
 export * from "./spendingBaseline";
 export * from "./taxPosition";
 export * from "./transfer";

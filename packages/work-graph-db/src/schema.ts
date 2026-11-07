@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
-  boolean,
   bigint,
+  boolean,
   check,
   foreignKey,
   index,
@@ -17,9 +17,17 @@ import {
 } from "drizzle-orm/pg-core";
 import {
   ARCHITECTURE_DECISION_ROLES,
+  COMPLETION_POLICY_ASSIGNMENT_SOURCES,
+  DELIVERY_ACTION_KINDS,
+  DELIVERY_ACTION_RESULT_STATES,
   DELIVERY_EVIDENCE_KINDS,
   DELIVERY_EVIDENCE_STATES,
+  DELIVERY_RECOVERY_DELIVERY_KINDS,
+  DELIVERY_RECOVERY_FALLBACKS,
   EVIDENCE_CORRELATION_KINDS,
+  type GeneratedDeliveryTarget,
+  type GitHubDeliveryDisposition,
+  type GitHubObservation,
   KNOWLEDGE_SCOPE_KINDS,
   KNOWLEDGE_SCOPE_LIFECYCLES,
   LEASE_OUTCOMES,
@@ -28,9 +36,9 @@ import {
   PULL_REQUEST_REVIEW_DECISIONS,
   PULL_REQUEST_ROLES,
   PULL_REQUEST_STATES,
+  type ResolvedDeliveryTargetSnapshot,
   WORK_ITEM_CONTEXT_KINDS,
   WORK_ITEM_LIFECYCLES,
-  type GitHubObservation,
 } from "work-graph-domain";
 
 export const workItemContextKindEnum = pgEnum(
@@ -81,6 +89,31 @@ export const deliveryEvidenceStateEnum = pgEnum(
 export const evidenceCorrelationKindEnum = pgEnum(
   "evidence_correlation_kind",
   EVIDENCE_CORRELATION_KINDS,
+);
+
+export const completionPolicyAssignmentSourceEnum = pgEnum(
+  "completion_policy_assignment_source",
+  COMPLETION_POLICY_ASSIGNMENT_SOURCES,
+);
+
+export const deliveryActionKindEnum = pgEnum(
+  "delivery_action_kind",
+  DELIVERY_ACTION_KINDS,
+);
+
+export const deliveryActionResultStateEnum = pgEnum(
+  "delivery_action_result_state",
+  DELIVERY_ACTION_RESULT_STATES,
+);
+
+export const deliveryRecoveryFallbackEnum = pgEnum(
+  "delivery_recovery_fallback",
+  DELIVERY_RECOVERY_FALLBACKS,
+);
+
+export const deliveryRecoveryDeliveryKindEnum = pgEnum(
+  "delivery_recovery_delivery_kind",
+  DELIVERY_RECOVERY_DELIVERY_KINDS,
 );
 
 export const knowledgeScopeKindEnum = pgEnum(
@@ -284,6 +317,8 @@ export const pullRequest = pgTable(
     mergeability: pullRequestMergeabilityEnum().notNull(),
     reviewDecision: pullRequestReviewDecisionEnum(),
     checkSummary: pullRequestCheckSummaryEnum().notNull(),
+    changedPaths: text().array(),
+    deliveryMetadataSourceRevision: text(),
     observedAt: timestamp({ withTimezone: true }).notNull(),
     createdAt: timestamp({ withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp({ withTimezone: true })
@@ -352,6 +387,152 @@ export const workItemPullRequest = pgTable(
   ],
 );
 
+export const deliveryMetadataRevision = pgTable(
+  "delivery_metadata_revisions",
+  {
+    repository: text().notNull(),
+    sourceRevision: text().notNull(),
+    targets: jsonb().$type<readonly GeneratedDeliveryTarget[]>().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "delivery_metadata_revisions_pk",
+      columns: [table.repository, table.sourceRevision],
+    }),
+    index("delivery_metadata_revisions_current_idx").on(
+      table.repository,
+      table.createdAt,
+    ),
+    check(
+      "delivery_metadata_revisions_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+    check(
+      "delivery_metadata_revisions_source_revision_not_blank_check",
+      sql`btrim(${table.sourceRevision}) <> ''`,
+    ),
+    check(
+      "delivery_metadata_revisions_targets_not_empty_check",
+      sql`jsonb_array_length(${table.targets}) > 0`,
+    ),
+  ],
+);
+
+export const repositoryCurrentDeliveryMetadataRevision = pgTable(
+  "repository_current_delivery_metadata_revisions",
+  {
+    repository: text().primaryKey(),
+    sourceRevision: text().notNull(),
+    selectedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "repository_current_delivery_metadata_revision_fk",
+      columns: [table.repository, table.sourceRevision],
+      foreignColumns: [
+        deliveryMetadataRevision.repository,
+        deliveryMetadataRevision.sourceRevision,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "repository_current_delivery_metadata_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+  ],
+);
+
+export const workItemDeliveryTargetOverride = pgTable(
+  "work_item_delivery_target_overrides",
+  {
+    workItemId: text()
+      .primaryKey()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    targetIds: text().array().notNull(),
+    updatedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    check(
+      "work_item_delivery_target_overrides_targets_not_empty_check",
+      sql`cardinality(${table.targetIds}) > 0`,
+    ),
+  ],
+);
+
+export const workItemPullRequestDeliveryResolution = pgTable(
+  "work_item_pull_request_delivery_resolutions",
+  {
+    id: uuid().primaryKey(),
+    workItemId: text().notNull(),
+    repository: text().notNull(),
+    number: integer().notNull(),
+    headSha: text().notNull(),
+    metadataSourceRevision: text().notNull(),
+    changedPaths: text().array().notNull(),
+    targets: jsonb()
+      .$type<readonly ResolvedDeliveryTargetSnapshot[]>()
+      .notNull(),
+    subjects: text().array().notNull(),
+    overrideTargetIds: text().array().notNull(),
+    failureCode: text(),
+    resolvedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "work_item_pull_request_delivery_resolutions_link_fk",
+      columns: [table.workItemId, table.repository, table.number],
+      foreignColumns: [
+        workItemPullRequest.workItemId,
+        workItemPullRequest.repository,
+        workItemPullRequest.number,
+      ],
+    }).onDelete("restrict"),
+    index("work_item_pull_request_delivery_resolutions_current_idx").on(
+      table.workItemId,
+      table.repository,
+      table.number,
+      table.resolvedAt,
+    ),
+    check(
+      "work_item_pull_request_delivery_resolutions_failure_check",
+      sql`(${table.failureCode} is null and jsonb_array_length(${table.targets}) > 0) or (${table.failureCode} is not null and jsonb_array_length(${table.targets}) = 0)`,
+    ),
+  ],
+);
+
+export const workItemPullRequestCurrentDeliveryResolution = pgTable(
+  "work_item_pull_request_current_delivery_resolutions",
+  {
+    workItemId: text().notNull(),
+    repository: text().notNull(),
+    number: integer().notNull(),
+    resolutionId: uuid()
+      .notNull()
+      .references(() => workItemPullRequestDeliveryResolution.id, {
+        onDelete: "restrict",
+      }),
+    selectedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "work_item_pr_current_delivery_resolutions_pk",
+      columns: [table.workItemId, table.repository, table.number],
+    }),
+    foreignKey({
+      name: "work_item_pr_current_delivery_resolutions_link_fk",
+      columns: [table.workItemId, table.repository, table.number],
+      foreignColumns: [
+        workItemPullRequest.workItemId,
+        workItemPullRequest.repository,
+        workItemPullRequest.number,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("work_item_pr_current_delivery_resolution_id_uidx").on(
+      table.resolutionId,
+    ),
+  ],
+);
+
 export const externalDelivery = pgTable(
   "external_deliveries",
   {
@@ -388,7 +569,7 @@ export const githubDeliveryProcessing = pgTable(
     provider: text().notNull().default("github"),
     repository: text().notNull(),
     commitSha: text(),
-    disposition: text().$type<"processed" | "ignored" | "unmatched" | "failed">().notNull(),
+    disposition: text().$type<GitHubDeliveryDisposition>().notNull(),
     observation: jsonb().$type<GitHubObservation>(),
     failureCode: text(),
     updatedAt: timestamp({ withTimezone: true }).notNull(),
@@ -504,6 +685,40 @@ export const completionPolicyRevision = pgTable(
   ],
 );
 
+export const repositoryCompletionPolicyDefaultRevision = pgTable(
+  "repository_completion_policy_default_revisions",
+  {
+    repository: text().notNull(),
+    revision: integer().notNull(),
+    policyId: text().notNull(),
+    policyRevision: integer().notNull(),
+    enabled: boolean().notNull().default(true),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({
+      name: "repository_completion_policy_default_revisions_pk",
+      columns: [table.repository, table.revision],
+    }),
+    foreignKey({
+      name: "repository_completion_policy_default_revisions_policy_fk",
+      columns: [table.policyId, table.policyRevision],
+      foreignColumns: [
+        completionPolicyRevision.policyId,
+        completionPolicyRevision.revision,
+      ],
+    }).onDelete("restrict"),
+    check(
+      "repository_completion_policy_default_revisions_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+    check(
+      "repository_completion_policy_default_revisions_revision_positive_check",
+      sql`${table.revision} > 0`,
+    ),
+  ],
+);
+
 export const workItemCompletionPolicy = pgTable(
   "work_item_completion_policies",
   {
@@ -512,6 +727,9 @@ export const workItemCompletionPolicy = pgTable(
       .references(() => workItem.id, { onDelete: "restrict" }),
     policyId: text().notNull(),
     policyRevision: integer().notNull(),
+    assignmentSource: completionPolicyAssignmentSourceEnum()
+      .notNull()
+      .default("explicit"),
     assignedAt: timestamp({ withTimezone: true }).notNull(),
   },
   (table) => [
@@ -580,6 +798,139 @@ export const workItemCompletionCandidate = pgTable(
     }).onDelete("restrict"),
     uniqueIndex("work_item_completion_candidates_evaluation_id_uidx").on(
       table.evaluationId,
+    ),
+  ],
+);
+
+export const deliveryActionRequest = pgTable(
+  "delivery_action_requests",
+  {
+    id: uuid().primaryKey(),
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    kind: deliveryActionKindEnum().notNull(),
+    provider: text().notNull(),
+    evidenceKind: deliveryEvidenceKindEnum().notNull(),
+    evidenceExternalId: text().notNull(),
+    repository: text().notNull(),
+    commitSha: text().notNull(),
+    policyId: text().notNull(),
+    policyRevision: integer().notNull(),
+    initiatingSessionId: text(),
+    unavailableSessionFallback: deliveryRecoveryFallbackEnum().notNull(),
+    requestedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    foreignKey({
+      name: "delivery_action_requests_policy_revision_fk",
+      columns: [table.policyId, table.policyRevision],
+      foreignColumns: [
+        completionPolicyRevision.policyId,
+        completionPolicyRevision.revision,
+      ],
+    }).onDelete("restrict"),
+    uniqueIndex("delivery_action_requests_evidence_identity_uidx").on(
+      table.workItemId,
+      table.provider,
+      table.evidenceKind,
+      table.evidenceExternalId,
+    ),
+    index("delivery_action_requests_work_item_id_idx").on(table.workItemId),
+    check(
+      "delivery_action_requests_provider_check",
+      sql`${table.provider} = 'github'`,
+    ),
+    check(
+      "delivery_action_requests_kind_evidence_check",
+      sql`(${table.kind} = 'merge' and ${table.evidenceKind} = 'pull_request') or (${table.kind} = 'deployment' and ${table.evidenceKind} = 'deployment')`,
+    ),
+    check(
+      "delivery_action_requests_repository_check",
+      sql`${table.repository} = lower(${table.repository}) and ${table.repository} ~ '^[a-z0-9_.-]+/[a-z0-9_.-]+$'`,
+    ),
+    check(
+      "delivery_action_requests_commit_sha_check",
+      sql`${table.commitSha} ~ '^[0-9a-f]{40}$'`,
+    ),
+  ],
+);
+
+export const deliveryActionResult = pgTable(
+  "delivery_action_results",
+  {
+    id: uuid().primaryKey(),
+    requestId: uuid()
+      .notNull()
+      .references(() => deliveryActionRequest.id, { onDelete: "restrict" }),
+    evidenceObservationId: uuid()
+      .notNull()
+      .references(() => deliveryEvidenceObservation.id, {
+        onDelete: "restrict",
+      }),
+    state: deliveryActionResultStateEnum().notNull(),
+    recordedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("delivery_action_results_request_observation_uidx").on(
+      table.requestId,
+      table.evidenceObservationId,
+    ),
+    index("delivery_action_results_request_id_idx").on(table.requestId),
+  ],
+);
+
+export const deliveryRecovery = pgTable(
+  "delivery_recoveries",
+  {
+    id: uuid().primaryKey(),
+    workItemId: text()
+      .notNull()
+      .references(() => workItem.id, { onDelete: "restrict" }),
+    actionRequestId: uuid()
+      .notNull()
+      .references(() => deliveryActionRequest.id, { onDelete: "restrict" }),
+    actionResultId: uuid()
+      .notNull()
+      .references(() => deliveryActionResult.id, { onDelete: "restrict" }),
+    initiatingSessionId: text(),
+    unavailableSessionFallback: deliveryRecoveryFallbackEnum().notNull(),
+    attentionRequestId: uuid().notNull(),
+    createdAt: timestamp({ withTimezone: true }).notNull(),
+    resolvedAt: timestamp({ withTimezone: true }),
+  },
+  (table) => [
+    uniqueIndex("delivery_recoveries_action_result_id_uidx").on(
+      table.actionResultId,
+    ),
+    uniqueIndex("delivery_recoveries_attention_request_id_uidx").on(
+      table.attentionRequestId,
+    ),
+    index("delivery_recoveries_session_unresolved_idx")
+      .on(table.initiatingSessionId, table.createdAt)
+      .where(sql`${table.resolvedAt} is null`),
+  ],
+);
+
+export const deliveryRecoveryDelivery = pgTable(
+  "delivery_recovery_deliveries",
+  {
+    id: uuid().primaryKey(),
+    recoveryId: uuid()
+      .notNull()
+      .references(() => deliveryRecovery.id, { onDelete: "restrict" }),
+    kind: deliveryRecoveryDeliveryKindEnum().notNull(),
+    targetSessionId: text(),
+    reservedAt: timestamp({ withTimezone: true }).notNull(),
+  },
+  (table) => [
+    uniqueIndex("delivery_recovery_deliveries_route_uidx").on(
+      table.recoveryId,
+      table.kind,
+    ),
+    check(
+      "delivery_recovery_deliveries_target_check",
+      sql`(${table.kind} = 'push' and ${table.targetSessionId} is not null and btrim(${table.targetSessionId}) <> '') or (${table.kind} = 'replacement_launch' and ${table.targetSessionId} is null)`,
     ),
   ],
 );
@@ -825,7 +1176,14 @@ export const attentionRequest = pgTable(
     workItemId: text()
       .notNull()
       .references(() => workItem.id, { onDelete: "restrict" }),
-    requestingLeaseId: uuid().notNull(),
+    requestingLeaseId: uuid(),
+    deliveryRecoveryId: uuid().references(() => deliveryRecovery.id, {
+      onDelete: "restrict",
+    }),
+    deliveryResolutionId: uuid().references(
+      () => workItemPullRequestDeliveryResolution.id,
+      { onDelete: "restrict" },
+    ),
     kind: text().notNull(),
     question: text().notNull(),
     note: text(),
@@ -841,6 +1199,16 @@ export const attentionRequest = pgTable(
     index("attention_requests_work_item_id_created_at_idx").on(
       table.workItemId,
       table.createdAt,
+    ),
+    uniqueIndex("attention_requests_delivery_recovery_id_uidx")
+      .on(table.deliveryRecoveryId)
+      .where(sql`${table.deliveryRecoveryId} is not null`),
+    uniqueIndex("attention_requests_delivery_resolution_id_uidx")
+      .on(table.deliveryResolutionId)
+      .where(sql`${table.deliveryResolutionId} is not null`),
+    check(
+      "attention_requests_source_check",
+      sql`num_nonnulls(${table.requestingLeaseId}, ${table.deliveryRecoveryId}, ${table.deliveryResolutionId}) = 1`,
     ),
     check(
       "attention_requests_kind_not_blank_check",

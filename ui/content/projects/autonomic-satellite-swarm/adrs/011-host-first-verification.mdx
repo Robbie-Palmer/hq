@@ -4,11 +4,15 @@ status: "Accepted"
 date: "2026-09-04"
 tech_stack: ["Catch2", "GitHub Actions", "CMake", "clang-tidy"]
 supersedes: "autonomic-satellite-swarm:006-host-side-behavior-tests"
+implements_product_decisions:
+  - "autonomic-satellite-swarm:001-reproducible-evidence-bounded-revival"
 ---
 
 # Context
 
-The exact 2016 bench setup, including its three boards, infrared components, sensors, wiring, and
+[PDR 001](/projects/autonomic-satellite-swarm/pdrs/001-reproducible-evidence-bounded-revival)
+requires reproducible software evidence without presenting compilation as physical proof. The exact
+2016 bench setup, including its three boards, infrared components, sensors, wiring, and
 rover, is no longer available. The Uno R3 itself is neither discontinued nor unsupported: Arduino
 [continues to sell and support it](https://support.arduino.cc/hc/en-us/articles/9350551575964-What-s-the-difference-between-UNO-R3-and-UNO-R4-boards).
 Reconstructing the full setup for every behavioral test would still make the project difficult to

@@ -4,7 +4,6 @@ description: "A conversational agent using RAG, hybrid search, and SSE streaming
 date: "2023-09-01"
 tech_stack:
   - "TypeScript"
-  - "Python"
   - "OpenRouter"
   - "Weaviate"
   - "PostgreSQL"
@@ -35,11 +34,48 @@ I architected and built the real-time RAG infrastructure:
 
 * **Hybrid Search**: Leveraged **Weaviate's** native hybrid search to combine vector embeddings with BM25 keyword scoring, ensuring precise product retrieval.
 * **Data Orchestration**: Integrated structured user data from **PostgreSQL** with unstructured product embeddings from Weaviate to dynamically construct the LLM context.
-* **Real-time Streaming**: Built Server-Sent Events (SSE) pipelines in **Python** and **TypeScript** to stream LLM tokens directly to the **Android** and **Swift** mobile apps, minimizing perceived latency.
-* **Model Evaluation**: Leveraged **OpenRouter** to iterate on different models and prompting strategies, optimizing for response quality and speed.
+* **Real-time Streaming**: Built the Server-Sent Events (SSE) layer in **TypeScript** to stream LLM tokens to a SvelteKit UI, an Android app, and a **Swift** app.
+* **Model Routing**: Ran a self-hosted Llama 70B model and used **OpenRouter** to route requests to third-party LLMs.
 
 # Impact
 
 * **Scalable Architecture**: Established a robust streaming RAG pipeline that successfully bridged disparate data sources (Postgres, Weaviate) with mobile experiences.
 * **Improved Retrieval**: Hybrid search implementation significantly outperformed naive vector-only approaches for specific product queries.
 * **Strategic Direction**: The implementation provided critical insights into the capabilities of LLMs for high-trust commercial tasks, shaping the platform's future interaction models.
+
+# Request flow
+
+Self-hosted Llama 70B inference ran on Bestomer-operated infrastructure. The OpenRouter path crossed that ownership boundary and sent requests to third-party LLMs.
+
+<Mermaid
+  chart={`flowchart TD
+clients["Client applications<br/>SvelteKit UI, Android app, Swift app"]
+
+subgraph owned["Bestomer-operated"]
+postgres[("PostgreSQL<br/>account data")]
+weaviate[("Weaviate<br/>hybrid product search")]
+rag["TypeScript RAG service"]
+route{"Model route"}
+local["Self-hosted<br/>Llama 70B"]
+stream["TypeScript SSE response"]
+end
+
+subgraph external["External model route"]
+openrouter["OpenRouter routing<br/>to third-party LLMs"]
+end
+
+clients -->|question| rag
+postgres -->|account context| rag
+weaviate -->|product context| rag
+rag --> route
+route -->|local inference| local
+route -->|external inference| openrouter
+local -->|tokens| stream
+openrouter -->|tokens| stream
+stream -->|SSE| clients
+`}
+/>
+
+The SvelteKit, Android, and Swift clients sent shopping questions to the TypeScript RAG service. The service combined account data from PostgreSQL with hybrid product-search results from Weaviate, then chose either self-hosted Llama 70B or an external model routed through OpenRouter. The same TypeScript service returned generated tokens to each client over SSE.
+
+The diagram stays at the request-flow and service-ownership level. It does not claim a private deployment topology or disclose internal endpoints.

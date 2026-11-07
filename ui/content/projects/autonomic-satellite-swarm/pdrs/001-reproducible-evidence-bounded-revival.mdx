@@ -1,0 +1,74 @@
+---
+title: "PDR 001: Revive the prototype as reproducible research"
+date: "2026-09-04"
+status: "Accepted"
+decision_date: "2026-09-04"
+evidence:
+  - title: "Initial software-revival commit"
+    url: "https://github.com/Robbie-Palmer/hq/commit/2638d2a5"
+---
+
+## Context
+
+The original three-board bench was no longer available when work resumed in
+2026\. Its source still contained the research idea and published examples, but
+hardware concerns, message encoding, scoring, health policy, and coordination
+were tightly coupled. Unsafe ownership and stronger physical language also made
+the repository hard to reuse without repeating claims that its evidence did
+not support.
+
+Freezing the old code would preserve defects and leave the experiment tied to
+missing hardware. Replacing it with a new satellite design would erase the
+historical behavior before it could be understood. The useful product was a
+research artifact that could reproduce the original coordination experiment,
+expose its assumptions, and let later experiments replace one policy or model
+at a time.
+
+## Decision
+
+Revive the prototype as an honest, reproducible research artifact. Preserve the
+historical three-agent behavior and published score examples as characterized
+inputs and outputs. Make the coordination core runnable without the original
+bench, and keep hardware, transport, scoring, health, and simulation concerns
+replaceable at explicit boundaries.
+
+Every claim must match its evidence. Host tests and deterministic simulation
+may establish software behavior. Firmware compilation establishes only that a
+reference target builds. Simulated motion, network behavior, resource use, and
+faults must name their models and inputs. None of those results turns the
+prototype into flight software or validates physical integration.
+
+Keep [PDR 000](/projects/autonomic-satellite-swarm/pdrs/000-bounded-bench-demonstration)
+as the original product boundary. Later work may improve the models and
+verification, but it must preserve the distinction between demonstrated
+behavior, historical assumptions, and unverified claims.
+
+## Consequences
+
+A contributor can study and change the coordination experiment without owning
+the original hardware. Characterization tests keep modernization from silently
+rewriting the historical result, while explicit interfaces allow a better
+scorer, transport, health policy, or simulation model to replace its
+predecessor.
+
+The repository must carry more provenance and caveats than a conventional demo.
+Deterministic output can still be scientifically weak if its model or inputs
+are weak. New capabilities therefore need their own stated assumptions,
+comparison evidence, and decision records.
+
+## Evaluation
+
+The revival succeeds when a contributor can clone the repository, reproduce
+the coordination behavior without hardware, identify the evidence behind each
+claim, and replace one hardware or research assumption without rewriting the
+others. Public pages, Markdown output, tests, and simulation artifacts must use
+the same evidence boundary.
+
+## Migration note
+
+This record preserves the revival direction first published with the project
+on 2026-09-05. Its date follows the reconstructed 2026-09-04 decision date on
+the revival ADRs that implement it. The project had already made the
+modernization decision; this migration only changes its record structure. ADRs
+007 through 011 retain the technical choices for the portable core, toolchain,
+protocol, historical scoring, and verification.

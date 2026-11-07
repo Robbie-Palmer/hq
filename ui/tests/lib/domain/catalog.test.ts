@@ -28,6 +28,25 @@ describe("component catalog", () => {
     );
   });
 
+  it("accepts generated delivery targets as project-owned catalog records", () => {
+    expect(
+      CatalogRecordSchema.parse({
+        id: "delivery-target:recipe-site/site-ui",
+        kind: "delivery-target",
+        name: "Recipe Site site-ui delivery target",
+        project: "project:recipe-site",
+        sourcePaths: ["ui"],
+        relations: [
+          { type: "part_of", target: "system:recipe-site/application" },
+        ],
+      }),
+    ).toMatchObject({
+      id: "delivery-target:recipe-site/site-ui",
+      kind: "delivery-target",
+      project: "project:recipe-site",
+    });
+  });
+
   it("rejects duplicate IDs, alias chains, and containment cycles", () => {
     const duplicate = CatalogManifestSchema.safeParse({
       records: [component, component],

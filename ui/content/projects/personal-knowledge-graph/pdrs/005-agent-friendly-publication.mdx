@@ -1,0 +1,60 @@
+---
+title: "PDR 005: Give agents direct access to every major public page"
+date: "2026-06-12"
+status: "Accepted"
+decision_date: "2026-06-12"
+informed_by_adrs:
+  - "personal-knowledge-graph:015-ssg"
+  - "personal-knowledge-graph:020-mdx"
+  - "personal-knowledge-graph:033-content-graph-indexes"
+---
+
+## Context
+
+Agents can help research, maintain, and navigate the public graph only when
+they can retrieve its content reliably. Browser HTML mixes the record with
+navigation, styling, interactive controls, and material hidden behind tabs.
+Command-line tools and coding agents may need browser automation or lose part
+of the page.
+
+The repository already stores the source as MDX and knows the relationships
+between content records. It can publish an agent-friendly representation from
+the same source instead of maintaining a second body of prose.
+
+## Decision
+
+Give agents and text-first readers direct access to every major public page.
+Publish a canonical plain-Markdown twin at the same URL with a `.md` suffix,
+index the available pages in `/llms.txt`, and provide `/llms-full.txt` for
+consumers that need one bounded corpus.
+
+The agent-friendly form must identify the same record and expose the same
+public claims as the HTML page. Preserve headings, links, useful image
+descriptions, code, diagrams, and structured facts. Remove browser controls and
+private presenter notes. Convert interactive content to useful text where
+possible and label a genuine omission.
+
+## Consequences
+
+Agents can retrieve, cite, compare, and propose changes to public content
+without driving a browser. Content hidden behind browser tabs becomes directly
+addressable, and text-first readers gain the same route.
+
+Every new major page type needs an agent-friendly representation and
+validation. Generated output can expose material accidentally if a component
+uses visual hiding as a privacy boundary. The public source must make the
+disclosure boundary explicit.
+
+## Evaluation
+
+An agent should be able to start at `/llms.txt`, retrieve each indexed page,
+identify its canonical HTML route, and recover the public claims needed to
+understand or maintain it. Links must resolve and private content must remain
+absent.
+
+## Migration note
+
+This record preserves the agent-access decision delivered on 2026-06-12 by
+pull request 544. The static generation, MDX, and content-graph ADRs predate and
+informed it. Creating the PDR adds decision provenance but does not change the
+published Markdown contract.

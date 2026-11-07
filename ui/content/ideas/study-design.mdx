@@ -1,0 +1,97 @@
+---
+title: "Study Design"
+description: "The plan that connects a research question to the population, data, comparisons, and analysis needed to answer it."
+source_url: "https://miguelhernan.org/whatifbook"
+related_ideas:
+  - "randomization"
+  - "sampling-bias"
+  - "data-provenance"
+  - "feature-engineering"
+---
+
+Study design is the plan for turning a question into evidence. It defines the target population,
+the quantities to estimate, the observations or interventions needed, and the comparisons that
+will support the answer. It also states which claims the resulting evidence cannot support.
+
+A design should identify the units being studied, how they enter the study, what treatment or
+exposure each unit receives, which outcomes are measured, and when measurement occurs. The
+analysis belongs in the same plan. A precise model cannot recover a comparison that the data never
+made possible.
+
+## Start with the question and the target
+
+Descriptive, predictive, and causal questions need different evidence. Estimating the prevalence
+of a condition asks how common it is in a defined population. Predicting an outcome asks how well
+available information forecasts it in the setting where the prediction will be used. Estimating a
+causal effect asks how an outcome would differ under alternative actions or exposures.
+
+The target must be concrete enough to design around. "Does the treatment work?" leaves out the
+population, treatment versions, comparison, outcome, and period. Those choices define the
+estimand, the quantity the study is trying to estimate. Changing one can change the answer without
+any calculation being wrong.
+
+[Hernán and Robins](https://miguelhernan.org/whatifbook) use a hypothetical target trial to make
+these choices explicit for causal questions. An observational study can then try to emulate that
+trial. Its causal interpretation depends on assumptions about confounding, selection, measurement,
+and the analysis. Observational data can support causal claims when those assumptions are credible.
+The data alone cannot establish them.
+
+## Assignment and sampling solve different problems
+
+[Randomisation](/ideas/randomization) assigns treatments or conditions within a study. A known
+assignment procedure can make treatment groups comparable and support inference based on the
+design. It primarily strengthens claims about differences caused by the assigned treatment.
+
+Sampling determines which units enter the study. A probability sample can support estimates for a
+target population when the sampling frame, participation, measurement, and analysis match that
+goal. [Sampling bias](/ideas/sampling-bias) arises when the inclusion process systematically
+distorts the estimate.
+
+Random treatment assignment does not make the participants representative of a wider population.
+Random sampling does not assign treatments or remove confounding between an observed exposure and
+an outcome. A study can use either process, both, or neither. The claims must follow the processes
+it actually used.
+
+## Validity depends on the whole design
+
+A successful random assignment can still sit inside a weak study. Participants may not follow
+their assignment, outcomes may be measured differently between groups, or attrition may depend on
+both treatment and outcome. A precise estimate for the enrolled sample may not apply to the target
+population.
+
+Design choices should cover:
+
+* recruitment, eligibility, and the sampling frame;
+* treatment, exposure, comparison, and assignment;
+* outcome definitions, measurement procedures, and follow-up;
+* missing data, non-adherence, and departures from the plan;
+* an analysis tied to the design and the estimand;
+* ethical constraints, including who bears risks and who can benefit.
+
+[Data provenance](/ideas/data-provenance) can record how these choices produced the analysed data.
+[Feature engineering](/ideas/feature-engineering) can change what a model learns from those data.
+It cannot repair an unidentified target or a comparison the design did not create.
+
+The originating essay, ["Effective and Ethical Data Science Study
+Design"](/blog/2023-02-24-effective-ethical-data-science-study-design), argues that data collection
+and modelling decisions carry ethical consequences. That is a useful prompt for design review.
+The author presents the broader philosophical claims as an argument. They are separate from
+statistical definitions.
+
+## Questions it prompts
+
+* What exact quantity should the study estimate, for which population and period?
+* Which comparison makes that quantity identifiable?
+* How do units enter the study, receive an exposure or treatment, and leave the analysis?
+* Which assumptions connect the observed data to the intended claim?
+* Which design failures could the planned analysis detect, and which would remain hidden?
+
+## Sources
+
+* Hernán, Miguel A., and James M. Robins. [*Causal Inference: What
+  If*](https://miguelhernan.org/whatifbook). Chapman & Hall/CRC, 2020, updated online edition.
+* Duflo, Esther, Rachel Glennerster, and Michael Kremer. ["Using Randomization in Development
+  Economics Research: A Toolkit"](https://www.nber.org/papers/t0333.pdf). NBER Technical Working
+  Paper 333, 2006.
+* Palmer, Robbie. ["Effective and Ethical Data Science Study
+  Design"](/blog/2023-02-24-effective-ethical-data-science-study-design). 2023. Originating essay.

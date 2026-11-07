@@ -1,0 +1,45 @@
+{
+  "$defs": {
+    "Workstream": {
+      "enum": [
+        "whole_slide_tissue_artifact_quality",
+        "tiling_magnification_policy",
+        "nucleus_detection_segmentation_classification"
+      ],
+      "title": "Workstream",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "benchmark_id": {
+      "pattern": "^pathologize\\.[a-z0-9-]+/v[0-9]+$",
+      "title": "Benchmark Id",
+      "type": "string"
+    },
+    "experiments": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Experiments",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "workstream": {
+      "$ref": "#/$defs/Workstream"
+    }
+  },
+  "required": [
+    "schema_version",
+    "benchmark_id",
+    "workstream",
+    "experiments"
+  ],
+  "title": "BenchmarkProject",
+  "type": "object"
+}

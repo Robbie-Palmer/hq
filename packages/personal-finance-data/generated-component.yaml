@@ -11,6 +11,19 @@ ownership:
   template_files:
     - "generated-component.yaml"
     - "mise.toml"
+    - "drizzle.config.ts"
+    - "drizzle/0000_create_authenticated_runtime.sql"
+    - "drizzle/meta/0000_snapshot.json"
+    - "package.json"
+    - "src/connection.ts"
+    - "src/index.ts"
+    - "src/runtime-schema.ts"
+    - "src/schema.ts"
+    - "tests/runtime-schema.test.ts"
+  project_extensions:
+    - "src/project-schema.ts"
+  runtime_role: "relational-data"
+
   product_logic: "project"
   secrets: "external"
 rollout:

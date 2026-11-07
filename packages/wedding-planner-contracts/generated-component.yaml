@@ -1,0 +1,24 @@
+# Managed by Copier; product logic and secret values do not belong in this file.
+schema_version: 1
+component:
+  id: "wedding-planner-contracts"
+  stable_id: "component:wedding-planner/wedding-planner-contracts"
+  name: "Wedding Planner API contracts"
+  kind: "typescript-package"
+  path: "packages/wedding-planner-contracts"
+  project: "project:wedding-planner"
+ownership:
+  template_files:
+    - "generated-component.yaml"
+    - "mise.toml"
+  product_logic: "project"
+  secrets: "external"
+rollout:
+  operational_checks:
+    - id: "api-contract-conformance"
+      command: "mise //workers/wedding-planner-api:lint:api"
+    - id: "copier-profile-conformance"
+      command: "mise //packages/project-generator:check"
+    - id: "relational-integration"
+      command: "mise //workers/wedding-planner-api:test:integration"
+  migration_checkpoints: []

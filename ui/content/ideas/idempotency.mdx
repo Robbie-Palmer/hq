@@ -1,0 +1,83 @@
+---
+title: "Idempotency"
+description: "A retry contract in which repeating the same intended operation does not create extra effects."
+source_url: "https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2"
+related_ideas:
+  - "two-generals-problem"
+  - "commit-log"
+  - "distributed-locking"
+---
+
+An idempotent operation has the same intended effect when applied more than once as it has when
+applied once. This property lets a client retry after losing a response without accidentally creating
+another order, payment, job, or resource.
+
+The client still cannot know whether the first attempt ran. A timeout can occur before the server
+receives the request, while the server is processing it, or after the effect commits but before the
+response arrives. Idempotency makes that uncertainty safe to handle by retrying.
+
+## Identify intent explicitly
+
+[RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2) defines an HTTP method as
+idempotent when multiple identical requests have the same intended effect as one request. `PUT`,
+`DELETE`, and safe HTTP methods have idempotent semantics. The server may still record every request
+or return a different response on a later attempt.
+
+Operations such as creating a payment or starting a job use `POST`, where identical payloads can
+represent either one retried intent or separate deliberate actions. Comparing payloads cannot
+settle that question. The caller needs to assign a stable idempotency key to one intended operation
+and reuse that key only for retries of that operation.
+
+The service should scope the key to the caller and operation. It should also bind the key to the
+request's relevant parameters. Reusing a key with different intent must fail instead of returning an
+unrelated earlier result.
+
+## Store the key with the effect
+
+When a service first receives a key, it records enough state to recognize later attempts. Recording
+the key and committing the protected effect need one atomic boundary. Otherwise the service can
+record the key without performing the action, or perform the action and fail before recording the
+key. Either ordering breaks safe retry.
+
+A repeated request can return the stored result or a response with the same meaning. The
+[AWS Builders Library](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/)
+uses caller-provided request identifiers for this contract. Its account also covers late requests,
+requests that reuse a key with different parameters, and the period for which a service remembers a
+key.
+
+Retention is part of the API contract. If the service forgets a key after one day, a retry after that
+window may perform the operation again. Clients need to know the window, and services need a policy
+for requests that arrive after it.
+
+## Separate idempotency from delivery claims
+
+Idempotency does not make a network deliver a message exactly once. The same request may arrive many
+times, and the service may execute internal steps more than once. The contract limits the externally
+visible effect associated with one request identity.
+
+It also does not cover an uncoordinated side effect. If a transaction stores the idempotency key and
+database row but sends an email outside that transaction, a crash can still lose or duplicate the
+email. An outbox, a downstream idempotency key, or reconciliation must extend the boundary.
+
+[Commit logs](/ideas/commit-log) preserve accepted changes in order. They can help retain results or
+drive downstream effects, but a log does not decide whether two requests express the same intent.
+Distributed locks serialize selected work, while idempotency makes repetition safe. Some operations
+need both.
+
+Retries still need limits, backoff, and error classification. Idempotency makes a repeated operation
+safe; it does not make a permanent validation error succeed or prevent retry traffic from overloading
+a failing service.
+
+## Questions it prompts
+
+* Which value identifies one caller's intended operation?
+* Is the identifier recorded atomically with the protected effect?
+* What happens when the same key arrives with different parameters?
+* How long does the service remember completed keys?
+* Which downstream side effects sit outside the idempotency boundary?
+
+## Sources
+
+* IETF. [RFC 9110, section 9.2.2, "Idempotent Methods"](https://www.rfc-editor.org/rfc/rfc9110.html#section-9.2.2).
+* Featonby, Malcolm. ["Making retries safe with idempotent APIs"](https://aws.amazon.com/builders-library/making-retries-safe-with-idempotent-APIs/).
+  AWS Builders Library.

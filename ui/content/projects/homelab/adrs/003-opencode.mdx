@@ -3,15 +3,17 @@ title: "ADR 003: OpenCode"
 date: "2026-08-02"
 status: "Accepted"
 tech_stack: ["OpenCode"]
+implements_product_decisions:
+  - "homelab:005-run-persistent-agent-work-from-personal-devices"
 ---
 
 # Context
 
-The hub's harness lineup is Claude Code, Codex, and Grok Build, three
-proprietary harnesses, each tied to a commercial model family and subscription.
-I want at least one open-source harness in the mix for the same reasons the
-rest of the lab is built on open tooling: no account dependency, no per-token
-surprise, and the freedom to point it at any model.
+[PDR 005](/projects/homelab/pdrs/005-run-persistent-agent-work-from-personal-devices)
+requires a multi-harness workflow without collapsing provider accounts into
+one dependency. The existing lineup is Claude Code, Codex, and Grok Build,
+three proprietary harnesses tied to commercial model families. An open-source,
+model-agnostic harness would cover a different failure and pricing boundary.
 
 OpenCode is an open-source, terminal-based coding harness that is intentionally
 model-agnostic. It can run against API providers or any OpenAI-compatible

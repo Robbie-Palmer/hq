@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: dcgm-exporter
+  namespace: gpu-telemetry
+spec:
+  internalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/name: dcgm-exporter
+  ports:
+    - name: metrics
+      port: 9400
+      protocol: TCP
+      targetPort: metrics
+  type: ClusterIP

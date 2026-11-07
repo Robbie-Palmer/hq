@@ -71,10 +71,11 @@ describe("Asset Tracker household backups", () => {
       getDemoAssetTrackerData(),
       createdAt,
     );
+    const newerVersion = ASSET_TRACKER_BACKUP_VERSION + 1;
 
     expect(() =>
-      parseAssetTrackerBackup({ ...backup, schemaVersion: 2 }),
-    ).toThrow(/version 2.*Update Asset Tracker/);
+      parseAssetTrackerBackup({ ...backup, schemaVersion: newerVersion }),
+    ).toThrow(`version ${newerVersion}. Update Asset Tracker`);
   });
 
   it("rejects a damaged summary before restore", () => {

@@ -3,6 +3,7 @@ import type {
   HousingPlanningPosition,
   HousingStrategyOutcome,
 } from "@/app/_projects/personal-finance-app/domain";
+import { HousingValueDisclosure } from "./housing-value-disclosure";
 
 type Formatters = {
   money: (value: number) => string;
@@ -50,7 +51,7 @@ export function HousingPositionSummary({
   money: Formatters["money"];
 }>) {
   const values = [
-    ["Recorded home value", position.homeValue],
+    ["Selected home value", position.homeValue],
     ["Mortgage balance", position.mortgageBalance],
     ["Total home equity", position.homeEquity],
     ["Non-housing portfolio", position.withdrawalCapital],
@@ -69,6 +70,27 @@ export function HousingPositionSummary({
         The non-housing portfolio is cash and investments, less non-mortgage
         debts. It excludes the house and mortgage shown separately.
       </p>
+      {position.homeValueRange != null &&
+        position.homeValueRange.lower !== position.homeValueRange.upper && (
+          <p className="text-xs text-muted-foreground">
+            Current value range {money(position.homeValueRange.lower)} to{" "}
+            {money(position.homeValueRange.upper)}. Current equity ranges from{" "}
+            {money(position.homeEquityRange?.lower ?? position.homeEquity)} to{" "}
+            {money(position.homeEquityRange?.upper ?? position.homeEquity)}.
+          </p>
+        )}
+      {(position.valuationBasis?.length ?? 0) > 0 && (
+        <details className="rounded-md border p-3">
+          <summary className="cursor-pointer text-sm font-medium">
+            Property value used by these decisions
+          </summary>
+          <div className="mt-3 grid gap-2">
+            {position.valuationBasis?.map((value) => (
+              <HousingValueDisclosure key={value.id} value={value} compact />
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
@@ -107,7 +129,14 @@ export function HousingStrategySummary({
                 {outcome.label}
               </th>
               <td className="px-3 py-3 text-right">
-                {money(outcome.totalNetWorth)}
+                <span>{money(outcome.totalNetWorth)}</span>
+                {outcome.valuationSensitivity.totalNetWorth.lower !==
+                  outcome.valuationSensitivity.totalNetWorth.upper && (
+                  <span className="block text-xs text-muted-foreground">
+                    {money(outcome.valuationSensitivity.totalNetWorth.lower)} to{" "}
+                    {money(outcome.valuationSensitivity.totalNetWorth.upper)}
+                  </span>
+                )}
               </td>
               <td className="px-3 py-3 text-right">
                 {money(outcome.withdrawalCapital)}

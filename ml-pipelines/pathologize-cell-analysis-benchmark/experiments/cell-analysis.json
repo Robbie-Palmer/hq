@@ -1,0 +1,46 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "cell-analysis-contract-v1",
+  "workstream": "nucleus_detection_segmentation_classification",
+  "purpose": "Exercise nucleus detection, instance segmentation, and synthetic cell-class contracts without clinical labels.",
+  "clinical_validity_claimed": false,
+  "random_seed": 20261106,
+  "data_source": {
+    "kind": "synthetic_fixture",
+    "fixture_manifest": "data/synthetic/manifest.json",
+    "dataset_id": "pathologize-synthetic-contract-fixtures-v1"
+  },
+  "split_policy": {
+    "evaluation_split": "test",
+    "leakage_units": ["subject_id", "specimen_id", "block_id", "slide_id", "acquisition_id"]
+  },
+  "baseline": {
+    "adapter_id": "deterministic-color-v1",
+    "kind": "builtin",
+    "entrypoint": "pathologize_benchmark_contracts.adapters:DeterministicColorBaseline",
+    "version": "1.0.0",
+    "artifact_sha256": null
+  },
+  "candidate": null,
+  "objectives": [
+    {"metric": "detection_f1", "role": "primary", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": 0.0, "candidate_max_regression": 0.0},
+    {"metric": "semantic_dice", "role": "guardrail", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": null, "candidate_max_regression": 0.01},
+    {"metric": "mean_matched_iou", "role": "guardrail", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": null, "candidate_max_regression": 0.01},
+    {"metric": "classification_macro_f1", "role": "guardrail", "direction": "maximize", "unit": "ratio", "baseline_floor": 0.95, "candidate_min_delta": null, "candidate_max_regression": 0.01},
+    {"metric": "binary_panoptic_quality", "role": "diagnostic", "direction": "maximize", "unit": "ratio", "baseline_floor": null, "candidate_min_delta": null, "candidate_max_regression": null}
+  ],
+  "resource_budget": {
+    "max_input_bytes": 200000,
+    "max_prediction_bytes": 200000,
+    "max_pixels_read": 10000,
+    "max_accelerator_seconds": 0
+  },
+  "super_resolution": {
+    "enabled": false,
+    "status": "future_evaluation_only",
+    "source_pixels_preserved": true,
+    "synthetic_detail_claims_forbidden": true,
+    "separate_native_resolution_scorecard_required": true
+  },
+  "parameters": {"instance_match_iou": 0.5}
+}

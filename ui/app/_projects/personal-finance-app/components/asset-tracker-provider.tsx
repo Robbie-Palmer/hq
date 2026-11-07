@@ -81,6 +81,7 @@ import {
   type HmrcEmploymentObservation,
   type Household,
   type HouseholdScope,
+  type HouseholdSoleTraderScenario,
   type HousingPlanningPosition,
   type ImportAccountHistoryInput,
   type ImportIncomeHistoryInput,
@@ -106,6 +107,8 @@ import {
   type RecordDecisionObservationInput,
   type RecordTransferInput,
   type RecurringFlow,
+  type ReplacementIncomeThreshold,
+  type ReplacementIncomeThresholdRequest,
   type RevisitAdoptedDecisionInput,
   reconcileAdoptedDecisionForecast,
   type SalaryHistoryRecord,
@@ -119,14 +122,17 @@ import {
   type SetExpectedReturnInput,
   type SetMortgageTermsInput,
   type SetPlanningChecklistItemStatusInput,
+  type SetPropertyValueSelectionInput,
   type SpendingBaseline,
   SUPPORTED_CURRENCIES,
   scopeAssetTrackerData,
+  solveReplacementIncomeThresholds,
   suggestedAnnualEmploymentIncomePence,
   type TaxPositionData,
   type Transfer,
   type UpdateCashFlowDecisionInput,
   type ValuationIssue,
+  withSelectedPropertyValues,
 } from "@/app/_projects/personal-finance-app/domain";
 import {
   buildBaseCurrencyFlowSankeyData,
@@ -179,11 +185,15 @@ interface AssetTrackerContextValue {
     scenario: string | JobMoveScenario,
     horizonMonths: number,
   ): JobMoveScenarioComparison;
+  solveReplacementIncomeThresholds(
+    input: ReplacementIncomeThresholdRequest,
+  ): ReplacementIncomeThreshold[];
   flowSankeyData: FlowSankeyData;
   financialIndependence: PortfolioFinancialIndependence;
   housingPlanningPosition: HousingPlanningPosition | null;
   taxEstimate: HouseholdTaxEstimate;
   taxPosition?: TaxPositionData;
+  soleTraderScenarios: HouseholdSoleTraderScenario[];
   taxSetupIncomeSuggestions: Record<string, number | null>;
   /** Annualised portfolio growth, excluding recorded external money in/out */
   portfolioReturn: number | null;
@@ -264,6 +274,9 @@ interface AssetTrackerContextValue {
   setExpectedReturn(input: SetExpectedReturnInput): Promise<void>;
   setAccountLiquidity(input: SetAccountLiquidityInput): Promise<void>;
   setMortgageTerms(input: SetMortgageTermsInput): Promise<void>;
+  setPropertyValueSelection(
+    input: SetPropertyValueSelectionInput,
+  ): Promise<void>;
   setInflation(rate: number): Promise<void>;
   setBaseCurrency(currency: Currency): Promise<void>;
   setWithdrawalRate(rate: number): Promise<void>;
@@ -512,7 +525,12 @@ export function buildHouseholdAdoptedDecisionForecast(
     title?: string;
   },
 ) {
-  const repository = buildRepository(data);
+  const baseRepository = buildRepository(data);
+  const propertyEvidence = propertyEvidenceViews(baseRepository);
+  const repository = withSelectedPropertyValues(
+    baseRepository,
+    propertyEvidence.propertyValueHistories,
+  );
   const comparison = householdDecisionComparison(repository)(input);
   return buildAdoptDecisionForecastInput(repository, comparison, {
     title:
@@ -552,9 +570,43 @@ function jobMoveComparison(
   };
 }
 
+function replacementIncomeThresholdSolver(
+  repository: ReturnType<typeof buildRepository>,
+  financialIndependence: PortfolioFinancialIndependence,
+  emergencyFundAnalysis: EmergencyFundAnalysis | null,
+  valuationDate: string,
+) {
+  return (request: ReplacementIncomeThresholdRequest) => {
+    const scenario = repository.jobMoveScenarios.find(
+      (candidate) => candidate.id === request.scenarioId,
+    );
+    if (scenario == null) throw new Error("Job-move scenario not found");
+    return solveReplacementIncomeThresholds({
+      repository,
+      scenario,
+      startDate: valuationDate,
+      roleStartDates: request.roleStartDates,
+      assumptionSets: request.assumptionSets,
+      goal: request.goal,
+      horizonMonths: request.horizonMonths,
+      annualCurrentExpenditure:
+        financialIndependence.representativeAnnualCurrentExpenditure,
+      financialIndependenceTarget: financialIndependence.target,
+      baselineCompensation: financialIndependence.currentCompensation,
+      emergencyFundAnalysis,
+      maximumAnnualIncome: request.maximumAnnualIncome,
+    });
+  };
+}
+
 function useAssetTrackerViews(data: AssetTrackerData) {
   return useMemo(() => {
-    const repository = buildRepository(scopeAssetTrackerData(data));
+    const baseRepository = buildRepository(scopeAssetTrackerData(data));
+    const propertyEvidence = propertyEvidenceViews(baseRepository);
+    const repository = withSelectedPropertyValues(
+      baseRepository,
+      propertyEvidence.propertyValueHistories,
+    );
     const taxEstimate = getHouseholdTaxEstimate(data);
     const { summaries: accounts, details: accountDetails } =
       buildAccountReadModels(repository);
@@ -650,6 +702,12 @@ function useAssetTrackerViews(data: AssetTrackerData) {
         emergencyFundAnalysis,
         valuationDate,
       ),
+      solveReplacementIncomeThresholds: replacementIncomeThresholdSolver(
+        repository,
+        financialIndependence,
+        emergencyFundAnalysis,
+        valuationDate,
+      ),
       flowSankeyData: buildBaseCurrencyFlowSankeyData(
         repository,
         accountDetails,
@@ -664,6 +722,7 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       ),
       taxEstimate,
       taxPosition: data.taxPosition,
+      soleTraderScenarios: data.soleTraderScenarios ?? [],
       taxSetupIncomeSuggestions: Object.fromEntries(
         data.household.members.map(({ id }) => [
           id,
@@ -679,7 +738,7 @@ function useAssetTrackerViews(data: AssetTrackerData) {
       baseCurrency: repository.settings.baseCurrency,
       valuationDate: latestValuation?.date ?? null,
       valuationIssues: latestValuation?.issues ?? [],
-      ...propertyEvidenceViews(repository),
+      ...propertyEvidence,
       household: data.household,
       householdAccounts: data.accounts.map(({ id, name, provider }) => ({
         id,
@@ -792,6 +851,8 @@ export function AssetTrackerProvider({
       setAccountLiquidity: (input) =>
         mutate((api) => api.setAccountLiquidity(input)),
       setMortgageTerms: (input) => mutate((api) => api.setMortgageTerms(input)),
+      setPropertyValueSelection: (input) =>
+        mutate((api) => api.setPropertyValueSelection(input)),
       setInflation: (rate) => mutate((api) => api.setInflation({ rate })),
       setBaseCurrency: (currency) =>
         mutate((api) => api.setBaseCurrency({ currency })),

@@ -18,8 +18,12 @@ describe("project-owned product decisions", () => {
     expect(
       getProductDecisionsForProject(owner).map((record) => record.slug),
     ).toContain(slug);
-    expect(getProductDecisionsForProject("personal-knowledge-graph")).toEqual(
-      [],
+    const affectedProjectDecisions = getProductDecisionsForProject(
+      "personal-knowledge-graph",
+    ).map((record) => record.slug);
+    expect(affectedProjectDecisions).not.toContain(slug);
+    expect(affectedProjectDecisions).toContain(
+      "000-typed-financial-and-business-subjects",
     );
   });
 

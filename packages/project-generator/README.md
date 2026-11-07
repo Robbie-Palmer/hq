@@ -49,9 +49,30 @@ Project profile schema version 2 accepts checked workload definitions under
 `capabilities.workloads`. Resolution validates every non-local target against
 the deployment maturity contract before Copier receives blueprint version 3.
 The blueprint retains the signed artifact digest, project identity, workload
-intent, target extensions, and environment overlays. Profile version 1 remains
-valid and still resolves to blueprint version 2, so existing Copier receipts do
-not change until a project adopts workload definitions.
+intent, target extensions, and environment overlays.
+
+Profile schema version 3 adds `capabilities.delivery_evidence`. Its versioned
+contract binds stable component or workload identities to GitHub CI names and
+production environments. The compiler resolves current source paths from the
+profile and catalog, records shared-host membership, rejects conflicting
+exclusive ownership, and emits blueprint version 4. Copier publishes the
+resolved targets as catalog records. Profile version 1 remains valid and still
+resolves to blueprint version 2. Version 2 remains valid and resolves to
+blueprint version 3.
+
+All profile versions accept `preview_links`, a list of user-facing names and
+mount paths for browser UIs that do not own a `project-ui` component. Preview
+automation combines these entries with `project-ui` component `name` and
+`mount_path` fields. Validation rejects duplicate names and any mount path used
+by both sources in one profile.
+
+Profiles that own a stateful serverless service can declare
+`rollout.stateful_operations`. The contract names repository mise hooks,
+protected GitHub environments, and redacted `doppler://project/config`
+references. Copier writes the operation dispatcher, workflow callers, runbook,
+secret handoff checkpoints, and rollout evidence schema into the project's
+Terraform component. The shared reusable workflow remains repository-owned.
+The generator never writes credential values or invokes a provider.
 
 Set `project.published: false` for an internal fixture. Copier still records
 its resolved blueprint and owns its declared component paths, but it does not
@@ -140,6 +161,15 @@ answer. When the blueprint contains one `terraform-root` component, the
 template compiles its application capability selections into the static root
 defined by [Personal Engineering Platform ADR 044](/projects/personal-engineering-platform/adrs/044-compiled-terraform-provider-roots).
 
+A structure-only `python-pipeline` component receives the repository's
+research ML scaffold. It includes a Python 3.12 uv project, Fire and Pydantic
+contracts, Ruff, ty, pytest coverage, a local DVC graph, deterministic synthetic
+data, rights and provenance records, and dataset-consumer registries. The
+template does not write `uv.lock` or `dvc.lock`. Run the generated `lock` and
+`repro` mise tasks so uv and DVC create their own lockfiles, then commit those
+files with the project. `mise //packages/project-generator:template:research-ml`
+renders a disposable project and verifies the complete generated task graph.
+
 Component paths become Copier-owned paths. The layout contract decides
 which component kinds also become mise configuration roots or pnpm workspace
 packages. Its task ownership policy marks each standard task as generated,
@@ -188,6 +218,9 @@ later updates. Never edit that file by hand.
 Shared manifests use typed additions and record replacements. A replacement
 must include the expected old record, so the engine stops if another change has
 already altered it. The template itself cannot write a shared manifest.
+Plans that generate workspace package manifests declare a `pnpm_lockfile` edit.
+The engine updates only the lockfile with lifecycle scripts disabled before it
+runs template checks.
 
 ## Execution boundary
 

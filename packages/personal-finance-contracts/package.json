@@ -1,0 +1,45 @@
+{
+  "name": "personal-finance-contracts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared contracts for Personal Finance facts and decisions",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./side-income": "./src/sideIncome.ts",
+    "./side-income-eligibility": "./src/sideIncomeEligibility.ts",
+    "./side-income-persistence": "./src/sideIncomePersistence.ts",
+    "./side-income-rules": "./src/sideIncomeRules.ts",
+    "./side-income-synthetic-cases": "./src/sideIncomeSyntheticCases.ts",
+    "./sole-trader-scenario": "./src/soleTraderScenario.ts",
+    "./sole-trader-rules": "./src/soleTraderRules.ts",
+    "./sole-trader-synthetic-scenarios": "./src/soleTraderSyntheticScenarios.ts",
+    "./limited-company-rules": "./src/limitedCompanyRules.ts",
+    "./limited-company-scenario": "./src/limitedCompanyScenario.ts",
+    "./limited-company-synthetic-scenarios": "./src/limitedCompanySyntheticScenarios.ts",
+    "./off-payroll-status": "./src/offPayrollStatus.ts",
+    "./umbrella-rules": "./src/umbrellaRules.ts",
+    "./umbrella-scenario": "./src/umbrellaScenario.ts",
+    "./umbrella-synthetic-scenarios": "./src/umbrellaSyntheticScenarios.ts",
+    "./side-income-recommendation": "./src/sideIncomeRecommendation.ts",
+    "./side-income-recommendation-decision": "./src/sideIncomeRecommendationDecision.ts",
+    "./side-income-recommendation-demo": "./src/sideIncomeRecommendationDemo.ts",
+    "./side-income-recommendation-synthetic-scenarios": "./src/sideIncomeRecommendationSyntheticScenarios.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "finance-tax-rules": "workspace:*",
+    "iso-codes": "workspace:*",
+    "zod": "^4.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}

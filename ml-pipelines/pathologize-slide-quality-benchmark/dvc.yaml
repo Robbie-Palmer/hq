@@ -1,0 +1,83 @@
+stages:
+  pin_data_artifacts:
+    cmd: uv run --locked data-artifacts fingerprint data_artifacts
+    deps:
+      - ../../packages/data-artifacts/src/data_artifacts/__init__.py
+      - ../../packages/data-artifacts/src/data_artifacts/cli.py
+      - ../../packages/data-artifacts/src/data_artifacts/files.py
+      - ../../packages/data-artifacts/src/data_artifacts/schemas.py
+    outs:
+      - outputs/data-artifacts-source.sha256
+
+  pin_ml_evaluation:
+    cmd: uv run --locked data-artifacts fingerprint ml_evaluation,data_artifacts
+    deps:
+      - outputs/data-artifacts-source.sha256
+      - ../../packages/ml-evaluation/src/ml_evaluation/__init__.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/adapters.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/contracts.py
+      - ../../packages/ml-evaluation/src/ml_evaluation/gates.py
+    outs:
+      - outputs/ml-evaluation-source.sha256
+
+  generate_synthetic_fixtures:
+    cmd: uv run --locked pathologize-benchmark generate-fixtures
+    deps:
+      - fixtures/spec.json
+      - pyproject.toml
+      - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
+      - uv.lock
+    outs:
+      - data/synthetic
+
+  validate_contracts:
+    cmd: uv run --locked pathologize-benchmark validate-contracts
+    deps:
+      - data/synthetic/manifest.json
+      - experiments/whole-slide-quality.json
+      - params.yaml
+      - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
+    params:
+      - benchmark_id
+      - workstream
+      - experiments
+    outs:
+      - outputs/contracts/validation.json
+
+  run_baseline:
+    cmd: uv run --locked pathologize-benchmark run-adapters
+    deps:
+      - data/synthetic
+      - experiments/whole-slide-quality.json
+      - outputs/contracts/validation.json
+      - pyproject.toml
+      - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
+      - uv.lock
+    outs:
+      - outputs/runs
+
+  evaluate_slide_quality:
+    cmd: uv run --locked pathologize-benchmark eval-only
+    deps:
+      - data/synthetic
+      - experiments/whole-slide-quality.json
+      - outputs/runs/whole-slide-quality-contract-v1
+      - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
+    outs:
+      - outputs/scorecards/whole-slide-quality-contract-v1.json
+
+  write_scorecard:
+    cmd: uv run --locked pathologize-benchmark aggregate
+    deps:
+      - outputs/scorecards/whole-slide-quality-contract-v1.json
+      - params.yaml
+      - ../pathologize-benchmark-contracts/src
+      - outputs/ml-evaluation-source.sha256
+    outs:
+      - outputs/scorecard/benchmark.json
+    metrics:
+      - outputs/scorecard/metrics.json

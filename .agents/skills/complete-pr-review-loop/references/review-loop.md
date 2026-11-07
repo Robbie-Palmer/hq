@@ -21,6 +21,24 @@ Do not use the PR as the first test run.
 Commit only the intended work, push it, and open or reuse a draft PR. Include an
 accurate summary, validation results, and any specific QA need.
 
+## Write PR descriptions from files
+
+Write the PR description as a Markdown file, then pass it to GitHub with
+`gh pr create --body-file <path>` or `gh pr edit --body-file <path>`. Do not put
+a multiline description in an inline shell argument. Markdown backticks can
+run as command substitutions, and `\n` inside an ordinary quoted argument can
+reach GitHub as literal text.
+
+If `gh pr edit` fails while querying deprecated Projects Classic metadata, use
+`gh api --method PATCH repos/<owner>/<repo>/pulls/<number> -F body=@<path>`.
+This fallback also reads the body from the file without shell interpolation.
+
+After creating or editing a PR, fetch the stored body once with `gh pr view`
+and inspect the rendered text. Fix literal `\n` sequences, ANSI control
+characters, captured command output, or damaged Markdown before starting the
+review cycle. Preserve repository-managed marker blocks when editing an
+existing description.
+
 ## Review cycle
 
 After a push or PR state change, wait roughly 3 to 5 minutes before taking one

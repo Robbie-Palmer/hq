@@ -15,7 +15,7 @@ The private planning data stays in the browser. The MVP does not sync with Joy, 
 
 Try the sample with fictional guests or import a JSON plan to start, and export a backup if you want to move it to another browser. Accommodation and table choices do not sync between devices. Music suggestions and votes use a separate guest link, while moderation stays in the private planner.
 
-The shared guest model records attendance, invitations, couples and wedding roles independently of sleeping arrangements. Both planners use a domain package, with a repository for saving plans and adapters for browser storage and optimisation. Existing backups migrate when loaded. Guests can be bridesmaids, groomsmen, parents of the bride or groom, and other wedding-party members. Their roles are separate from top-table placement and accommodation payments.
+The shared guest model records attendance, invitations, couples and wedding roles independently of sleeping arrangements. Both planners use a domain package, with a repository for saving plans and adapters for browser storage and optimisation. Current versioned backups load through the same domain parser used by browser storage. Guests can be bridesmaids, groomsmen, parents of the bride or groom, and other wedding-party members. Their roles are separate from top-table placement and accommodation payments.
 
 The accommodation planner records shared bed groups and allows individual sharing choices at bed, room and cottage level. Couples can choose separate beds while remaining a couple for table seating. It allocates higher priority guests to the included Riverside suites before cottages. The room plan separates rent already paid, rent still due, guest reimbursements and the couple's final cost.
 
@@ -27,7 +27,13 @@ The music planner groups songs by moments such as arrivals, dinner, first dance 
 
 | Route or capability                                         | Decision | MVP treatment                                                                                                     |
 | ----------------------------------------------------------- | -------- | ----------------------------------------------------------------------------------------------------------------- |
-| `/wedding-planner`                                          | Keep     | One private entry point for guest, accommodation, seating, readiness and music workflows.                         |
+| `/wedding-planner`                                          | Keep     | Redirects to the private readiness overview.                                                                      |
+| `/wedding-planner/readiness`                                | Keep     | Readiness overview with links to the workflow that resolves each issue.                                           |
+| `/wedding-planner/guests`                                   | Keep     | Guest directory with the selected guest represented in the URL.                                                   |
+| `/wedding-planner/accommodation/*`                          | Keep     | Stable steps for beds, sharing, inventory, room costs and the calculated room plan.                               |
+| `/wedding-planner/seating`                                  | Keep     | Seating inputs, calculation, manual adjustments and handoff exports.                                              |
+| `/wedding-planner/music`                                    | Keep     | Private moderation and DJ brief workflow.                                                                         |
+| `/wedding-planner/exports`                                  | Keep     | JSON backup and import workflow for private planning data.                                                        |
 | Guest directory, attendance, couples and wedding roles      | Keep     | One guest record feeds accommodation and seating.                                                                 |
 | Accommodation preferences, inventory and room allocation    | Keep     | Includes prices, payer choices, amounts paid, guest contributions, cancellations and refunds for accommodation.   |
 | Seating calculation, saved plans and room layout            | Keep     | Supports manual locks and venue layout changes.                                                                   |
@@ -40,4 +46,4 @@ The music planner groups songs by moments such as arrivals, dinner, first dance 
 | Joy import/export, live sync and other service integrations | Defer    | The package does not publish the unfinished adapter and the UI makes no sync claim.                               |
 | Unowned integration controls and sync copy                  | Remove   | No control appears until the integration has authentication, ownership and a defined failure path.                |
 
-New capabilities enter the MVP when they support a wedding decision and reuse the existing guest or plan model. A separate data boundary is justified only when the audience, privacy rules or concurrency needs differ, as they do for the guest playlist. Every addition needs backup or migration behavior and tests. External services also need an authenticated adapter and a defined failure path before any control or copy appears in the planner.
+New capabilities enter the MVP when they support a wedding decision and reuse the existing guest or plan model. A separate data boundary is justified only when the audience, privacy rules or concurrency needs differ, as they do for the guest playlist. Every addition needs backup behavior and tests. External services also need an authenticated adapter and a defined failure path before any control or copy appears in the planner.

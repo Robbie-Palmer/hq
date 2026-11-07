@@ -1,0 +1,73 @@
+---
+title: "PDR 006: Keep household state live without hiding conflicts"
+date: "2026-07-30"
+status: "Accepted"
+decision_date: "2026-10-25"
+informed_by_adrs:
+  - "recipe-site:022-realtime-household-collaboration"
+  - "recipe-site:030-crdt-boundaries-for-shopping-and-recipe-editing"
+---
+
+## Context
+
+Two household members may use the same pantry, plan, or shopping list on
+different devices. A checked item should not remain visibly stale while another
+person shops. Phones also change networks, sleep, and spend time offline, so a
+fast normal path still needs a clear recovery and conflict policy.
+
+Automatic convergence is not automatically the correct product behavior. A
+library can choose a deterministic winner for concurrent titles or quantities
+without knowing whether that winner matches the household's intent. Long-offline
+writes also arrive after membership, list status, or the plan itself may have
+changed.
+
+## Decision
+
+Show committed household pantry, planning, and shopping changes to other active
+members as live shared state. Obvious reversible actions may appear immediately
+on the initiating device, but the server-confirmed result remains authoritative.
+Reconnect, focus, and bounded repair reads must recover the current state after
+a missed update.
+
+Support offline writes only for a named set of small, idempotent commands whose
+meaning and conflict response are defined. Queue those commands with their
+actor, target, base revision, and operation identifier. Recheck authentication
+and current household membership when they return to the server.
+
+Do not silently merge a stale command when another actor has changed the same
+state. Stop the affected queue, show the current server version, and let the
+user retry, discard, or reapply the intent. Meal-plan snapshots and other
+operations without a defined offline command stay online-only.
+
+Presence is temporary coordination data and does not enter household history.
+It may disappear during a disconnect and cannot decide whether a write is
+valid. Removing a
+member or ending their session must stop future updates and bound any remaining
+live connection.
+
+## Consequences
+
+Normal shared work feels current while recovery remains explainable. The
+product gives up unrestricted offline editing and automatic merging for now.
+People may need to resolve a stale change after reconnecting.
+
+Each new offline action needs an explicit command, inverse or conflict result,
+privacy and retention rules for the local queue, and tests for replay after
+session expiry, membership removal, and schema changes.
+
+## Evaluation
+
+The policy is working when active household members see committed list and
+pantry changes without manual refresh, reconnecting repairs missed updates, a
+retried command applies at most once, and a conflicting stale command stops
+with an actionable server version. Former members must not advance household
+state from a queued command.
+
+## Migration note
+
+ADR 022 opened this product boundary as Proposed on 30 July 2026. The shopping
+implementation and the CRDT comparison in ADR 030 later supplied the evidence
+for accepting the bounded command and explicit-conflict policy on 25 October
+2026\. Creating this PDR is a structural migration. Its Accepted status and
+decision date record that later decision rather than rewriting it as part of
+the migration.

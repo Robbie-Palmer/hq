@@ -37,12 +37,15 @@ jobs:
         run: rm -f .planfile
 
       - name: Terraform plan with apply credentials
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY == 'true' }}
         run: mise run //infra/personal-finance:plan
         env:
           CI: "true"
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
 
       - name: Add Terraform plan to summary
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY == 'true' }}
         uses: borchero/terraform-plan-comment@f585438eda2fa77c6f275994b92aeccd86ef3542 # v3
         with:
           token: ${{ github.token }}
@@ -51,11 +54,17 @@ jobs:
           skip-comment: true
 
       - name: Terraform apply
-        if: ${{ success() && hashFiles('infra/personal-finance/.planfile') != '' }}
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY == 'true' && success() && hashFiles('infra/personal-finance/.planfile') != '' }}
         run: mise run //infra/personal-finance:apply
         env:
           CI: "true"
+          DOPPLER_TOKEN: ${{ secrets.DOPPLER_TOKEN }}
           TF_API_TOKEN: ${{ secrets.TF_API_TOKEN }}
+
+      - name: Report pending Terraform bootstrap
+        if: ${{ vars.PERSONAL_FINANCE_TERRAFORM_READY != 'true' }}
+        run: |
+          echo "Infrastructure apply deferred: complete Account Foundation and the scoped Personal Finance secret handoff, then set PERSONAL_FINANCE_TERRAFORM_READY=true." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove Terraform plan
         if: ${{ always() }}
