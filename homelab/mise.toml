@@ -219,8 +219,8 @@ description = "Build the reusable host lifecycle contract checks"
 run = "bash scripts/nix-command.sh build --no-link .#checks.x86_64-linux.host-lifecycle-contract"
 
 [tasks.host-lifecycle-vm-test]
-description = "Boot the disposable NixOS host lifecycle VM test"
-run = "bash scripts/nix-command.sh build --no-link .#checks.x86_64-linux.host-lifecycle-vm"
+description = "Boot the disposable NixOS host lifecycle VM test on a KVM-capable Linux host"
+run = "bash scripts/nix-command.sh build --no-link .#packages.x86_64-linux.host-lifecycle-vm-test"
 
 [tasks.host-ssh-test]
 description = "Test fail-closed SSH host-key verification"
