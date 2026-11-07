@@ -16,12 +16,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { RetirementStressAssumptions } from "./retirement-stress-assumptions";
 import {
   calculateRetirementStressComparison,
   useStoredRetirementStressDraft,
 } from "./retirement-stress-planner-model";
 import { RetirementStressResults } from "./retirement-stress-results";
+
+const selectRetirementStressPlanner = selectAssetTrackerFields(
+  "spendingBaselines",
+  "accountDetails",
+  "baseCurrency",
+);
 
 function defaultAnnualSpending(input: {
   spendingBaselines: ReturnType<typeof useAssetTracker>["spendingBaselines"];
@@ -70,7 +77,7 @@ function PlannerResults({
 }
 
 export function RetirementStressPlanner() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(selectRetirementStressPlanner);
   const currentMonth = `${new Date().toISOString().slice(0, 7)}-01`;
   const [draft, setDraft] = useStoredRetirementStressDraft(
     defaultAnnualSpending({

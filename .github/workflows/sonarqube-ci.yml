@@ -140,6 +140,7 @@ jobs:
             packages/inbox-signal-data/coverage/lcov.info
             packages/iso-codes/coverage/lcov.info
             packages/ml-evaluation/coverage.xml
+            packages/pathologize-tiler/coverage.xml
             packages/node-base/coverage/lcov.info
             packages/object-storage/coverage/lcov.info
             packages/observability/coverage/lcov.info
@@ -162,6 +163,7 @@ jobs:
             ml-pipelines/pathologize-benchmark-contracts/coverage.xml
             ml-pipelines/pathologize-data-registry/coverage.xml
             ml-pipelines/pathologize-slide-quality-benchmark/coverage.xml
+            ml-pipelines/pathologize-tiling-benchmark/coverage.xml
             ml-pipelines/recipe-dataset/coverage/lcov.info
             ml-pipelines/recipe-parsing/coverage/lcov.info
             ml-pipelines/writing-editor-evaluation/coverage/lcov.info

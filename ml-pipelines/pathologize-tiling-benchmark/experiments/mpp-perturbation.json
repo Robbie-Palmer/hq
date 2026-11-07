@@ -1,0 +1,188 @@
+{
+  "schema_version": "2.0.0",
+  "experiment_id": "pathologize.tiling-mpp-perturbation/v2",
+  "seed": 20261107,
+  "registry_source": {
+    "source_id": "cptac-coad-isotropic",
+    "kind": "registry_slide",
+    "registry_root": "../pathologize-data-registry",
+    "collection_id": "cptac-coad-idc",
+    "subset_id": "cptac-coad-idc-v23-smallest-series",
+    "slide_id": "cptac-coad-idc:09co003:0b1ee2c0",
+    "asset_root": "data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6",
+    "source_instance_path": "ccc0f1f8-6b8b-474b-9490-a0bbf5b9b5dd.dcm",
+    "slide_record": "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json",
+    "asset_manifest": "manifests/assets/cptac-coad-idc-v23-smallest-series.json",
+    "source_instance_sha256": "675ddd4dd43ed48994bacd331f5d9bec2d3b585f1d3b36141eecaa64719569ba",
+    "total_asset_bytes": 18701962,
+    "reference_mpp_x": 0.2501,
+    "reference_mpp_y": 0.2501,
+    "expected_vendor": "dicom",
+    "levels": [
+      {"level": 0, "downsample": 1.0},
+      {"level": 1, "downsample": 4.000270855904659},
+      {"level": 2, "downsample": 8.000541711809317}
+    ]
+  },
+  "derived_source": {
+    "source_id": "cptac-coad-anisotropic-region",
+    "kind": "derived_region",
+    "image_path": "data/mpp-experiment/anisotropic-region.png",
+    "manifest_path": "data/mpp-experiment/manifest.json",
+    "reference_mpp_x": 0.2501,
+    "reference_mpp_y": 0.5002,
+    "source_level": 0,
+    "source_location_level_zero": [4096, 4096],
+    "initial_size": [256, 256],
+    "derived_size": [256, 128],
+    "derivation": "halve_rows_preserve_physical_extent"
+  },
+  "request": {
+    "location_level_zero": [4096, 4096],
+    "output_size": [64, 72],
+    "target_mpp_x": 0.5,
+    "target_mpp_y": 0.5
+  },
+  "plausible_mpp": [0.05, 10.0],
+  "cases": [
+    {
+      "case_id": "isotropic-valid",
+      "category": "isotropic_pixels",
+      "source_id": "cptac-coad-isotropic",
+      "level": 0,
+      "declared_mpp_x": 0.2501,
+      "declared_mpp_y": 0.2501,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": null,
+      "perturbation_magnitude": 0.0,
+      "expected_response": "accept_zero_error"
+    },
+    {
+      "case_id": "isotropic-overstated-25-percent",
+      "category": "isotropic_pixels",
+      "source_id": "cptac-coad-isotropic",
+      "level": 0,
+      "declared_mpp_x": 0.312625,
+      "declared_mpp_y": 0.312625,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "both_axes_overstated_25_percent",
+      "perturbation_magnitude": 0.25,
+      "expected_response": "accept_positive_error"
+    },
+    {
+      "case_id": "isotropic-overstated-100-percent",
+      "category": "isotropic_pixels",
+      "source_id": "cptac-coad-isotropic",
+      "level": 0,
+      "declared_mpp_x": 0.5002,
+      "declared_mpp_y": 0.5002,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "both_axes_overstated_100_percent",
+      "perturbation_magnitude": 1.0,
+      "expected_response": "accept_positive_error"
+    },
+    {
+      "case_id": "isotropic-overstated-200-percent",
+      "category": "isotropic_pixels",
+      "source_id": "cptac-coad-isotropic",
+      "level": 0,
+      "declared_mpp_x": 0.7503,
+      "declared_mpp_y": 0.7503,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "both_axes_overstated_200_percent",
+      "perturbation_magnitude": 2.0,
+      "expected_response": "accept_positive_error"
+    },
+    {
+      "case_id": "anisotropic-valid",
+      "category": "anisotropic_pixels",
+      "source_id": "cptac-coad-anisotropic-region",
+      "level": 0,
+      "declared_mpp_x": 0.2501,
+      "declared_mpp_y": 0.5002,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": null,
+      "perturbation_magnitude": 0.0,
+      "expected_response": "accept_zero_error"
+    },
+    {
+      "case_id": "anisotropic-y-copied-from-x",
+      "category": "corrupted_metadata",
+      "source_id": "cptac-coad-anisotropic-region",
+      "level": 0,
+      "declared_mpp_x": 0.2501,
+      "declared_mpp_y": 0.2501,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "y_axis_copied_from_x_axis",
+      "perturbation_magnitude": 0.5,
+      "expected_response": "accept_positive_error"
+    },
+    {
+      "case_id": "mpp-absent",
+      "category": "absent_mpp",
+      "source_id": "cptac-coad-isotropic",
+      "level": 0,
+      "declared_mpp_x": null,
+      "declared_mpp_y": null,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "mpp_fields_removed",
+      "perturbation_magnitude": null,
+      "expected_response": "reject_missing_mpp"
+    },
+    {
+      "case_id": "mpp-implausibly-small-x",
+      "category": "implausible_mpp",
+      "source_id": "cptac-coad-isotropic",
+      "level": 0,
+      "declared_mpp_x": 0.001,
+      "declared_mpp_y": 0.2501,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "x_axis_decimal_shifted",
+      "perturbation_magnitude": 0.9960015993602559,
+      "expected_response": "reject_implausible_mpp"
+    },
+    {
+      "case_id": "pyramid-level-one-reported-as-zero",
+      "category": "wrong_pyramid_level",
+      "source_id": "cptac-coad-isotropic",
+      "level": 1,
+      "declared_mpp_x": 0.2501,
+      "declared_mpp_y": 0.2501,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "level_one_downsample_reported_as_level_zero",
+      "perturbation_magnitude": 0.7500169273478231,
+      "expected_response": "accept_positive_error"
+    },
+    {
+      "case_id": "pyramid-level-two-reported-as-zero",
+      "category": "wrong_pyramid_level",
+      "source_id": "cptac-coad-isotropic",
+      "level": 2,
+      "declared_mpp_x": 0.2501,
+      "declared_mpp_y": 0.2501,
+      "declared_level_downsample": 1.0,
+      "metadata_corruption": "level_two_downsample_reported_as_level_zero",
+      "perturbation_magnitude": 0.8750084636739116,
+      "expected_response": "accept_positive_error"
+    }
+  ],
+  "monotonicity_checks": [
+    {
+      "check_id": "isotropic-error-response",
+      "case_ids": [
+        "isotropic-valid",
+        "isotropic-overstated-25-percent",
+        "isotropic-overstated-100-percent",
+        "isotropic-overstated-200-percent"
+      ]
+    },
+    {
+      "check_id": "pyramid-level-error-response",
+      "case_ids": [
+        "isotropic-valid",
+        "pyramid-level-one-reported-as-zero",
+        "pyramid-level-two-reported-as-zero"
+      ]
+    }
+  ]
+}

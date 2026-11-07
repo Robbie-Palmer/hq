@@ -120,7 +120,25 @@ function VersionHistory({
 }
 
 function useSpendingBaselineModel() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({
+      baseCurrency,
+      financialIndependence,
+      household,
+      localDataStatus,
+      saveSpendingBaseline,
+      spendingBaselines,
+      valuationDate,
+    }) => ({
+      baseCurrency,
+      financialIndependence,
+      household,
+      localDataStatus,
+      saveSpendingBaseline,
+      spendingBaselines,
+      valuationDate,
+    }),
+  );
   const active = tracker.spendingBaselines.find(
     ({ status }) => status === "active",
   );

@@ -70,7 +70,9 @@ function FormError({ message }: Readonly<{ message: string | null }>) {
 }
 
 function useObservationForm(decisionId: string, checkpointId: string) {
-  const { recordDecisionObservation } = useAssetTracker();
+  const { recordDecisionObservation } = useAssetTracker(
+    ({ recordDecisionObservation }) => ({ recordDecisionObservation }),
+  );
   const form = useFormState({
     actual: "",
     note: "",
@@ -166,7 +168,9 @@ export function ObservationForm({
 }
 
 function useInterpretationForm(decision: TrackedFinancialDecisionRecord) {
-  const { addDecisionInterpretation } = useAssetTracker();
+  const { addDecisionInterpretation } = useAssetTracker(
+    ({ addDecisionInterpretation }) => ({ addDecisionInterpretation }),
+  );
   const initial = {
     reason: "",
     rationale: decision.rationale,
@@ -320,7 +324,12 @@ function buildDecisionInput(values: CreateFormValues, baseCurrency: Currency) {
 }
 
 function useCreateDecisionForm() {
-  const { baseCurrency, createDecisionRecord } = useAssetTracker();
+  const { baseCurrency, createDecisionRecord } = useAssetTracker(
+    ({ baseCurrency, createDecisionRecord }) => ({
+      baseCurrency,
+      createDecisionRecord,
+    }),
+  );
   const form = useFormState(createInitialValues());
   const [saving, setSaving] = useState(false);
   async function submit(event: SubmitEvent<HTMLFormElement>) {

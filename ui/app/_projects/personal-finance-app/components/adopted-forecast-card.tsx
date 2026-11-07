@@ -613,7 +613,9 @@ function ActionExceptions({
 }
 
 function useReopenForm(forecastId: string, decisionId: string) {
-  const { revisitAdoptedDecision } = useAssetTracker();
+  const { revisitAdoptedDecision } = useAssetTracker(
+    ({ revisitAdoptedDecision }) => ({ revisitAdoptedDecision }),
+  );
   const [editing, setEditing] = useState(false);
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
@@ -882,7 +884,9 @@ function PlanDetails({
 export function AdoptedForecastCard({
   forecast,
 }: Readonly<{ forecast: AdoptedDecisionForecastRecord }>) {
-  const { reconcileAdoptedForecast } = useAssetTracker();
+  const { reconcileAdoptedForecast } = useAssetTracker(
+    ({ reconcileAdoptedForecast }) => ({ reconcileAdoptedForecast }),
+  );
   const reconciliation = reconcileAdoptedForecast(forecast);
   const currency =
     forecast.balanceCheckpoints[0]?.accounts[0]?.currency ?? "GBP";

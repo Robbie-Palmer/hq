@@ -12,7 +12,9 @@ import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
 
 function useMortgageTermDraft(account: AccountDetailView) {
-  const { setMortgageTerms } = useAssetTracker();
+  const { setMortgageTerms } = useAssetTracker(({ setMortgageTerms }) => ({
+    setMortgageTerms,
+  }));
   const today = todayIsoDate();
   const [firstPaymentDate, setFirstPaymentDate] = useState(
     account.mortgageTerms?.firstPaymentDate ?? today,

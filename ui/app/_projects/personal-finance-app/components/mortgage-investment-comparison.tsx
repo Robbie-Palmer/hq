@@ -11,6 +11,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { HousingValueDisclosure } from "./housing-value-disclosure";
 import {
   MortgageInvestmentAssumptionControls,
@@ -28,10 +29,21 @@ import {
 } from "./mortgage-investment-results";
 import { MortgageInvestmentSensitivityTable } from "./mortgage-investment-sensitivity";
 
+const selectMortgageInvestmentComparison = selectAssetTrackerFields(
+  "accountDetails",
+  "baseCurrency",
+  "housingPlanningPosition",
+);
+
 function MortgageValuationBasis({
   model,
 }: Readonly<{ model: MortgageInvestmentModel }>) {
-  const { baseCurrency, housingPlanningPosition } = useAssetTracker();
+  const { baseCurrency, housingPlanningPosition } = useAssetTracker(
+    ({ baseCurrency, housingPlanningPosition }) => ({
+      baseCurrency,
+      housingPlanningPosition,
+    }),
+  );
   const values = housingPlanningPosition?.valuationBasis ?? [];
   if (values.length === 0) return null;
   const money = (value: number) =>
@@ -65,7 +77,7 @@ export function MortgageInvestmentComparison() {
     accountDetails = [],
     baseCurrency,
     housingPlanningPosition: position,
-  } = useAssetTracker();
+  } = useAssetTracker(selectMortgageInvestmentComparison);
   const [editedAssumptions, setEditedAssumptions] =
     useState<MortgageInvestmentAssumptions | null>(null);
   const mortgage = accountDetails.find(

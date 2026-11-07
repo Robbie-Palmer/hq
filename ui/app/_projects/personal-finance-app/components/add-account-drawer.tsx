@@ -37,6 +37,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 
 const ASSET_TYPE_OPTIONS = Object.entries(ASSET_TYPE_LABELS) as [
   AssetType,
@@ -136,9 +137,17 @@ function OpeningBalanceFields({
   );
 }
 
+const selectAddAccountDrawer = selectAssetTrackerFields(
+  "accounts",
+  "baseCurrency",
+  "createAccount",
+  "household",
+);
+
 export function AddAccountDrawer() {
-  const { accounts, baseCurrency, createAccount, household } =
-    useAssetTracker();
+  const { accounts, baseCurrency, createAccount, household } = useAssetTracker(
+    selectAddAccountDrawer,
+  );
   const propertyAccounts = accounts.filter(
     (account) => account.assetType === "property" && account.isOpen,
   );

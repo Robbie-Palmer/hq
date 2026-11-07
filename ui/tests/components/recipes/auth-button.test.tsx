@@ -298,6 +298,30 @@ describe("AuthButton", () => {
     expect(replace).toHaveBeenCalledWith("/recipes");
   });
 
+  it("shows the term review workflow only to administrators", async () => {
+    const user = userEvent.setup();
+    mocks.useSession.mockReturnValue({
+      data: {
+        user: {
+          name: "Reviewer",
+          email: "reviewer@example.com",
+          role: "admin",
+        },
+      },
+      isPending: false,
+    });
+    render(<AuthButton />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Account for Reviewer" }),
+    );
+
+    expect(screen.getByRole("link", { name: "Review terms" })).toHaveAttribute(
+      "href",
+      "/recipes/admin/terms",
+    );
+  });
+
   it("redirects successful sign-out to the recipe home", () => {
     const replace = vi.fn();
 

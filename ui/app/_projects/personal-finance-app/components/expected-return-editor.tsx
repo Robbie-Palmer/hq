@@ -12,6 +12,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
+
+const selectExpectedReturnEditor =
+  selectAssetTrackerFields("setExpectedReturn");
 
 interface ExpectedReturnEditorProps {
   account: AccountDetailView;
@@ -20,7 +24,7 @@ interface ExpectedReturnEditorProps {
 export function ExpectedReturnEditor({
   account,
 }: Readonly<ExpectedReturnEditorProps>) {
-  const { setExpectedReturn } = useAssetTracker();
+  const { setExpectedReturn } = useAssetTracker(selectExpectedReturnEditor);
   const [ratePercent, setRatePercent] = useState("");
   const [effectiveFrom, setEffectiveFrom] = useState(todayIsoDate());
   const [error, setError] = useState<string | null>(null);

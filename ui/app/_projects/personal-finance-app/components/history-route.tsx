@@ -11,6 +11,7 @@ import type {
 } from "@/app/_projects/personal-finance-app/domain";
 import { AssetAllocationHistoryChart } from "./asset-allocation-history-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { HistoricalCurrencyDisclosure } from "./historical-currency-disclosure";
 import {
   HistoryRouteHeader,
@@ -20,6 +21,15 @@ import { NetWorthChart } from "./net-worth-chart";
 import { PortfolioContributionChart } from "./portfolio-contribution-chart";
 import { RealGrossSalaryHistory } from "./real-gross-salary-history";
 import { RealIncomeHistoryChart } from "./real-income-history-chart";
+
+const selectHistoryRoute = selectAssetTrackerFields(
+  "netWorthDataByCurrency",
+  "contributionData",
+  "assetAllocationHistory",
+  "baseCurrency",
+  "incomeHistory",
+  "salaryHistory",
+);
 
 function IncomeHistorySection({
   salaryHistory,
@@ -102,7 +112,7 @@ export function HistoryRoute() {
     baseCurrency,
     incomeHistory,
     salaryHistory,
-  } = useAssetTracker();
+  } = useAssetTracker(selectHistoryRoute);
   const [historyCurrency, setHistoryCurrency] = useState(baseCurrency);
   const availableCurrencies = useMemo(
     () =>
