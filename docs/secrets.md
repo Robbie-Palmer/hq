@@ -44,6 +44,7 @@ Configs are split by environment and runtime/control boundary:
 | --- | --- | --- |
 | `dev_pages_env` | Shared local Cloudflare Pages env vars | None |
 | `dev_agent` | Preview-only credentials consumed by local agents and the remote operator workspace | None |
+| `dev_agent_observability` | Query-only PostHog access for T3 Code on Vector | None |
 | `dev_recipe_api` | Local recipe Worker/API/DB/OAuth config | None |
 | `dev_infra` | Local Terraform/provider credentials | None |
 | `dev_bootstrap_infra` | Local bootstrap Terraform credentials | None |
@@ -274,6 +275,15 @@ this config only for the documented preview command. The remote operator
 workspace injects it through its own read-only Doppler token and managed
 Kubernetes Secret; the pilot workspace does not receive it. Agents must not
 receive `dev_infra` or deployment credentials.
+
+`dev_agent_observability` contains only `POSTHOG_PERSONAL_API_KEY`,
+`POSTHOG_PROJECT_ID`, and `POSTHOG_QUERY_HOST`. Use a project secret API key
+only after PostHog supports `query:read` and `tracing:read` for that key type.
+Until then, use a dedicated personal API key restricted to this project and
+those two read scopes. Do not copy the administrative `POSTHOG_API_KEY` from
+`dev_infra` into this config. Set `POSTHOG_QUERY_HOST` to the private API
+origin, `https://eu.posthog.com` for the current project, not the
+`eu.i.posthog.com` ingestion origin.
 
 ## Preview Values
 

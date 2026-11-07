@@ -140,6 +140,7 @@ locals {
               "dev",
               "dev_personal",
               "dev_agent",
+              "dev_agent_observability",
               "dev_bootstrap_infra",
               "dev_infra",
               "dev_ml_pipelines",
@@ -460,6 +461,9 @@ locals {
     ])
   ])
   cloudflare_token_bootstrap_config_id = "cloudflare-token-bootstrap/ops/ops_provisioner"
+  unimported_doppler_config_ids = toset([
+    "personal-site/dev/dev_agent_observability",
+  ])
   github_environment_ids = flatten([
     for entry in local.delivery_registry_entries : [
       for environment in values(entry.root.github.environments) :
@@ -516,7 +520,10 @@ locals {
           environment = environment_slug
           name        = config_name
           imported = (
-            root.imported ||
+            (
+              root.imported &&
+              !contains(local.unimported_doppler_config_ids, "${root.doppler.project.name}/${environment_slug}/${config_name}")
+            ) ||
             "${root.doppler.project.name}/${environment_slug}/${config_name}" == local.cloudflare_token_bootstrap_config_id
           ) && var.enable_existing_imports
         }
