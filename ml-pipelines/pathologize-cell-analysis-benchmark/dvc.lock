@@ -57,8 +57,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
-      size: 172930
+      md5: 88f7809bed2325f347bd8f1d155ed800.dir
+      size: 173354
       nfiles: 15
     - path: fixtures/spec.json
       hash: md5
@@ -87,8 +87,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
-      size: 172930
+      md5: 88f7809bed2325f347bd8f1d155ed800.dir
+      size: 173354
       nfiles: 15
     - path: data/synthetic/manifest.json
       hash: md5
@@ -122,8 +122,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
-      size: 172930
+      md5: 88f7809bed2325f347bd8f1d155ed800.dir
+      size: 173354
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -153,7 +153,7 @@ stages:
     outs:
     - path: outputs/runs
       hash: md5
-      md5: 9843f4dd07f9eb3742240c0947f9bbdf.dir
+      md5: 14f2ff4115349193b0c96fc3d0a2f7b8.dir
       size: 2515
       nfiles: 3
   evaluate_cell_analysis:
@@ -161,8 +161,8 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
-      size: 172930
+      md5: 88f7809bed2325f347bd8f1d155ed800.dir
+      size: 173354
       nfiles: 15
     - path: data/synthetic
       hash: md5
@@ -179,21 +179,21 @@ stages:
       size: 65
     - path: outputs/runs/cell-analysis-contract-v1
       hash: md5
-      md5: 49378c46e7a1fabe7dadf511fff6dc9d.dir
+      md5: 550cc02712847849a0e55425b852454f.dir
       size: 2515
       nfiles: 3
     outs:
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 40093e9e4c8cbc0e01db8afa3accafb1
+      md5: 2c2cb8b64b3558aa33d05f3a9f6bc2ce
       size: 3897
   write_scorecard:
     cmd: uv run --locked pathologize-benchmark aggregate
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46bb1beb0d93193213f9eb46b06ecd1e.dir
-      size: 172930
+      md5: 88f7809bed2325f347bd8f1d155ed800.dir
+      size: 173354
       nfiles: 15
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
@@ -201,7 +201,7 @@ stages:
       size: 65
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
-      md5: 40093e9e4c8cbc0e01db8afa3accafb1
+      md5: 2c2cb8b64b3558aa33d05f3a9f6bc2ce
       size: 3897
     - path: params.yaml
       hash: md5
@@ -210,7 +210,7 @@ stages:
     outs:
     - path: outputs/scorecard/benchmark.json
       hash: md5
-      md5: 05e6601a76364b6c2a03747a8ebef1ab
+      md5: b94845700523c8789f9edb5ae09424be
       size: 4717
     - path: outputs/scorecard/metrics.json
       hash: md5

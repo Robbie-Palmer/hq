@@ -251,6 +251,43 @@ def _run_directory(root: Path, experiment_id: str, adapter_id: str) -> Path:
     return root / "outputs/runs" / experiment_id / adapter_id
 
 
+def _telemetry_start_failure(
+    adapter_spec: AdapterSpec, monitor: _NvmlProcessMonitor
+) -> RunFailure | None:
+    if adapter_spec.execution_device != ExecutionDevice.ACCELERATOR or monitor.available:
+        return None
+    return RunFailure(
+        item_id="evaluation-cohort",
+        error_type="AcceleratorTelemetryUnavailable",
+        message=(
+            "accelerator adapters require NVML telemetry: "
+            + (monitor.error_message or "NVML initialization failed")
+        ),
+    )
+
+
+def _telemetry_result_failure(
+    adapter_spec: AdapterSpec, monitor: _NvmlProcessMonitor
+) -> RunFailure | None:
+    if adapter_spec.execution_device == ExecutionDevice.CPU and monitor.peak_bytes > 0:
+        return RunFailure(
+            item_id="evaluation-cohort",
+            error_type="UndeclaredAcceleratorUse",
+            message="CPU adapter allocated NVIDIA accelerator memory",
+        )
+    telemetry_failed = not monitor.sampled or monitor.error_message is not None
+    if adapter_spec.execution_device == ExecutionDevice.ACCELERATOR and telemetry_failed:
+        return RunFailure(
+            item_id="evaluation-cohort",
+            error_type="AcceleratorTelemetryFailed",
+            message=(
+                "NVML could not sample accelerator memory: "
+                + (monitor.error_message or "no sample was recorded")
+            ),
+        )
+    return None
+
+
 def _run_adapter(
     root: Path,
     manifest: ExperimentManifest,
@@ -287,17 +324,7 @@ def _run_adapter(
 
     accelerator_monitor = _NvmlProcessMonitor()
     accelerator_monitor.start()
-    if adapter_spec.execution_device == ExecutionDevice.ACCELERATOR and not (
-        accelerator_monitor.available
-    ):
-        failure = RunFailure(
-            item_id="evaluation-cohort",
-            error_type="AcceleratorTelemetryUnavailable",
-            message=(
-                "accelerator adapters require NVML telemetry: "
-                + (accelerator_monitor.error_message or "NVML initialization failed")
-            ),
-        )
+    if failure := _telemetry_start_failure(adapter_spec, accelerator_monitor):
         write_failures([failure])
         raise ValueError(failure.message)
     try:
@@ -309,25 +336,7 @@ def _run_adapter(
         repeated_predictions = predict()
     finally:
         accelerator_monitor.stop()
-    if adapter_spec.execution_device == ExecutionDevice.CPU and accelerator_monitor.peak_bytes > 0:
-        failure = RunFailure(
-            item_id="evaluation-cohort",
-            error_type="UndeclaredAcceleratorUse",
-            message="CPU adapter allocated NVIDIA accelerator memory",
-        )
-        write_failures([failure])
-        raise ValueError(failure.message)
-    if adapter_spec.execution_device == ExecutionDevice.ACCELERATOR and (
-        not accelerator_monitor.sampled or accelerator_monitor.error_message is not None
-    ):
-        failure = RunFailure(
-            item_id="evaluation-cohort",
-            error_type="AcceleratorTelemetryFailed",
-            message=(
-                "NVML could not sample accelerator memory: "
-                + (accelerator_monitor.error_message or "no sample was recorded")
-            ),
-        )
+    if failure := _telemetry_result_failure(adapter_spec, accelerator_monitor):
         write_failures([failure])
         raise ValueError(failure.message)
     serialized = [prediction.model_dump(mode="json") for prediction in predictions]

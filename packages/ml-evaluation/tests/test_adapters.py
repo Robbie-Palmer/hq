@@ -67,23 +67,28 @@ def test_loads_builtins_and_python_entrypoints() -> None:
 
 
 def test_rejects_unknown_or_invalid_adapters() -> None:
+    missing_spec = _spec("builtin", "missing:Adapter")
     with pytest.raises(ValueError, match="unknown built-in"):
         load_adapter(
-            _spec("builtin", "missing:Adapter"),
+            missing_spec,
             builtins={},
             expected_type=Adapter,
             root=PROJECT_ROOT,
         )
+
+    wrong_spec = _spec("builtin", "wrong:Adapter")
     with pytest.raises(TypeError, match="required protocol"):
         load_adapter(
-            _spec("builtin", "wrong:Adapter"),
+            wrong_spec,
             builtins={"wrong:Adapter": WrongAdapter},
             expected_type=Adapter,
             root=PROJECT_ROOT,
         )
+
+    invalid_spec = _spec("python_entrypoint", "invalid")
     with pytest.raises(ValueError, match="module:attribute"):
         load_adapter(
-            _spec("python_entrypoint", "invalid"),
+            invalid_spec,
             builtins={},
             expected_type=Adapter,
             root=PROJECT_ROOT,
@@ -114,9 +119,10 @@ def test_rejects_adapter_identity_mismatch() -> None:
         adapter_id = "other-v1"
         adapter_version = "1"
 
+    other_spec = _spec("builtin", "other:Adapter")
     with pytest.raises(ValueError, match="adapter ID"):
         load_adapter(
-            _spec("builtin", "other:Adapter"),
+            other_spec,
             builtins={"other:Adapter": OtherAdapter},
             expected_type=Adapter,
             root=PROJECT_ROOT,
