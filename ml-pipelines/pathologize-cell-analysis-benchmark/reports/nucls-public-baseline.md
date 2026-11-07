@@ -62,8 +62,8 @@ used here have no scanner metadata.
 
 | Adapter | Wall time | CPU time | GPU time | Peak RSS | Peak VRAM |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| Class-prior baseline | 9.69 s | 9.66 s | 0 s | 179,441,664 bytes | 0 bytes |
-| Morphology logistic candidate | 18.63 s | 22.19 s | 0 s | 195,592,192 bytes | 0 bytes |
+| Class-prior baseline | 10.03 s | 10.00 s | 0 s | 179,982,336 bytes | 0 bytes |
+| Morphology logistic candidate | 18.69 s | 22.15 s | 0 s | 196,206,592 bytes | 0 bytes |
 
 Each adapter had a 1800-second wall ceiling. The aggregate accelerator ceiling was 86400 seconds.
 Neither method justified GPU inference, so the run used no GPU.

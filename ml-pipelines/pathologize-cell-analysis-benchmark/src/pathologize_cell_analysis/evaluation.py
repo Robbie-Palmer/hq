@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import resource
@@ -187,10 +188,7 @@ def _prediction_record(
     classes: tuple[str, ...],
 ) -> dict[str, object]:
     return {
-        "item_id": item.item_id,
-        "slide_id": item.slide_id,
-        "patient_id": item.patient_id,
-        "site_id": item.site_id,
+        "field_sha256": _field_sha256(item),
         "instance_id": prediction.instance_id,
         "center": [prediction.center_x, prediction.center_y],
         "bbox": list(prediction.bbox),
@@ -198,6 +196,10 @@ def _prediction_record(
             label: float(probabilities[index]) for index, label in enumerate(classes)
         },
     }
+
+
+def _field_sha256(item: SplitItem) -> str:
+    return hashlib.sha256(item.item_id.encode("utf-8")).hexdigest()
 
 
 def _validate_probabilities(
@@ -266,7 +268,7 @@ def evaluate_adapter(
             if time.monotonic() > deadline:
                 failures.append(
                     {
-                        "item_id": item.item_id,
+                        "field_sha256": _field_sha256(item),
                         "error_type": "WallTimeCeilingExceeded",
                         "message": f"run exceeded {experiment.per_run_wall_seconds} seconds",
                     }
@@ -319,7 +321,7 @@ def evaluate_adapter(
             except Exception as error:
                 failures.append(
                     {
-                        "item_id": item.item_id,
+                        "field_sha256": _field_sha256(item),
                         "error_type": type(error).__name__,
                         "message": str(error),
                     }

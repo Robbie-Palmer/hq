@@ -285,7 +285,11 @@ def test_cohort_run_and_report(tmp_path: Path) -> None:
     assert result["baseline"]["resources"]["gpu_seconds"] == 0
     assert result["candidate"]["metrics"]["classification_evaluated_instances"] > 0
     prediction_path = project / _experiment()["output_directory"]
-    assert (prediction_path / "morphology-logistic-v1/predictions.jsonl").is_file()
+    predictions = prediction_path / "morphology-logistic-v1/predictions.jsonl"
+    assert predictions.is_file()
+    first_prediction = json.loads(predictions.read_text(encoding="utf-8").splitlines()[0])
+    assert len(first_prediction["field_sha256"]) == 64
+    assert {"item_id", "slide_id", "patient_id", "site_id"}.isdisjoint(first_prediction)
     report_result = report(
         experiment_path,
         project / "reports/result.json",

@@ -307,8 +307,8 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: c9f8925d43b4b794c29d8bfd451825f3.dir
-      size: 57104
+      md5: d29a4a44749960e6b388f26434fe4fe4.dir
+      size: 57614
       nfiles: 7
     - path: uv.lock
       hash: md5
@@ -317,6 +317,6 @@ stages:
     outs:
     - path: outputs/public/nucls-public-baseline-v1
       hash: md5
-      md5: 977b6281edecaab50be1621ae96c5cb4.dir
-      size: 35693230
+      md5: 54ff60f2870e36243b0e8393b9e5d3fa.dir
+      size: 27151405
       nfiles: 6
