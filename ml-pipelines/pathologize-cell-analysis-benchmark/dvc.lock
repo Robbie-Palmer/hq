@@ -274,8 +274,8 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 7caa0cf9bd9d410719d57d9ab269957f
-      size: 3799
+      md5: 8e7e4100cbb7eb336cf403f48cbf565d
+      size: 3121
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
       md5: 99d9c83e3f028833c35a78be5aacda48
@@ -320,8 +320,8 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: 536eace15230f955865ae9f925a0e33a.dir
-      size: 136909
+      md5: 6f1e3cdfdf6853b3c2d4e5cb1cbb5711.dir
+      size: 135703
       nfiles: 12
     - path: uv.lock
       hash: md5
@@ -355,8 +355,8 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 7caa0cf9bd9d410719d57d9ab269957f
-      size: 3799
+      md5: 8e7e4100cbb7eb336cf403f48cbf565d
+      size: 3121
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
       md5: 99d9c83e3f028833c35a78be5aacda48
@@ -392,8 +392,8 @@ stages:
       size: 2034
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 7caa0cf9bd9d410719d57d9ab269957f
-      size: 3799
+      md5: 8e7e4100cbb7eb336cf403f48cbf565d
+      size: 3121
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
       md5: 99d9c83e3f028833c35a78be5aacda48
@@ -435,8 +435,8 @@ stages:
       size: 2034
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: 536eace15230f955865ae9f925a0e33a.dir
-      size: 136909
+      md5: 6f1e3cdfdf6853b3c2d4e5cb1cbb5711.dir
+      size: 135703
       nfiles: 12
     - path: uv.lock
       hash: md5
@@ -480,8 +480,8 @@ stages:
       size: 14928
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: 536eace15230f955865ae9f925a0e33a.dir
-      size: 136909
+      md5: 6f1e3cdfdf6853b3c2d4e5cb1cbb5711.dir
+      size: 135703
       nfiles: 12
     - path: uv.lock
       hash: md5

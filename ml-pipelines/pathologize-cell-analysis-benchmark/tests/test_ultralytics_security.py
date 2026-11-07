@@ -56,33 +56,12 @@ def test_ultralytics_report_writes_only_pinned_paths(
     )
     monkeypatch.setattr(ultralytics_experiment, "_project_root", lambda: tmp_path)
 
-    observed = report_ultralytics(
-        experiment_path,
-        ULTRALYTICS_JSON_REPORT,
-        ULTRALYTICS_MARKDOWN_REPORT,
-    )
+    observed = report_ultralytics()
 
     assert observed == evidence
     assert read_json(tmp_path / ULTRALYTICS_JSON_REPORT) == evidence
-    assert (tmp_path / ULTRALYTICS_MARKDOWN_REPORT).read_text(encoding="utf-8").startswith(
-        "# NuCLS Ultralytics baseline"
+    assert (
+        (tmp_path / ULTRALYTICS_MARKDOWN_REPORT)
+        .read_text(encoding="utf-8")
+        .startswith("# NuCLS Ultralytics baseline")
     )
-
-    with pytest.raises(ValueError, match="Ultralytics experiment must be"):
-        report_ultralytics(
-            tmp_path / "outside.json",
-            ULTRALYTICS_JSON_REPORT,
-            ULTRALYTICS_MARKDOWN_REPORT,
-        )
-    with pytest.raises(ValueError, match="Ultralytics JSON report must be"):
-        report_ultralytics(
-            experiment_path,
-            Path("reports/other.json"),
-            ULTRALYTICS_MARKDOWN_REPORT,
-        )
-    with pytest.raises(ValueError, match="Ultralytics Markdown report must be"):
-        report_ultralytics(
-            experiment_path,
-            ULTRALYTICS_JSON_REPORT,
-            Path("reports/other.md"),
-        )

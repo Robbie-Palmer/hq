@@ -34,11 +34,6 @@ class UltralyticsOptions(StrictModel):
     experiment: Path
 
 
-class UltralyticsReportOptions(UltralyticsOptions):
-    json_output: Path
-    markdown_output: Path
-
-
 class Commands:
     def acquire(
         self,
@@ -98,24 +93,8 @@ class Commands:
         options = UltralyticsOptions.model_validate({"experiment": experiment})
         return evaluate_ultralytics(options.experiment)
 
-    def report_ultralytics(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-baseline.json",
-        json_output: str = "reports/nucls-ultralytics-baseline.json",
-        markdown_output: str = "reports/nucls-ultralytics-baseline.md",
-    ) -> dict[str, Any]:
-        options = UltralyticsReportOptions.model_validate(
-            {
-                "experiment": experiment,
-                "json_output": json_output,
-                "markdown_output": markdown_output,
-            }
-        )
-        return report_ultralytics(
-            options.experiment,
-            options.json_output,
-            options.markdown_output,
-        )
+    def report_ultralytics(self) -> dict[str, Any]:
+        return report_ultralytics()
 
 
 def main() -> None:
