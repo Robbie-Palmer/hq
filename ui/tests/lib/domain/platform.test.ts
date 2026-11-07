@@ -699,6 +699,22 @@ describe("temporal platform layers", () => {
     expect(view?.platformTechnologies?.map(({ slug }) => slug)).toContain(
       "typescript",
     );
+    for (const technology of [
+      "pnpm",
+      "vitest",
+      "biome",
+      "husky",
+      "knip",
+      "codeql",
+      "zod",
+    ]) {
+      expect(
+        stack.technologies.find((use) => use.technology === technology),
+      ).toMatchObject({
+        adoptionRationale:
+          "The application uses the repository-wide development and delivery controls.",
+      });
+    }
   });
 
   it("requires OpenAPI linting while keeping compatibility checks opt-in", () => {
