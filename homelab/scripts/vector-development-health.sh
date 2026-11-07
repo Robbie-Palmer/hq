@@ -76,7 +76,9 @@ if k3s kubectl --namespace gpu-telemetry get daemonset dcgm-exporter >/dev/null 
     daemonset/dcgm-exporter --timeout=180s
   systemctl is-active --quiet netdata.service
   systemctl is-active --quiet vector-development-dcgm-proxy.service
+  systemctl is-active --quiet vector-development-gpu-health.timer
   systemctl is-active --quiet opentelemetry-collector.service
+  systemctl start vector-development-gpu-health.service
   curl --fail --silent --show-error http://127.0.0.1:13133/ >/dev/null
   dcgm_metrics_url=http://127.0.0.1:19400/api/v1/namespaces/gpu-telemetry/services/http:dcgm-exporter:9400/proxy/metrics
   dcgm_metrics=
@@ -116,8 +118,8 @@ if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
     --field-selector=status.phase=Running \
     --output=jsonpath='{.items[0].metadata.name}')
   test -n "${pod}"
-  k3s kubectl --namespace t3-code exec "${pod}" --container t3-code -- nvidia-smi -L \
-    | grep -F 'NVIDIA GeForce RTX 4080 Laptop GPU' >/dev/null
+  test -z "$(k3s kubectl --namespace t3-code get deployment t3-code \
+    --output=jsonpath='{.spec.template.spec.containers[?(@.name=="t3-code")].resources.limits.nvidia\.com/gpu}')"
   k3s kubectl --namespace t3-code exec "${pod}" --container t3-code -- \
     cat /proc/self/attr/current \
     | grep -Fx 't3-code-agent-browser (unconfined)' >/dev/null
@@ -143,5 +145,8 @@ if k3s kubectl --namespace t3-code get deployment t3-code >/dev/null 2>&1; then
     posthog-query homepage-vitals >/dev/null
   curl --fail --silent --show-error http://127.0.0.1:30773/ >/dev/null
 fi
-echo "desktop, encrypted remote boot, sandboxed browser, PostHog read access, NVIDIA telemetry, Tailscale, and the independent K3s server are healthy"
+smoke_run_id="health-$(date +%s)"
+KUBECONFIG=/etc/rancher/k3s/k3s.yaml \
+  vector-gpu-benchmark smoke "${smoke_run_id}"
+echo "desktop, encrypted remote boot, sandboxed browser, PostHog read access, exclusive GPU Jobs, NVIDIA telemetry, Tailscale, and the independent K3s server are healthy"
 REMOTE

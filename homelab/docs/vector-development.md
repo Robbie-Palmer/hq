@@ -150,12 +150,12 @@ NVIDIA device plugin and a standalone DCGM Exporter DaemonSet. This keeps the
 driver, runtime, device plugin, and telemetry ownership explicit.
 
 The exporter image uses an immutable digest. Its reviewed counter list covers
-utilization, framebuffer memory, clocks, temperature, power, energy, PCIe
-retries, XID errors, and row remapping. The container runs under the restricted
-Pod Security Standard with a read-only mount of the kubelet pod-resources
-directory. That socket supplies the `pod`, `namespace`, and `container` labels
-on metrics while a GPU workload is running. The exporter and device plugin both
-use NVIDIA GPU UUIDs for this mapping.
+utilization, framebuffer memory, clocks, clock-throttle reasons, temperature,
+power, energy, PCIe retries, XID errors, and row remapping. The container runs
+under the restricted Pod Security Standard with a read-only mount of the
+kubelet pod-resources directory. That socket supplies the `pod`, `namespace`,
+and `container` labels on metrics while a GPU workload is running. The exporter
+and device plugin both use NVIDIA GPU UUIDs for this mapping.
 
 The host OpenTelemetry Collector scrapes the ClusterIP Service through a
 loopback-only K3s API proxy. It adds the `vector-development` cluster and
@@ -171,9 +171,18 @@ Open `http://127.0.0.1:19999` locally. NVIDIA documents the standalone
 deployment and pod attribution in the
 [DCGM Exporter installation guide](https://docs.nvidia.com/datacenter/dcgm/latest/gpu-telemetry/dcgm-exporter.html).
 
+A 15-second host collector turns the DCGM and Kubelet signals into Netdata
+health alarms. It reports a missing device plugin or metrics stream, loss of
+allocatable GPU capacity, XID errors, thermal throttling, hardware power-brake
+events, high temperature, and framebuffer pressure. Ordinary software power
+capping remains a charted signal because Vector deliberately runs an eco power
+profile.
+
 ## Bounded GPU benchmark Jobs
 
-T3 Code manages Jobs in `gpu-benchmarks`. Its Role permits Job create, read,
+The permanent T3 Code controller does not reserve or receive the GPU. T3 Code
+manages Jobs in `gpu-benchmarks`, and those Jobs receive exclusive access to
+the device. Its Role permits Job create, read,
 watch, and delete operations plus pod inspection and log reads. Benchmark pods
 run under an inert service account, while the T3 launcher uses a short-lived,
 namespace-scoped token.
@@ -202,6 +211,42 @@ Job and pod under `gpu-benchmark.homelab.dev/run-id`. DCGM emits the generated
 pod name, namespace, and container name from the kubelet pod-resources socket,
 so the run can be matched to GPU samples. Benchmark output must go to stdout or
 stderr; `/tmp` is deleted with the pod.
+
+Run the pinned CUDA vector-add smoke test after GPU stack changes. The command
+waits for a successful kernel execution, prints the result, and deletes its
+Job:
+
+```bash
+mise run //homelab:vector-gpu-benchmark -- smoke
+```
+
+`vector-health` runs the same smoke test after checking the driver, runtime,
+device plugin, and telemetry pipeline.
+
+For an unprivileged Nsight Systems trace, use an approved image that contains
+both `nsys` and the target application:
+
+```bash
+mise run //homelab:vector-gpu-benchmark -- profile trace-001 \
+  ghcr.io/robbie-palmer/example@sha256:<64-hex-digest> -- \
+  python train.py
+mise run //homelab:vector-gpu-benchmark -- logs trace-001
+```
+
+The launcher disables CPU sampling, fixes the CUDA, NVTX, and OS-runtime trace
+set, and prints statistics to the Job log. It does not grant performance-counter
+access or `CAP_SYS_ADMIN` to T3 Code workloads.
+
+Run the administrator-only DCGM level-1 diagnostic after driver upgrades or
+when an XID or CUDA smoke failure needs hardware evidence:
+
+```bash
+mise run //homelab:vector-gpu-diagnostic
+```
+
+That task runs the digest-pinned DCGM image over SSH with no network or host
+mounts. The temporary container alone receives `CAP_SYS_ADMIN`, and Docker
+removes it when the diagnostic exits.
 
 ## Agent GitHub and Doppler access
 

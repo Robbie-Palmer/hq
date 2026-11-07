@@ -106,6 +106,25 @@ let
     ];
     text = builtins.readFile ./scripts/thermal-monitor.bash;
   };
+  gpuJobLauncher = pkgs.writeShellApplication {
+    name = "vector-gpu-benchmark";
+    runtimeInputs = with pkgs; [
+      jq
+      kubectl
+    ];
+    text = builtins.readFile ../../scripts/vector-gpu-benchmark.sh;
+  };
+  gpuHealthCollector = pkgs.writeShellApplication {
+    name = "vector-development-gpu-health";
+    runtimeInputs = with pkgs; [
+      curl
+      gawk
+      gnugrep
+      jq
+      k3s
+    ];
+    text = builtins.readFile ./scripts/collect-gpu-health.bash;
+  };
 in
 {
   imports = [
@@ -289,6 +308,19 @@ in
           "allow dashboard from" = "localhost";
         };
         cloud.enabled = "no";
+        statsd = {
+          "enabled" = "yes";
+          "bind to" = "udp:127.0.0.1:8125";
+          "create private charts for metrics matching" = "!vector_development.* *";
+        };
+        plugins = {
+          "go.d" = "yes";
+          "proc" = "yes";
+        };
+      };
+      configDir = {
+        "health.d/vector-development-gpu.conf" = ./netdata/health.d/vector-development-gpu.conf;
+        "statsd.d/vector-development.conf" = ./netdata/statsd.d/vector-development.conf;
       };
     };
     logind.settings.Login = {
@@ -367,6 +399,7 @@ in
       fanCurveScript
       git
       gh
+      gpuJobLauncher
       htop
       jq
       k3s
@@ -590,6 +623,47 @@ in
       PrivateTmp = true;
       ProtectHome = true;
       ProtectSystem = "strict";
+    };
+  };
+
+  systemd.services.vector-development-gpu-health = {
+    description = "Publish Vector GPU health signals to Netdata";
+    after = [
+      "k3s.service"
+      "netdata.service"
+      "vector-development-dcgm-proxy.service"
+    ];
+    wants = [
+      "netdata.service"
+      "vector-development-dcgm-proxy.service"
+    ];
+    serviceConfig = {
+      CapabilityBoundingSet = "";
+      ExecStart = "${gpuHealthCollector}/bin/vector-development-gpu-health";
+      NoNewPrivileges = true;
+      PrivateDevices = true;
+      PrivateTmp = true;
+      ProtectControlGroups = true;
+      ProtectHome = true;
+      ProtectKernelModules = true;
+      ProtectKernelTunables = true;
+      ProtectSystem = "strict";
+      RestrictAddressFamilies = [
+        "AF_INET"
+        "AF_INET6"
+        "AF_UNIX"
+      ];
+      Type = "oneshot";
+    };
+  };
+
+  systemd.timers.vector-development-gpu-health = {
+    description = "Refresh Vector GPU health signals";
+    wantedBy = [ "timers.target" ];
+    timerConfig = {
+      OnBootSec = "30s";
+      OnUnitInactiveSec = "15s";
+      Unit = "vector-development-gpu-health.service";
     };
   };
 
