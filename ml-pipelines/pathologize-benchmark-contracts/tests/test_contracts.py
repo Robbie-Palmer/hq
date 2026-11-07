@@ -153,61 +153,20 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
     generate_fixtures(configured_root)
     export_path = configured_root / "registry-export.json"
     export = {
-        "contract": "pathologize.data-registry-export/v1",
-        "registry_revision": "a" * 40,
-        "dataset": {
-            "conforms_to": "http://mlcommons.org/croissant/1.1",
-            "metadata_uri": "s3://external-registry/croissant.json",
-            "metadata_sha256": "b" * 64,
+        "@context": {
+            "@vocab": "https://schema.org/",
+            "sc": "https://schema.org/",
+            "dct": "http://purl.org/dc/terms/",
+            "pathologize": "https://robbiepalmer.me/ns/pathologize#",
         },
-        "provenance": {
-            "ro_crate_conforms_to": "https://w3id.org/ro/crate/1.3",
-            "ro_crate_metadata_uri": "s3://external-registry/ro-crate-metadata.json",
-            "ro_crate_metadata_sha256": "c" * 64,
-            "prov_o_conforms_to": "https://www.w3.org/TR/prov-o/",
-            "prov_o_graph_uri": "s3://external-registry/provenance.jsonld",
-            "prov_o_graph_sha256": "d" * 64,
-        },
-        "items": [
-            {
-                "item_id": "opaque-item-1",
-                "split": "test",
-                "croissant_record_set_id": "slides",
-                "croissant_record_id": "opaque-item-1",
-                "width": 100,
-                "height": 80,
-                "microns_per_pixel_x": 0.5,
-                "microns_per_pixel_y": 0.5,
-                "leakage": {
-                    "subject_id": "opaque-subject",
-                    "specimen_id": "opaque-specimen",
-                    "block_id": "opaque-block",
-                    "slide_id": "opaque-slide",
-                    "acquisition_id": "opaque-acquisition",
-                    "site_id": "opaque-site",
-                },
-                "representations": [
-                    {
-                        "representation_id": "source-dicom",
-                        "role": "source",
-                        "format": "dicom_wsi",
-                        "croissant_distribution_id": "dicom-wsi-files",
-                        "conforms_to": "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html",
-                        "dicom_sop_class_uid": "1.2.840.10008.5.1.4.1.1.77.1.6",
-                        "derived_from": [],
-                    },
-                    {
-                        "representation_id": "compute-ome-zarr",
-                        "role": "compute_derivative",
-                        "format": "ome_zarr",
-                        "croissant_distribution_id": "ome-zarr-files",
-                        "conforms_to": "https://ngff.openmicroscopy.org/specifications/0.6/",
-                        "derived_from": ["source-dicom"],
-                    },
-                ],
-                "annotations": [],
-            }
-        ],
+        "@type": "sc:Dataset",
+        "name": "External source registry",
+        "description": "Source-only metadata.",
+        "conformsTo": "http://mlcommons.org/croissant/1.1",
+        "pathologize:contract": "pathologize.data-registry-export/v1",
+        "pathologize:registryRevision": "a" * 40,
+        "distribution": [],
+        "recordSet": [],
     }
     write_json(export_path, export)
     experiment_path = configured_root / "experiments/whole-slide-quality.json"
@@ -229,11 +188,10 @@ def test_registry_import_pins_revision_and_digest(configured_root: Path) -> None
     )
     assert imported["raw_data_copied"] is False
     assert imported["registry_revision"] == "a" * 40
-    assert imported["dataset"]["conforms_to"] == "http://mlcommons.org/croissant/1.1"
-    assert imported["items"][0]["representations"][0]["format"] == "dicom_wsi"
-    assert imported["items"][0]["representations"][1]["format"] == "ome_zarr"
+    assert imported["croissant_conforms_to"] == "http://mlcommons.org/croissant/1.1"
+    assert imported["dataset_name"] == "External source registry"
 
-    export["registry_revision"] = "c" * 40
+    export["pathologize:registryRevision"] = "c" * 40
     write_json(export_path, export)
     with pytest.raises(ValueError, match="SHA-256"):
         import_registry("whole-slide-quality-contract-v1", configured_root)
@@ -261,130 +219,33 @@ def test_registry_source_and_artifact_paths_are_strict(tmp_path: Path) -> None:
         resolve_under(root, tmp_path / "absolute.json")
 
 
-def test_registry_representations_enforce_standard_lifecycle_positions() -> None:
+def test_registry_export_rejects_downstream_policy_fields() -> None:
     base = {
-        "contract": "pathologize.data-registry-export/v1",
-        "registry_revision": "a" * 40,
-        "dataset": {
-            "conforms_to": "http://mlcommons.org/croissant/1.1",
-            "metadata_uri": "s3://registry/croissant.json",
-            "metadata_sha256": "b" * 64,
+        "@context": {
+            "sc": "https://schema.org/",
+            "dct": "http://purl.org/dc/terms/",
+            "pathologize": "https://robbiepalmer.me/ns/pathologize#",
         },
-        "provenance": {
-            "ro_crate_conforms_to": "https://w3id.org/ro/crate/1.3",
-            "ro_crate_metadata_uri": "s3://registry/ro-crate-metadata.json",
-            "ro_crate_metadata_sha256": "c" * 64,
-            "prov_o_conforms_to": "https://www.w3.org/TR/prov-o/",
-            "prov_o_graph_uri": "s3://registry/provenance.jsonld",
-            "prov_o_graph_sha256": "d" * 64,
-        },
-        "items": [
-            {
-                "item_id": "item-1",
-                "split": "test",
-                "croissant_record_set_id": "slides",
-                "croissant_record_id": "item-1",
-                "width": 100,
-                "height": 80,
-                "microns_per_pixel_x": 0.5,
-                "microns_per_pixel_y": 0.5,
-                "leakage": {
-                    "subject_id": "subject-1",
-                    "specimen_id": "specimen-1",
-                    "block_id": "block-1",
-                    "slide_id": "slide-1",
-                    "acquisition_id": "acquisition-1",
-                    "site_id": "site-1",
-                },
-                "representations": [
-                    {
-                        "representation_id": "source-1",
-                        "role": "source",
-                        "format": "vendor_native_wsi",
-                        "croissant_distribution_id": "source-files",
-                        "conforms_to": None,
-                        "dicom_sop_class_uid": None,
-                        "derived_from": [],
-                    },
-                    {
-                        "representation_id": "compute-1",
-                        "role": "compute_derivative",
-                        "format": "ome_zarr",
-                        "croissant_distribution_id": "compute-files",
-                        "conforms_to": "https://ngff.openmicroscopy.org/specifications/0.6/",
-                        "derived_from": ["source-1"],
-                    },
-                ],
-                "annotations": [],
-            }
-        ],
+        "@type": "sc:Dataset",
+        "name": "Source registry",
+        "conformsTo": "http://mlcommons.org/croissant/1.1",
+        "pathologize:contract": "pathologize.data-registry-export/v1",
+        "pathologize:registryRevision": "a" * 40,
+        "recordSet": [],
     }
-    assert RegistryExport.model_validate(base).items[0].representations[1].derived_from == [
-        "source-1"
-    ]
+    assert RegistryExport.model_validate(base).registry_revision == "a" * 40
 
-    unsafe = base.copy()
-    unsafe["items"] = [base["items"][0].copy()]
-    unsafe["items"][0]["representations"] = [
-        item.copy() for item in base["items"][0]["representations"]
-    ]
-    unsafe["items"][0]["representations"][1]["derived_from"] = []
-    with pytest.raises(ValidationError):
+    unsafe = base | {"items": [{"split": "test", "leakage": {}}]}
+    with pytest.raises(ValidationError, match="source metadata only"):
         RegistryExport.model_validate(unsafe)
 
-    cycle = RegistryExport.model_validate(base).model_dump(mode="json")
-    cycle["items"][0]["representations"] = [
-        cycle["items"][0]["representations"][0],
-        {
-            "representation_id": "interchange-1",
-            "role": "interchange",
-            "format": "dicom_wsi",
-            "croissant_distribution_id": "interchange-files",
-            "conforms_to": "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html",
-            "dicom_sop_class_uid": "1.2.840.10008.5.1.4.1.1.77.1.6",
-            "derived_from": ["compute-1"],
-        },
-        {
-            **cycle["items"][0]["representations"][1],
-            "derived_from": ["source-1", "interchange-1"],
-        },
-    ]
-    with pytest.raises(ValidationError, match="ancestry must be acyclic"):
-        RegistryExport.model_validate(cycle)
 
-    indirect = RegistryExport.model_validate(base).model_dump(mode="json")
-    indirect["items"][0]["representations"].insert(
-        1,
-        {
-            "representation_id": "interchange-1",
-            "role": "interchange",
-            "format": "dicom_wsi",
-            "croissant_distribution_id": "interchange-files",
-            "conforms_to": "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html",
-            "dicom_sop_class_uid": "1.2.840.10008.5.1.4.1.1.77.1.6",
-            "derived_from": ["source-1"],
-        },
-    )
-    indirect["items"][0]["representations"][2]["derived_from"] = ["interchange-1"]
-    with pytest.raises(ValidationError, match="directly reference an acquired source"):
-        RegistryExport.model_validate(indirect)
-
-
-def test_registry_json_schema_encodes_representation_profiles() -> None:
+def test_registry_json_schema_encodes_croissant_header() -> None:
     schema = RegistryExport.model_json_schema()
-    definitions = schema["$defs"]
-    representation_schema = definitions["RegistryItem"]["properties"]["representations"]["items"]
-    assert {entry["$ref"] for entry in representation_schema["anyOf"]} == {
-        "#/$defs/VendorNativeWsiRepresentation",
-        "#/$defs/DicomWsiSourceRepresentation",
-        "#/$defs/DicomWsiInterchangeRepresentation",
-        "#/$defs/OmeZarrRepresentation",
-    }
-    assert (
-        definitions["DicomWsiSourceRepresentation"]["properties"]["dicom_sop_class_uid"]["const"]
-        == "1.2.840.10008.5.1.4.1.1.77.1.6"
+    assert schema["properties"]["conformsTo"]["const"] == ("http://mlcommons.org/croissant/1.1")
+    assert schema["properties"]["pathologize:contract"]["const"] == (
+        "pathologize.data-registry-export/v1"
     )
-    assert definitions["OmeZarrRepresentation"]["properties"]["derived_from"]["minItems"] == 1
 
 
 def test_paid_inference_policy_is_not_part_of_benchmark_contracts(

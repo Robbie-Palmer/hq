@@ -31,7 +31,6 @@ from .contracts import (
     NucleiPrediction,
     QualityPrediction,
     RegistryExport,
-    RegistryItem,
     RegistrySource,
     Scorecard,
     Split,
@@ -62,13 +61,11 @@ def load_experiments(root: Path) -> list[ExperimentManifest]:
     return manifests
 
 
-def _leakage_values(item: FixtureItem | RegistryItem, unit: LeakageUnit) -> str:
+def _leakage_values(item: FixtureItem, unit: LeakageUnit) -> str:
     return str(getattr(item.leakage, unit.value))
 
 
-def validate_leakage(
-    items: list[FixtureItem] | list[RegistryItem], units: list[LeakageUnit]
-) -> None:
+def validate_leakage(items: list[FixtureItem], units: list[LeakageUnit]) -> None:
     for unit in units:
         seen: dict[str, Split] = {}
         for item in items:
@@ -117,13 +114,12 @@ def validate_contracts(root: Path | None = None, *, write_report: bool = True) -
             )
         else:
             export = _load_registry_source(root, manifest.data_source)
-            validate_leakage(export.items, manifest.split_policy.leakage_units)
             sources.append(
                 {
                     "experiment_id": manifest.experiment_id,
                     "kind": manifest.data_source.kind,
-                    "items": len(export.items),
                     "registry_revision": export.registry_revision,
+                    "croissant_conforms_to": export.conforms_to,
                 }
             )
     report = {
@@ -147,16 +143,14 @@ def import_registry(experiment_id: str, root: Path | None = None) -> None:
     if not isinstance(manifest.data_source, RegistrySource):
         raise TypeError("registry import requires a pathologize_registry data source")
     export = _load_registry_source(root, manifest.data_source)
-    validate_leakage(export.items, manifest.split_policy.leakage_units)
     output = {
         "contract": export.contract,
         "registry_uri": manifest.data_source.registry_uri,
         "registry_revision": export.registry_revision,
         "export_sha256": manifest.data_source.export_sha256,
         "raw_data_copied": False,
-        "dataset": export.dataset.model_dump(mode="json"),
-        "provenance": export.provenance.model_dump(mode="json"),
-        "items": [item.model_dump(mode="json") for item in export.items],
+        "croissant_conforms_to": export.conforms_to,
+        "dataset_name": export.name,
     }
     write_json(root / f"data/imported/{experiment_id}/registry-index.json", output)
 

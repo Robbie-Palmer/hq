@@ -57,6 +57,18 @@ without downloading data, run:
 mise //ml-pipelines/pathologize-data-registry:validate
 ```
 
+The check also generates the portable metadata export in memory and validates
+it with `mlcroissant`. Write the Croissant 1.1 document for the current Git
+revision with:
+
+```bash
+mise //ml-pipelines/pathologize-data-registry:export
+```
+
+The command writes `outputs/pathologize-public-data.croissant.json`. Publish
+that generated file from the same revision that downstream consumers pin. Do
+not edit it by hand.
+
 Use `mise //ml-pipelines/pathologize-data-registry:repro` to reproduce the
 acquisition through DVC. `verify` requires all files in the acquired subset;
 `validate` checks manifests and any source files already present.
@@ -87,10 +99,15 @@ manifest must state what the source licence and access terms allow.
 
 ## Use the registry downstream
 
-A downstream project pins the registry Git revision, subset ID, and slide IDs
-that it consumes. It treats `data/raw` as read-only input and keeps its derived
-outputs in its own DVC project.
+A downstream project pins the registry URI, Git revision, Croissant export
+path, and export SHA-256. It selects subset and slide IDs in its own manifest,
+treats `data/raw` as read-only input, and keeps derived outputs in its own DVC
+project.
 
 Do not copy collection manifests or redefine patient, specimen, or slide IDs.
-Downstream benchmark and training projects own leakage groups, data splits,
-tiles, features, and task-specific label interpretations.
+Downstream benchmark and training projects own data splits and the checks that
+keep related patient, specimen, block, slide, acquisition, or site records in
+one split. They also own tiles, features, and task-specific label
+interpretations. A source export does not invent missing block, site, or
+acquisition identities. A downstream ontology mapping must record its target
+version, mapping status, provenance, and unmapped source categories.

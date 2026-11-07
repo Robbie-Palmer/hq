@@ -11,10 +11,11 @@ implements_product_decisions:
 ## Context
 
 Pathologize needs reproducible pathology benchmarks without owning or copying
-the future registry's raw clinical data. A benchmark import must distinguish
-an acquired slide from a representation made for interchange or computation.
-It must also preserve enough provenance to trace each derivative to a source
-without defining another clinical image format.
+the registry's raw clinical data. The registry owns source facts. Downstream
+projects own eligibility rules, train, validation and test splits, derived
+representations, and new annotations. A benchmark import must distinguish an
+acquired slide from a representation made for interchange or computation. It
+must also preserve enough provenance to trace each derivative to a source.
 
 The formats have different jobs. The current [DICOM VL Whole Slide Microscopy
 Image IOD](https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_A.32.8.html)
@@ -35,55 +36,68 @@ provenance vocabulary.
 
 ## Decision
 
-Use a standards-referencing registry export. Pathologize owns the small
-selection envelope needed for benchmark splits, leakage checks, physical scale,
-and pinned imports. It references external metadata rather than reproducing
-the external specifications.
+`pathologize.data-registry-export/v1` is a source-only Croissant 1.1 document.
+The registry generates it from its Pydantic authoring records. The document
+carries the contract ID and source Git revision in the Pathologize JSON-LD
+namespace. Consumers pin the registry URI, Git revision, export path, and
+export SHA-256.
 
-Every export pins:
+The export maps registry evidence as follows:
 
-* a Croissant 1.1 metadata document by URI and SHA-256;
-* an RO-Crate 1.3 metadata document by URI and SHA-256;
-* a PROV-O graph by URI and SHA-256; and
-* the source registry Git revision and export SHA-256.
+| Registry evidence                                                                       | Croissant representation                                   |
+| --------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Collection source version, retrieval date, access evidence, citation, and licence scope | `collections` and `collection_documents` record sets       |
+| Asset source URL, byte count, SHA-256, SOP Instance UID, and image role                 | `FileObject` distributions plus the `assets` record set    |
+| Patient, case, specimen, slide, study, series, and image identities                     | Keyed `slides` and `assets` record sets                    |
+| Scanner, conversion note, objective power, and physical pixel size                      | Fields in the `slides` record set                          |
+| Source-native label value, code, coding scheme, reported scheme version, and provenance | `source_native_labels` record set                          |
+| Source label domains and limits                                                         | `collection_label_domains` records and `label_limitations` |
 
-Each logical slide identifies its Croissant record and one or more
-representations. A representation has a role, format, Croissant distribution
-ID, conformance URI, and explicit derivation links. Croissant owns file
-locations and any per-file checksums.
+The export contains source facts. It does not contain benchmark splits,
+derived representations, masks, embeddings, or task annotations. A downstream
+project joins its selection manifest to a pinned source export. It must keep
+records from the same patient, specimen, block, slide, acquisition, or site on
+one side of the train, validation and test boundaries. This prevents data
+leakage between splits. Unknown block, site, or acquisition identities remain
+absent instead of being derived from filenames or representation IDs.
 
-Vendor-native WSI is a source and claims no public format conformance. DICOM
-WSI is either a source or an interchange representation. An interchange DICOM
-representation names its input representation. Every
-DICOM representation declares the VL Whole Slide Microscopy Image Storage SOP
-Class UID `1.2.840.10008.5.1.4.1.1.77.1.6`. OME-Zarr is always a compute
-derivative and names at least one source representation. The contract pins
-OME-NGFF 0.6 and rejects OME-Zarr presented as acquired source data.
+Vendor-native WSI claims no public format conformance. DICOM WSI can be a
+source or interchange representation. A converted DICOM representation names
+its input and declares the VL Whole Slide Microscopy Image Storage SOP Class
+UID `1.2.840.10008.5.1.4.1.1.77.1.6`. OME-Zarr is a downstream compute
+derivative and names its source representation. RO-Crate and PROV-O can package
+downstream research objects and record their derivations. The source registry
+does not require those side documents when it has no derived work.
 
-Pathologize validates these references and lifecycle relationships. It does
-not claim that the referenced objects conform to DICOM, OME-NGFF, Croissant,
-RO-Crate, or PROV-O. Registry publication must run each format's own validator.
-The importer writes only a local index of references and never fetches raw
-image bytes.
+Source-native codes retain the coding scheme and version reported by the
+source. A missing scheme version remains null. Downstream ontology mappings
+record the target ontology version, annotation protocol, annotator provenance,
+agreement evidence, and whether each mapping is exact, partial,
+incommensurable, or unmapped.
+
+Registry publication validates the generated document with `mlcroissant` and
+runs the existing DICOM checks against acquired source objects. The benchmark
+importer validates the Pathologize contract fields, pinned revision, and export
+SHA-256. It writes a local source index and never fetches raw image bytes.
 
 Keep PPM and PGM files for deterministic contract fixtures. They are compact
 test encodings, not registry formats or pathology data.
 
 ## Consequences
 
+The registry can publish one portable artifact without knowing a benchmark
+split or inventing missing identities. Licence, retrieval, checksum, scanner,
+scale, label, and identity evidence remain tied to the registry revision that
+produced the export.
+
+Downstream projects need a separate selection contract before they can run on
+registry data. They perform split-contamination checks after joining their
+selection to the source export. The built-in benchmark runner continues to
+reject non-synthetic inputs until that contract exists.
+
 One logical slide can retain its acquisition object and gain an OME-Zarr
-compute pyramid without confusing the two. Tiling, tissue segmentation, cell
-analysis, and future slide-encoder benchmarks can consume the derived
-representation while preserving a trace to the source.
-
-The export schema is Pathologize-specific, but its dataset, representation,
-and provenance references use public vocabulary. This reduces private schema
-design without pretending that one external standard defines benchmark splits,
-leakage units, or promotion gates.
-
-Registry producers have more work. They must publish compound-object
-distributions, stable distribution IDs, and provenance documents. Pathologize
-cannot detect a false conformance claim from the reference alone.
+compute pyramid without confusing the two. Pathologize cannot detect a false
+format-conformance claim from a metadata reference alone.
 
 The registry export contract starts at
 `pathologize.data-registry-export/v1`. A later incompatible change will need a
@@ -91,21 +105,20 @@ new contract identifier and an explicit migration path.
 
 ## Alternatives considered
 
+### Keep a mixed registry and benchmark envelope
+
+The registry cannot populate split assignments, derived representations, or
+task annotations from its own records. The mixed envelope would force
+downstream policy into source publication and encourage guessed identities.
+
+### Export registry-native JSON only
+
+The native records remain the authoring format. Publishing only those files
+would leave consumers with project-specific dataset structure and no
+independent metadata validator.
+
 ### Convert every slide to OME-Zarr at ingest
 
-This would give analysis code one convenient representation. It would make a
-derived compute object look like the acquired record and risk losing source
-metadata or conversion history. OME-Zarr remains a derivative instead.
-
-### Require DICOM throughout the benchmark pipeline
-
-DICOM preserves medical imaging structure and interchange semantics. It is a
-poor universal inner-loop format for chunked array processing and derived
-labels. The benchmark keeps DICOM at the source and interchange boundary.
-
-### Define all dataset and provenance metadata locally
-
-A fully local contract would keep validation in one codebase, but it would
-create local names for dataset structure and lineage already covered by
-Croissant, RO-Crate, and PROV-O. The project keeps custom fields only for
-benchmark selection and validation.
+This would give analysis code one representation. It would also make a derived
+compute object look like the acquired record and risk losing source metadata or
+conversion history. OME-Zarr remains a downstream derivative.

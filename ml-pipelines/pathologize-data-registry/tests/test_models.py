@@ -1,6 +1,5 @@
 import json
 import shutil
-from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -10,6 +9,7 @@ from pathologize_data_registry.models import (
     AssetRecord,
     RegistryIndex,
     SlideRecord,
+    SourceNativeLabel,
     SubsetManifest,
     source_url_is_allowlisted,
 )
@@ -83,14 +83,25 @@ def test_slide_contract_allows_explicitly_missing_scanner_serial() -> None:
     assert SlideRecord.model_validate(payload).scanner.device_serial_number is None
 
 
+def test_source_label_requires_code_and_coding_scheme_together() -> None:
+    with pytest.raises(ValidationError, match="code and coding scheme"):
+        SourceNativeLabel(
+            name="diagnosis",
+            value="example",
+            code="123",
+            coding_scheme=None,
+            coding_scheme_version=None,
+            provenance="source field",
+        )
+
+
 def test_validation_reports_cross_reference_and_missing_asset_errors(tmp_path: Path) -> None:
     source = load_registry(PROJECT_DIR)
     collection = source.collections["cptac-coad-idc"].model_copy(
         update={"subsets": ["missing-subset"]}
     )
-    broken = replace(
-        source,
-        collections={**source.collections, collection.collection_id: collection},
+    broken = source.model_copy(
+        update={"collections": {**source.collections, collection.collection_id: collection}}
     )
     broken_issues = validate_registry(broken, require_assets=False)
     assert any("unknown subset" in issue for issue in broken_issues)
@@ -120,7 +131,7 @@ def test_validation_reports_unknown_slide_asset_without_crashing() -> None:
     source = load_registry(PROJECT_DIR)
     slide = next(iter(source.slides.values()))
     broken_slide = slide.model_copy(update={"asset_paths": [*slide.asset_paths, "unknown.dcm"]})
-    broken = replace(source, slides={broken_slide.slide_id: broken_slide})
+    broken = source.model_copy(update={"slides": {broken_slide.slide_id: broken_slide}})
 
     issues = validate_registry(broken, require_assets=False)
 
