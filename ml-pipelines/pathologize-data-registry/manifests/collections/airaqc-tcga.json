@@ -1,0 +1,51 @@
+{
+  "access": {
+    "acquisition_policy": "automated_bounded",
+    "authentication_required": false,
+    "automated_access": true,
+    "download_base_urls": [
+      "https://api.gdc.cancer.gov/data/",
+      "https://drive.usercontent.google.com/"
+    ],
+    "public": true,
+    "reason": "The authors link the annotations for public benchmarking and GDC exposes the referenced TCGA slides without authentication."
+  },
+  "citation": "Gautam, K., Raipuria, G., and Singhal, N. AIRAQc: Pre-Analytical Tool for Accurate Identification and Quantification of Artefacts in Histopathology. MIDL short papers (2025).",
+  "collection_id": "airaqc-tcga",
+  "description": "The 50 TCGA slides manually annotated for the AIRAQc MIDL 2025 test set, with a bounded 24-slide public-pilot subset.",
+  "known_scale": {
+    "basis": "Fifty linked GDC slide filenames resolved through the GDC files API on 2026-11-07; byte total excludes the small annotation image files.",
+    "bytes": 26076869767,
+    "slides_or_series": 50
+  },
+  "license": {
+    "name": "CC BY 4.0 paper with a separately linked annotation release",
+    "redistribution": "Do not redistribute slide or annotation bytes from this registry. Public pilot artifacts are limited to identifiers, checksums, and numeric results.",
+    "scope": "The paper is CC BY 4.0 and explicitly links the annotation release. The Google Drive folder has no standalone licence file. GDC labels the slides open access.",
+    "spdx_id": "LicenseRef-AIRAQc-TCGA-Public-Research",
+    "url": "https://openreview.net/pdf?id=XNNsQqs1UP"
+  },
+  "registration_status": "acquired_subset",
+  "schema_version": 1,
+  "source": {
+    "documentation_urls": [
+      "https://tinyurl.com/qctcga",
+      "https://docs.gdc.cancer.gov/API/Users_Guide/Getting_Started/",
+      "https://zenodo.org/records/22932961"
+    ],
+    "doi": null,
+    "landing_page_url": "https://openreview.net/pdf?id=XNNsQqs1UP",
+    "publisher": "AIRA Matrix and the NCI Genomic Data Commons",
+    "retrieved_at": "2026-11-07",
+    "source_version": "AIRAQc MIDL 2025 linked release; GDC files resolved 2026-11-07"
+  },
+  "source_native_label_domains": [
+    "four-class artifact annotation",
+    "artifact-free slide status",
+    "TCGA project membership"
+  ],
+  "subsets": [
+    "airaqc-tcga-public-pilot-v1"
+  ],
+  "title": "AIRAQc TCGA artifact test annotations and referenced GDC slides"
+}

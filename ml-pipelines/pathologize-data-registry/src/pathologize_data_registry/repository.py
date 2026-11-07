@@ -3,8 +3,10 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Iterable
 from pathlib import Path
+from typing import cast
 
 import pydicom
+import tifffile
 from pydantic import BaseModel, ConfigDict
 from pydicom.errors import InvalidDicomError
 
@@ -234,6 +236,8 @@ def validate_dicom(path: Path, asset: AssetRecord, slide: SlideRecord) -> list[s
         dataset = pydicom.dcmread(path, stop_before_pixels=True)
     except (OSError, InvalidDicomError) as error:
         return [f"{path}: invalid DICOM: {error}"]
+    if asset.sop_instance_uid is None:
+        return [f"{path}: DICOM asset has no SOP Instance UID"]
     expected = {
         "PatientID": slide.identity.patient_id,
         "StudyInstanceUID": slide.identity.study_instance_uid,
@@ -251,13 +255,58 @@ def validate_dicom(path: Path, asset: AssetRecord, slide: SlideRecord) -> list[s
         )
         for item in getattr(dataset, "SpecimenDescriptionSequence", [])
     }
-    expected_specimen = (slide.identity.specimen_id, slide.identity.specimen_uid)
+    expected_specimen = (slide.identity.specimen_id, _string(slide.identity.specimen_uid))
     if expected_specimen not in specimen_identities:
         issues.append(f"{path}: DICOM specimen identity does not match the slide record")
     if _dicom_role(dataset) != asset.image_role:
         issues.append(f"{path}: DICOM ImageType does not match role {asset.image_role}")
     if asset.relative_path == slide.physical_resolution.source_instance_path:
         issues.extend(_validate_primary_dicom(dataset, slide, path))
+    return issues
+
+
+def _aperio_properties(description: str) -> dict[str, str]:
+    properties: dict[str, str] = {}
+    for field in description.split("|")[1:]:
+        if "=" in field:
+            key, value = field.split("=", maxsplit=1)
+            properties[key.strip()] = value.strip()
+    return properties
+
+
+def validate_aperio(path: Path, slide: SlideRecord) -> list[str]:
+    issues: list[str] = []
+    try:
+        with tifffile.TiffFile(path) as source:
+            page = cast(tifffile.TiffPage, source.pages[0])
+            description = page.description or ""
+            width = int(page.imagewidth)
+            height = int(page.imagelength)
+    except (OSError, tifffile.TiffFileError, ValueError) as error:
+        return [f"{path}: invalid Aperio TIFF: {error}"]
+    properties = _aperio_properties(description)
+    scanner_id = slide.scanner.device_serial_number
+    if scanner_id is not None and properties.get("ScanScope ID") != scanner_id:
+        issues.append(f"{path}: Aperio ScanScope ID does not match the slide record")
+    try:
+        objective_power = float(properties["AppMag"])
+    except (KeyError, ValueError):
+        issues.append(f"{path}: Aperio AppMag is missing or invalid")
+    else:
+        if abs(objective_power - slide.scanner.objective_power) > 1e-9:
+            issues.append(f"{path}: Aperio AppMag does not match the slide record")
+    try:
+        mpp = float(properties["MPP"])
+    except (KeyError, ValueError):
+        issues.append(f"{path}: Aperio MPP is missing or invalid")
+    else:
+        if abs(mpp - slide.physical_resolution.micrometres_per_pixel_x) > 1e-9:
+            issues.append(f"{path}: physical resolution differs from the slide record")
+    if (width, height) != (
+        slide.physical_resolution.total_pixel_matrix_columns,
+        slide.physical_resolution.total_pixel_matrix_rows,
+    ):
+        issues.append(f"{path}: TIFF dimensions differ from the slide record")
     return issues
 
 
@@ -331,7 +380,13 @@ def _slide_asset_issues(
                 issues.append(f"{path}: required source asset is missing")
             continue
         issues.extend(validate_file(path, asset))
-        issues.extend(validate_dicom(path, asset, slide))
+        if asset.format == "dicom":
+            issues.extend(validate_dicom(path, asset, slide))
+        elif (
+            asset.format == "aperio_svs"
+            and asset.relative_path == slide.physical_resolution.source_instance_path
+        ):
+            issues.extend(validate_aperio(path, slide))
     return issues
 
 
@@ -373,6 +428,13 @@ def validate_registry(registry: LoadedRegistry, *, require_assets: bool) -> list
     for subset in registry.subsets.values():
         issues.extend(_subset_issues(registry, subset, require_assets=require_assets))
     return issues
+
+
+def validate_subset_assets(registry: LoadedRegistry, subset_id: str) -> list[str]:
+    subset = registry.subsets.get(subset_id)
+    if subset is None:
+        return [f"unknown subset {subset_id}"]
+    return _subset_issues(registry, subset, require_assets=True)
 
 
 def require_valid_registry(

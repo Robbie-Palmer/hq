@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0.0",
+  "experiment_id": "airaqc-tcga-deterministic-public-pilot-v1",
+  "declared_at": "2026-11-07T08:36:26Z",
+  "protocol_amendments": [
+    {
+      "amended_at": "2026-11-07T12:15:02Z",
+      "stage": "after_scanner_identity_audit_before_feature_extraction",
+      "prior_rule": "stop when any fixed-cohort slide lacks a stable native scanner device ID",
+      "amended_rule": "retain every slide in the primary evaluation and exclude only missing-device-ID slides from scanner-held-out slices",
+      "reason": "Missing scanner metadata limits scanner-stratified analysis but does not invalidate source integrity, slide labels, or deterministic feature extraction."
+    },
+    {
+      "amended_at": "2026-11-07T13:34:00Z",
+      "stage": "after_first_completed_run_before_merge",
+      "prior_rule": "name any annotated artifact presence truth_reject and any detected signal prediction_reject",
+      "amended_rule": "name the same values truth_artifact_present and predicted_artifact_present; emit spatial signals; do not assess slide or region usability",
+      "reason": "AIRAQc labels artifact pixels, not fitness for an unspecified downstream use. The prior names conflated artifact detection with a product rejection policy. Thresholds, labels, cohort membership, and performance calculations are unchanged."
+    }
+  ],
+  "cohort": {
+    "source_partition": "Moutselos and Maglogiannis reproducibility deposit v1.0.1 fixed test_slides",
+    "expected_slides": 24,
+    "expected_source_slide_bytes": 15811254429,
+    "selection_locked_before_slide_download": true
+  },
+  "rights_boundary": {
+    "source_slides": "GDC open-access TCGA diagnostic slide images",
+    "annotations": "AIRAQc TCGA test annotations linked from the CC BY 4.0 MIDL 2025 paper; the Google Drive folder has no standalone licence file",
+    "allowed_public_artifacts": [
+      "source identifiers and checksums",
+      "numeric per-slide features and artifact-presence outputs",
+      "numeric tile-level spatial evidence",
+      "aggregate metrics, exclusions, failures, and resource records"
+    ],
+    "forbidden_public_artifacts": [
+      "source SVS bytes",
+      "annotation PNG bytes",
+      "rendered source or annotation imagery"
+    ]
+  },
+  "resource_caps": {
+    "network_download_bytes": 16500000000,
+    "peak_local_disk_bytes": 40000000000,
+    "wall_seconds": 7200,
+    "cpu_seconds": 28800,
+    "gpu_seconds": 0,
+    "peak_vram_bytes": 0
+  },
+  "candidate": {
+    "kind": "deterministic_features",
+    "learned_candidate": null,
+    "target_magnification": 2.5,
+    "tile_pixels": 512,
+    "minimum_tissue_fraction": 0.2,
+    "blur": {
+      "maximum_mean_gradient": 0.018,
+      "maximum_median_ratio": 0.45,
+      "minimum_burden": 0.1
+    },
+    "pen": {
+      "minimum_tile_fraction": 0.002
+    },
+    "dark": {
+      "minimum_tile_fraction": 0.12
+    }
+  },
+  "labels": {
+    "classes": ["out_of_focus", "air_bubble", "fold", "penmark"],
+    "palette_rgb": {
+      "out_of_focus": [255, 0, 0],
+      "air_bubble": [255, 255, 0],
+      "fold": [0, 255, 0],
+      "penmark": [255, 165, 0]
+    },
+    "maximum_rgb_distance": 60,
+    "slide_positive_rule": "at least one pixel within the declared distance of a typed palette colour",
+    "tissue_gate_for_slide_label": false
+  },
+  "output_semantics": {
+    "task": "artifact_presence_detection_with_spatial_signals",
+    "artifact_signal_interpretation": "Report the type, location, and extent of deterministic image signals without converting them into a clinical or product disposition.",
+    "usability_assessment": "not_assessed",
+    "usability_reason": "No downstream clinical or computational use case was declared."
+  },
+  "stopping_rules": {
+    "minimum_scanner_groups": 2,
+    "constant_baseline_test": "one-sided exact McNemar p < 0.05 against both constant artifact-absent and constant artifact-present predictors",
+    "scanner_slice_minimum_n": 4,
+    "scanner_slice_requires_both_classes": true,
+    "maximum_scanner_accuracy_drop": 0.15,
+    "stop_on_missing_stable_scanner_id": false,
+    "missing_scanner_id_handling": "include in the primary evaluation; exclude from scanner-held-out slices; report the omission",
+    "stop_on_missing_clean_negatives": true,
+    "stop_on_tissue_content_confounding": true,
+    "stop_on_rights_failure": true,
+    "stop_on_resource_cap": true
+  }
+}

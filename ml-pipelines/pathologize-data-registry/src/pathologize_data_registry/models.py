@@ -178,9 +178,20 @@ class AssetRecord(StrictModel):
     source_url: AnyHttpUrl
     bytes: int = Field(gt=0)
     sha256: str = Field(pattern=SHA256_PATTERN)
-    source_etag: str = Field(pattern=r"^[0-9a-f]{32}$")
-    sop_instance_uid: str = Field(pattern=UID_PATTERN)
-    image_role: Literal["label", "overview", "thumbnail", "volume_primary", "volume_resampled"]
+    source_etag: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
+    source_md5: str | None = Field(default=None, pattern=r"^[0-9a-f]{32}$")
+    source_identifier: str | None = Field(default=None, min_length=1)
+    format: Literal["dicom", "aperio_svs", "png_mask"] = "dicom"
+    sop_instance_uid: str | None = Field(default=None, pattern=UID_PATTERN)
+    image_role: Literal[
+        "artifact_annotation",
+        "label",
+        "overview",
+        "thumbnail",
+        "volume_primary",
+        "volume_resampled",
+        "whole_slide",
+    ]
 
     @field_validator("relative_path")
     @classmethod
@@ -194,6 +205,16 @@ class AssetRecord(StrictModel):
             raise ValueError("source URL must use HTTPS")
         return value
 
+    @model_validator(mode="after")
+    def validate_source_identity(self) -> AssetRecord:
+        if self.format == "dicom" and self.sop_instance_uid is None:
+            raise ValueError("DICOM assets require a SOP Instance UID")
+        if self.format != "dicom" and self.source_identifier is None:
+            raise ValueError("non-DICOM assets require a source identifier")
+        if self.source_etag is None and self.source_md5 is None and self.source_identifier is None:
+            raise ValueError("assets require a publisher checksum, ETag, or stable source ID")
+        return self
+
 
 class AssetManifest(StrictModel):
     schema_version: Literal[1]
@@ -204,11 +225,14 @@ class AssetManifest(StrictModel):
     @model_validator(mode="after")
     def validate_unique_assets(self) -> AssetManifest:
         paths = [asset.relative_path for asset in self.assets]
-        sop_uids = [asset.sop_instance_uid for asset in self.assets]
+        source_ids = [
+            asset.sop_instance_uid or asset.source_identifier or asset.relative_path
+            for asset in self.assets
+        ]
         if len(paths) != len(set(paths)):
             raise ValueError("asset paths must be unique")
-        if len(sop_uids) != len(set(sop_uids)):
-            raise ValueError("SOP Instance UIDs must be unique")
+        if len(source_ids) != len(set(source_ids)):
+            raise ValueError("source asset identities must be unique")
         return self
 
 
@@ -216,10 +240,10 @@ class SourceIdentity(StrictModel):
     patient_id: str = Field(min_length=1)
     case_id: str = Field(min_length=1)
     specimen_id: str = Field(min_length=1)
-    specimen_uid: str = Field(pattern=UID_PATTERN)
+    specimen_uid: str | None = Field(default=None, pattern=UID_PATTERN)
     slide_container_id: str = Field(min_length=1)
-    study_instance_uid: str = Field(pattern=UID_PATTERN)
-    series_instance_uid: str = Field(pattern=UID_PATTERN)
+    study_instance_uid: str | None = Field(default=None, pattern=UID_PATTERN)
+    series_instance_uid: str | None = Field(default=None, pattern=UID_PATTERN)
     identity_basis: str = Field(min_length=1)
 
 

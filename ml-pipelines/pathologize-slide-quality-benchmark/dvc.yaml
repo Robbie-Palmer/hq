@@ -94,3 +94,21 @@ stages:
       - outputs/ml-evaluation-source.sha256
     outs:
       - outputs/benchmark/index.json
+
+  run_public_pilot:
+    cmd: uv run --locked pathologize-slide-quality-pilot run
+    deps:
+      - public-pilot/corpus.json
+      - public-pilot/predeclaration.json
+      - public-pilot/source-index.json
+      - ../pathologize-data-registry/dvc.lock
+      - ../pathologize-data-registry/manifests/assets/airaqc-tcga-public-pilot-v1.json
+      - ../pathologize-data-registry/manifests/collections/airaqc-tcga.json
+      - ../pathologize-data-registry/manifests/subsets/airaqc-tcga-public-pilot-v1.json
+      - ../pathologize-data-registry/registry.json
+      - pyproject.toml
+      - src/pathologize_slide_quality_pilot
+      - uv.lock
+    outs:
+      - public-pilot/results:
+          cache: false

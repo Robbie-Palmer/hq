@@ -20,6 +20,10 @@ extend-exclude = [
     # Versioned ISO code data contains short assigned identifiers that resemble
     # common misspellings, such as BA, FO, PN, and JOD.
     "packages/iso-codes/artifacts/",
+    # Generated public-pilot manifests preserve opaque Google Drive file IDs.
+    "ml-pipelines/pathologize-data-registry/manifests/assets/airaqc-tcga-public-pilot-v1.json",
+    "ml-pipelines/pathologize-slide-quality-benchmark/public-pilot/corpus.json",
+    "ml-pipelines/pathologize-slide-quality-benchmark/public-pilot/source-index.json",
     # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
     # comments so local changes remain auditable against the pinned source.
     "cpp/autonomic-satellite-swarm/third_party/sgp4/",

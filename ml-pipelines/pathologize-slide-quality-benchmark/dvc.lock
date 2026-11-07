@@ -57,9 +57,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: fixtures/spec.json
       hash: md5
       md5: 4a854e821a33887068abca8347c2b0a3
@@ -70,12 +70,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 5e16e172df5b938cda122297b2847722
-      size: 520
+      md5: c7b438e51a29dea628cbb0f0bbfcb941
+      size: 1425
     - path: uv.lock
       hash: md5
-      md5: 835a5a06cb66253ab2a1dc2108d5d6da
-      size: 17305
+      md5: 369bddefda63db07b81ce69ee6f7ef53
+      size: 52653
     outs:
     - path: data/synthetic
       hash: md5
@@ -87,9 +87,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic/manifest.json
       hash: md5
       md5: 38db48abe9059b1579208b45b833778c
@@ -122,9 +122,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic
       hash: md5
       md5: 809e1ab513d9fce5b2e40c183339f22f.dir
@@ -144,12 +144,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 5e16e172df5b938cda122297b2847722
-      size: 520
+      md5: c7b438e51a29dea628cbb0f0bbfcb941
+      size: 1425
     - path: uv.lock
       hash: md5
-      md5: 835a5a06cb66253ab2a1dc2108d5d6da
-      size: 17305
+      md5: 369bddefda63db07b81ce69ee6f7ef53
+      size: 52653
     outs:
     - path: outputs/runs
       hash: md5
@@ -161,9 +161,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic
       hash: md5
       md5: 809e1ab513d9fce5b2e40c183339f22f.dir
@@ -199,9 +199,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: experiments/whole-slide-quality.json
       hash: md5
       md5: c5030abcbeb161e9221347a97ce663a2
@@ -228,9 +228,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: experiments/whole-slide-quality.json
       hash: md5
       md5: c5030abcbeb161e9221347a97ce663a2
@@ -252,3 +252,57 @@ stages:
       hash: md5
       md5: 6f85dc9848a2217cb707e035c995d08b
       size: 553
+  run_public_pilot:
+    cmd: uv run --locked pathologize-slide-quality-pilot run
+    deps:
+    - path: ../pathologize-data-registry/dvc.lock
+      hash: md5
+      md5: fb537dffe26ba3871b52dd6f30037c31
+      size: 2496
+    - path: ../pathologize-data-registry/manifests/assets/airaqc-tcga-public-pilot-v1.json
+      hash: md5
+      md5: c707ce7cf369482bb2d1d72d9180972d
+      size: 26684
+    - path: ../pathologize-data-registry/manifests/collections/airaqc-tcga.json
+      hash: md5
+      md5: 166ca3bbf2f4fe83abf973ad482d88c1
+      size: 2385
+    - path: ../pathologize-data-registry/manifests/subsets/airaqc-tcga-public-pilot-v1.json
+      hash: md5
+      md5: 87afb214b066e335a0216de799859f11
+      size: 4054
+    - path: ../pathologize-data-registry/registry.json
+      hash: md5
+      md5: 09002d1259bc7edc956929b30ce0a468
+      size: 2839
+    - path: public-pilot/corpus.json
+      hash: md5
+      md5: ba1e289a6335e5dd2c9fe6c67e7d426a
+      size: 43878
+    - path: public-pilot/predeclaration.json
+      hash: md5
+      md5: c9bbd14d205fb447121d31d1a76e4730
+      size: 4377
+    - path: public-pilot/source-index.json
+      hash: md5
+      md5: 4fbb086ec3636adf74da00cd3a3a504e
+      size: 20100
+    - path: pyproject.toml
+      hash: md5
+      md5: c7b438e51a29dea628cbb0f0bbfcb941
+      size: 1425
+    - path: src/pathologize_slide_quality_pilot
+      hash: md5
+      md5: fa5fb1650f39e3fd91c1619ff33f8ac2.dir
+      size: 30416
+      nfiles: 3
+    - path: uv.lock
+      hash: md5
+      md5: 369bddefda63db07b81ce69ee6f7ef53
+      size: 52653
+    outs:
+    - path: public-pilot/results
+      hash: md5
+      md5: d454edd2590e39ed0ea16b8c3843eda1.dir
+      size: 1308771
+      nfiles: 7

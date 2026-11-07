@@ -3,12 +3,52 @@ name = "pathologize-slide-quality-benchmark"
 version = "0.1.0"
 description = "Whole-slide tissue and artifact quality benchmark"
 requires-python = ">=3.12,<3.13"
-dependencies = ["pathologize-benchmark-contracts"]
+dependencies = [
+  "fire>=0.7,<0.8",
+  "numpy>=2.3,<3",
+  "openslide-bin>=4.0.0.8,<5",
+  "openslide-python>=1.4,<2",
+  "pathologize-benchmark-contracts",
+  "pillow>=12,<13",
+  "pydantic>=2.12,<3",
+]
+
+[project.scripts]
+pathologize-slide-quality-pilot = "pathologize_slide_quality_pilot.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=9,<10",
+  "pytest-cov>=7,<8",
+  "ruff>=0.14,<0.15",
+  "ty>=0.0.75,<0.1",
+]
 
 [tool.uv]
-package = false
+package = true
 
 [tool.uv.sources]
 data-artifacts = { path = "../../packages/data-artifacts", editable = true }
 ml-evaluation = { path = "../../packages/ml-evaluation", editable = true }
 pathologize-benchmark-contracts = { path = "../pathologize-benchmark-contracts", editable = true }
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=pathologize_slide_quality_pilot --cov-report=term-missing --cov-fail-under=80"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+ignore = ["T201", "TRY003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.src]
+include = ["src", "tests"]

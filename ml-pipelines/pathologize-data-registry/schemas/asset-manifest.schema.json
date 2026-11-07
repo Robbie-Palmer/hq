@@ -8,13 +8,25 @@
           "title": "Bytes",
           "type": "integer"
         },
+        "format": {
+          "default": "dicom",
+          "enum": [
+            "dicom",
+            "aperio_svs",
+            "png_mask"
+          ],
+          "title": "Format",
+          "type": "string"
+        },
         "image_role": {
           "enum": [
+            "artifact_annotation",
             "label",
             "overview",
             "thumbnail",
             "volume_primary",
-            "volume_resampled"
+            "volume_resampled",
+            "whole_slide"
           ],
           "title": "Image Role",
           "type": "string"
@@ -30,14 +42,56 @@
           "type": "string"
         },
         "sop_instance_uid": {
-          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
-          "title": "Sop Instance Uid",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sop Instance Uid"
         },
         "source_etag": {
-          "pattern": "^[0-9a-f]{32}$",
-          "title": "Source Etag",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Etag"
+        },
+        "source_identifier": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Identifier"
+        },
+        "source_md5": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Md5"
         },
         "source_url": {
           "format": "uri",
@@ -51,8 +105,6 @@
         "source_url",
         "bytes",
         "sha256",
-        "source_etag",
-        "sop_instance_uid",
         "image_role"
       ],
       "title": "AssetRecord",

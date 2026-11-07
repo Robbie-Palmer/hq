@@ -13,9 +13,19 @@ project that creates them.
 
 | Collection | Registry status | Licence |
 | --- | --- | --- |
+| AIRAQc TCGA artifact test set | Fixed 24-slide pilot subset, 15,813,730,059 bytes including annotations | CC BY 4.0 paper; linked annotation folder has no standalone licence file |
 | CPTAC-COAD Slide Microscopy | One complete six-file DICOM series, 18,701,962 bytes | CC BY 3.0 |
 | CAMELYON16 | Manifest only | CC0 1.0 |
 | PANDA | Manifest only | CC BY-NC-SA 4.0 and Kaggle access terms |
+
+The AIRAQc subset uses the fixed 24-slide test partition from the cited
+reproducibility deposit. It keeps GDC file, case, and TCGA slide identities,
+plus stable domain-separated SHA-256 patient-group keys and native Aperio
+scanner serials where present. The pinned source index retains the public TCGA
+submitter-ID mapping. One Leica SCN400 slide has no native device identifier;
+the downstream pilot records that limitation, retains the slide in its primary
+evaluation, and excludes it only from scanner-held-out slices. Source SVS and
+annotation bytes must not be redistributed.
 
 The CPTAC-COAD series is a small pipeline fixture from NCI Imaging Data
 Commons. It is not a representative scientific cohort. CAMELYON16 and PANDA
@@ -36,7 +46,7 @@ data/raw/                     DVC-managed source files, ignored by Git
 
 The acquisition command accepts only allowlisted HTTPS sources. It checks the
 declared byte count and SHA-256 digest before installing a file. Validation
-reads DICOM headers without decoding pixel data.
+reads DICOM or Aperio headers without decoding pixel data.
 
 ## Get started
 
@@ -45,6 +55,15 @@ Run tasks through mise from the repository root or any subdirectory.
 ```bash
 # Download the 18.7 MB starter subset and verify its checksums.
 mise //ml-pipelines/pathologize-data-registry:acquire
+
+# Acquire the bounded 24-slide AIRAQc pilot subset under its 16.5 GB cap.
+mise //ml-pipelines/pathologize-data-registry:acquire:airaqc-pilot
+
+# Reproduce the already acquired AIRAQc subset through DVC.
+mise //ml-pipelines/pathologize-data-registry:repro:airaqc-pilot
+
+# Require all 48 pilot source and annotation assets and verify their hashes.
+mise //ml-pipelines/pathologize-data-registry:verify:airaqc-pilot
 
 # Run lint, type checks, tests, schema drift checks, and data validation.
 mise //ml-pipelines/pathologize-data-registry:check
@@ -70,8 +89,9 @@ that generated file from the same revision that downstream consumers pin. Do
 not edit it by hand.
 
 Use `mise //ml-pipelines/pathologize-data-registry:repro` to reproduce the
-acquisition through DVC. `verify` requires all files in the acquired subset;
-`validate` checks manifests and any source files already present.
+starter acquisition through DVC. `verify` requires the starter files and
+`verify:airaqc-pilot` requires all pilot files. `validate` checks manifests and
+any source files already present.
 
 ## Add a collection
 

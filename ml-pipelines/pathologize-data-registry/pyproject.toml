@@ -9,6 +9,7 @@ dependencies = [
     "mlcroissant>=1.1.1,<1.2",
     "pydantic>=2.12.5,<3",
     "pydicom>=3.0.1,<4",
+    "tifffile>=2026.9.3,<2027",
 ]
 
 [project.scripts]

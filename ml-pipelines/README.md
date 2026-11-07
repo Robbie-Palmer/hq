@@ -93,3 +93,16 @@ mise run //ml-pipelines:dvc -- status   # from ml-pipelines/recipe-dataset
 
 When adding data, `dvc add` autostages the tracking file; commit it, then push
 the data to R2.
+
+## Git and DVC boundary
+
+- Keep compact, human-reviewable text contracts in Git: source and licence
+  manifests, schemas, parameters, predeclarations, and concise reports.
+- Keep raw source data, private evidence, binary artifacts, models, and large or
+  high-cardinality generated outputs in the DVC cache and configured remote.
+- Declare every generated artifact in its producing DVC stage. For compact text
+  that must remain visible in Git, use a non-cached DVC output or metric so the
+  lockfile still detects drift. Do not leave generated evidence undeclared.
+- Public availability does not make source bytes suitable for Git. Record their
+  stable identities, rights, byte counts, and checksums in Git-tracked manifests
+  and keep the bytes in DVC.

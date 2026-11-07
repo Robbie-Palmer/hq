@@ -1,0 +1,17 @@
+{
+  "acquisition_network_bytes": 15813730059,
+  "cpu_seconds": 96.030898391,
+  "gpu_seconds": 0,
+  "peak_local_disk_bytes_upper_bound": 33708407007,
+  "peak_local_disk_method": "Conservative logical upper bound: materialized inputs plus a complete DVC cache, one largest-asset temporary copy, and result bytes.",
+  "peak_rss_bytes": 2618683392,
+  "peak_vram_bytes": 0,
+  "pixels_read": 528941634,
+  "process_rchar": 16172982215,
+  "process_read_bytes": 0,
+  "result_bytes_before_report": 1294501,
+  "schema_version": "1.0.0",
+  "source_bytes_verified": 15813730059,
+  "spatial_records": 2251,
+  "wall_seconds": 96.36481792293489
+}
