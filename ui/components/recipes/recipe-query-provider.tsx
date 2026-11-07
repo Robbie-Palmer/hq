@@ -8,10 +8,12 @@ import {
 import dynamic from "next/dynamic";
 import { type ReactNode, useEffect, useRef, useState } from "react";
 import { PantryRealtimeBoundary } from "@/components/recipes/pantry-realtime-boundary";
+import { RecipeClientStateProvider } from "@/components/recipes/recipe-client-state-provider";
+import { useRecipeDispatch } from "@/hooks/use-cooking-timers";
 import type { RecipeBootstrap } from "@/lib/api/recipe-bootstrap";
 import type { StoredShoppingList } from "@/lib/api/shopping-lists";
 import { authClient } from "@/lib/auth-client";
-import { setCookingTimerOwner } from "@/lib/cooking/timerStore";
+import { recipeSessionSlice } from "@/lib/cooking/recipeClientStore";
 import {
   loadOfflineRecipeSnapshot,
   saveOfflineRecipeSnapshot,
@@ -69,13 +71,16 @@ export function RecipeAccountCacheBoundary() {
 function useOfflineRecipeCache(): void {
   const { data: session, isPending } = authClient.useSession();
   const queryClient = useQueryClient();
+  const dispatch = useRecipeDispatch();
   const userId = session?.user.id;
   const activeAccount = useRef({ isPending, userId });
   activeAccount.current = { isPending, userId };
 
   useEffect(() => {
     if (isPending) return;
-    setCookingTimerOwner(userId);
+    dispatch(
+      recipeSessionSlice.actions.ownerChanged({ userId: userId ?? null }),
+    );
     setShoppingListOwner(userId);
     if (!userId) return;
     let disposed = false;
@@ -134,7 +139,7 @@ function useOfflineRecipeCache(): void {
       disposed = true;
       unsubscribe();
     };
-  }, [isPending, queryClient, userId]);
+  }, [dispatch, isPending, queryClient, userId]);
 }
 
 function useOfflineShoppingListCache(): void {
@@ -186,6 +191,16 @@ export function OfflineRecipeCacheBoundary() {
 }
 
 export function RecipeQueryProvider({
+  children,
+}: Readonly<{ children: ReactNode }>) {
+  return (
+    <RecipeClientStateProvider>
+      <RecipeQueryProviderContent>{children}</RecipeQueryProviderContent>
+    </RecipeClientStateProvider>
+  );
+}
+
+function RecipeQueryProviderContent({
   children,
 }: Readonly<{ children: ReactNode }>) {
   const [queryClient] = useState(getRecipeQueryClient);

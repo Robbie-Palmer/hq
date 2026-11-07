@@ -5,6 +5,7 @@ import {
 } from "@tanstack/react-query";
 import { act, render, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { RecipeClientStateProvider } from "@/components/recipes/recipe-client-state-provider";
 import {
   OfflineRecipeCacheBoundary,
   RecipeAccountCacheBoundary,
@@ -52,6 +53,16 @@ const shoppingList = {
   createdAt: "2026-10-18T00:00:00.000Z",
   updatedAt: "2026-10-18T00:00:00.000Z",
 } satisfies StoredShoppingList;
+
+function OfflineBoundaryHarness({ queryClient }: { queryClient: QueryClient }) {
+  return (
+    <RecipeClientStateProvider>
+      <QueryClientProvider client={queryClient}>
+        <OfflineRecipeCacheBoundary />
+      </QueryClientProvider>
+    </RecipeClientStateProvider>
+  );
+}
 
 describe("RecipeAccountCacheBoundary", () => {
   beforeEach(() => {
@@ -171,11 +182,7 @@ describe("RecipeAccountCacheBoundary", () => {
       bootstrap,
     });
 
-    render(
-      <QueryClientProvider client={queryClient}>
-        <OfflineRecipeCacheBoundary />
-      </QueryClientProvider>,
-    );
+    render(<OfflineBoundaryHarness queryClient={queryClient} />);
 
     await waitFor(() => {
       expect(
@@ -191,11 +198,7 @@ describe("RecipeAccountCacheBoundary", () => {
 
   it("persists a fresh bootstrap result for the active account", async () => {
     const queryClient = new QueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <OfflineRecipeCacheBoundary />
-      </QueryClientProvider>,
-    );
+    render(<OfflineBoundaryHarness queryClient={queryClient} />);
     const bootstrap = {
       recipeBox: { recipes: [] },
     } as unknown as RecipeBootstrap;
@@ -209,11 +212,7 @@ describe("RecipeAccountCacheBoundary", () => {
 
   it("persists shopping-list cache updates for the active account", async () => {
     const queryClient = new QueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <OfflineRecipeCacheBoundary />
-      </QueryClientProvider>,
-    );
+    render(<OfflineBoundaryHarness queryClient={queryClient} />);
     queryClient.setQueryData(
       recipeQueryKeys.shoppingList("user-1"),
       shoppingList,
@@ -229,11 +228,7 @@ describe("RecipeAccountCacheBoundary", () => {
 
   it("does not refresh persistence when restoring an offline shopping list", async () => {
     const queryClient = new QueryClient();
-    render(
-      <QueryClientProvider client={queryClient}>
-        <OfflineRecipeCacheBoundary />
-      </QueryClientProvider>,
-    );
+    render(<OfflineBoundaryHarness queryClient={queryClient} />);
     restoreOfflineShoppingListQuery(queryClient, "user-1", shoppingList, 123);
 
     await waitFor(() => {
@@ -247,11 +242,7 @@ describe("RecipeAccountCacheBoundary", () => {
 
   it("ignores late shopping updates after the active account signs out", async () => {
     const queryClient = new QueryClient();
-    const view = render(
-      <QueryClientProvider client={queryClient}>
-        <OfflineRecipeCacheBoundary />
-      </QueryClientProvider>,
-    );
+    const view = render(<OfflineBoundaryHarness queryClient={queryClient} />);
     queryClient.setQueryData(
       recipeQueryKeys.shoppingList("user-1"),
       shoppingList,
@@ -263,11 +254,7 @@ describe("RecipeAccountCacheBoundary", () => {
 
     authMocks.session = { data: null, isPending: false };
     await act(async () => {
-      view.rerender(
-        <QueryClientProvider client={queryClient}>
-          <OfflineRecipeCacheBoundary />
-        </QueryClientProvider>,
-      );
+      view.rerender(<OfflineBoundaryHarness queryClient={queryClient} />);
     });
     queryClient.setQueryData(recipeQueryKeys.shoppingList("user-1"), {
       ...shoppingList,

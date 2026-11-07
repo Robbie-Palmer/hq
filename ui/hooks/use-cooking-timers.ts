@@ -1,23 +1,30 @@
 "use client";
 
-import { useCallback, useSyncExternalStore } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { useRecipeClientState } from "@/components/recipes/recipe-client-state-provider";
 import {
   type CookingTimer,
-  getServerTimersSnapshot,
-  getTimersSnapshot,
-  subscribeTimers,
-} from "@/lib/cooking/timerStore";
+  selectCookingTimerById,
+  selectCookingTimers,
+} from "@/lib/cooking/cookingTimersSlice";
+import type {
+  RecipeClientDispatch,
+  RecipeClientState,
+} from "@/lib/cooking/recipeClientStore";
+
+export const useRecipeDispatch = useDispatch.withTypes<RecipeClientDispatch>();
+export const useRecipeSelector = useSelector.withTypes<RecipeClientState>();
+
+export function useCookingTimerCommands() {
+  return useRecipeClientState().commands;
+}
 
 /**
- * All cooking timers, shared app-wide. Re-renders every second while any
+ * All cooking timers, shared across the Recipe Site. Re-renders every second while any
  * timer is running (the store rebuilds the snapshot on each tick).
  */
 export function useCookingTimers(): readonly CookingTimer[] {
-  return useSyncExternalStore(
-    subscribeTimers,
-    getTimersSnapshot,
-    getServerTimersSnapshot,
-  );
+  return useRecipeSelector(selectCookingTimers);
 }
 
 /**
@@ -27,9 +34,5 @@ export function useCookingTimers(): readonly CookingTimer[] {
  * pills don't re-render four times a second alongside the one counting down.
  */
 export function useCookingTimer(id: string): CookingTimer | undefined {
-  const getSnapshot = useCallback(
-    () => getTimersSnapshot().find((t) => t.id === id),
-    [id],
-  );
-  return useSyncExternalStore(subscribeTimers, getSnapshot, () => undefined);
+  return useRecipeSelector((state) => selectCookingTimerById(state, id));
 }

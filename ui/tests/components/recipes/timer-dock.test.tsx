@@ -1,9 +1,14 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { RecipeClientStateProvider } from "@/components/recipes/recipe-client-state-provider";
 import { TimerDock } from "@/components/recipes/timer-dock";
 import { CookModeProvider, useCookMode } from "@/contexts/cook-mode-context";
-import { getTimersSnapshot, startTimer } from "@/lib/cooking/timerStore";
-import { __resetTimerStoreForTests } from "@/tests/support/recipe-state";
+import { selectCookingTimers } from "@/lib/cooking/cookingTimersSlice";
+import type { RecipeClientStoreBundle } from "@/lib/cooking/recipeClientStore";
+import {
+  changeTestRecipeOwner,
+  createTestRecipeClientStore,
+} from "@/tests/support/recipe-client-state";
 
 function OpenCookModeButton() {
   const { setCookModeOpen } = useCookMode();
@@ -35,30 +40,43 @@ function EnterStepButton() {
 }
 
 describe("TimerDock", () => {
+  let bundle: RecipeClientStoreBundle;
+
   beforeEach(() => {
     localStorage.clear();
-    __resetTimerStoreForTests();
+    bundle = createTestRecipeClientStore();
+    changeTestRecipeOwner(bundle, "test-user");
   });
 
   afterEach(() => {
-    __resetTimerStoreForTests();
+    bundle.runtime.stop();
     vi.useRealTimers();
   });
 
+  function renderDock(children?: React.ReactNode) {
+    return render(
+      <RecipeClientStateProvider bundle={bundle}>
+        <CookModeProvider>
+          {children}
+          <TimerDock />
+        </CookModeProvider>
+      </RecipeClientStateProvider>,
+    );
+  }
+
   it("announces a timer that was already complete when the dock mounts", () => {
     vi.useFakeTimers();
-    startTimer({
+    bundle.commands.start({
       id: "restored-timer",
       label: "restored timer",
       durationSeconds: 1,
     });
     vi.advanceTimersByTime(1_000);
-
-    render(
-      <CookModeProvider>
-        <TimerDock />
-      </CookModeProvider>,
+    expect(selectCookingTimers(bundle.store.getState())[0]?.state).toBe(
+      "completed",
     );
+
+    renderDock();
 
     expect(screen.getByRole("alert")).toBeEmptyDOMElement();
     act(() => {
@@ -71,7 +89,7 @@ describe("TimerDock", () => {
 
   it("turns a completed timer into a persistent, accessible alert", () => {
     vi.useFakeTimers();
-    startTimer({
+    bundle.commands.start({
       id: "roast-timer",
       recipeSlug: "roast-vegetables",
       recipeTitle: "Roast vegetables",
@@ -81,15 +99,14 @@ describe("TimerDock", () => {
       durationSeconds: 1,
     });
 
-    render(
-      <CookModeProvider>
-        <TimerDock />
-      </CookModeProvider>,
-    );
+    renderDock();
 
     act(() => {
       vi.advanceTimersByTime(1_000);
     });
+    expect(selectCookingTimers(bundle.store.getState())[0]?.state).toBe(
+      "completed",
+    );
     act(() => {
       vi.advanceTimersByTime(100);
     });
@@ -113,7 +130,7 @@ describe("TimerDock", () => {
     );
 
     act(() => {
-      startTimer({
+      bundle.commands.start({
         id: "sauce-timer",
         label: "sauce",
         durationSeconds: 1,
@@ -138,17 +155,13 @@ describe("TimerDock", () => {
 
   it("keeps the add-timer popover and its typed values while another timer completes", () => {
     vi.useFakeTimers();
-    startTimer({
+    bundle.commands.start({
       id: "roast-timer",
       label: "roast",
       durationSeconds: 3,
     });
 
-    render(
-      <CookModeProvider>
-        <TimerDock />
-      </CookModeProvider>,
-    );
+    renderDock();
 
     fireEvent.click(screen.getByRole("button", { name: "Add a custom timer" }));
 
@@ -159,6 +172,9 @@ describe("TimerDock", () => {
     act(() => {
       vi.advanceTimersByTime(3_000);
     });
+    expect(selectCookingTimers(bundle.store.getState())[0]?.state).toBe(
+      "completed",
+    );
     act(() => {
       vi.advanceTimersByTime(100);
     });
@@ -169,18 +185,13 @@ describe("TimerDock", () => {
   });
 
   it("binds a dock-started timer to the step cook mode is showing", () => {
-    render(
-      <CookModeProvider>
-        <EnterStepButton />
-        <TimerDock />
-      </CookModeProvider>,
-    );
+    renderDock(<EnterStepButton />);
 
     fireEvent.click(screen.getByRole("button", { name: "Enter step" }));
     fireEvent.click(screen.getByRole("button", { name: "Add a custom timer" }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
-    expect(getTimersSnapshot()).toEqual([
+    expect(selectCookingTimers(bundle.store.getState())).toEqual([
       expect.objectContaining({
         recipeSlug: "pasta",
         recipeTitle: "Pasta",
@@ -191,23 +202,18 @@ describe("TimerDock", () => {
   });
 
   it("binds a collapsed-dock timer to the current step", () => {
-    startTimer({
+    bundle.commands.start({
       id: "existing-timer",
       label: "existing",
       durationSeconds: 600,
     });
-    render(
-      <CookModeProvider>
-        <EnterStepButton />
-        <TimerDock />
-      </CookModeProvider>,
-    );
+    renderDock(<EnterStepButton />);
 
     fireEvent.click(screen.getByRole("button", { name: "Enter step" }));
     fireEvent.click(screen.getByRole("button", { name: "Add a custom timer" }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
-    expect(getTimersSnapshot()).toContainEqual(
+    expect(selectCookingTimers(bundle.store.getState())).toContainEqual(
       expect.objectContaining({
         id: expect.stringMatching(/^custom:/),
         recipeSlug: "pasta",
@@ -223,18 +229,13 @@ describe("TimerDock", () => {
       "cooking-timer-dock-pos:v1",
       JSON.stringify({ right: 72, bottom: 180 }),
     );
-    startTimer({
+    bundle.commands.start({
       id: "pasta-timer",
       label: "pasta",
       durationSeconds: 600,
     });
 
-    render(
-      <CookModeProvider>
-        <OpenCookModeButton />
-        <TimerDock />
-      </CookModeProvider>,
-    );
+    renderDock(<OpenCookModeButton />);
 
     fireEvent.click(screen.getByRole("button", { name: "Open cook mode" }));
     expect(screen.getByRole("region", { name: "Cooking timers" })).toHaveStyle({

@@ -3,28 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { InlineTimer } from "@/components/recipes/inline-timer";
 import { useCookingTimer } from "@/hooks/use-cooking-timers";
-import {
-  dismissTimer,
-  pauseTimer,
-  resumeTimer,
-  startTimer,
-} from "@/lib/cooking/timerStore";
+
+const timerCommands = vi.hoisted(() => ({
+  dismiss: vi.fn(),
+  pause: vi.fn(),
+  resume: vi.fn(),
+  start: vi.fn(),
+}));
 
 vi.mock("@/hooks/use-cooking-timers", () => ({
   useCookingTimer: vi.fn(),
+  useCookingTimerCommands: () => timerCommands,
 }));
-
-vi.mock("@/lib/cooking/timerStore", async (importOriginal) => {
-  const original =
-    await importOriginal<typeof import("@/lib/cooking/timerStore")>();
-  return {
-    ...original,
-    dismissTimer: vi.fn(),
-    pauseTimer: vi.fn(),
-    resumeTimer: vi.fn(),
-    startTimer: vi.fn(),
-  };
-});
 
 const mockUseCookingTimer = vi.mocked(useCookingTimer);
 
@@ -52,7 +42,7 @@ describe("InlineTimer", () => {
       screen.getByRole("button", { name: "Start 5 minutes timer" }),
     );
 
-    expect(startTimer).toHaveBeenCalledWith({
+    expect(timerCommands.start).toHaveBeenCalledWith({
       id: "timer-1",
       recipeSlug: "soup",
       recipeTitle: "Soup",
@@ -64,9 +54,13 @@ describe("InlineTimer", () => {
   });
 
   it.each([
-    ["running", "Pause timer, 2:00 remaining", pauseTimer],
-    ["paused", "Resume timer, 2:00 remaining", resumeTimer],
-    ["completed", "Time's up for 5 minutes. Dismiss timer", dismissTimer],
+    ["running", "Pause timer, 2:00 remaining", timerCommands.pause],
+    ["paused", "Resume timer, 2:00 remaining", timerCommands.resume],
+    [
+      "completed",
+      "Time's up for 5 minutes. Dismiss timer",
+      timerCommands.dismiss,
+    ],
   ] as const)("routes the %s action", async (state, accessibleName, action) => {
     const user = userEvent.setup();
     mockUseCookingTimer.mockReturnValue({

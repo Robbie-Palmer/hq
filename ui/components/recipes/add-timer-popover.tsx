@@ -9,7 +9,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { startCustomTimer } from "@/lib/cooking/timerStore";
+import { useCookingTimerCommands } from "@/hooks/use-cooking-timers";
 import { cn } from "@/lib/generic/styles";
 
 const QUICK_MINUTES = [1, 3, 5, 10, 15] as const;
@@ -42,13 +42,12 @@ export function AddTimerPopover({
   align?: "start" | "center" | "end";
   onStarted?: (id: string) => void;
 }>) {
-  const [open, setOpen] = useState(false);
+  const cookingTimers = useCookingTimerCommands(),
+    [open, setOpen] = useState(false);
   const [minutes, setMinutes] = useState(String(defaultMinutes));
   const [seconds, setSeconds] = useState("0");
   const [label, setLabel] = useState(defaultLabel);
-  const labelId = useId();
-  const minutesId = useId();
-  const secondsId = useId();
+  const [labelId, minutesId, secondsId] = [useId(), useId(), useId()];
 
   const durationSeconds = clampInt(minutes, 999) * 60 + clampInt(seconds, 59);
 
@@ -63,7 +62,7 @@ export function AddTimerPopover({
 
   const start = () => {
     if (durationSeconds <= 0) return;
-    const id = startCustomTimer({
+    const id = cookingTimers.startCustom({
       label: label.trim() || "Timer",
       durationSeconds,
       recipeSlug,

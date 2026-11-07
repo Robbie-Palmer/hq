@@ -23,20 +23,16 @@ import {
   type CookModeActiveStep,
   useCookMode,
 } from "@/contexts/cook-mode-context";
-import { useCookingTimers } from "@/hooks/use-cooking-timers";
+import {
+  useCookingTimerCommands,
+  useCookingTimers,
+} from "@/hooks/use-cooking-timers";
 import {
   readBrowserStorageJson,
   removeBrowserStorage,
   writeBrowserStorageJson,
 } from "@/lib/browser/storage";
-import {
-  type CookingTimer,
-  dismissTimer,
-  extendTimer,
-  formatCountdown,
-  pauseTimer,
-  resumeTimer,
-} from "@/lib/cooking/timerStore";
+import { type CookingTimer, formatCountdown } from "@/lib/cooking/timerStore";
 
 const POSITION_KEY = "cooking-timer-dock-pos:v1";
 const EDGE_MARGIN = 8;
@@ -546,6 +542,7 @@ export function TimerDock() {
 }
 
 function DockRow({ timer }: Readonly<{ timer: CookingTimer }>) {
+  const { dismiss, extend, pause, resume } = useCookingTimerCommands();
   const completed = timer.state === "completed";
   const paused = timer.state === "paused";
   const tag = stepTag(timer);
@@ -623,9 +620,7 @@ function DockRow({ timer }: Readonly<{ timer: CookingTimer }>) {
       {!completed && (
         <button
           type="button"
-          onClick={() =>
-            paused ? resumeTimer(timer.id) : pauseTimer(timer.id)
-          }
+          onClick={() => (paused ? resume(timer.id) : pause(timer.id))}
           className="rounded-full p-2 opacity-70 transition-opacity hover:opacity-100"
           aria-label={
             paused
@@ -639,7 +634,7 @@ function DockRow({ timer }: Readonly<{ timer: CookingTimer }>) {
       {!completed && (
         <button
           type="button"
-          onClick={() => extendTimer(timer.id)}
+          onClick={() => extend(timer.id)}
           className="rt-mono rounded-full px-1 py-2 text-[10px] opacity-70 transition-opacity hover:opacity-100"
           aria-label={`Add one minute to ${timer.label} timer`}
         >
@@ -648,7 +643,7 @@ function DockRow({ timer }: Readonly<{ timer: CookingTimer }>) {
       )}
       <button
         type="button"
-        onClick={() => dismissTimer(timer.id)}
+        onClick={() => dismiss(timer.id)}
         className="rounded-full p-2 opacity-70 transition-opacity hover:opacity-100"
         aria-label={`Dismiss ${timer.label} timer`}
       >
