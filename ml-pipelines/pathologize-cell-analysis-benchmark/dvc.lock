@@ -274,12 +274,12 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 7caa0cf9bd9d410719d57d9ab269957f
-      size: 3799
+      md5: 749b5885e8d9c50d471ce43010a78776
+      size: 5410
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 99d9c83e3f028833c35a78be5aacda48
-      size: 12112
+      md5: b6291d22a5311c778e924b3773f800ff
+      size: 12893
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: b4fda445c73786f5201c8aea757f0228
@@ -320,9 +320,9 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: eb29398035a3dd30400ee5f881942905.dir
-      size: 134338
-      nfiles: 12
+      md5: 1c9f1e1b8d66cff6ee4305277c806293.dir
+      size: 158455
+      nfiles: 13
     - path: uv.lock
       hash: md5
       md5: a4105bd7bb02644eb0ba548a3f724a57
@@ -355,20 +355,20 @@ stages:
       size: 2113
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 7caa0cf9bd9d410719d57d9ab269957f
-      size: 3799
+      md5: 749b5885e8d9c50d471ce43010a78776
+      size: 5410
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 99d9c83e3f028833c35a78be5aacda48
-      size: 12112
+      md5: b6291d22a5311c778e924b3773f800ff
+      size: 12893
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: b4fda445c73786f5201c8aea757f0228
       size: 11864
     - path: src/pathologize_cell_analysis/ultralytics_conversion.py
       hash: md5
-      md5: 59376af9c6c06c2e16d4c61f344a9b5b
-      size: 16941
+      md5: f7f9f40a1ecc212c2d629c3031c1aa7f
+      size: 16895
     - path: uv.lock
       hash: md5
       md5: a4105bd7bb02644eb0ba548a3f724a57
@@ -392,16 +392,16 @@ stages:
       size: 2034
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 7caa0cf9bd9d410719d57d9ab269957f
-      size: 3799
+      md5: 749b5885e8d9c50d471ce43010a78776
+      size: 5410
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 99d9c83e3f028833c35a78be5aacda48
-      size: 12112
+      md5: b6291d22a5311c778e924b3773f800ff
+      size: 12893
     - path: src/pathologize_cell_analysis/ultralytics_conversion.py
       hash: md5
-      md5: 59376af9c6c06c2e16d4c61f344a9b5b
-      size: 16941
+      md5: f7f9f40a1ecc212c2d629c3031c1aa7f
+      size: 16895
     - path: uv.lock
       hash: md5
       md5: a4105bd7bb02644eb0ba548a3f724a57
@@ -435,9 +435,9 @@ stages:
       size: 2034
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: eb29398035a3dd30400ee5f881942905.dir
-      size: 134338
-      nfiles: 12
+      md5: 1c9f1e1b8d66cff6ee4305277c806293.dir
+      size: 158455
+      nfiles: 13
     - path: uv.lock
       hash: md5
       md5: a4105bd7bb02644eb0ba548a3f724a57
@@ -480,9 +480,9 @@ stages:
       size: 14928
     - path: src/pathologize_cell_analysis
       hash: md5
-      md5: eb29398035a3dd30400ee5f881942905.dir
-      size: 134338
-      nfiles: 12
+      md5: 1c9f1e1b8d66cff6ee4305277c806293.dir
+      size: 158455
+      nfiles: 13
     - path: uv.lock
       hash: md5
       md5: a4105bd7bb02644eb0ba548a3f724a57
@@ -493,3 +493,100 @@ stages:
       md5: b28b6086c78d3aad24f12dbfdef24d6c.dir
       size: 8234812
       nfiles: 4
+  continue_nucls_ultralytics_detection:
+    cmd: uv run --locked pathologize-cell-analysis continue-detection
+    deps:
+    - path: data/derived/nucls-ultralytics-yolo26n-v1
+      hash: md5
+      md5: 454a65dadf22419713d743a76391d6b2.dir
+      size: 803623897
+      nfiles: 6979
+    - path: experiments/nucls-ultralytics-baseline.json
+      hash: md5
+      md5: 7260ea4e746d13fee005b6cd456a0cd5
+      size: 4700
+    - path: experiments/nucls-ultralytics-detection-continuation.json
+      hash: md5
+      md5: 34cc41fee54949ffc430125d48850743
+      size: 1937
+    - path: outputs/public/nucls-ultralytics-yolo26n-v1/training
+      hash: md5
+      md5: 43595db29e036012cedd506d0cc29a2e.dir
+      size: 24135496
+      nfiles: 9
+    - path: pyproject.toml
+      hash: md5
+      md5: 07bdb4f67cfb6c0bd10bd6ca88662db0
+      size: 2034
+    - path: reports/nucls-ultralytics-baseline.json
+      hash: md5
+      md5: 6bd758a0d48a31f9f6c5ad49064b02f7
+      size: 25763
+    - path: src/pathologize_cell_analysis
+      hash: md5
+      md5: 1c9f1e1b8d66cff6ee4305277c806293.dir
+      size: 158455
+      nfiles: 13
+    - path: uv.lock
+      hash: md5
+      md5: a4105bd7bb02644eb0ba548a3f724a57
+      size: 142456
+    outs:
+    - path:
+        outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/training
+      hash: md5
+      md5: 64cbfb735a8895d0f5793b818208179a.dir
+      size: 10911529
+      nfiles: 5
+  evaluate_nucls_ultralytics_detection_continuation:
+    cmd: uv run --locked pathologize-cell-analysis
+      evaluate-detection-continuation
+    deps:
+    - path: data/derived/nucls-ultralytics-yolo26n-v1
+      hash: md5
+      md5: 454a65dadf22419713d743a76391d6b2.dir
+      size: 803623897
+      nfiles: 6979
+    - path: data/nucls-corrected-single-rater
+      hash: md5
+      md5: df782f77b256fb31624a7c726329ab9e.dir
+      size: 399546523
+      nfiles: 3501
+    - path: experiments/nucls-ultralytics-baseline.json
+      hash: md5
+      md5: 7260ea4e746d13fee005b6cd456a0cd5
+      size: 4700
+    - path: experiments/nucls-ultralytics-detection-continuation.json
+      hash: md5
+      md5: 34cc41fee54949ffc430125d48850743
+      size: 1937
+    - path:
+        outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/training
+      hash: md5
+      md5: 64cbfb735a8895d0f5793b818208179a.dir
+      size: 10911529
+      nfiles: 5
+    - path: pyproject.toml
+      hash: md5
+      md5: 07bdb4f67cfb6c0bd10bd6ca88662db0
+      size: 2034
+    - path: reports/nucls-ultralytics-baseline.json
+      hash: md5
+      md5: 6bd758a0d48a31f9f6c5ad49064b02f7
+      size: 25763
+    - path: src/pathologize_cell_analysis
+      hash: md5
+      md5: 1c9f1e1b8d66cff6ee4305277c806293.dir
+      size: 158455
+      nfiles: 13
+    - path: uv.lock
+      hash: md5
+      md5: a4105bd7bb02644eb0ba548a3f724a57
+      size: 142456
+    outs:
+    - path:
+        outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/evaluation
+      hash: md5
+      md5: 4785ad43bae53536eaade6bf276ace95.dir
+      size: 3624914
+      nfiles: 3

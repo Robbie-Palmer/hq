@@ -173,3 +173,32 @@ stages:
       - uv.lock
     outs:
       - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation
+
+  continue_nucls_ultralytics_detection:
+    cmd: uv run --locked pathologize-cell-analysis continue-detection
+    deps:
+      - data/derived/nucls-ultralytics-yolo26n-v1
+      - outputs/public/nucls-ultralytics-yolo26n-v1/training
+      - experiments/nucls-ultralytics-baseline.json
+      - experiments/nucls-ultralytics-detection-continuation.json
+      - reports/nucls-ultralytics-baseline.json
+      - src/pathologize_cell_analysis
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/training
+
+  evaluate_nucls_ultralytics_detection_continuation:
+    cmd: uv run --locked pathologize-cell-analysis evaluate-detection-continuation
+    deps:
+      - data/nucls-corrected-single-rater
+      - data/derived/nucls-ultralytics-yolo26n-v1
+      - outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/training
+      - experiments/nucls-ultralytics-baseline.json
+      - experiments/nucls-ultralytics-detection-continuation.json
+      - reports/nucls-ultralytics-baseline.json
+      - src/pathologize_cell_analysis
+      - pyproject.toml
+      - uv.lock
+    outs:
+      - outputs/public/nucls-ultralytics-yolo26n-detect-continuation-v1/evaluation
