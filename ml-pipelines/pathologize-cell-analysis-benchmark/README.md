@@ -63,4 +63,31 @@ calibration error worsened from 0.0540 to 0.2190. No second candidate was tried.
 See [the full evidence report](reports/nucls-public-baseline.md) for per-class,
 site, failure, exclusion, and resource results.
 
+## Learned NuCLS baseline
+
+The first learned baseline uses framework-native `ultralytics==8.4.202` with
+pinned YOLO26n detection and YOLO26n-seg starting weights. Its derived
+Ultralytics labels remain DVC artifacts. The conversion preserves the five
+source labels, official folds, patient and slide boundaries, empty images, and
+pixel coordinates. Points are excluded from box training because they have no
+area; points and rectangles are excluded from mask training because they have
+no polygon. No surrogate geometry is created.
+
+Detection ran to the 40-epoch ceiling. Training and validation loss sums fell
+from 5.0105 to 3.1257 and 5.9297 to 3.3774. Best validation box mAP50 was
+0.4284 at epoch 38, and best mAP50-95 was 0.1860 at epoch 35. The run learned,
+but convergence was not established before the epoch ceiling. Segmentation
+stopped at epoch 16 under the declared eight-epoch patience rule. Best mask
+mAP50 and mAP50-95 were 0.2698 and 0.1248 at epoch 8, which supports a
+validation plateau.
+
+On the frozen test fold, Pathologize-native evaluation produced detection
+localization F1 0.5207, segmentation localization F1 0.6112, and conditional
+polygon mean IoU 0.7598. The transparent baseline values were 0.2636 and
+0.5313 for localization F1 and conditional polygon mean IoU. Aggregate GPU
+evidence was 1,875.5 seconds against the 86,400-second ceiling, and prediction
+normalization rejected no instances. See
+[the learned-baseline evidence report](reports/nucls-ultralytics-baseline.md)
+for curves, per-class and held-out-site slices, failures, resources, and pins.
+
 Neither path makes a clinical-validity claim.
