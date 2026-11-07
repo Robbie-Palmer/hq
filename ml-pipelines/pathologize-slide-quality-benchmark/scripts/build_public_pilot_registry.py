@@ -28,6 +28,10 @@ REGISTRY_INDEX = Path("registry.json")
 CORPUS_MANIFEST = Path("public-pilot/corpus.json")
 TCGA_PATIENT_ID = re.compile(r"^TCGA-[A-Z0-9]{2}-[A-Z0-9]{4}$")
 PATIENT_GROUP_DOMAIN = b"airaqc-tcga-public-pilot-v1:patient-group:"
+RECORD_MANIFESTS = tuple(
+    Path(f"records/slides/airaqc-tcga-public-pilot-v1-{position:02d}.json")
+    for position in range(24)
+)
 
 
 def _read(path: Path) -> dict[str, Any]:
@@ -37,13 +41,38 @@ def _read(path: Path) -> dict[str, Any]:
     return value
 
 
-def _write(root: Path, relative_path: Path, value: object) -> None:
-    resolved_root = root.resolve()
-    path = (resolved_root / relative_path).resolve()
-    if not path.is_relative_to(resolved_root):
-        raise ValueError(f"output must remain within {resolved_root}: {relative_path}")
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _json_text(value: object) -> str:
+    return json.dumps(value, indent=2, sort_keys=True) + "\n"
+
+
+def _write_collection_manifest(value: object) -> None:
+    (REGISTRY_ROOT / COLLECTION_MANIFEST).write_text(_json_text(value), encoding="utf-8")
+
+
+def _write_subset_manifest(value: object) -> None:
+    (REGISTRY_ROOT / SUBSET_MANIFEST).write_text(_json_text(value), encoding="utf-8")
+
+
+def _write_asset_manifest(value: object) -> None:
+    (REGISTRY_ROOT / ASSET_MANIFEST).write_text(_json_text(value), encoding="utf-8")
+
+
+def _write_slide_records(records: list[dict[str, Any]]) -> list[str]:
+    if len(records) != len(RECORD_MANIFESTS):
+        raise ValueError(f"expected {len(RECORD_MANIFESTS)} slide records, got {len(records)}")
+    record_root = REGISTRY_ROOT / "records/slides"
+    record_root.mkdir(parents=True, exist_ok=True)
+    for relative_path, record in zip(RECORD_MANIFESTS, records, strict=True):
+        (REGISTRY_ROOT / relative_path).write_text(_json_text(record), encoding="utf-8")
+    return [path.as_posix() for path in RECORD_MANIFESTS]
+
+
+def _write_registry_index(value: object) -> None:
+    (REGISTRY_ROOT / REGISTRY_INDEX).write_text(_json_text(value), encoding="utf-8")
+
+
+def _write_corpus_manifest(value: object) -> None:
+    (BENCHMARK_ROOT / CORPUS_MANIFEST).write_text(_json_text(value), encoding="utf-8")
 
 
 def _sha256(path: Path) -> str:
@@ -253,9 +282,7 @@ def build() -> None:
             }
         )
 
-    _write(
-        REGISTRY_ROOT,
-        COLLECTION_MANIFEST,
+    _write_collection_manifest(
         {
             "schema_version": 1,
             "collection_id": COLLECTION_ID,
@@ -326,9 +353,7 @@ def build() -> None:
             "subsets": [SUBSET_ID],
         },
     )
-    _write(
-        REGISTRY_ROOT,
-        SUBSET_MANIFEST,
+    _write_subset_manifest(
         {
             "schema_version": 1,
             "subset_id": SUBSET_ID,
@@ -352,9 +377,7 @@ def build() -> None:
             "total_bytes": total_bytes,
         },
     )
-    _write(
-        REGISTRY_ROOT,
-        ASSET_MANIFEST,
+    _write_asset_manifest(
         {
             "schema_version": 1,
             "asset_manifest_id": "airaqc-tcga-public-pilot-v1-assets",
@@ -362,13 +385,7 @@ def build() -> None:
             "assets": assets,
         },
     )
-    record_paths: list[str] = []
-    for position, record in enumerate(records):
-        relative_path = Path(
-            f"records/slides/airaqc-tcga-public-pilot-v1-{position:02d}.json"
-        )
-        record_paths.append(relative_path.as_posix())
-        _write(REGISTRY_ROOT, relative_path, record)
+    record_paths = _write_slide_records(records)
     registry_index = _read(REGISTRY_ROOT / REGISTRY_INDEX)
     additions = {
         "collections": [COLLECTION_MANIFEST.as_posix()],
@@ -383,13 +400,11 @@ def build() -> None:
     ]
     for field, paths in additions.items():
         registry_index[field] = sorted(set(registry_index[field]) | set(paths))
-    _write(REGISTRY_ROOT, REGISTRY_INDEX, registry_index)
+    _write_registry_index(registry_index)
     collection_manifest = REGISTRY_ROOT / COLLECTION_MANIFEST
     subset_manifest = REGISTRY_ROOT / SUBSET_MANIFEST
     asset_manifest = REGISTRY_ROOT / ASSET_MANIFEST
-    _write(
-        BENCHMARK_ROOT,
-        CORPUS_MANIFEST,
+    _write_corpus_manifest(
         {
             "schema_version": "1.0.0",
             "corpus_id": "airaqc-tcga-public-pilot-v1",
