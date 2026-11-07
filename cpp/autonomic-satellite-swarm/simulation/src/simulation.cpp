@@ -116,9 +116,7 @@ private:
   void scheduleArrival(const SimulatedPacket& packet, uint32_t delay_ms, bool forwarding);
   void processArrival(const PendingDelivery& delivery);
   std::optional<uint32_t> nextPacketEventDelta(uint32_t target_ms, bool include_target) const;
-  void completeTransmissionAtCurrentTime();
   PendingDeliveryIterator nextPendingDelivery();
-  void deliverPendingAtCurrentTime();
   void advancePacketNetwork(uint32_t target_ms, bool include_target);
   uint64_t packetAirtimeMicroseconds() const;
   uint32_t packetTransmissionMilliseconds() const;
@@ -722,15 +720,6 @@ std::optional<uint32_t> SimulationBus::nextPacketEventDelta(uint32_t target_ms,
   return next_delta;
 }
 
-void SimulationBus::completeTransmissionAtCurrentTime() {
-  if (!active_transmission_.has_value() || active_transmission_->completes_at_ms != now_ms_) {
-    return;
-  }
-  const ActiveTransmission completed = *active_transmission_;
-  active_transmission_.reset();
-  completeTransmission(completed);
-}
-
 SimulationBus::PendingDeliveryIterator SimulationBus::nextPendingDelivery() {
   auto selected = pending_deliveries_.end();
   for (auto pending = pending_deliveries_.begin(); pending != pending_deliveries_.end();
@@ -743,24 +732,24 @@ SimulationBus::PendingDeliveryIterator SimulationBus::nextPendingDelivery() {
   return selected;
 }
 
-void SimulationBus::deliverPendingAtCurrentTime() {
-  while (true) {
-    const PendingDeliveryIterator selected = nextPendingDelivery();
-    if (selected == pending_deliveries_.end()) {
-      return;
-    }
-    const PendingDelivery delivery = *selected;
-    pending_deliveries_.erase(selected);
-    processArrival(delivery);
-  }
-}
-
 void SimulationBus::advancePacketNetwork(uint32_t target_ms, bool include_target) {
   std::optional<uint32_t> next_delta = nextPacketEventDelta(target_ms, include_target);
   while (next_delta.has_value()) {
     now_ms_ += *next_delta;
-    completeTransmissionAtCurrentTime();
-    deliverPendingAtCurrentTime();
+    if (active_transmission_.has_value() && active_transmission_->completes_at_ms == now_ms_) {
+      const ActiveTransmission completed = *active_transmission_;
+      active_transmission_.reset();
+      completeTransmission(completed);
+    }
+    while (true) {
+      const PendingDeliveryIterator selected = nextPendingDelivery();
+      if (selected == pending_deliveries_.end()) {
+        break;
+      }
+      const PendingDelivery delivery = *selected;
+      pending_deliveries_.erase(selected);
+      processArrival(delivery);
+    }
     startTransmissionIfIdle();
     next_delta = nextPacketEventDelta(target_ms, include_target);
   }
