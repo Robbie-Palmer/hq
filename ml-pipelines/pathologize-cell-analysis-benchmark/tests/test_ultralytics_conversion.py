@@ -13,16 +13,10 @@ from PIL import Image
 from pydantic import ValidationError
 
 from pathologize_cell_analysis.contracts import (
-    DetectionContinuationExperiment,
     SplitItem,
     UltralyticsExperiment,
 )
 from pathologize_cell_analysis.data import Annotation
-from pathologize_cell_analysis.detection_continuation import (
-    DeadlineMonitor,
-    PlateauMonitor,
-    report_detection_continuation,
-)
 from pathologize_cell_analysis.ultralytics_conversion import (
     acquire_ultralytics_artifacts,
     bbox_to_yolo,
@@ -146,99 +140,6 @@ def test_predeclaration_is_strict_and_complete() -> None:
     document["models"].pop("segment")
     with pytest.raises(ValidationError):
         UltralyticsExperiment.model_validate(document)
-
-
-def test_detection_continuation_predeclaration_and_plateau() -> None:
-    path = Path(__file__).parents[1] / "experiments/nucls-ultralytics-detection-continuation.json"
-    document = json.loads(path.read_text(encoding="utf-8"))
-    experiment = DetectionContinuationExperiment.model_validate(document)
-    assert experiment.base_best_map50_95 == 0.186
-    assert experiment.validation_patience == 8
-
-    class Trainer:
-        def __init__(self) -> None:
-            self.loss = torch.tensor([1.0])
-            self.metrics: dict[str, float] = {}
-            self.stop = False
-
-    trainer = Trainer()
-    monitor = PlateauMonitor(0.186, patience=8, minimum_improvement=0.0)
-    for _ in range(4):
-        trainer.metrics = {"metrics/mAP50-95(B)": 0.18}
-        monitor.observe(trainer)
-    trainer.metrics = {"metrics/mAP50-95(B)": 0.19}
-    monitor.observe(trainer)
-    assert monitor.epochs_without_improvement == 0
-    for _ in range(8):
-        trainer.metrics = {"metrics/mAP50-95(B)": 0.189}
-        monitor.observe(trainer)
-    assert trainer.stop
-    assert monitor.stop_reason == "validation_patience"
-
-    nonfinite_loss = Trainer()
-    nonfinite_loss.loss = torch.tensor([float("nan")])
-    loss_monitor = PlateauMonitor(0.186, patience=8, minimum_improvement=0.0)
-    loss_monitor.observe(nonfinite_loss)
-    assert loss_monitor.stop_reason == "non_finite_training_loss"
-
-    nonfinite_metric = Trainer()
-    nonfinite_metric.metrics = {"metrics/mAP50-95(B)": float("nan")}
-    metric_monitor = PlateauMonitor(0.186, patience=8, minimum_improvement=0.0)
-    metric_monitor.observe(nonfinite_metric)
-    assert metric_monitor.stop_reason == "non_finite_validation_metric"
-
-    expired_deadline = DeadlineMonitor(deadline=0.0)
-    expired_deadline.observe(nonfinite_metric)
-    assert expired_deadline.stopped
-
-
-def test_detection_continuation_report_selects_base_checkpoint(tmp_path: Path) -> None:
-    source_path = (
-        Path(__file__).parents[1] / "experiments/nucls-ultralytics-detection-continuation.json"
-    )
-    experiment = json.loads(source_path.read_text(encoding="utf-8"))
-    experiment["output_directory"] = "outputs/continuation"
-    experiment_path = tmp_path / "experiments/continuation.json"
-    experiment_path.parent.mkdir(parents=True)
-    write_json(experiment_path, experiment)
-    evidence_path = tmp_path / "outputs/continuation/evaluation/evidence.json"
-    evidence_path.parent.mkdir(parents=True)
-    write_json(
-        evidence_path,
-        {
-            "comparison": {
-                "base_detector_localization_f1": 0.52,
-                "continuation_localization_f1": 0.51,
-            },
-            "selection": {
-                "promote_continuation": False,
-                "selected_checkpoint": "base_detector",
-                "reason": "held_out_localization_f1_did_not_improve",
-            },
-            "training": {
-                "base_best_map50_95": 0.186,
-                "continuation_best_map50_95": 0.187,
-                "completed_additional_epochs": 10,
-                "stop_reason": "validation_patience",
-            },
-            "training_curve": {"convergence_assessment": "validation_plateau_supports_convergence"},
-            "failures": [],
-        },
-    )
-    json_output = tmp_path / "reports/continuation.json"
-    markdown_output = tmp_path / "reports/continuation.md"
-
-    observed = report_detection_continuation(
-        experiment_path,
-        json_output,
-        markdown_output,
-    )
-
-    assert observed["selection"]["selected_checkpoint"] == "base_detector"
-    assert json.loads(json_output.read_text(encoding="utf-8")) == observed
-    markdown = markdown_output.read_text(encoding="utf-8")
-    assert "not a promotion candidate" in markdown
-    assert "validation_patience" in markdown
 
 
 def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> None:
@@ -400,7 +301,9 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
 
     class Masks:
         def __init__(self) -> None:
-            self.xy = [np.asarray([[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]])]
+            self.xy = [
+                np.asarray([[10.0, 20.0], [30.0, 20.0], [30.0, 40.0], [10.0, 40.0]])
+            ]
 
     class Result:
         orig_shape = (80, 100)
@@ -417,7 +320,9 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
         annotation_path="annotations/item.csv",
     )
     _write_annotation(tmp_path / item.annotation_path)
-    record, rejections = _normalize_result(Result(), item, "segment", _fixture()["ontology_labels"])
+    record, rejections = _normalize_result(
+        Result(), item, "segment", _fixture()["ontology_labels"]
+    )
     assert not rejections
     assert record.predictions[0].polygon_xy_pixels is not None
     predicted = _as_predicted_nucleus(record.predictions[0], (80, 100))

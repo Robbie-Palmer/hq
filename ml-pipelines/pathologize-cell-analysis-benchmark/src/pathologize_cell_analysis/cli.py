@@ -7,11 +7,6 @@ import fire
 
 from .contracts import StrictModel
 from .data import acquire_dataset
-from .detection_continuation import (
-    evaluate_detection_continuation,
-    report_detection_continuation,
-    train_detection_continuation,
-)
 from .experiment import report, run
 from .ultralytics_conversion import acquire_ultralytics_artifacts, prepare_ultralytics_layout
 from .ultralytics_experiment import (
@@ -40,11 +35,6 @@ class UltralyticsOptions(StrictModel):
 
 
 class UltralyticsReportOptions(UltralyticsOptions):
-    json_output: Path
-    markdown_output: Path
-
-
-class DetectionContinuationReportOptions(UltralyticsOptions):
     json_output: Path
     markdown_output: Path
 
@@ -122,39 +112,6 @@ class Commands:
             }
         )
         return report_ultralytics(
-            options.experiment,
-            options.json_output,
-            options.markdown_output,
-        )
-
-    def continue_detection(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-detection-continuation.json",
-    ) -> dict[str, Any]:
-        options = UltralyticsOptions.model_validate({"experiment": experiment})
-        return train_detection_continuation(options.experiment)
-
-    def evaluate_detection_continuation(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-detection-continuation.json",
-    ) -> dict[str, Any]:
-        options = UltralyticsOptions.model_validate({"experiment": experiment})
-        return evaluate_detection_continuation(options.experiment)
-
-    def report_detection_continuation(
-        self,
-        experiment: str = "experiments/nucls-ultralytics-detection-continuation.json",
-        json_output: str = "reports/nucls-ultralytics-detection-continuation.json",
-        markdown_output: str = "reports/nucls-ultralytics-detection-continuation.md",
-    ) -> dict[str, Any]:
-        options = DetectionContinuationReportOptions.model_validate(
-            {
-                "experiment": experiment,
-                "json_output": json_output,
-                "markdown_output": markdown_output,
-            }
-        )
-        return report_detection_continuation(
             options.experiment,
             options.json_output,
             options.markdown_output,

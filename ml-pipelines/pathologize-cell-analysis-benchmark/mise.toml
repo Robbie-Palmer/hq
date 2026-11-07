@@ -90,23 +90,3 @@ run = "uv run --locked pathologize-cell-analysis evaluate-ultralytics"
 description = "Write the tracked NuCLS Ultralytics evidence report"
 depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis report-ultralytics"
-
-[tasks."ultralytics:continue-detection"]
-description = "Continue the pinned NuCLS detector until validation plateaus"
-depends = ["sync"]
-run = "bash ../scripts/dvc.sh repro evaluate_nucls_ultralytics_detection_continuation"
-
-[tasks."ultralytics:continue-detection:train"]
-description = "Train the predeclared NuCLS detector continuation"
-depends = ["sync"]
-run = "uv run --locked pathologize-cell-analysis continue-detection"
-
-[tasks."ultralytics:continue-detection:evaluate"]
-description = "Evaluate the settled detector continuation on the frozen test fold"
-depends = ["sync"]
-run = "uv run --locked pathologize-cell-analysis evaluate-detection-continuation"
-
-[tasks."ultralytics:continue-detection:report"]
-description = "Write the tracked detector-continuation evidence report"
-depends = ["sync"]
-run = "uv run --locked pathologize-cell-analysis report-detection-continuation"

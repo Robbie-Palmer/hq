@@ -380,7 +380,9 @@ def prepare_ultralytics_layout(experiment_path: Path) -> dict[str, object]:
                     "label_count": len(converted.labels),
                     "empty_image": not converted.labels,
                     "exclusions": [exclusion.__dict__ for exclusion in converted.exclusions],
-                    "adjustments": [adjustment.__dict__ for adjustment in converted.adjustments],
+                    "adjustments": [
+                        adjustment.__dict__ for adjustment in converted.adjustments
+                    ],
                 }
             record["tasks"] = task_records
             item_records.append(record)
