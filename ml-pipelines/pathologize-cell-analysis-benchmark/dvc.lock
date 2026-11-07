@@ -13,8 +13,8 @@ stages:
       size: 2211
     - path: ../../packages/data-artifacts/src/data_artifacts/files.py
       hash: md5
-      md5: 7b2f2782381e3977151d852c1b94e624
-      size: 2968
+      md5: 73a3be9501c998640dc8b0f9ccb656ae
+      size: 3334
     - path: ../../packages/data-artifacts/src/data_artifacts/schemas.py
       hash: md5
       md5: 4bb3b5e701569c73b6af07e499daf1bf
@@ -22,7 +22,7 @@ stages:
     outs:
     - path: outputs/data-artifacts-source.sha256
       hash: md5
-      md5: 8ee5638ed3f7e5fd180df557f65b2139
+      md5: f62a4716a516038d37a482a759edf175
       size: 65
   pin_ml_evaluation:
     cmd: uv run --locked data-artifacts fingerprint ml_evaluation,data_artifacts
@@ -45,37 +45,37 @@ stages:
       size: 4414
     - path: outputs/data-artifacts-source.sha256
       hash: md5
-      md5: 8ee5638ed3f7e5fd180df557f65b2139
+      md5: f62a4716a516038d37a482a759edf175
       size: 65
     outs:
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
   generate_synthetic_fixtures:
     cmd: uv run --locked pathologize-benchmark generate-fixtures
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: fixtures/spec.json
       hash: md5
       md5: 4a854e821a33887068abca8347c2b0a3
       size: 686
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 07fb1153f6a4b79f430ca6f3509c8093
-      size: 547
+      md5: 0443843eead538aac8dc4fa0381247a4
+      size: 2006
     - path: uv.lock
       hash: md5
-      md5: 135b0941ace7da8d0eed02c4e5a33972
-      size: 17305
+      md5: f6a45ad8d2d1659981ab4016471edbe6
+      size: 62093
     outs:
     - path: data/synthetic
       hash: md5
@@ -87,9 +87,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic/manifest.json
       hash: md5
       md5: 38db48abe9059b1579208b45b833778c
@@ -100,7 +100,7 @@ stages:
       size: 2524
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: params.yaml
       hash: md5
@@ -122,9 +122,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic
       hash: md5
       md5: 809e1ab513d9fce5b2e40c183339f22f.dir
@@ -140,16 +140,16 @@ stages:
       size: 264
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 07fb1153f6a4b79f430ca6f3509c8093
-      size: 547
+      md5: 0443843eead538aac8dc4fa0381247a4
+      size: 2006
     - path: uv.lock
       hash: md5
-      md5: 135b0941ace7da8d0eed02c4e5a33972
-      size: 17305
+      md5: f6a45ad8d2d1659981ab4016471edbe6
+      size: 62093
     outs:
     - path: outputs/runs
       hash: md5
@@ -161,9 +161,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: data/synthetic
       hash: md5
       md5: 809e1ab513d9fce5b2e40c183339f22f.dir
@@ -175,7 +175,7 @@ stages:
       size: 2524
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/failures.json
       hash: md5
@@ -199,9 +199,9 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: experiments/cell-analysis.json
       hash: md5
       md5: d9bceb816daf9aef0482ff2a2640cb84
@@ -212,7 +212,7 @@ stages:
       size: 1831
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/run-record.json
       hash: md5
@@ -228,16 +228,16 @@ stages:
     deps:
     - path: ../pathologize-benchmark-contracts/src
       hash: md5
-      md5: 46adec5ff1005b9560597dbf775f6f8c.dir
-      size: 172597
-      nfiles: 15
+      md5: a676b6f83a71e60110fbdcfa382aa83e.dir
+      size: 70050
+      nfiles: 8
     - path: experiments/cell-analysis.json
       hash: md5
       md5: d9bceb816daf9aef0482ff2a2640cb84
       size: 2524
     - path: outputs/ml-evaluation-source.sha256
       hash: md5
-      md5: 314e743e9e194abac2b6d383ed0d4e54
+      md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
     - path: outputs/scorecards/cell-analysis-contract-v1.json
       hash: md5
@@ -252,3 +252,79 @@ stages:
       hash: md5
       md5: cfa62e3ea25d097a8d4665318ecd6703
       size: 541
+  prepare_nucls_public_data:
+    cmd: uv run --locked pathologize-cell-analysis acquire
+    deps:
+    - path: outputs/data-artifacts-source.sha256
+      hash: md5
+      md5: f62a4716a516038d37a482a759edf175
+      size: 65
+    - path: pyproject.toml
+      hash: md5
+      md5: 0443843eead538aac8dc4fa0381247a4
+      size: 2006
+    - path: sources/nucls-corrected-single-rater.json
+      hash: md5
+      md5: 73d9106b3f62a23a40ded7e51f46fc7d
+      size: 2113
+    - path: src/pathologize_cell_analysis/cli.py
+      hash: md5
+      md5: 540436e84329d2b148ec633c5afaca41
+      size: 1640
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 49831cd665acd0d53133e1739161e24d
+      size: 6583
+    - path: src/pathologize_cell_analysis/data.py
+      hash: md5
+      md5: b4fda445c73786f5201c8aea757f0228
+      size: 11864
+    - path: uv.lock
+      hash: md5
+      md5: f6a45ad8d2d1659981ab4016471edbe6
+      size: 62093
+    outs:
+    - path: data/nucls-corrected-single-rater
+      hash: md5
+      md5: df782f77b256fb31624a7c726329ab9e.dir
+      size: 399546523
+      nfiles: 3501
+  evaluate_nucls_public_baseline:
+    cmd: uv run --locked pathologize-cell-analysis run
+    deps:
+    - path: data/nucls-corrected-single-rater
+      hash: md5
+      md5: df782f77b256fb31624a7c726329ab9e.dir
+      size: 399546523
+      nfiles: 3501
+    - path: experiments/nucls-public-baseline.json
+      hash: md5
+      md5: e429c4cdce326c9c99ae5ae9d8d7ac63
+      size: 590
+    - path: outputs/data-artifacts-source.sha256
+      hash: md5
+      md5: f62a4716a516038d37a482a759edf175
+      size: 65
+    - path: pyproject.toml
+      hash: md5
+      md5: 0443843eead538aac8dc4fa0381247a4
+      size: 2006
+    - path: sources/nucls-corrected-single-rater.json
+      hash: md5
+      md5: 73d9106b3f62a23a40ded7e51f46fc7d
+      size: 2113
+    - path: src/pathologize_cell_analysis
+      hash: md5
+      md5: e72b5bdda544df48323dddfcd91cc1f3.dir
+      size: 67896
+      nfiles: 10
+    - path: uv.lock
+      hash: md5
+      md5: f6a45ad8d2d1659981ab4016471edbe6
+      size: 62093
+    outs:
+    - path: outputs/public/nucls-public-baseline-v1
+      hash: md5
+      md5: e7a39981ca53dbd2bd8c5c69eddfef3f.dir
+      size: 25607479
+      nfiles: 6

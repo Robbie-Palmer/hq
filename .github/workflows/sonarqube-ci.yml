@@ -164,6 +164,7 @@ jobs:
             ml-pipelines/ai-review-evaluation/coverage/lcov.info
             ml-pipelines/financial-document-idp-evaluation/coverage.xml
             ml-pipelines/pathologize-benchmark-contracts/coverage.xml
+            ml-pipelines/pathologize-cell-analysis-benchmark/coverage.xml
             ml-pipelines/pathologize-data-registry/coverage.xml
             ml-pipelines/pathologize-slide-quality-benchmark/coverage.xml
             ml-pipelines/pathologize-tiling-benchmark/coverage.xml

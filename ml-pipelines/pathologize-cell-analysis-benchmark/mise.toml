@@ -18,9 +18,9 @@ description = "Run a DVC command in the cell-analysis benchmark"
 run = "bash ../scripts/dvc.sh"
 
 [tasks.repro]
-description = "Reproduce the deterministic cell-analysis benchmark"
+description = "Reproduce the deterministic synthetic contract benchmark"
 depends = ["sync"]
-run = "bash ../scripts/dvc.sh repro"
+run = "bash ../scripts/dvc.sh repro write_benchmark_index"
 
 [tasks.verify]
 description = "Verify cell-analysis contracts, leakage boundaries, and scorecards"
@@ -29,4 +29,39 @@ run = "uv run --locked pathologize-benchmark verify"
 
 [tasks.check]
 description = "Check the cell-analysis benchmark"
-depends = ["verify"]
+depends = ["lint", "typecheck", "test:coverage", "verify"]
+
+[tasks.format]
+description = "Format cell-analysis benchmark Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint cell-analysis benchmark Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check cell-analysis benchmark Python code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run cell-analysis benchmark tests"
+depends = ["sync"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run cell-analysis benchmark tests with Cobertura coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks."public:repro"]
+description = "Acquire and run the bounded NuCLS public baseline through DVC"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro evaluate_nucls_public_baseline"
+
+[tasks."public:report"]
+description = "Write the tracked NuCLS public-baseline evidence report"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis report"
