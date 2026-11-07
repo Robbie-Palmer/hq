@@ -15,7 +15,7 @@ export const CurrencySchema = z.string().regex(/^[A-Z]{3}$/);
 export const MoneySchema = z
   .object({
     currency: CurrencySchema,
-    amount: z.number().finite().nonnegative(),
+    amount: z.number().nonnegative(),
   })
   .strict();
 export type Money = z.infer<typeof MoneySchema>;
@@ -23,7 +23,7 @@ export type Money = z.infer<typeof MoneySchema>;
 export const SignedMoneySchema = z
   .object({
     currency: CurrencySchema,
-    amount: z.number().finite(),
+    amount: z.number(),
   })
   .strict();
 export type SignedMoney = z.infer<typeof SignedMoneySchema>;
@@ -119,7 +119,7 @@ const FixedShareSchema = z
   .object({
     consumerId: IdentifierSchema,
     projectId: IdentifierSchema.nullable(),
-    share: z.number().finite().positive().max(1),
+    share: z.number().positive().max(1),
   })
   .strict();
 
@@ -164,7 +164,7 @@ const AllocationInputSchema = z
   .object({
     consumerId: IdentifierSchema,
     projectId: IdentifierSchema.nullable(),
-    quantity: z.number().finite().nonnegative().nullable(),
+    quantity: z.number().nonnegative().nullable(),
     metricObservationId: IdentifierSchema.nullable(),
   })
   .strict();

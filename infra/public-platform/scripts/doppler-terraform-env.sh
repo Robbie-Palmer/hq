@@ -5,7 +5,7 @@ project="${DOPPLER_PROJECT:-personal-site}"
 pages_env_config="${DOPPLER_PAGES_ENV_CONFIG:-dev_pages_env}"
 infra_config="${DOPPLER_INFRA_CONFIG:-dev_infra}"
 
-if [ "${DOPPLER_TERRAFORM_ENV_WRAPPED:-}" != "1" ]; then
+if [[ "${DOPPLER_TERRAFORM_ENV_WRAPPED:-}" != "1" ]]; then
   if command -v doppler >/dev/null 2>&1; then
     export DOPPLER_TERRAFORM_ENV_WRAPPED=1
     exec doppler run --project "$project" --config "$pages_env_config" -- doppler run \
@@ -13,7 +13,7 @@ if [ "${DOPPLER_TERRAFORM_ENV_WRAPPED:-}" != "1" ]; then
       --config "$infra_config" \
       --preserve-env=CF_IMAGES_ACCOUNT_HASH,NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH,POSTHOG_KEY,NEXT_PUBLIC_POSTHOG_KEY,POSTHOG_HOST,NEXT_PUBLIC_POSTHOG_HOST,POSTHOG_OTLP_BASE_URL,RECIPE_API_URL,RECIPE_API_PREVIEW_ORIGIN_TEMPLATE,CF_PAGES_HOST \
       -- bash "$0" "$@"
-  elif [ "${CI:-}" != "true" ]; then
+  elif [[ "${CI:-}" != "true" ]]; then
     echo "Cannot run Terraform locally: doppler is required." >&2
     echo "Install and authenticate the Doppler CLI, then run this command again." >&2
     exit 1
@@ -24,7 +24,7 @@ set_if_unset() {
   local name="$1"
   local value="${2:-}"
 
-  if [ -z "${!name:-}" ] && [ -n "$value" ]; then
+  if [[ -z "${!name:-}" ]] && [[ -n "$value" ]]; then
     export "$name=$value"
   fi
 }

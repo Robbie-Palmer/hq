@@ -37,7 +37,7 @@ export const TechnologySchema = z.object({
   name: z.string().min(1),
   slug: TechnologySlugSchema.optional(),
   description: z.string().optional(),
-  website: z.string().url().optional(),
+  website: z.url().optional(),
   iconSlug: z.string().optional(),
 
   relations: z
@@ -69,7 +69,7 @@ export const BlogPostSchema = z.object({
     .regex(/^\d{4}-\d{2}-\d{2}$/)
     .optional(),
   tags: z.array(z.string()).default([]),
-  canonicalUrl: z.string().url().optional(),
+  canonicalUrl: z.url().optional(),
   content: z.string(),
   readingTime: z.string(),
   image: z.string().regex(/^blog\/[a-z0-9_-]+-\d{4}-\d{2}-\d{2}$/),
@@ -121,8 +121,8 @@ export const ProjectSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
     status: ProjectStatusSchema,
-    repoUrl: z.string().url().optional(),
-    demoUrl: z.string().url().optional(),
+    repoUrl: z.url().optional(),
+    demoUrl: z.url().optional(),
     paperUrl: z.url().optional(),
     paperTitle: z.string().min(1).optional(),
     content: z.string(),
@@ -163,7 +163,7 @@ export type Project = z.infer<typeof ProjectSchema>;
 export const JobRoleSchema = z.object({
   slug: RoleSlugSchema,
   company: z.string().min(1),
-  companyUrl: z.string().url(),
+  companyUrl: z.url(),
   logoPath: z.string().min(1),
   title: z.string().min(1),
   previousTitles: z.array(PreviousTitleSchema).optional(),

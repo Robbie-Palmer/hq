@@ -40,13 +40,13 @@ describe("PropertyComparables", () => {
     );
     expect(within(table).getByText(/Leasehold · New build/)).toBeVisible();
     expect(screen.getByText("CF10 2BB")).toBeVisible();
-    expect(screen.getAllByText("Completed sale").length).toBe(3);
+    expect(screen.getAllByText("Completed sale")).toHaveLength(3);
     expect(
       screen.getAllByText(
         /Official completed-sale record · HM Land Registry Price Paid Data/,
-      ).length,
-    ).toBe(3);
-    expect(screen.getAllByText("Retrieved 2026-10-04").length).toBe(3);
+      ),
+    ).toHaveLength(3);
+    expect(screen.getAllByText("Retrieved 2026-10-04")).toHaveLength(3);
     expect(
       within(table).getAllByText(/Cardiff · full postcode/).length,
     ).toBeGreaterThan(0);

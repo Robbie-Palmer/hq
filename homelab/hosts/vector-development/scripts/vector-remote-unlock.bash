@@ -20,6 +20,7 @@ while ((attempts < 60)); do
         fi
         request=${candidate}
         ;;
+      *) ;;
     esac
   done
   [[ -z ${request} ]] || break

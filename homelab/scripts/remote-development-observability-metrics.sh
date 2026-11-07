@@ -2,7 +2,7 @@
 set -euo pipefail
 
 config_file=${REMOTE_DEVELOPMENT_OBSERVABILITY_CONFIG:-/etc/remote-development-observability/metrics.env}
-if [ ! -r "${config_file}" ]; then
+if [[ ! -r "${config_file}" ]]; then
   echo "observability metrics config is not readable" >&2
   exit 1
 fi
@@ -26,7 +26,7 @@ required_values=(
   SHARED_TASK_CACHE_METRICS_FILE
 )
 for name in "${required_values[@]}"; do
-  if [ -z "${!name:-}" ]; then
+  if [[ -z "${!name:-}" ]]; then
     echo "${name} is required" >&2
     exit 1
   fi
@@ -35,7 +35,7 @@ if [[ ! ${WORKSPACE_ID} =~ ^[a-z0-9][a-z0-9_-]*$ ]]; then
   echo "WORKSPACE_ID must be a stable non-personal identifier" >&2
   exit 1
 fi
-if [ "${AGENT_COORDINATOR_ENABLED}" != 0 ] && [ "${AGENT_COORDINATOR_ENABLED}" != 1 ]; then
+if [[ "${AGENT_COORDINATOR_ENABLED}" != 0 ]] && [[ "${AGENT_COORDINATOR_ENABLED}" != 1 ]]; then
   echo "AGENT_COORDINATOR_ENABLED must be 0 or 1" >&2
   exit 1
 fi
@@ -75,12 +75,12 @@ data_inode_used_percent=$(inode_percent_used "${DATA_MOUNT}")
 
 backup_age_seconds=$((BACKUP_MAXIMUM_AGE_SECONDS + 1))
 backup_fresh=0
-if [ -r "${BACKUP_STATUS_FILE}" ]; then
+if [[ -r "${BACKUP_STATUS_FILE}" ]]; then
   last_success_unix=$(jq --raw-output '.lastSuccessUnix // empty' "${BACKUP_STATUS_FILE}")
   if [[ ${last_success_unix} =~ ^[0-9]+$ ]]; then
     now=$(date +%s)
     backup_age_seconds=$((now - last_success_unix))
-    if [ "${backup_age_seconds}" -ge 0 ] && [ "${backup_age_seconds}" -le "${BACKUP_MAXIMUM_AGE_SECONDS}" ]; then
+    if [[ "${backup_age_seconds}" -ge 0 ]] && [[ "${backup_age_seconds}" -le "${BACKUP_MAXIMUM_AGE_SECONDS}" ]]; then
       backup_fresh=1
     fi
   fi
@@ -96,9 +96,9 @@ agent_coordinator_enabled=${AGENT_COORDINATOR_ENABLED}
 agent_coordinator_tracked=0
 agent_coordinator_needs_attention=0
 agent_coordinator_admission_open=0
-if [ "${agent_coordinator_enabled}" = 1 ] \
+if [[ "${agent_coordinator_enabled}" = 1 ]] \
   && systemctl is-active --quiet remote-development-agent-coordinator.service \
-  && [ -r "${AGENT_COORDINATOR_HEALTH_FILE}" ]; then
+  && [[ -r "${AGENT_COORDINATOR_HEALTH_FILE}" ]]; then
   coordinator_summary=$(
     jq --raw-output --exit-status '
       select(
@@ -128,7 +128,7 @@ if [ "${agent_coordinator_enabled}" = 1 ] \
     ' "${AGENT_COORDINATOR_HEALTH_FILE}" 2>/dev/null \
       || true
   )
-  if [ -n "${coordinator_summary}" ]; then
+  if [[ -n "${coordinator_summary}" ]]; then
     read -r agent_coordinator_tracked agent_coordinator_needs_attention agent_coordinator_admission_open \
       <<<"${coordinator_summary}"
     agent_coordinator_up=1
@@ -145,7 +145,7 @@ shared_task_cache_bytes_restored=0
 shared_task_cache_bytes_published=0
 shared_task_cache_bytes_reclaimed=0
 shared_task_cache_metrics_valid=0
-if [ -r "${SHARED_TASK_CACHE_METRICS_FILE}" ]; then
+if [[ -r "${SHARED_TASK_CACHE_METRICS_FILE}" ]]; then
   cache_summary=$(
     jq --raw-output --exit-status '
       select(
@@ -177,7 +177,7 @@ if [ -r "${SHARED_TASK_CACHE_METRICS_FILE}" ]; then
     ' "${SHARED_TASK_CACHE_METRICS_FILE}" 2>/dev/null \
       || true
   )
-  if [ -n "${cache_summary}" ]; then
+  if [[ -n "${cache_summary}" ]]; then
     read -r \
       shared_task_cache_hits \
       shared_task_cache_misses \
@@ -243,13 +243,13 @@ if otelcol_metrics=$(curl --fail --silent --show-error --max-time 5 "${OTELCOL_M
     ' <<<"${otelcol_metrics}"
   )
   previous_failures=0
-  if [ -r "${OTELCOL_STATE_FILE}" ]; then
+  if [[ -r "${OTELCOL_STATE_FILE}" ]]; then
     previous_failures=$(cat "${OTELCOL_STATE_FILE}")
     if [[ ! ${previous_failures} =~ ^[0-9]+$ ]]; then
       previous_failures=0
     fi
   fi
-  if [ "${otelcol_failures_total}" -ge "${previous_failures}" ]; then
+  if [[ "${otelcol_failures_total}" -ge "${previous_failures}" ]]; then
     otelcol_pipeline_failures=$((otelcol_failures_total - previous_failures))
   else
     otelcol_pipeline_failures=${otelcol_failures_total}
@@ -261,7 +261,7 @@ if otelcol_metrics=$(curl --fail --silent --show-error --max-time 5 "${OTELCOL_M
 fi
 
 read_pressure() {
-  if [ ! -r "$1" ]; then
+  if [[ ! -r "$1" ]]; then
     printf '0\n'
     return
   fi
@@ -316,7 +316,7 @@ metrics=$(printf '%s\n' \
   "${metric_prefix}.memory_pressure_percent:${memory_pressure}|g" \
   "${metric_prefix}.io_pressure_percent:${io_pressure}|g")
 
-if [ -n "${STATSD_OUTPUT_FILE:-}" ]; then
+if [[ -n "${STATSD_OUTPUT_FILE:-}" ]]; then
   printf '%s\n' "${metrics}" >"${STATSD_OUTPUT_FILE}"
 else
   statsd_host=${STATSD_HOST:-127.0.0.1}
