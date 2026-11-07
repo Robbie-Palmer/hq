@@ -8,6 +8,8 @@ export * from "./assetTrackerQueries";
 export * from "./assetTrackerRepository";
 export * from "./assetTrackerViews";
 export * from "./balanceSnapshot";
+export * from "./businessFiExtraction";
+export * from "./businessFiPension";
 export * from "./businessValuation";
 export * from "./businessWealth";
 export {
