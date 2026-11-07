@@ -269,7 +269,7 @@ export type BusinessRealisationResult = {
     evidenceAt: string;
     method: CompanyEquityValuation["method"];
     amount: CompanyEquityValuation["amount"];
-    range?: CompanyEquityValuation["range"];
+    range?: NonNullable<CompanyEquityValuation["range"]>;
     ageDays: number;
   } | null;
   saleCosts: BusinessRealisationDeduction[];
@@ -902,15 +902,15 @@ function addStrikingOffLimitIssue(input: {
 function supportedRouteTax(
   issues: readonly BusinessRealisationIssue[],
 ): boolean {
-  const blockingCodes: BusinessRealisationIssue["code"][] = [
+  const blockingCodes = new Set<BusinessRealisationIssue["code"]>([
     "unsupported-currency",
     "unsupported-company-tax",
     "missing-company-tax-settlement",
     "insolvent-company",
     "striking-off-distribution-limit-exceeded",
     "unsupported-case",
-  ];
-  return !issues.some(({ code }) => blockingCodes.includes(code));
+  ]);
+  return !issues.some(({ code }) => blockingCodes.has(code));
 }
 
 export function calculateBusinessRealisation(
