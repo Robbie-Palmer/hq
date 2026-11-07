@@ -65,10 +65,15 @@ The initial proposals define the intended research boundary:
 * [PDR 006](/projects/pathologize/pdrs/006-task-native-pathology-model-development) proposes matching
   classification, regression, detection, segmentation and multiple instance learning to task-native
   supervision and prediction contracts.
+* [PDR 007](/projects/pathologize/pdrs/007-source-native-wsi-compatibility) supports source-native
+  whole-slide formats through tested readers, preserves a CPU host-pixel path, and allows explicit
+  format-specific acceleration.
+* [PDR 008](/projects/pathologize/pdrs/008-evidence-gated-gpu-pixel-decoding) requires an end-to-end
+  workload improvement before GPU pixel decoding becomes a default.
 
 # Architecture decisions
 
-The accepted implementation boundaries are:
+The current implementation decisions and proposals are:
 
 * [ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary) makes the registry's
   portable artifact a source-only Croissant export and assigns DICOM WSI, OME-Zarr, RO-Crate and PROV-O
@@ -89,6 +94,12 @@ The accepted implementation boundaries are:
   Transformers and Hugging Face model revisions through framework-native experiment code.
 * [ADR 008](/projects/pathologize/adrs/008-torchmil-multiple-instance-baselines) adopts torchmil for
   learned multiple instance baselines while retaining simple project-owned pooling controls.
+* [ADR 009](/projects/pathologize/adrs/009-separate-wsi-reading-decoding-and-residency) separates
+  slide-container semantics, pixel decoding, and host or device output while retaining OpenSlide as the
+  broad CPU compatibility path.
+* [ADR 010](/projects/pathologize/adrs/010-optional-cuda-wsi-decode-backends) proposes cuCIM for its
+  documented TIFF-family formats and wsidicom plus nvImageCodec for supported DICOM frame codecs, subject
+  to public-fixture correctness and end-to-end performance gates.
 
 # Research programme
 

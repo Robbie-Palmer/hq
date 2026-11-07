@@ -1191,6 +1191,29 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "cuCIM",
+    added: "2026-11-07",
+    description:
+      "GPU-accelerated readers and image operations for large biomedical images",
+    website: "https://github.com/rapidsai/cucim",
+    type: "library",
+  },
+  {
+    name: "nvImageCodec",
+    added: "2026-11-07",
+    description: "NVIDIA codec framework for CPU and GPU image decoding",
+    website: "https://docs.nvidia.com/cuda/nvimagecodec/",
+    type: "library",
+  },
+  {
+    name: "wsidicom",
+    added: "2026-11-07",
+    description:
+      "Python library for reading and writing DICOM whole-slide images",
+    website: "https://github.com/imi-bigpicture/wsidicom",
+    type: "library",
+  },
+  {
     name: "R",
     added: "2026-01-04",
     website: "https://www.r-project.org/",
