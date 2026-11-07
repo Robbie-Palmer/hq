@@ -79,7 +79,7 @@ def test_public_data_experiment_reads_real_tiles_and_rejects_echo(
     corrupted = next(
         case for case in primary.cases if case.case_id == "anisotropic-y-copied-from-x"
     )
-    assert anisotropic.trusted_effective_mpp == (0.2501, 0.5002)
+    assert anisotropic.reference_effective_mpp == (0.2501, 0.5002)
     assert corrupted.physical_scale_error is not None
     assert corrupted.physical_scale_error > 0.9
     assert any(failure.expected for failure in result.failed_cases)

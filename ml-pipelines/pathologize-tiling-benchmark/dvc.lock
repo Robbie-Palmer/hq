@@ -278,16 +278,16 @@ stages:
       size: 2882
     - path: experiments/mpp-perturbation.json
       hash: md5
-      md5: e169371459253e1a9142b1ed70642a7c
-      size: 6407
+      md5: b8bc327a8a880a815ae287dd6a5d814d
+      size: 6415
     - path: pyproject.toml
       hash: md5
       md5: 59eee3fe009d65f24e731e79f57ed0c2
       size: 1808
     - path: src/pathologize_tiling_benchmark
       hash: md5
-      md5: 4dbca9bb6a534891ac4fe03fe19bf08f.dir
-      size: 32382
+      md5: 15a70fef69479d95f7d9fb6ab8d298fe.dir
+      size: 32456
       nfiles: 4
     - path: uv.lock
       hash: md5
@@ -296,8 +296,8 @@ stages:
     outs:
     - path: data/mpp-experiment
       hash: md5
-      md5: f17bf788357a13a9dab197b2d7c328d5.dir
-      size: 173271
+      md5: 7e3aeb86b5fa1c4c3b3e460ca25dfe1c.dir
+      size: 173275
       nfiles: 2
   run_mpp_perturbation_experiment:
     cmd: uv run --locked pathologize-tiling-experiment run
@@ -325,21 +325,21 @@ stages:
       size: 2882
     - path: data/mpp-experiment
       hash: md5
-      md5: f17bf788357a13a9dab197b2d7c328d5.dir
-      size: 173271
+      md5: 7e3aeb86b5fa1c4c3b3e460ca25dfe1c.dir
+      size: 173275
       nfiles: 2
     - path: experiments/mpp-perturbation.json
       hash: md5
-      md5: e169371459253e1a9142b1ed70642a7c
-      size: 6407
+      md5: b8bc327a8a880a815ae287dd6a5d814d
+      size: 6415
     - path: pyproject.toml
       hash: md5
       md5: 59eee3fe009d65f24e731e79f57ed0c2
       size: 1808
     - path: src/pathologize_tiling_benchmark
       hash: md5
-      md5: 4dbca9bb6a534891ac4fe03fe19bf08f.dir
-      size: 32382
+      md5: 15a70fef69479d95f7d9fb6ab8d298fe.dir
+      size: 32456
       nfiles: 4
     - path: uv.lock
       hash: md5
@@ -348,8 +348,8 @@ stages:
     outs:
     - path: outputs/perturbations/mpp-experiment.json
       hash: md5
-      md5: 012383f30f51edbd8339ae9ddf3dd8da
-      size: 31981
+      md5: 702532ffb9878749708727dc4aaff9bf
+      size: 32023
     - path: outputs/perturbations/tiles
       hash: md5
       md5: 547422927573f4f6eb68692a1141b678.dir
@@ -381,17 +381,17 @@ stages:
       size: 2882
     - path: data/mpp-experiment
       hash: md5
-      md5: f17bf788357a13a9dab197b2d7c328d5.dir
-      size: 173271
+      md5: 7e3aeb86b5fa1c4c3b3e460ca25dfe1c.dir
+      size: 173275
       nfiles: 2
     - path: experiments/mpp-perturbation.json
       hash: md5
-      md5: e169371459253e1a9142b1ed70642a7c
-      size: 6407
+      md5: b8bc327a8a880a815ae287dd6a5d814d
+      size: 6415
     - path: outputs/perturbations/mpp-experiment.json
       hash: md5
-      md5: 012383f30f51edbd8339ae9ddf3dd8da
-      size: 31981
+      md5: 702532ffb9878749708727dc4aaff9bf
+      size: 32023
     - path: outputs/perturbations/tiles
       hash: md5
       md5: 547422927573f4f6eb68692a1141b678.dir
@@ -399,8 +399,8 @@ stages:
       nfiles: 18
     - path: src/pathologize_tiling_benchmark
       hash: md5
-      md5: 4dbca9bb6a534891ac4fe03fe19bf08f.dir
-      size: 32382
+      md5: 15a70fef69479d95f7d9fb6ab8d298fe.dir
+      size: 32456
       nfiles: 4
     outs:
     - path: outputs/perturbations/verification.json

@@ -39,8 +39,8 @@ class RegistrySlide(StrictModel):
     asset_manifest: str
     source_instance_sha256: str = Field(pattern=SHA256_PATTERN)
     total_asset_bytes: int = Field(gt=0)
-    trusted_mpp_x: float = Field(gt=0)
-    trusted_mpp_y: float = Field(gt=0)
+    reference_mpp_x: float = Field(gt=0)
+    reference_mpp_y: float = Field(gt=0)
     expected_vendor: str
     levels: list[PyramidLevel] = Field(min_length=3)
 
@@ -53,8 +53,8 @@ class DerivedSource(StrictModel):
     kind: Literal["derived_region"]
     image_path: str
     manifest_path: str
-    trusted_mpp_x: float = Field(gt=0)
-    trusted_mpp_y: float = Field(gt=0)
+    reference_mpp_x: float = Field(gt=0)
+    reference_mpp_y: float = Field(gt=0)
     source_level: Literal[0]
     source_location_level_zero: tuple[int, int]
     initial_size: tuple[int, int]
@@ -141,16 +141,16 @@ class ExperimentSpec(StrictModel):
             raise ValueError("plausible MPP bounds must be positive and ordered")
         return self
 
-    def trusted_scale(self, case: PerturbationCase) -> tuple[float, float, float]:
+    def reference_scale(self, case: PerturbationCase) -> tuple[float, float, float]:
         if case.source_id == self.registry_source.source_id:
             return (
-                self.registry_source.trusted_mpp_x,
-                self.registry_source.trusted_mpp_y,
+                self.registry_source.reference_mpp_x,
+                self.registry_source.reference_mpp_y,
                 self.registry_source.level_downsample(case.level),
             )
         if case.level != 0:
             raise ValueError("derived raster cases only support level zero")
-        return self.derived_source.trusted_mpp_x, self.derived_source.trusted_mpp_y, 1.0
+        return self.derived_source.reference_mpp_x, self.derived_source.reference_mpp_y, 1.0
 
 
 class TileEvidence(StrictModel):
@@ -178,7 +178,7 @@ class CaseResult(StrictModel):
     level: int
     expected_response: ExpectedResponse
     perturbation_magnitude: float | None
-    trusted_effective_mpp: tuple[float, float]
+    reference_effective_mpp: tuple[float, float]
     presented_effective_mpp: tuple[float, float] | None
     physical_scale_error: float | None = Field(ge=0)
     runtime_seconds: float = Field(ge=0)

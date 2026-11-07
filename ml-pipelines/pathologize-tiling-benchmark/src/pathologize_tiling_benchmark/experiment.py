@@ -107,11 +107,11 @@ def _validate_public_source(root: Path, spec: ExperimentSpec) -> tuple[Path, Sli
         raise ValueError("registry slide identity differs from the experiment specification")
     if not math.isclose(
         resolution["micrometres_per_pixel_x"],
-        spec.registry_source.trusted_mpp_x,
+        spec.registry_source.reference_mpp_x,
         abs_tol=TOLERANCE,
     ) or not math.isclose(
         resolution["micrometres_per_pixel_y"],
-        spec.registry_source.trusted_mpp_y,
+        spec.registry_source.reference_mpp_y,
         abs_tol=TOLERANCE,
     ):
         raise ValueError("registry MPP differs from the experiment specification")
@@ -122,7 +122,7 @@ def _validate_public_source(root: Path, spec: ExperimentSpec) -> tuple[Path, Sli
     if metadata.vendor != spec.registry_source.expected_vendor:
         raise ValueError("OpenSlide vendor differs from the experiment specification")
     observed_mpp = _observed_mpp(metadata)
-    expected_mpp = (spec.registry_source.trusted_mpp_x, spec.registry_source.trusted_mpp_y)
+    expected_mpp = (spec.registry_source.reference_mpp_x, spec.registry_source.reference_mpp_y)
     if not all(
         math.isclose(observed, expected, abs_tol=TOLERANCE)
         for observed, expected in zip(observed_mpp, expected_mpp, strict=True)
@@ -147,8 +147,8 @@ def prepare_inputs(root: Path | None = None) -> dict[str, object]:
         level=derived.source_level,
         output_size=derived.initial_size,
         target_microns_per_pixel=(
-            spec.registry_source.trusted_mpp_x,
-            spec.registry_source.trusted_mpp_y,
+            spec.registry_source.reference_mpp_x,
+            spec.registry_source.reference_mpp_y,
         ),
     )
     tile = read_physical_tile(source, request, plausible_mpp=spec.plausible_mpp)
@@ -165,8 +165,8 @@ def prepare_inputs(root: Path | None = None) -> dict[str, object]:
         "source_level": derived.source_level,
         "initial_dimensions": list(derived.initial_size),
         "derived_dimensions": list(derived.derived_size),
-        "trusted_mpp_x": derived.trusted_mpp_x,
-        "trusted_mpp_y": derived.trusted_mpp_y,
+        "reference_mpp_x": derived.reference_mpp_x,
+        "reference_mpp_y": derived.reference_mpp_y,
         "derivation": derived.derivation,
         "decoded_bytes_read": tile.decoded_bytes_read,
         "derived_image": derived.image_path,
@@ -179,9 +179,9 @@ def prepare_inputs(root: Path | None = None) -> dict[str, object]:
 def _case_magnitude(spec: ExperimentSpec, case: PerturbationCase) -> float | None:
     if case.declared_mpp_x is None or case.declared_mpp_y is None:
         return None
-    trusted_x, trusted_y, actual_downsample = spec.trusted_scale(case)
-    actual_x = trusted_x * actual_downsample
-    actual_y = trusted_y * actual_downsample
+    reference_x, reference_y, actual_downsample = spec.reference_scale(case)
+    actual_x = reference_x * actual_downsample
+    actual_y = reference_y * actual_downsample
     declared_x = case.declared_mpp_x * case.declared_level_downsample
     declared_y = case.declared_mpp_y * case.declared_level_downsample
     return max(abs(declared_x - actual_x) / actual_x, abs(declared_y - actual_y) / actual_y)
@@ -268,7 +268,7 @@ def _rejected_case(
     runtime_seconds: float,
 ) -> CaseResult:
     expected = error.code == _expected_error_code(case.expected_response)
-    trusted_x, trusted_y, downsample = spec.trusted_scale(case)
+    reference_x, reference_y, downsample = spec.reference_scale(case)
     failure = _failure(
         adapter_id,
         case.case_id,
@@ -283,7 +283,7 @@ def _rejected_case(
         level=case.level,
         expected_response=case.expected_response,
         perturbation_magnitude=case.perturbation_magnitude,
-        trusted_effective_mpp=(trusted_x * downsample, trusted_y * downsample),
+        reference_effective_mpp=(reference_x * downsample, reference_y * downsample),
         presented_effective_mpp=None,
         physical_scale_error=None,
         runtime_seconds=runtime_seconds,
@@ -301,9 +301,9 @@ def _completed_case(
     tile: PhysicalTileRead,
     runtime_seconds: float,
 ) -> CaseResult:
-    trusted_x, trusted_y, actual_downsample = spec.trusted_scale(case)
-    effective_x = trusted_x * actual_downsample
-    effective_y = trusted_y * actual_downsample
+    reference_x, reference_y, actual_downsample = spec.reference_scale(case)
+    effective_x = reference_x * actual_downsample
+    effective_y = reference_y * actual_downsample
     coverage_x = tile.source_size[0] * effective_x
     coverage_y = tile.source_size[1] * effective_y
     error = max(
@@ -350,7 +350,7 @@ def _completed_case(
         level=case.level,
         expected_response=case.expected_response,
         perturbation_magnitude=case.perturbation_magnitude,
-        trusted_effective_mpp=(effective_x, effective_y),
+        reference_effective_mpp=(effective_x, effective_y),
         presented_effective_mpp=tile.presented_microns_per_pixel,
         physical_scale_error=error,
         runtime_seconds=runtime_seconds,
