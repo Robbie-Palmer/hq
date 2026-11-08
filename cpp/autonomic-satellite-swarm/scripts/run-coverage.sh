@@ -58,6 +58,8 @@ gcovr \
   --filter 'browser/src/' \
   --filter 'examples/simulation/' \
   --exclude-unreachable-branches \
+  --xml coverage/cobertura.xml \
+  --xml-pretty \
   --sonarqube coverage/sonarqube.xml \
   --print-summary \
   --fail-under-line 80 \

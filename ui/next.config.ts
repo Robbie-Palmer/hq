@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { codecovNextJSWebpackPlugin } from "@codecov/nextjs-webpack-plugin";
 import type { NextConfig } from "next";
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
 
@@ -34,6 +35,10 @@ function copyCooklangWasm(outputPath: string): void {
 }
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const codecovBundleAnalysisEnabled =
+  process.env.CODECOV_BUNDLE_ANALYSIS === "true";
+const codecovBundleDryRun = process.env.CODECOV_BUNDLE_DRY_RUN === "true";
+const codecovUseGitHubOidc = process.env.CODECOV_USE_OIDC === "true";
 
 function createNextConfig(phase: string): NextConfig {
   return {
@@ -155,13 +160,13 @@ function createNextConfig(phase: string): NextConfig {
     // Recipe .cook files are read server-side at build time only; these modules
     // are never called in the browser, so replacing them with empty modules is safe.
     webpack(config, { isServer, webpack }) {
+      config.plugins = config.plugins ?? [];
       config.experiments = {
         ...config.experiments,
         asyncWebAssembly: true,
       };
 
       if (isServer) {
-        config.plugins = config.plugins ?? [];
         config.plugins.push({
           apply(compiler: WebpackCompiler) {
             compiler.hooks.afterEmit.tap("CooklangServerWasmPathPlugin", () => {
@@ -174,7 +179,6 @@ function createNextConfig(phase: string): NextConfig {
       if (!isServer) {
         // HiGHS' Emscripten glue contains a Node-only dynamic import behind a
         // runtime check. Replace that import for the browser compilation.
-        config.plugins = config.plugins ?? [];
         config.plugins.push(
           new webpack.NormalModuleReplacementPlugin(
             /^node:module$/,
@@ -192,6 +196,20 @@ function createNextConfig(phase: string): NextConfig {
             path: false,
           },
         };
+      }
+      if (codecovBundleAnalysisEnabled) {
+        config.plugins.push(
+          codecovNextJSWebpackPlugin({
+            enableBundleAnalysis: true,
+            bundleName: "personal-site-ui",
+            dryRun: codecovBundleDryRun,
+            gitService: "github",
+            ...(codecovUseGitHubOidc
+              ? { oidc: { useGitHubOIDC: true } }
+              : { uploadToken: process.env.CODECOV_TOKEN }),
+            webpack,
+          }),
+        );
       }
       return config;
     },
