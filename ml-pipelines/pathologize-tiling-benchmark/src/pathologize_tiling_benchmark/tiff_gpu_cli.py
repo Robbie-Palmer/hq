@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import sys
 from collections.abc import Sequence
 from pathlib import Path
 
@@ -47,7 +48,7 @@ def main(command: Sequence[str] | None = None) -> int:
         ValidationError,
         ValueError,
     ) as error:
-        print(error)
+        print(error, file=sys.stderr)
         return 2
     return 0
 

@@ -612,6 +612,7 @@ def _case_result(
     pipeline: TiffPipeline,
     access_pattern: AccessPattern,
     batch_size: int,
+    execution_position: int,
     runtime_state: Literal["first_sample_after_correctness_probe", "steady_state"],
     samples: tuple[tuple[dict[str, _Measurement], float, float], ...],
     cupy: Any,
@@ -622,6 +623,7 @@ def _case_result(
         pipeline=pipeline,
         access_pattern=access_pattern,
         batch_size=batch_size,
+        execution_position=execution_position,
         runtime_state=runtime_state,
         repetitions=len(samples),
         stages=summarize_stages(tuple(value[0] for value in samples)),
@@ -643,6 +645,7 @@ def _run_case(
     fixture_path: str,
     pipeline: TiffPipeline,
     access_pattern: AccessPattern,
+    execution_position: int,
 ) -> tuple[TiffPipelineCase, TiffPipelineCase]:
     pinned = (
         _pinned_batch(cupy, (len(locations), config.region_size, config.region_size, 3))
@@ -670,6 +673,7 @@ def _run_case(
             pipeline,
             access_pattern,
             len(locations),
+            execution_position,
             "first_sample_after_correctness_probe",
             (first,),
             cupy,
@@ -679,6 +683,7 @@ def _run_case(
             pipeline,
             access_pattern,
             len(locations),
+            execution_position,
             "steady_state",
             steady,
             cupy,
@@ -802,6 +807,11 @@ def _run_fixture_cases(
 ) -> tuple[list[TiffPipelineCase], list[str]]:
     cases: list[TiffPipelineCase] = []
     omissions: list[str] = []
+    pipelines: tuple[TiffPipeline, ...] = (
+        "openslide_cpu_pinned_h2d",
+        "cucim_cuslide2_device",
+    )
+    executed_pair_index = 0
     for access_pattern in config.access_patterns:
         for batch_size in config.batch_sizes:
             if batch_size > len(locations):
@@ -816,10 +826,9 @@ def _run_fixture_cases(
                 batch_size=batch_size,
                 seed=config.random_seed + batch_size,
             )
-            for pipeline in cast(
-                tuple[TiffPipeline, ...],
-                ("openslide_cpu_pinned_h2d", "cucim_cuslide2_device"),
-            ):
+            ordered_pipelines = pipelines if executed_pair_index % 2 == 0 else pipelines[::-1]
+            executed_pair_index += 1
+            for execution_position, pipeline in enumerate(ordered_pipelines, start=1):
                 cases.extend(
                     _run_case(
                         cupy,
@@ -831,6 +840,7 @@ def _run_fixture_cases(
                         fixture_path,
                         pipeline,
                         access_pattern,
+                        execution_position,
                     )
                 )
     return cases, omissions

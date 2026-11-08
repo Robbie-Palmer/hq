@@ -164,6 +164,7 @@ class TiffPipelineCase(BaseModel):
     pipeline: TiffPipeline
     access_pattern: AccessPattern
     batch_size: int = Field(ge=1)
+    execution_position: int = Field(ge=1, le=2)
     runtime_state: Literal["first_sample_after_correctness_probe", "steady_state"]
     repetitions: int = Field(ge=1)
     stages: dict[str, TiffStageSummary]

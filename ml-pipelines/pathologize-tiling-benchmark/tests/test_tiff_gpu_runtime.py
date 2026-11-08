@@ -512,11 +512,13 @@ def test_pipeline_sampling_and_case_summaries(
         "cucim_cuslide2_device",
         "random",
         1,
+        1,
         "steady_state",
         (cuda_sample,),
         cupy,
     )
     assert case.repetitions == 1
+    assert case.execution_position == 1
     assert case.cupy_pool_reserved_bytes == 64
 
     monkeypatch.setattr(benchmark, "_sample_cpu_pipeline", lambda *_arguments: cpu_sample)
@@ -531,6 +533,7 @@ def test_pipeline_sampling_and_case_summaries(
         "slide.svs",
         "openslide_cpu_pinned_h2d",
         "contiguous",
+        1,
     )
     cuda_cases = benchmark._run_case(
         cupy,
@@ -542,8 +545,52 @@ def test_pipeline_sampling_and_case_summaries(
         "slide.svs",
         "cucim_cuslide2_device",
         "contiguous",
+        2,
     )
     assert len(cpu_cases) == len(cuda_cases) == 2
+    assert {case.execution_position for case in cpu_cases} == {1}
+    assert {case.execution_position for case in cuda_cases} == {2}
+
+
+def test_fixture_cases_alternate_and_record_pipeline_order(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    recorded: list[tuple[str, int]] = []
+
+    def record_case(*arguments: object) -> tuple[()]:
+        recorded.append((cast(str, arguments[-3]), cast(int, arguments[-1])))
+        return ()
+
+    monkeypatch.setattr(benchmark, "_run_case", record_case)
+    selected_config = config(
+        tmp_path,
+        batch_sizes=(1, 2),
+        access_patterns=("contiguous", "random"),
+    )
+
+    cases, omissions = benchmark._run_fixture_cases(
+        FakeCupy(),
+        cast(OpenSlide, FakeSlide()),
+        FakeCuImage("slide.svs"),
+        ((0, 0), (32, 0)),
+        selected_config,
+        np.zeros((3, 8), dtype=np.float32),
+        "slide.svs",
+    )
+
+    assert cases == []
+    assert omissions == []
+    assert recorded == [
+        ("openslide_cpu_pinned_h2d", 1),
+        ("cucim_cuslide2_device", 2),
+        ("cucim_cuslide2_device", 1),
+        ("openslide_cpu_pinned_h2d", 2),
+        ("openslide_cpu_pinned_h2d", 1),
+        ("cucim_cuslide2_device", 2),
+        ("cucim_cuslide2_device", 1),
+        ("openslide_cpu_pinned_h2d", 2),
+    ]
 
 
 def test_pixel_viewer_and_environment_results(

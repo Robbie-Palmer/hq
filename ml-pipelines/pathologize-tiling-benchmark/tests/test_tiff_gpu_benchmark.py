@@ -151,6 +151,7 @@ def test_cucim_batch_reader_preserves_the_decoder_batch_axis() -> None:
 
 def test_tiff_gpu_cli_reports_missing_cuda_without_a_traceback(
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     def fail(_config: TiffGpuBenchmarkConfig) -> None:
         raise RuntimeError("CUDA is unavailable")
@@ -171,3 +172,6 @@ def test_tiff_gpu_cli_reports_missing_cuda_without_a_traceback(
         )
         == 2
     )
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "CUDA is unavailable\n"
