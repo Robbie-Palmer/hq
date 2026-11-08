@@ -7,6 +7,7 @@ initiatives:
   - "personalized-medicine"
 tech_stack:
   - "Python"
+  - "OpenTelemetry"
   - "DVC"
   - "Pydantic"
   - "DICOM"
@@ -100,6 +101,15 @@ The current implementation decisions and proposals are:
 * [ADR 010](/projects/pathologize/adrs/010-optional-cuda-wsi-decode-backends) proposes cuCIM for its
   documented TIFF-family formats and wsidicom plus nvImageCodec for supported DICOM frame codecs, subject
   to public-fixture correctness and end-to-end performance gates.
+* [ADR 011](/projects/pathologize/adrs/011-agent-readable-training-monitoring) uses project-owned structured
+  logs and OpenTelemetry for framework-neutral training observability, with low-cardinality metrics and
+  correlation to the existing DCGM and Netdata path.
+
+One architecture evaluation remains open:
+
+* [ADR 012](/projects/pathologize/adrs/012-evaluate-openlineage-end-to-end-lineage) proposes a bounded
+  OpenLineage spike across DVC artifacts, training, evaluation, deployment, and production observations
+  before deciding whether a persistent cross-system lineage service earns adoption.
 
 # Research programme
 

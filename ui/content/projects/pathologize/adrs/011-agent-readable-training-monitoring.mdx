@@ -1,0 +1,182 @@
+---
+title: "ADR 011: Framework-neutral training observability with OpenTelemetry"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["OpenTelemetry"]
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:006-task-native-pathology-model-development"
+---
+
+## Context
+
+An agent supervising a training run needs to determine whether the process is
+alive, which epoch completed, whether learning metrics are moving in the right
+direction, which checkpoint is best, and why a run stopped. Those answers must
+work across Ultralytics, raw PyTorch, fastai, Lightning, and Hugging Face code
+without making one framework's callback or event format the project contract.
+
+[ADR 004](/projects/pathologize/adrs/004-framework-native-training-result-contracts)
+keeps training APIs framework-native and standardizes evidence after
+prediction. Training observability belongs on the other side of that boundary.
+It can normalize records emitted by a trainer, but it must not introduce a
+common trainer, callback lifecycle, checkpoint API, or model interface.
+
+The Vector GPU host already has an operational telemetry path. DCGM Exporter
+records GPU utilization, framebuffer use, clocks, throttle reasons,
+temperature, power, energy, PCIe retries, XID errors, and row-remapping health.
+The host OpenTelemetry Collector sends those metrics to Netdata. Kubernetes
+workloads receive pod, namespace, and container attribution from the kubelet
+pod-resources socket, and the existing GPU Job contract assigns the same run ID
+to the Job and pod. The training process should join this evidence by workload
+identity and time instead of copying device metrics into a second system.
+
+At this ADR's acceptance, no open standard defines general ML training
+telemetry. [OpenTelemetry semantic conventions 1.45.0](https://opentelemetry.io/docs/specs/semconv/)
+defines common resource, log, trace, and metric conventions but no training
+domain. Its Generative AI conventions describe model calls, agents, and
+evaluation rather than optimization runs. [OpenLineage](https://openlineage.io/docs/spec/object-model/)
+defines job, run, and dataset lineage and leaves domain-specific details to
+custom facets. [MLPerf logging](https://github.com/mlcommons/logging) is a
+compliance format for MLPerf benchmark submissions. None supplies a portable
+schema for ordinary epoch histories, checkpoints, and trainer state.
+
+## Decision
+
+Build a small Pathologize-owned training observability library around Python's
+standard `logging` module and OpenTelemetry logs, traces, and metrics. Each
+training project will use a thin adapter for its framework's callback or loop
+hooks. The adapter translates observations into the shared record vocabulary;
+it does not control the run or hide the native framework API.
+
+### Durable learning records
+
+Write one append-only JSON Lines stream for each run through standard Python
+logging. Each record carries an event timestamp, run identity, framework,
+phase, severity, and trace context when a span is active. Run lifecycle,
+failure, checkpoint, and epoch-completion records use documented event names.
+Epoch records keep the epoch index, learning-rate values, durations, training
+and validation measurements, checkpoint reference, and best-so-far state in
+their structured body.
+
+The JSON Lines stream is the live, durable learning history. Epoch number,
+checkpoint identity, metric names, and metric values do not become metric
+dimensions. A local read-only mise task may summarize the stream as one JSON
+document for an agent, but that view is derived from the records and is not a
+second state store.
+
+Completed runs still write the parameters, final metrics, artifact digests,
+failures, stop reason, and resource records required by the Pathologize result
+contract. DVC versions those compact results and selected plot inputs. An
+OpenTelemetry exporter failure must not stop training or prevent the local
+JSON Lines and final result files from being written.
+
+### OpenTelemetry signal contract
+
+Represent a training run as a trace with one run span and child spans for
+coarse work such as training, validation, checkpointing, and data loading.
+Span names and phase values must come from bounded sets. The logging bridge
+adds the active trace and span IDs to each OpenTelemetry log record, following
+OpenTelemetry's [log-correlation model](https://opentelemetry.io/docs/specs/otel/logs/).
+
+Use standard resource attributes for service, process, host, container, and
+Kubernetes identity. Add only the training concepts that have no standard
+equivalent under a versioned `pathologize.ml.training.*` namespace. Its first
+attributes identify the run, framework, phase, current epoch, and planned epoch
+count. Run ID, current epoch, and planned epoch count are log and span
+attributes, not resource or metric attributes. Keep arbitrary measurements in
+the structured log body rather than creating dynamic attribute names.
+
+Metrics cover low-cardinality operational time series such as active runs,
+run outcomes, run and phase duration, batch duration, data-wait duration, and
+processed-sample counts. Metric attributes may use bounded values such as
+framework, task family, phase, and outcome. They must not contain run IDs,
+trace IDs, epoch numbers, checkpoint paths, model revisions, sample IDs, or
+user-defined metric names. Learning curves belong in JSON Lines and DVC plot
+inputs, not in the metrics backend.
+
+Managed Kubernetes runs must use the existing GPU Job run ID as the
+Pathologize run ID. Application telemetry records Kubernetes workload identity,
+while DCGM retains pod, namespace, and container labels. The Job-to-pod mapping
+and source timestamps then join epoch and phase records to the GPU time series
+in Netdata. Host-local runs record the same run timestamps and host identity,
+but their correlation remains weaker because they lack pod attribution.
+
+Use stable OpenTelemetry conventions wherever they apply. Keep the project
+namespace documented and versioned, and revisit it if OpenTelemetry or another
+open standards body publishes a stable, framework-neutral ML training
+convention. Migration then requires a mapping and compatibility period rather
+than silently renaming existing records.
+
+### Framework adapters
+
+Start with adapters only where a benchmark needs them. Ultralytics, fastai,
+Lightning, and Hugging Face adapters consume their public callback hooks. A raw
+PyTorch adapter exposes ordinary functions or a small context manager that the
+training loop calls. Adapter tests must prove that equivalent lifecycle and
+epoch events produce the same shared fields, while framework-specific details
+remain in a namespaced structured body.
+
+Do not adopt DVCLive, TensorBoard, MLflow, Weights & Biases, ClearML, Comet, or
+another experiment tracker as part of the core workflow. TensorBoard may remain
+a disposable local debugging tool, but its event files and dashboard are not
+release or reproduction evidence.
+
+## Consequences
+
+Agents and operators get one record vocabulary across the selected training
+frameworks. Local JSON Lines survives a Collector or Netdata outage, DVC keeps
+the durable comparison evidence, and OpenTelemetry correlates application
+events with the existing host and GPU path without introducing another
+backend.
+
+The project owns the record schema, logging handlers, and framework adapters.
+That code needs compatibility tests for callback changes, duplicate events,
+partial final writes, exporter backpressure, and timestamp handling. The
+[OpenTelemetry Python status page](https://opentelemetry.io/docs/languages/python/)
+currently marks traces and metrics stable but logs as development. Using
+standard Python logging and JSON Lines as the durable boundary limits the cost
+of changes in the OpenTelemetry logging bridge.
+
+High-cardinality learning history will not appear as native metric series.
+Queries and plots that compare epochs must read JSON Lines or DVC artifacts.
+Netdata's seven-day retention also makes the correlated operational view
+temporary, so the final run record must remain complete without it.
+
+Thin adapters repeat some framework integration code. That cost is deliberate.
+A shared trainer abstraction would conflict with ADR 004, while direct use of
+every framework's private log format would leave agents with several unstable
+query contracts.
+
+## Alternatives considered
+
+### Keep framework-native files only
+
+Ultralytics already writes useful CSV files, and other frameworks have their
+own callbacks and loggers. Using those files directly avoids shared
+instrumentation, but it leaves lifecycle, failure, trace correlation, and field
+semantics different for every trainer. Thin output adapters are a smaller
+boundary than a common trainer and give the project one query contract.
+
+### Adopt DVCLive
+
+DVCLive can write training metrics and DVC plots and has integrations for
+several frameworks. It does not replace OpenTelemetry trace and resource
+correlation, and its system monitoring would overlap DCGM and Netdata. DVC can
+version the completed learning records without making DVCLive the live event
+contract.
+
+### Adopt TensorBoard
+
+TensorBoard provides a useful human view of curves and profiler traces. Its
+event files are a less direct agent contract than JSON Lines, and it would not
+join training lifecycle records to the existing OpenTelemetry resource
+identity without another integration layer.
+
+### Adopt an experiment tracker
+
+Experiment trackers provide shared dashboards, annotations, search, and model
+lifecycle features. Pathologize currently has one operator, DVC lineage, and
+an existing operational backend. A tracker would add credentials, remote
+state, retention policy, and another artifact index before those features
+solve an observed problem.

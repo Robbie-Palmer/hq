@@ -1,0 +1,217 @@
+---
+title: "ADR 012: Evaluate OpenLineage for end-to-end ML lineage"
+date: "2026-11-07"
+status: "Proposed"
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:006-task-native-pathology-model-development"
+---
+
+## Context
+
+DVC is the Pathologize source of truth for reproducible pipeline stages and
+versioned artifacts. Its pipeline graph connects file dependencies and outputs,
+while `dvc.lock` records their content hashes. DVC experiments bind code,
+parameters, metrics, and artifacts to a Git revision. These are strong answers
+inside one repository, as described by DVC's documentation for
+[pipeline DAGs](https://doc.dvc.org/user-guide/pipelines/defining-pipelines)
+and [experiment management](https://doc.dvc.org/user-guide/experiment-management).
+
+The graph becomes harder to follow when an artifact crosses a system boundary.
+A model may move from a DVC pipeline to evaluation, registration, a deployment
+revision, and later production monitoring. DVC can retain the model and its
+repository history, but it does not by itself define a shared event model for
+the deployment system, inference service, and monitoring jobs. Reconstructing
+that path would require joins across DVC hashes, run records, release metadata,
+and production telemetry.
+
+[ADR 011](/projects/pathologize/adrs/011-agent-readable-training-monitoring)
+uses OpenTelemetry for training logs, traces, and low-cardinality operational
+metrics. OpenTelemetry explains what happened during a run. It is not a durable
+derivation graph for datasets, models, deployments, and later observations.
+The two records can share identity without sharing responsibility.
+
+[OpenLineage 1.55](https://openlineage.io/docs/spec/object-model/) defines an
+open model of jobs, runs, datasets, and timestamped events. Standard facets can
+carry source-code location, dataset versions, parent runs, tests, and explicit
+data-flow edges. Its
+[dataset type facet](https://openlineage.io/docs/spec/facets/dataset-facets/type/)
+includes `MODEL`, and its
+[lineage job facet](https://openlineage.io/docs/spec/facets/job-facets/lineage/)
+can express exact dataset-to-dataset, job-to-dataset, and job-to-job edges.
+This could provide the cross-system index that DVC does not try to be.
+
+OpenLineage does not yet standardize detailed ML training lineage. The open
+[ML support proposal](https://github.com/OpenLineage/OpenLineage/issues/4035)
+suggests facets for training environments, determinism, hyperparameters,
+training metrics, evaluation metrics, and model versions. It remains an open
+proposal marked as needing triage, not part of the accepted specification.
+OpenLineage's [supported integration list](https://openlineage.io/docs/integrations/)
+does not list DVC. A Pathologize evaluation must count the custom work instead
+of assuming these gaps are already solved.
+
+## Proposed decision
+
+Run a bounded spike to determine whether OpenLineage earns adoption as the
+cross-system lineage index from source data through production observations.
+This ADR does not adopt OpenLineage, select a persistent backend, or add it to
+the Pathologize technology stack.
+
+Use the published OpenLineage 1.55 job, run, dataset, event, and facet contracts
+where they fit. The spike may use the official Python client with file or
+console transport and a disposable instance of Marquez, the reference
+backend. Do not deploy a permanent service or emit events from production
+until a later ADR accepts the result and defines ownership, retention,
+security, and recovery.
+
+### Evaluation graph
+
+Build one fixture that follows a single model candidate through these
+boundaries:
+
+1. A registered source dataset and its immutable source or DVC version feed
+   DVC preparation and feature stages.
+2. A DVC training stage consumes the exact derived data version and produces a
+   checkpoint or model artifact.
+3. Evaluation consumes that model and a pinned evaluation dataset and produces
+   a versioned result record.
+4. Registration and deployment bind the accepted model digest to a registry
+   identity, release or image digest, deployment revision, and environment.
+5. A production inference or monitoring job consumes that deployment identity
+   and produces one bounded observation-window record, such as a drift,
+   calibration, failure, or performance summary.
+
+DVC remains authoritative for the repository DAG, artifact hashes, and
+experiment revisions. Pathologize result records remain authoritative for
+benchmark evaluation. The deployment system remains authoritative for what was
+released, and OpenTelemetry remains authoritative for operational signals.
+OpenLineage would index relationships among those records. It must not copy
+epoch histories, traces, patient records, predictions, or metric time series
+into lineage events.
+
+### Identity and extensions
+
+Each OpenLineage dataset needs a stable namespace, name, and version. Each job
+needs a stable namespace and name, while each execution receives an OpenLineage
+run ID. Preserve the original identities rather than replacing them with an
+OpenLineage-generated alias:
+
+* source registry record ID and source digest;
+* DVC repository, stage, Git revision, experiment revision, and artifact hash;
+* Pathologize run ID and the OpenTelemetry trace ID from ADR 011;
+* model and checkpoint digest;
+* evaluation record ID;
+* registry model version or alias;
+* release image digest and deployment revision; and
+* production service, deployed model revision, and observation-window ID.
+
+Use standard version, source-code, parent, test, and dataset-type facets first.
+Put missing correlation fields in the smallest possible set of versioned
+`pathologize_*` custom facets. Follow OpenLineage's
+[custom-facet rules](https://openlineage.io/docs/spec/facets/), including a
+project prefix and an immutable schema URL. Do not copy the proposed ML facets
+or name a Pathologize field as though the proposal had become standard. A later
+spike report must map each custom field to any official facet that matures.
+
+Production events must describe aggregate jobs and bounded observation
+windows. They must not identify a patient, request, slide, tile, prediction, or
+other high-cardinality production item. A production alert may link to its
+OpenTelemetry evidence by trace or observation-window identity, but the
+lineage record contains no sensitive payload.
+
+## Acceptance evidence
+
+Keep this ADR Proposed until the spike records all of the following evidence:
+
+1. The complete fixture validates against the pinned official OpenLineage
+   schema and loads into a disposable compatible backend without manual event
+   repair.
+2. A query starting from the production observation reaches the exact
+   deployment revision, model digest, evaluation result, training run, DVC
+   stages and artifact versions, and registered source dataset. The reverse
+   query identifies every fixture deployment and observation derived from the
+   source version.
+3. DVC stage names, the Git and experiment revisions, `dvc.lock` artifact
+   hashes, and external source IDs survive round-trip ingestion without an
+   ambiguous name or false edge.
+4. The training event resolves to the Pathologize run ID and OpenTelemetry
+   trace ID. The lineage store links to detailed training evidence without
+   copying epoch records or operational metrics.
+5. The evaluated model and checkpoint identity resolve to the exact artifact
+   digest used by the deployment revision. Registration aliases alone do not
+   count because they can move.
+6. A production observation identifies the deployed model revision and its
+   bounded time window without exporting sample-level or sensitive fields.
+7. Duplicate delivery, late completion, replay after transport failure, and a
+   failed job preserve one lineage graph and the correct terminal state.
+8. The spike lists every standard and custom facet, its owner, schema version,
+   migration rule, and data classification. It also compares the list with the
+   current ML support proposal without claiming compatibility.
+9. The report measures emitted event count and bytes, client overhead, backend
+   CPU, memory and storage, query latency, expected retention, upgrade and
+   backup work, and the maintenance cost of the DVC and deployment adapters.
+10. A short operator exercise compares the lineage query with reconstructing
+    the same answer from DVC, run records, deployment metadata, and
+    OpenTelemetry. It records the missing or ambiguous joins in both paths.
+
+Accept OpenLineage in a later ADR only if the spike produces a complete and
+unambiguous graph, makes the cross-system investigation materially easier than
+manual joins, and has an operational cost worth paying for the expected number
+of projects and deployments.
+
+Defer or reject adoption if the production boundary is not mature enough to
+exercise, identifiers cannot round-trip without loss, custom facets carry most
+of the useful model, or the persistent backend costs more to operate than the
+lineage questions justify. Also defer if the result merely duplicates DVC
+inside one repository. Revisit after the OpenLineage ML proposal becomes a
+versioned specification or another project creates a second real cross-system
+need.
+
+## Consequences
+
+The spike will show whether one open graph can connect reproducible research
+artifacts to a deployed model and its later observations. If it succeeds, DVC
+keeps its existing role and gains external edges rather than a replacement.
+OpenTelemetry traces can lead to durable lineage, while lineage can lead back
+to the operational record for a particular run or observation window.
+
+The evaluation requires adapters at boundaries that OpenLineage does not
+currently cover, especially DVC, model registration, deployment, and
+production monitoring. A permanent adoption would also require a retained
+backend, access controls, schema migrations, exporter monitoring, replay,
+backup, and deletion policy. The standard event format does not remove those
+costs.
+
+Custom facets create a migration obligation. They may become obsolete or
+conflict with future official ML facets. Keeping them few, versioned, and
+limited to correlation identity makes that risk manageable during a spike, but
+it is still a reason not to adopt OpenLineage on preference alone.
+
+## Alternatives considered
+
+### Keep DVC and project records only
+
+This has no new service or schema and remains sufficient while models stay in
+one repository. Cross-system investigations would continue to rely on
+project-owned joins among artifact hashes, release metadata, and production
+records. Choose this if the spike finds too little value beyond DVC.
+
+### Extend OpenTelemetry into a lineage store
+
+Trace links can connect work within a run, but sampling, short retention, and
+operation-centered spans do not provide a durable dataset and model derivation
+graph. Adding that graph to OpenTelemetry would create a private lineage model
+without OpenLineage's interoperable job, run, and dataset vocabulary.
+
+### Build a Pathologize lineage schema
+
+A local schema could match DVC and Pathologize records exactly and avoid
+custom facets. Every deployment and monitoring integration would then depend
+on a project-specific protocol. Use that route only if the OpenLineage core
+model prevents an accurate graph.
+
+### Adopt OpenLineage now
+
+Immediate adoption would satisfy a preference before proving a need. The
+missing DVC integration, proposed ML facets, and unknown production boundary
+make the maintenance cost speculative. The spike is the evidence gate.
