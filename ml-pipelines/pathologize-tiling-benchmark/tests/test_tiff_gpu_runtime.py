@@ -448,8 +448,10 @@ def test_array_preprocessing_and_reader_boundaries() -> None:
         def read_region(**_arguments: object) -> FakeCudaBatch:
             return FakeCudaBatch(np.zeros((4, 4), dtype=np.uint8))
 
+    coordinates = ((0, 0),)
+    unexpected_shape_image = UnexpectedShapeImage()
     with pytest.raises(ValueError, match="unexpected batch shape"):
-        benchmark._read_cucim_batch(cupy, UnexpectedShapeImage(), ((0, 0),), 0, 4)
+        benchmark._read_cucim_batch(cupy, unexpected_shape_image, coordinates, 0, 4)
 
     class MultipleBatchImage:
         @staticmethod
@@ -457,8 +459,9 @@ def test_array_preprocessing_and_reader_boundaries() -> None:
             batch = np.zeros((1, 4, 4, 4), dtype=np.uint8)
             return (batch, batch)
 
+    multiple_batch_image = MultipleBatchImage()
     with pytest.raises(ValueError, match="2 completed batches"):
-        benchmark._read_cucim_batch(cupy, MultipleBatchImage(), ((0, 0),), 0, 4)
+        benchmark._read_cucim_batch(cupy, multiple_batch_image, coordinates, 0, 4)
 
 
 def test_pipeline_sampling_and_case_summaries(
