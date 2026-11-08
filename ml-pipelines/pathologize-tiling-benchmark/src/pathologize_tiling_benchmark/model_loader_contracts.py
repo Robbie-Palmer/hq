@@ -144,6 +144,7 @@ class RuntimeMeasurement(BaseModel):
 class ModelLoaderCaseResult(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
 
+    execution_index: int | None = Field(default=None, ge=0)
     pipeline: Pipeline
     workload: Workload
     access_pattern: AccessPattern

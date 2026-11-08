@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import json
+import queue
 import runpy
 import sys
 from pathlib import Path
+from typing import Any, cast
 
 import pytest
 
 from pathologize_tiling_benchmark.model_loader_benchmark import (
+    _case_execution_plan,
+    _ConcurrentLoader,
     _fixture_assets,
     _StageSample,
     _summarize_stages,
@@ -41,6 +45,56 @@ def test_model_loader_config_rejects_invalid_matrix_values(tmp_path: Path) -> No
         _config(tmp_path, workloads=())
     with pytest.raises(ValueError, match="duplicates"):
         _config(tmp_path, access_patterns=("random", "random"))
+
+
+def test_case_execution_plan_alternates_pipeline_order(tmp_path: Path) -> None:
+    config = _config(
+        tmp_path,
+        workloads=("inference",),
+        access_patterns=("random",),
+        batch_sizes=(8, 32),
+        loader_concurrency=(1,),
+        random_seed=0,
+    )
+
+    assert _case_execution_plan(config) == (
+        (0, "inference", "random", 8, 1, "cpu_decode_pinned_h2d"),
+        (1, "inference", "random", 8, 1, "nvimagecodec_device_decode"),
+        (2, "inference", "random", 32, 1, "nvimagecodec_device_decode"),
+        (3, "inference", "random", 32, 1, "cpu_decode_pinned_h2d"),
+    )
+    odd_seed = config.model_copy(update={"random_seed": 1})
+    assert _case_execution_plan(odd_seed)[0][-1] == "nvimagecodec_device_decode"
+
+
+def test_concurrent_loader_close_drains_pending_work_and_results() -> None:
+    requests: queue.Queue[object | None] = queue.Queue()
+    results: queue.Queue[object] = queue.Queue(maxsize=1)
+    requests.put(object())
+    results.put(object())
+
+    class BlockedPublishingThread:
+        alive = True
+
+        def is_alive(self) -> bool:
+            return self.alive
+
+        def join(self, timeout: float | None = None) -> None:
+            assert timeout == 0.05
+            assert results.empty()
+            self.alive = False
+
+    thread = BlockedPublishingThread()
+    loader = cast(Any, _ConcurrentLoader.__new__(_ConcurrentLoader))
+    loader._requests = requests
+    loader._results = results
+    loader._threads = (thread,)
+
+    loader.close()
+
+    assert requests.get_nowait() is None
+    assert results.empty()
+    assert not thread.is_alive()
 
 
 def test_coordinate_batch_planning_is_deterministic_and_bounded() -> None:
@@ -146,10 +200,14 @@ def test_parse_positive_integers_and_cli_error_boundary(
     assert parse_positive_integers("1, 2,4") == (1, 2, 4)
     assert parse_positive_integers(3) == (3,)
     assert _parse_strings("inference, training") == ("inference", "training")
+    assert _parse_strings((" inference ", "", "training")) == ("inference", "training")
     with pytest.raises(ValueError, match="comma-separated"):
         parse_positive_integers("one")
 
-    def fail(_config: ModelLoaderBenchmarkConfig) -> None:
+    configs: list[ModelLoaderBenchmarkConfig] = []
+
+    def fail(config: ModelLoaderBenchmarkConfig) -> None:
+        configs.append(config)
         raise RuntimeError("CUDA is unavailable")
 
     monkeypatch.setattr(
@@ -164,10 +222,14 @@ def test_parse_positive_integers_and_cli_error_boundary(
                 f"--fixture-collection-manifest={tmp_path / 'collection.json'}",
                 "--batch-sizes=8",
                 "--loader-concurrency=1",
+                "--access-patterns=contiguous,random",
+                "--workloads=inference,training",
             ]
         )
         == 2
     )
+    assert configs[0].access_patterns == ("contiguous", "random")
+    assert configs[0].workloads == ("inference", "training")
 
 
 def test_model_loader_cli_prints_or_writes_report(

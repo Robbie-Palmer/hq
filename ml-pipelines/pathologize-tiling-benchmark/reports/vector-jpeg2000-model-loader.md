@@ -31,15 +31,17 @@ Its state SHA-256 was
 `353b6103e1f81b7c107bd2a6688ab470d66b3ac087dc7c6831e4f51bb8cebb11`. No weights were downloaded.
 
 Inference ran in evaluation mode. Training ran forward, cross-entropy, and backward without an
-optimizer step. Gradients accumulated within each measured window. A two-batch in-flight limit let
-input work for batch N+1 overlap compute for batch N without retaining the whole window.
+optimizer step. Gradients accumulated within each measured window. The runner could schedule a
+third batch before synchronizing the oldest, then retained two, so input work overlapped compute
+without retaining the whole window.
 
 Wall and process CPU time used `perf_counter_ns` and `process_time_ns`. Worker CPU time used
 `thread_time_ns`. CUDA stages used PyTorch events followed by a device synchronization. A 5 ms NVML
 sampler recorded whole-process GPU memory, including allocations outside PyTorch. The overlap value
-is `(summed stage work - end-to-end wall) / summed stage work`; queue wait is reported separately and
-is not additive with end-to-end time. PyTorch recommends CUDA events or explicit synchronization for
-GPU timing and pinned tensors for loader H2D transfer in its
+is `max(0, summed stage work - end-to-end wall) / summed stage work` when summed stage work is
+nonzero, and zero otherwise. Queue wait is reported separately and is not additive with end-to-end
+time. PyTorch recommends CUDA events or explicit synchronization for GPU timing and pinned tensors
+for loader H2D transfer in its
 [CUDA semantics](https://docs.pytorch.org/docs/stable/notes/cuda) and
 [data loading](https://docs.pytorch.org/docs/stable/data.html) documentation. nvImageCodec documents
 the explicit CUDA stream and CUDA array interfaces in its
@@ -163,6 +165,11 @@ wall time; it does not remove host work.
   does not exercise TIFF.
 - CUDA was initialized and the OS page cache was warm before application-cold measurement. The
   cold table captures process order; it does not represent a machine start or cold storage.
+- The measured source commit ran the CPU route immediately before the device route in every matrix
+  cell and did not record an execution index. Cold results, and close steady-state comparisons, may
+  therefore include order bias. The current runner alternates the seeded pipeline order and records
+  execution index, but the published runs were not retroactively relabeled; an order-balanced rerun
+  is required before treating small differences as stable.
 - The pod shared the host and CPU concurrency had material run-to-run spread. Steady device decode
   won every median. One batch-64, single-loader training run lost at 0.91×. Production thresholds
   need a longer isolated job and more public fixtures before they become defaults.

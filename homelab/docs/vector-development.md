@@ -231,6 +231,11 @@ mise run //homelab:vector-gpu-benchmark -- create pathologize-loader-001 \
 mise run //homelab:vector-gpu-benchmark -- logs pathologize-loader-001
 ```
 
+The launcher limits this Job to eight CPU cores. The published model-loader
+measurements used a 20-core quota, and device decoding consumed up to about 17
+cores, so results from this launcher command are not directly comparable with
+the report.
+
 The local import requires the guarded root SSH path because Docker and K3s use
 separate image stores. It verifies Vector's hostname and location label before
 writing to containerd, then checks the digest through the CRI. For shared or CI

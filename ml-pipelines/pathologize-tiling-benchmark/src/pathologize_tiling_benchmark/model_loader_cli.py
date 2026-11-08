@@ -15,8 +15,9 @@ from .model_loader_contracts import (
 )
 
 
-def _parse_strings(value: str) -> tuple[str, ...]:
-    return tuple(part.strip() for part in value.split(",") if part.strip())
+def _parse_strings(value: str | tuple[str, ...]) -> tuple[str, ...]:
+    parts = value if isinstance(value, tuple) else value.split(",")
+    return tuple(part.strip() for part in parts if part.strip())
 
 
 class ModelLoaderBenchmarkApplication:
@@ -27,8 +28,8 @@ class ModelLoaderBenchmarkApplication:
         fixture_collection_manifest: str,
         batch_sizes: int | str = "8,32,64",
         loader_concurrency: int | str = "1,2,4",
-        access_patterns: str = "random",
-        workloads: str = "inference,training",
+        access_patterns: str | tuple[str, ...] = "random",
+        workloads: str | tuple[str, ...] = "inference,training",
         warmup_batches: int = 4,
         measured_batches: int = 16,
         random_seed: int = 1729,

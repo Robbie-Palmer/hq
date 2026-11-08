@@ -10,6 +10,7 @@ import statistics
 import threading
 import time
 from collections.abc import Iterable
+from contextlib import suppress
 from dataclasses import dataclass
 from importlib import import_module, metadata
 from itertools import product
@@ -39,6 +40,7 @@ _PIPELINES: tuple[Pipeline, ...] = (
     "cpu_decode_pinned_h2d",
     "nvimagecodec_device_decode",
 )
+_CaseExecution = tuple[int, Workload, AccessPattern, int, int, Pipeline]
 
 
 def parse_positive_integers(value: int | str | tuple[int, ...]) -> tuple[int, ...]:
@@ -212,10 +214,18 @@ class _ConcurrentLoader:
         return result, consumer_wait
 
     def close(self) -> None:
+        while True:
+            try:
+                self._requests.get_nowait()
+            except queue.Empty:
+                break
         for _ in self._threads:
             self._requests.put(None)
         for thread in self._threads:
-            thread.join()
+            while thread.is_alive():
+                with suppress(queue.Empty):
+                    self._results.get_nowait()
+                thread.join(timeout=0.05)
 
     def __enter__(self) -> _ConcurrentLoader:
         return self
@@ -572,6 +582,7 @@ def _benchmark_case(
     access_pattern: AccessPattern,
     batch_size: int,
     concurrency: int,
+    execution_index: int,
 ) -> ModelLoaderCaseResult:
     torch.cuda.empty_cache()
     cupy.get_default_memory_pool().free_all_blocks()
@@ -650,6 +661,7 @@ def _benchmark_case(
             runtime_state="steady_state",
         )
     return ModelLoaderCaseResult(
+        execution_index=execution_index,
         pipeline=pipeline,
         workload=workload,
         access_pattern=access_pattern,
@@ -825,6 +837,32 @@ def _environment(
     return environment, coordinates, level.tile_size
 
 
+def _case_execution_plan(config: ModelLoaderBenchmarkConfig) -> tuple[_CaseExecution, ...]:
+    planned: list[_CaseExecution] = []
+    execution_index = 0
+    cells = product(
+        config.workloads,
+        config.access_patterns,
+        config.batch_sizes,
+        config.loader_concurrency,
+    )
+    for cell_index, (workload, access_pattern, batch_size, concurrency) in enumerate(cells):
+        pipelines = _PIPELINES if (config.random_seed + cell_index) % 2 == 0 else _PIPELINES[::-1]
+        for pipeline in pipelines:
+            planned.append(
+                (
+                    execution_index,
+                    workload,
+                    access_pattern,
+                    batch_size,
+                    concurrency,
+                    pipeline,
+                )
+            )
+            execution_index += 1
+    return tuple(planned)
+
+
 def run_model_loader_benchmark(
     config: ModelLoaderBenchmarkConfig,
 ) -> ModelLoaderBenchmarkReport:
@@ -849,13 +887,14 @@ def run_model_loader_benchmark(
         model_state_sha256=model_state_sha256,
     )
     cases: list[ModelLoaderCaseResult] = []
-    for workload, access_pattern, batch_size, concurrency, pipeline in product(
-        config.workloads,
-        config.access_patterns,
-        config.batch_sizes,
-        config.loader_concurrency,
-        _PIPELINES,
-    ):
+    for (
+        execution_index,
+        workload,
+        access_pattern,
+        batch_size,
+        concurrency,
+        pipeline,
+    ) in _case_execution_plan(config):
         cases.append(
             _benchmark_case(
                 torch=torch,
@@ -870,6 +909,7 @@ def run_model_loader_benchmark(
                 access_pattern=access_pattern,
                 batch_size=batch_size,
                 concurrency=concurrency,
+                execution_index=execution_index,
             )
         )
     return ModelLoaderBenchmarkReport(
