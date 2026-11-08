@@ -29,7 +29,7 @@ addopts = "--strict-config --strict-markers --cov=airaqc_tcga_product --cov-repo
 testpaths = ["tests"]
 
 [tool.coverage.run]
-omit = ["*/acquisition.py", "*/cli.py"]
+omit = ["*/cli.py"]
 
 [tool.ruff]
 line-length = 100

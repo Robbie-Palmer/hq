@@ -1,12 +1,69 @@
+import hashlib
+import io
 import json
 from pathlib import Path
 
 import pytest
 
+from airaqc_tcga_product import acquisition
 from airaqc_tcga_product.acquisition import _source_allowed, acquire_product
 from airaqc_tcga_product.product import ProductError, publish_product
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
+
+
+def _write_acquisition_contracts(
+    root: Path,
+    payload: bytes,
+    *,
+    source_url: str = "https://example.test/data/asset.bin",
+    sha256: str | None = None,
+) -> Path:
+    contracts = root / "contracts"
+    contracts.mkdir()
+    (contracts / "collection.json").write_text(
+        json.dumps(
+            {
+                "collection_id": "collection",
+                "access": {"download_base_urls": ["https://example.test/data/"]},
+            }
+        ),
+        encoding="utf-8",
+    )
+    (contracts / "subset.json").write_text(
+        json.dumps(
+            {
+                "subset_id": "subset",
+                "collection_id": "collection",
+                "asset_root": "data/raw",
+                "asset_manifest_id": "assets",
+                "slide_ids": ["slide"],
+                "asset_count": 1,
+                "total_bytes": len(payload),
+            }
+        ),
+        encoding="utf-8",
+    )
+    (contracts / "assets.json").write_text(
+        json.dumps(
+            {
+                "asset_manifest_id": "assets",
+                "subset_id": "subset",
+                "schema_version": 1,
+                "assets": [
+                    {
+                        "relative_path": "asset.bin",
+                        "source_url": source_url,
+                        "bytes": len(payload),
+                        "sha256": sha256 or hashlib.sha256(payload).hexdigest(),
+                        "image_role": "fixture",
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return root / "data/raw/asset.bin"
 
 
 def test_publish_validates_and_preserves_native_contract(tmp_path: Path) -> None:
@@ -55,3 +112,58 @@ def test_source_allowlist_matches_scheme_host_port_and_path() -> None:
     assert _source_allowed("https://api.gdc.cancer.gov/data/file-id", allowed)
     assert not _source_allowed("https://api.gdc.cancer.gov/files/file-id", allowed)
     assert not _source_allowed("http://api.gdc.cancer.gov/data/file-id", allowed)
+
+
+def test_acquisition_downloads_verifies_and_reuses_asset(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"verified fixture"
+    destination = _write_acquisition_contracts(tmp_path, payload)
+    monkeypatch.setattr(
+        acquisition,
+        "urlopen",
+        lambda _request, **_kwargs: io.BytesIO(payload),
+    )
+
+    assert acquire_product(tmp_path) == 1
+    assert destination.read_bytes() == payload
+
+    monkeypatch.setattr(
+        acquisition,
+        "urlopen",
+        lambda _request, **_kwargs: pytest.fail("cached asset should not be downloaded"),
+    )
+    assert acquire_product(tmp_path) == 0
+
+
+def test_acquisition_rejects_non_allowlisted_source(tmp_path: Path) -> None:
+    _write_acquisition_contracts(
+        tmp_path,
+        b"fixture",
+        source_url="https://attacker.example/data/asset.bin",
+    )
+
+    with pytest.raises(ProductError, match="not allowlisted"):
+        acquire_product(tmp_path)
+
+
+def test_acquisition_removes_corrupt_partial_download(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"corrupt fixture"
+    destination = _write_acquisition_contracts(
+        tmp_path,
+        payload,
+        sha256=hashlib.sha256(b"expected fixture").hexdigest(),
+    )
+    monkeypatch.setattr(
+        acquisition,
+        "urlopen",
+        lambda _request, **_kwargs: io.BytesIO(payload),
+    )
+
+    with pytest.raises(ProductError, match="downloaded asset differs"):
+        acquire_product(tmp_path)
+
+    assert not destination.exists()
+    assert not destination.with_name(f".{destination.name}.part").exists()
