@@ -8,6 +8,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 Pipeline = Literal["cpu_decode_pinned_h2d", "nvimagecodec_device_decode"]
 Workload = Literal["inference", "training"]
 AccessPattern = Literal["contiguous", "random"]
+_SHA256_PATTERN = r"^[a-f0-9]{64}$"
 
 
 class ModelLoaderBenchmarkConfig(BaseModel):
@@ -60,7 +61,7 @@ class FixtureAsset(BaseModel):
 
     relative_path: str
     bytes: int = Field(ge=1)
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: str = Field(pattern=_SHA256_PATTERN)
     source_url: str
 
 
@@ -86,7 +87,7 @@ class LoaderBenchmarkEnvironment(BaseModel):
     dependencies: tuple[DependencyVersion, ...]
     image_reference: str | None
     fixture_manifest_id: str
-    fixture_manifest_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    fixture_manifest_sha256: str = Field(pattern=_SHA256_PATTERN)
     fixture_collection: str
     fixture_citation: str
     fixture_license: str
@@ -102,7 +103,7 @@ class LoaderBenchmarkEnvironment(BaseModel):
     model_weights: Literal["deterministic-local-initialization"] = (
         "deterministic-local-initialization"
     )
-    model_state_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    model_state_sha256: str = Field(pattern=_SHA256_PATTERN)
 
 
 class StageSummary(BaseModel):

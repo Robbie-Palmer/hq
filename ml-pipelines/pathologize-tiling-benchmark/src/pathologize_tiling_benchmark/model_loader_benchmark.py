@@ -12,6 +12,7 @@ import time
 from collections.abc import Iterable
 from dataclasses import dataclass
 from importlib import import_module, metadata
+from itertools import product
 from pathlib import Path
 from typing import Any, cast
 
@@ -32,6 +33,11 @@ from .model_loader_contracts import (
     RuntimeMeasurement,
     StageSummary,
     Workload,
+)
+
+_PIPELINES: tuple[Pipeline, ...] = (
+    "cpu_decode_pinned_h2d",
+    "nvimagecodec_device_decode",
 )
 
 
@@ -65,7 +71,7 @@ def plan_coordinate_batches(
         if access_pattern == "random":
             # Hash ranking is reproducible and carries no security semantics.
             cycle.sort(
-                key=lambda coordinate: hashlib.sha256(
+                key=lambda coordinate, cycle_index=cycle_index: hashlib.sha256(
                     f"{seed}:{cycle_index}:{coordinate[0]}:{coordinate[1]}".encode()
                 ).digest()
             )
@@ -131,7 +137,7 @@ class _ConcurrentLoader:
         self._pipeline = pipeline
         self._tile_size = tile_size
         self._requests: queue.Queue[_LoadRequest | None] = queue.Queue()
-        self._results: queue.Queue[_PreparedBatch | BaseException] = queue.Queue(
+        self._results: queue.Queue[_PreparedBatch | Exception] = queue.Queue(
             maxsize=output_queue_depth
         )
         self._threads = tuple(
@@ -190,7 +196,7 @@ class _ConcurrentLoader:
                             uncompressed_bytes=uncompressed_bytes,
                         )
                     )
-        except BaseException as error:
+        except Exception as error:
             self._results.put(error)
 
     def submit(self, requests: Iterable[_LoadRequest]) -> None:
@@ -201,7 +207,7 @@ class _ConcurrentLoader:
         wait_start = time.perf_counter_ns()
         result = self._results.get()
         consumer_wait = (time.perf_counter_ns() - wait_start) / 1_000_000
-        if isinstance(result, BaseException):
+        if isinstance(result, Exception):
             raise result
         return result, consumer_wait
 
@@ -312,6 +318,82 @@ def _preprocess(torch: Any, batch: Any, output_size: int) -> Any:
     return tensor.sub_(mean).div_(std)
 
 
+def _queue_stage_samples(
+    prepared: _PreparedBatch,
+    consumer_wait: float,
+    dequeued_ns: int,
+    pipeline: Pipeline,
+) -> tuple[_StageSample, ...]:
+    producer_name = (
+        "host_decode_and_pack" if pipeline == "cpu_decode_pinned_h2d" else "encoded_frame_lookup"
+    )
+    return (
+        _StageSample(
+            name=producer_name,
+            wall_milliseconds=prepared.producer_wall_milliseconds,
+            process_cpu_milliseconds=prepared.producer_cpu_milliseconds,
+        ),
+        _StageSample(
+            name="consumer_wait",
+            wall_milliseconds=consumer_wait,
+            process_cpu_milliseconds=0,
+            counts_as_work=False,
+        ),
+        _StageSample(
+            name="queue_wait",
+            wall_milliseconds=max(0, dequeued_ns - prepared.ready_ns) / 1_000_000,
+            process_cpu_milliseconds=0,
+            counts_as_work=False,
+        ),
+    )
+
+
+def _prepare_device_batch(
+    *,
+    torch: Any,
+    cupy: Any,
+    prepared: _PreparedBatch,
+    decoder: NvImageCodecDecoder,
+    input_stream: Any,
+    pipeline: Pipeline,
+) -> tuple[Any, tuple[_CudaStage, ...], int]:
+    if pipeline == "cpu_decode_pinned_h2d":
+        if prepared.pinned is None:
+            raise RuntimeError("the CPU pipeline returned no pinned batch")
+        device_batch, transfer_stage = _record_cuda_stage(
+            torch,
+            input_stream,
+            "host_to_device",
+            lambda batch=prepared.pinned: batch.to("cuda", non_blocking=True),
+        )
+        return device_batch, (transfer_stage,), prepared.uncompressed_bytes
+
+    with cupy.cuda.ExternalStream(int(input_stream.cuda_stream)):
+        decoded, decode_stage = _record_cuda_stage(
+            torch,
+            input_stream,
+            "device_decode",
+            lambda frames=prepared.frames: decode_dicom_frames_nvimagecodec(
+                frames,
+                decoder=decoder,
+                cuda_stream=int(input_stream.cuda_stream),
+            ),
+        )
+
+        def stack_decoded(decoded_batch: Any = decoded) -> Any:
+            arrays = tuple(cupy.asarray(image) for image in decoded_batch.images)
+            packed = cupy.stack(arrays)
+            return torch.utils.dlpack.from_dlpack(packed)
+
+        device_batch, pack_stage = _record_cuda_stage(
+            torch,
+            input_stream,
+            "device_batch_pack",
+            stack_decoded,
+        )
+    return device_batch, (decode_stage, pack_stage), prepared.compressed_bytes
+
+
 def _run_window(
     *,
     torch: Any,
@@ -345,71 +427,19 @@ def _run_window(
         for _ in requests:
             prepared, consumer_wait = loader.next()
             dequeued_ns = time.perf_counter_ns()
-            producer_name = (
-                "host_decode_and_pack"
-                if pipeline == "cpu_decode_pinned_h2d"
-                else "encoded_frame_lookup"
-            )
-            stages.append(
-                _StageSample(
-                    name=producer_name,
-                    wall_milliseconds=prepared.producer_wall_milliseconds,
-                    process_cpu_milliseconds=prepared.producer_cpu_milliseconds,
-                )
-            )
-            stages.append(
-                _StageSample(
-                    name="consumer_wait",
-                    wall_milliseconds=consumer_wait,
-                    process_cpu_milliseconds=0,
-                    counts_as_work=False,
-                )
-            )
-            stages.append(
-                _StageSample(
-                    name="queue_wait",
-                    wall_milliseconds=max(0, dequeued_ns - prepared.ready_ns) / 1_000_000,
-                    process_cpu_milliseconds=0,
-                    counts_as_work=False,
-                )
-            )
+            stages.extend(_queue_stage_samples(prepared, consumer_wait, dequeued_ns, pipeline))
             compressed_bytes += prepared.compressed_bytes
             uncompressed_bytes += prepared.uncompressed_bytes
-            if pipeline == "cpu_decode_pinned_h2d":
-                if prepared.pinned is None:
-                    raise RuntimeError("the CPU pipeline returned no pinned batch")
-                device_batch, transfer_stage = _record_cuda_stage(
-                    torch,
-                    input_stream,
-                    "host_to_device",
-                    lambda batch=prepared.pinned: batch.to("cuda", non_blocking=True),
-                )
-                cuda_stages.append(transfer_stage)
-                transfer_bytes += prepared.uncompressed_bytes
-            else:
-                with cupy.cuda.ExternalStream(int(input_stream.cuda_stream)):
-                    decoded, decode_stage = _record_cuda_stage(
-                        torch,
-                        input_stream,
-                        "device_decode",
-                        lambda frames=prepared.frames: decode_dicom_frames_nvimagecodec(
-                            frames,
-                            decoder=decoder,
-                            cuda_stream=int(input_stream.cuda_stream),
-                        ),
-                    )
-                    cuda_stages.append(decode_stage)
-
-                    def stack_decoded(decoded_batch: Any = decoded) -> Any:
-                        arrays = tuple(cupy.asarray(image) for image in decoded_batch.images)
-                        packed = cupy.stack(arrays)
-                        return torch.utils.dlpack.from_dlpack(packed)
-
-                    device_batch, pack_stage = _record_cuda_stage(
-                        torch, input_stream, "device_batch_pack", stack_decoded
-                    )
-                    cuda_stages.append(pack_stage)
-                transfer_bytes += prepared.compressed_bytes
+            device_batch, batch_cuda_stages, batch_transfer_bytes = _prepare_device_batch(
+                torch=torch,
+                cupy=cupy,
+                prepared=prepared,
+                decoder=decoder,
+                input_stream=input_stream,
+                pipeline=pipeline,
+            )
+            cuda_stages.extend(batch_cuda_stages)
+            transfer_bytes += batch_transfer_bytes
             prepared_tensor, preprocess_stage = _record_cuda_stage(
                 torch,
                 input_stream,
@@ -819,30 +849,29 @@ def run_model_loader_benchmark(
         model_state_sha256=model_state_sha256,
     )
     cases: list[ModelLoaderCaseResult] = []
-    for workload in config.workloads:
-        for access_pattern in config.access_patterns:
-            for batch_size in config.batch_sizes:
-                for concurrency in config.loader_concurrency:
-                    for pipeline in cast(
-                        tuple[Pipeline, ...],
-                        ("cpu_decode_pinned_h2d", "nvimagecodec_device_decode"),
-                    ):
-                        cases.append(
-                            _benchmark_case(
-                                torch=torch,
-                                torchvision=torchvision,
-                                cupy=cupy,
-                                pynvml=pynvml,
-                                config=config,
-                                coordinates=coordinates,
-                                tile_size=tile_size,
-                                pipeline=pipeline,
-                                workload=workload,
-                                access_pattern=access_pattern,
-                                batch_size=batch_size,
-                                concurrency=concurrency,
-                            )
-                        )
+    for workload, access_pattern, batch_size, concurrency, pipeline in product(
+        config.workloads,
+        config.access_patterns,
+        config.batch_sizes,
+        config.loader_concurrency,
+        _PIPELINES,
+    ):
+        cases.append(
+            _benchmark_case(
+                torch=torch,
+                torchvision=torchvision,
+                cupy=cupy,
+                pynvml=pynvml,
+                config=config,
+                coordinates=coordinates,
+                tile_size=tile_size,
+                pipeline=pipeline,
+                workload=workload,
+                access_pattern=access_pattern,
+                batch_size=batch_size,
+                concurrency=concurrency,
+            )
+        )
     return ModelLoaderBenchmarkReport(
         config=config,
         environment=environment,
