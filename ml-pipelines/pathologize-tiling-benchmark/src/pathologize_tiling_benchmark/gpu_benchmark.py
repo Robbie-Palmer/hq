@@ -58,7 +58,7 @@ def select_coordinates(
         raise ValueError(f"batch size {batch_size} exceeds the level's {len(coordinates)} tiles")
     if access_pattern == "random":
         return tuple(
-            random.Random(seed).sample(  # noqa: S311 - deterministic benchmark sampling.
+            random.Random(seed).sample(  # noqa: S311  # NOSONAR - benchmark-only sampling.
                 coordinates, batch_size
             )
         )

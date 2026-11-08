@@ -11,17 +11,17 @@ apt-get install --yes --no-install-recommends \
   python3-pip
 rm --recursive --force /var/lib/apt/lists/*
 
-python3 -m pip install --no-cache-dir \
+python3 -m pip install --no-cache-dir --only-binary=:all: \
   cupy-cuda12x==14.2.0 \
   'cuda-toolkit[cudart,nvrtc]==12.9.2.0'
 
-python3 -m pip install --no-cache-dir \
+python3 -m pip install --no-cache-dir --only-binary=:all: \
   /tmp/hq/packages/data-artifacts \
   /tmp/hq/packages/ml-evaluation
-python3 -m pip install --no-cache-dir \
+python3 -m pip install --no-cache-dir --only-binary=:all: \
   '/tmp/hq/packages/pathologize-tiler[cuda]' \
   /tmp/hq/ml-pipelines/pathologize-benchmark-contracts
-python3 -m pip install --no-cache-dir \
+python3 -m pip install --no-cache-dir --only-binary=:all: \
   /tmp/hq/ml-pipelines/pathologize-tiling-benchmark
 
 python3 - <<'PY'
