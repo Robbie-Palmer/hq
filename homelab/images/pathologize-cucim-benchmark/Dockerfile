@@ -1,4 +1,4 @@
-FROM docker.io/nvidia/cuda:12.8.1-base-ubuntu24.04@sha256:e711c99333fdfe8ae1e677b4972be6c5021f0128a1d31f775c7e58d88921b6a9
+FROM docker.io/nvidia/cuda@sha256:e711c99333fdfe8ae1e677b4972be6c5021f0128a1d31f775c7e58d88921b6a9
 
 LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/hq"
 LABEL org.opencontainers.image.description="Bounded Pathologize cuCIM TIFF decode trial"

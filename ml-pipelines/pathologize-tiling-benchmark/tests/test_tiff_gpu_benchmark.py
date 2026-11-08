@@ -36,8 +36,9 @@ def test_public_tiff_fixture_manifest_is_strict_and_unique() -> None:
 
     payload = json.loads(FIXTURE_MANIFEST.read_text(encoding="utf-8"))
     payload["unexpected"] = True
+    manifest_type = type(manifest)
     with pytest.raises(ValueError, match="unexpected"):
-        type(manifest).model_validate(payload)
+        manifest_type.model_validate(payload)
 
 
 def test_tiff_gpu_config_and_coordinate_selection_are_deterministic() -> None:

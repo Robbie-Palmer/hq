@@ -791,6 +791,115 @@ def _environment(cupy: Any, tifffile: Any) -> TiffBenchmarkEnvironment:
     )
 
 
+def _run_fixture_cases(
+    cupy: Any,
+    slide: OpenSlide,
+    image: Any,
+    locations: tuple[tuple[int, int], ...],
+    config: TiffGpuBenchmarkConfig,
+    weights: Any,
+    fixture_path: str,
+) -> tuple[list[TiffPipelineCase], list[str]]:
+    cases: list[TiffPipelineCase] = []
+    omissions: list[str] = []
+    for access_pattern in config.access_patterns:
+        for batch_size in config.batch_sizes:
+            if batch_size > len(locations):
+                omissions.append(
+                    f"{fixture_path}: batch {batch_size} exceeds {len(locations)} "
+                    f"complete regions for {access_pattern} access"
+                )
+                continue
+            selected = select_region_locations(
+                locations,
+                access_pattern=access_pattern,
+                batch_size=batch_size,
+                seed=config.random_seed + batch_size,
+            )
+            for pipeline in cast(
+                tuple[TiffPipeline, ...],
+                ("openslide_cpu_pinned_h2d", "cucim_cuslide2_device"),
+            ):
+                cases.extend(
+                    _run_case(
+                        cupy,
+                        slide,
+                        image,
+                        selected,
+                        config,
+                        weights,
+                        fixture_path,
+                        pipeline,
+                        access_pattern,
+                    )
+                )
+    return cases, omissions
+
+
+def _run_fixture(
+    cupy: Any,
+    cucim: Any,
+    config: TiffGpuBenchmarkConfig,
+    probe: TiffFixtureProbe,
+    weights: Any,
+) -> tuple[
+    list[TiffPipelineCase],
+    list[TiffPixelAgreement],
+    list[TiffViewerCpuResult],
+    list[str],
+]:
+    fixture_path = probe.path
+    if not probe.measurement_eligible or probe.openslide_geometry is None:
+        return [], [], [], [f"{fixture_path}: {probe.selection_reason}"]
+
+    path = config.fixture_root / fixture_path
+    with OpenSlide(path) as slide:
+        image = cucim.CuImage(str(path))
+        try:
+            geometry = probe.openslide_geometry
+            if config.logical_level >= len(geometry.level_dimensions):
+                return (
+                    [],
+                    [],
+                    [],
+                    [f"{fixture_path}: logical level {config.logical_level} is unavailable"],
+                )
+            locations = complete_region_locations(
+                geometry.level_dimensions[config.logical_level],
+                region_size=config.region_size,
+                downsample=geometry.level_downsamples[config.logical_level],
+            )
+            if not locations:
+                return [], [], [], [f"{fixture_path}: no complete benchmark regions"]
+            agreement_count = min(config.correctness_samples, len(locations))
+            agreement_locations = select_region_locations(
+                locations,
+                access_pattern="random",
+                batch_size=agreement_count,
+                seed=config.random_seed,
+            )
+            agreement = _pixel_agreement(
+                cupy, slide, image, agreement_locations, config, fixture_path
+            )
+            if not agreement.passed:
+                return (
+                    [],
+                    [agreement],
+                    [],
+                    [
+                        f"{fixture_path}: pixel error {agreement.maximum_absolute_error} exceeds "
+                        f"tolerance {agreement.tolerance}"
+                    ],
+                )
+            viewer_result = _viewer_cpu(slide, agreement_locations[0], config, fixture_path)
+            cases, omissions = _run_fixture_cases(
+                cupy, slide, image, locations, config, weights, fixture_path
+            )
+            return cases, [agreement], [viewer_result], omissions
+        finally:
+            image.close()
+
+
 def _run_selected_fixtures(
     cupy: Any,
     cucim: Any,
@@ -802,89 +911,21 @@ def _run_selected_fixtures(
     tuple[TiffViewerCpuResult, ...],
     tuple[str, ...],
 ]:
-    probe_by_path = {probe.path: probe for probe in probes}
     weights = _consumer_weights(cupy)
     _prime_shared_device_kernels(cupy, config, weights)
     cases: list[TiffPipelineCase] = []
     agreements: list[TiffPixelAgreement] = []
     viewer_results: list[TiffViewerCpuResult] = []
     omissions: list[str] = []
+    probe_by_path = {probe.path: probe for probe in probes}
     for fixture_path in config.benchmark_fixture_paths:
-        probe = probe_by_path[fixture_path]
-        if not probe.measurement_eligible or probe.openslide_geometry is None:
-            omissions.append(f"{fixture_path}: {probe.selection_reason}")
-            continue
-        path = config.fixture_root / fixture_path
-        with OpenSlide(path) as slide:
-            image = cucim.CuImage(str(path))
-            try:
-                geometry = probe.openslide_geometry
-                if config.logical_level >= len(geometry.level_dimensions):
-                    omissions.append(
-                        f"{fixture_path}: logical level {config.logical_level} is unavailable"
-                    )
-                    continue
-                locations = complete_region_locations(
-                    geometry.level_dimensions[config.logical_level],
-                    region_size=config.region_size,
-                    downsample=geometry.level_downsamples[config.logical_level],
-                )
-                if not locations:
-                    omissions.append(f"{fixture_path}: no complete benchmark regions")
-                    continue
-                agreement_count = min(config.correctness_samples, len(locations))
-                agreement_locations = select_region_locations(
-                    locations,
-                    access_pattern="random",
-                    batch_size=agreement_count,
-                    seed=config.random_seed,
-                )
-                agreement = _pixel_agreement(
-                    cupy, slide, image, agreement_locations, config, fixture_path
-                )
-                agreements.append(agreement)
-                if not agreement.passed:
-                    omissions.append(
-                        f"{fixture_path}: pixel error {agreement.maximum_absolute_error} exceeds "
-                        f"tolerance {agreement.tolerance}"
-                    )
-                    continue
-                viewer_results.append(
-                    _viewer_cpu(slide, agreement_locations[0], config, fixture_path)
-                )
-                for access_pattern in config.access_patterns:
-                    for batch_size in config.batch_sizes:
-                        if batch_size > len(locations):
-                            omissions.append(
-                                f"{fixture_path}: batch {batch_size} exceeds {len(locations)} "
-                                f"complete regions for {access_pattern} access"
-                            )
-                            continue
-                        selected = select_region_locations(
-                            locations,
-                            access_pattern=access_pattern,
-                            batch_size=batch_size,
-                            seed=config.random_seed + batch_size,
-                        )
-                        for pipeline in cast(
-                            tuple[TiffPipeline, ...],
-                            ("openslide_cpu_pinned_h2d", "cucim_cuslide2_device"),
-                        ):
-                            cases.extend(
-                                _run_case(
-                                    cupy,
-                                    slide,
-                                    image,
-                                    selected,
-                                    config,
-                                    weights,
-                                    fixture_path,
-                                    pipeline,
-                                    access_pattern,
-                                )
-                            )
-            finally:
-                image.close()
+        fixture_cases, fixture_agreements, fixture_viewers, fixture_omissions = _run_fixture(
+            cupy, cucim, config, probe_by_path[fixture_path], weights
+        )
+        cases.extend(fixture_cases)
+        agreements.extend(fixture_agreements)
+        viewer_results.extend(fixture_viewers)
+        omissions.extend(fixture_omissions)
     return tuple(cases), tuple(agreements), tuple(viewer_results), tuple(omissions)
 
 

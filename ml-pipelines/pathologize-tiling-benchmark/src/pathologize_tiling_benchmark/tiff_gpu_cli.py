@@ -41,7 +41,6 @@ def main(command: Sequence[str] | None = None) -> int:
             command=list(command) if command is not None else None,
         )
     except (
-        FileNotFoundError,
         ImportError,
         OSError,
         RuntimeError,
