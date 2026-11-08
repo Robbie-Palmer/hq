@@ -268,11 +268,11 @@ async function validateClaimsExist(
   claims: PathClaim[],
 ): Promise<string[]> {
   const checks = await Promise.all(
-    claims.map(async (claim) =>
-      (await pathExists(path.join(repositoryRoot, claim.path)))
-        ? null
-        : `${claim.kind === "component" ? "Source" : "Excluded"} path '${claim.path}' does not exist`,
-    ),
+    claims.map(async (claim) => {
+      if (await pathExists(path.join(repositoryRoot, claim.path))) return null;
+      const label = claim.kind === "component" ? "Source" : "Excluded";
+      return `${label} path '${claim.path}' does not exist`;
+    }),
   );
   return checks.filter((issue): issue is string => issue !== null);
 }
@@ -352,12 +352,10 @@ export function buildAdoptionBatches(
   }
   return [...batches]
     .sort(([left], [right]) => compareStrings(left, right))
-    .map(([id, components]) => ({
-      id,
-      components: components.sort((left, right) =>
-        compareStrings(left.id, right.id),
-      ),
-    }));
+    .map(([id, components]) => {
+      components.sort((left, right) => compareStrings(left.id, right.id));
+      return { id, components };
+    });
 }
 
 export async function loadSourceInventory(
