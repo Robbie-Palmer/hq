@@ -1,125 +1,23 @@
 "use client";
 
-import { isAbortError } from "browser-base/errors";
+import { useMachine } from "@xstate/react";
 import { Bot, Check, LoaderCircle, Lock, X } from "lucide-react";
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useDebugValue, useEffect, useRef } from "react";
+import type { ActorRefFrom, SnapshotFrom } from "xstate";
 import {
   AUTH_PROVIDERS,
   type Provider,
   ProviderIcon,
 } from "@/components/recipes/auth-providers";
 import { Button } from "@/components/ui/button";
-import {
-  type AgentDetail,
-  type AgentHost,
-  decideAgentApproval,
-  FreshSessionRequiredError,
-  getAgent,
-  getAgentHost,
-} from "@/lib/api/agents";
+import type { AgentDetail } from "@/lib/api/agents";
 import { authClient } from "@/lib/auth-client";
+import { browserAgentApprovalMachine } from "@/lib/recipes/agent-approval-browser";
 import {
-  readBrowserStorage,
-  removeBrowserStorage,
-  writeBrowserStorageJson,
-} from "@/lib/browser/storage";
-
-type ApprovalIntent = {
-  agentId: string;
-  code: string;
-};
-
-type PendingReauthentication = ApprovalIntent & {
-  action: "approve" | "deny";
-  createdAt: number;
-  provider: Provider;
-  userId: string;
-};
-
-type ApprovalPageState = {
-  error: string | null;
-  intent: ApprovalIntent | null;
-  reauthentication: PendingReauthentication | null;
-  resume: boolean;
-};
-
-const REAUTH_FLOW = "agent-approval";
-const REAUTH_RETURN_PARAM = "agent_reauth";
-const REAUTH_STORAGE_KEY = "recipe-agent-approval-reauth:v1";
-const REAUTH_MAX_AGE_MS = 15 * 60 * 1000;
-
-function isProvider(value: unknown): value is Provider {
-  return value === "google" || value === "github";
-}
-
-function clearStoredReauthentication() {
-  removeBrowserStorage("sessionStorage", REAUTH_STORAGE_KEY);
-}
-
-function readStoredReauthentication(): PendingReauthentication | null {
-  try {
-    const raw = readBrowserStorage("sessionStorage", REAUTH_STORAGE_KEY);
-    clearStoredReauthentication();
-    if (!raw) return null;
-    const value = JSON.parse(raw) as Partial<PendingReauthentication>;
-    if (
-      typeof value.agentId !== "string" ||
-      typeof value.code !== "string" ||
-      (value.action !== "approve" && value.action !== "deny") ||
-      typeof value.createdAt !== "number" ||
-      !isProvider(value.provider) ||
-      typeof value.userId !== "string" ||
-      Date.now() - value.createdAt > REAUTH_MAX_AGE_MS
-    ) {
-      return null;
-    }
-    return value as PendingReauthentication;
-  } catch {
-    return null;
-  }
-}
-
-function reauthenticationError(params: URLSearchParams): string | null {
-  const code = params.get("error");
-  if (!code) return null;
-  if (code === "agent_reauth_identity_mismatch") {
-    return "Use the same account that started this approval request.";
-  }
-  if (code === "access_denied") {
-    return "Identity confirmation was canceled.";
-  }
-  return "Your identity could not be confirmed. Try again.";
-}
-
-function readApprovalPageState(): ApprovalPageState {
-  const params = new URLSearchParams(globalThis.location.search);
-  const agentId = params.get("agent_id")?.trim();
-  const code = params.get("code")?.trim();
-  const returning = params.get(REAUTH_RETURN_PARAM) === "complete";
-  const reauthentication = returning ? readStoredReauthentication() : null;
-  let intent: ApprovalIntent | null = null;
-  if (agentId && code) {
-    intent = { agentId, code };
-  } else if (reauthentication) {
-    intent = {
-      agentId: reauthentication.agentId,
-      code: reauthentication.code,
-    };
-  }
-
-  globalThis.history.replaceState(null, "", globalThis.location.pathname);
-  return {
-    error: returning ? reauthenticationError(params) : null,
-    intent,
-    reauthentication,
-    resume: returning && !params.has("error"),
-  };
-}
-
-function storePendingReauthentication(value: PendingReauthentication): boolean {
-  return writeBrowserStorageJson("sessionStorage", REAUTH_STORAGE_KEY, value);
-}
+  type ApprovalSession,
+  createAgentApprovalTrace,
+} from "@/lib/recipes/agent-approval-machine";
 
 function dateLabel(value: string | null): string {
   if (!value) return "No expiry supplied";
@@ -129,32 +27,6 @@ function dateLabel(value: string | null): string {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(date);
-}
-
-async function loadApprovalRequest(
-  intent: ApprovalIntent,
-  signal: AbortSignal,
-  onAgent: (agent: AgentDetail) => void,
-): Promise<AgentHost | null> {
-  const loadedAgent = await getAgent(intent.agentId, signal);
-  if (signal.aborted) return null;
-  onAgent(loadedAgent);
-  try {
-    return await getAgentHost(loadedAgent.hostId, signal);
-  } catch (cause) {
-    if (isAbortError(cause)) throw cause;
-    return null;
-  }
-}
-
-function approvalResult(action: "approve" | "deny") {
-  return action === "approve" ? "approved" : "denied";
-}
-
-function approvalError(cause: unknown) {
-  return cause instanceof Error
-    ? cause.message
-    : "The approval decision could not be saved.";
 }
 
 function ApprovalActions({
@@ -267,235 +139,151 @@ function ReauthenticationPrompt({
 
 export function AgentApprovalView() {
   const { data: session, isPending: sessionPending } = authClient.useSession();
-  const initialized = useRef(false);
-  const [intent, setIntent] = useState<ApprovalIntent | null | undefined>();
-  const [agent, setAgent] = useState<AgentDetail | null>(null);
-  const [host, setHost] = useState<AgentHost | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [pendingAction, setPendingAction] = useState<"approve" | "deny" | null>(
+  const approvalSession: ApprovalSession | null = session
+    ? { email: session.user.email, userId: session.user.id }
+    : null;
+  const traceRef = useRef<ReturnType<typeof createAgentApprovalTrace> | null>(
     null,
   );
-  const [result, setResult] = useState<"approved" | "denied" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [reauthentication, setReauthentication] = useState<{
-    action: "approve" | "deny";
-    providers: Provider[] | null;
-    userId: string;
-  } | null>(null);
-  const [resumeAction, setResumeAction] =
-    useState<PendingReauthentication | null>(null);
-  const [pendingProvider, setPendingProvider] = useState<Provider | null>(null);
+  traceRef.current ??= createAgentApprovalTrace("AgentApprovalView");
+  const [snapshot, send] = useMachine(browserAgentApprovalMachine, {
+    input: { session: approvalSession, sessionPending },
+    inspect: traceRef.current.inspect,
+  });
+  useDebugValue(traceRef.current.format());
 
   useEffect(() => {
-    if (initialized.current) return;
-    initialized.current = true;
-    const pageState = readApprovalPageState();
-    setIntent(pageState.intent);
-    setError(pageState.error);
-    if (pageState.reauthentication) {
-      if (pageState.resume) {
-        setResumeAction(pageState.reauthentication);
-      } else {
-        setReauthentication({
-          action: pageState.reauthentication.action,
-          providers: [pageState.reauthentication.provider],
-          userId: pageState.reauthentication.userId,
-        });
-      }
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!session || !intent) return;
-    const controller = new AbortController();
-    setLoading(true);
-
-    void loadApprovalRequest(intent, controller.signal, (loadedAgent) => {
-      setAgent(loadedAgent);
-      setLoading(false);
-    })
-      .then((loadedHost) => {
-        if (!controller.signal.aborted) setHost(loadedHost);
-      })
-      .catch((cause: unknown) => {
-        if (isAbortError(cause)) return;
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : "The agent request could not be loaded.",
-        );
-        setLoading(false);
-      });
-
-    return () => controller.abort();
-  }, [intent, session]);
-
-  const prepareReauthentication = useCallback(
-    async (action: "approve" | "deny", userId: string) => {
-      setReauthentication({ action, providers: null, userId });
-      const accounts = await authClient.listAccounts().catch(() => null);
-      if (!accounts) {
-        setReauthentication(null);
-        setError("Your sign-in methods could not be loaded. Try again.");
-        return;
-      }
-      if (accounts.error) {
-        setReauthentication(null);
-        setError("Your sign-in methods could not be loaded. Try again.");
-        return;
-      }
-      const linked = new Set(
-        (accounts.data ?? []).map((account) => account.providerId),
-      );
-      const providers = AUTH_PROVIDERS.map((provider) => provider.id).filter(
-        (provider) => linked.has(provider),
-      );
-      if (providers.length === 0) {
-        setReauthentication(null);
-        setError("No linked sign-in method can confirm your identity.");
-        return;
-      }
-      setReauthentication({ action, providers, userId });
-    },
-    [],
-  );
-
-  const decide = useCallback(
-    async (action: "approve" | "deny") => {
-      if (!intent || !session) return;
-      setPendingAction(action);
-      setError(null);
-      try {
-        await decideAgentApproval({
-          agentId: intent.agentId,
-          code: intent.code,
-          action,
-        });
-        setResult(approvalResult(action));
-      } catch (cause) {
-        if (cause instanceof FreshSessionRequiredError) {
-          await prepareReauthentication(action, session.user.id);
-          return;
-        }
-        setError(approvalError(cause));
-      } finally {
-        setPendingAction(null);
-      }
-    },
-    [intent, prepareReauthentication, session],
-  );
-
-  useEffect(() => {
-    if (!resumeAction || !agent || !session || pendingAction || result) return;
-    setResumeAction(null);
-    if (session.user.id !== resumeAction.userId) {
-      setError("Use the same account that started this approval request.");
-      setReauthentication({
-        action: resumeAction.action,
-        providers: [resumeAction.provider],
-        userId: resumeAction.userId,
-      });
-      return;
-    }
-    void decide(resumeAction.action);
-  }, [agent, decide, pendingAction, result, resumeAction, session]);
-
-  async function startReauthentication(provider: Provider) {
-    if (!intent || !reauthentication) return;
-    const stored = storePendingReauthentication({
-      ...intent,
-      action: reauthentication.action,
-      createdAt: Date.now(),
-      provider,
-      userId: reauthentication.userId,
+    send({
+      type: "SESSION_CHANGED",
+      pending: sessionPending,
+      session: session
+        ? { email: session.user.email, userId: session.user.id }
+        : null,
     });
-    if (!stored) {
-      setError("This browser could not preserve the approval request.");
-      return;
-    }
+  }, [send, session, sessionPending]);
 
-    setPendingProvider(provider);
-    setError(null);
-    const callbackURL = new URL(
-      globalThis.location.pathname,
-      globalThis.location.origin,
-    );
-    callbackURL.searchParams.set(REAUTH_RETURN_PARAM, "complete");
-    try {
-      const response = await authClient.signIn.social({
-        provider,
-        callbackURL: callbackURL.href,
-        errorCallbackURL: callbackURL.href,
-        additionalData: { flow: REAUTH_FLOW },
-        additionalParams: { prompt: "select_account" },
-      });
-      if (response.error) {
-        clearStoredReauthentication();
-        setError(
-          response.error.message ?? "Identity confirmation could not start.",
-        );
-      }
-    } catch {
-      clearStoredReauthentication();
-      setError("Identity confirmation could not start. Try again.");
-    } finally {
-      setPendingProvider(null);
-    }
+  return (
+    <AgentApprovalContent
+      accountEmail={session?.user.email ?? null}
+      send={send}
+      sessionPending={sessionPending}
+      snapshot={snapshot}
+    />
+  );
+}
+
+type ApprovalSnapshot = SnapshotFrom<typeof browserAgentApprovalMachine>;
+type ApprovalSend = ActorRefFrom<typeof browserAgentApprovalMachine>["send"];
+
+function AgentApprovalContent({
+  accountEmail,
+  send,
+  sessionPending,
+  snapshot,
+}: Readonly<{
+  accountEmail: string | null;
+  send: ApprovalSend;
+  sessionPending: boolean;
+  snapshot: ApprovalSnapshot;
+}>) {
+  if (
+    sessionPending ||
+    snapshot.matches("bootstrapping") ||
+    snapshot.matches("routing") ||
+    snapshot.matches("waitingForSession") ||
+    snapshot.matches("loadingAgent")
+  ) {
+    return <ApprovalLoading />;
   }
 
-  if (sessionPending || intent === undefined || loading) {
-    return (
-      <output
-        aria-label="Loading agent access request"
-        className="container mx-auto flex max-w-xl items-center justify-center px-4 py-24"
-      >
-        <LoaderCircle className="size-6 animate-spin text-[var(--ink-3)]" />
-      </output>
-    );
+  if (!accountEmail || snapshot.matches("signedOut")) {
+    return <SignedOutApproval />;
   }
 
-  if (!session) {
-    return (
-      <ApprovalCard
-        icon={<Lock className="size-5" />}
-        title="Log in to review this request."
-      >
-        <p className="rt-body text-[var(--ink-2)]">
-          Use the account menu above, then reopen the approval link from your
-          agent host.
-        </p>
-      </ApprovalCard>
-    );
+  if (snapshot.matches("missingIntent")) {
+    return <MissingApprovalIntent />;
   }
 
-  if (!intent) {
-    return (
-      <ApprovalCard
-        icon={<X className="size-5" />}
-        title="This approval link is incomplete."
-      >
-        <p className="rt-body text-[var(--ink-2)]">
-          Start the connection again from the agent host to get a fresh link.
-        </p>
-      </ApprovalCard>
-    );
+  if (snapshot.matches("approved") || snapshot.matches("denied")) {
+    const result = snapshot.matches("approved") ? "approved" : "denied";
+    return <ApprovalResult result={result} />;
   }
 
-  if (result) {
-    return (
-      <ApprovalCard
-        icon={<Check className="size-5" />}
-        title={`Agent access ${result}.`}
-      >
-        <p className="rt-body text-[var(--ink-2)]">
-          You can close this page and return to the agent host.
-        </p>
-        <Button asChild variant="outline" className="mt-5">
-          <Link href="/recipes">Back to recipes</Link>
-        </Button>
-      </ApprovalCard>
-    );
-  }
+  return (
+    <ActiveAgentApproval
+      accountEmail={accountEmail}
+      send={send}
+      snapshot={snapshot}
+    />
+  );
+}
+
+function ApprovalLoading() {
+  return (
+    <output
+      aria-label="Loading agent access request"
+      className="container mx-auto flex max-w-xl items-center justify-center px-4 py-24"
+    >
+      <LoaderCircle className="size-6 animate-spin text-[var(--ink-3)]" />
+    </output>
+  );
+}
+
+function SignedOutApproval() {
+  return (
+    <ApprovalCard
+      icon={<Lock className="size-5" />}
+      title="Log in to review this request."
+    >
+      <p className="rt-body text-[var(--ink-2)]">
+        Use the account menu above, then reopen the approval link from your
+        agent host.
+      </p>
+    </ApprovalCard>
+  );
+}
+
+function MissingApprovalIntent() {
+  return (
+    <ApprovalCard
+      icon={<X className="size-5" />}
+      title="This approval link is incomplete."
+    >
+      <p className="rt-body text-[var(--ink-2)]">
+        Start the connection again from the agent host to get a fresh link.
+      </p>
+    </ApprovalCard>
+  );
+}
+
+function ApprovalResult({
+  result,
+}: Readonly<{ result: "approved" | "denied" }>) {
+  return (
+    <ApprovalCard
+      icon={<Check className="size-5" />}
+      title={`Agent access ${result}.`}
+    >
+      <p className="rt-body text-[var(--ink-2)]">
+        You can close this page and return to the agent host.
+      </p>
+      <Button asChild variant="outline" className="mt-5">
+        <Link href="/recipes">Back to recipes</Link>
+      </Button>
+    </ApprovalCard>
+  );
+}
+
+function ActiveAgentApproval({
+  accountEmail,
+  send,
+  snapshot,
+}: Readonly<{
+  accountEmail: string;
+  send: ApprovalSend;
+  snapshot: ApprovalSnapshot;
+}>) {
+  const { agent, host } = snapshot.context;
 
   return (
     <ApprovalCard
@@ -508,63 +296,108 @@ export function AgentApprovalView() {
       </p>
 
       {agent && (
-        <div className="mt-5 rounded-xl border border-[var(--line-strong)] bg-[var(--paper-warm)] p-4">
-          <p className="rt-mono text-[var(--ink-3)]">Requested access</p>
-          <ul className="mt-3 space-y-3">
-            {agent.capabilityGrants
-              .filter((grant) => grant.status === "pending")
-              .map((grant) => (
-                <li key={grant.capability}>
-                  <p className="rt-mono text-[var(--ink)]">
-                    {grant.capability}
-                  </p>
-                  {grant.description && (
-                    <p className="rt-body mt-0.5 text-sm text-[var(--ink-2)]">
-                      {grant.description}
-                    </p>
-                  )}
-                </li>
-              ))}
-          </ul>
-          <dl className="rt-mono mt-4 space-y-1 text-xs text-[var(--ink-3)]">
-            <div className="flex gap-1">
-              <dt>Host</dt>
-              <dd>{host?.name ?? agent.hostId}</dd>
-            </div>
-            <div className="flex gap-1">
-              <dt>Account</dt>
-              <dd>{session.user.email}</dd>
-            </div>
-            <div className="flex gap-1">
-              <dt>Access expires</dt>
-              <dd>{dateLabel(agent.expiresAt)}</dd>
-            </div>
-          </dl>
-        </div>
+        <ApprovalRequestDetails
+          accountEmail={accountEmail}
+          agent={agent}
+          hostName={host?.name}
+        />
       )}
+      <ApprovalWorkflowControls send={send} snapshot={snapshot} />
+    </ApprovalCard>
+  );
+}
 
+function ApprovalRequestDetails({
+  accountEmail,
+  agent,
+  hostName,
+}: Readonly<{
+  accountEmail: string;
+  agent: AgentDetail;
+  hostName?: string;
+}>) {
+  const grants = agent.capabilityGrants.filter(
+    (grant) => grant.status === "pending",
+  );
+  return (
+    <div className="mt-5 rounded-xl border border-[var(--line-strong)] bg-[var(--paper-warm)] p-4">
+      <p className="rt-mono text-[var(--ink-3)]">Requested access</p>
+      <ul className="mt-3 space-y-3">
+        {grants.map((grant) => (
+          <li key={grant.capability}>
+            <p className="rt-mono text-[var(--ink)]">{grant.capability}</p>
+            {grant.description && (
+              <p className="rt-body mt-0.5 text-sm text-[var(--ink-2)]">
+                {grant.description}
+              </p>
+            )}
+          </li>
+        ))}
+      </ul>
+      <dl className="rt-mono mt-4 space-y-1 text-xs text-[var(--ink-3)]">
+        <div className="flex gap-1">
+          <dt>Host</dt>
+          <dd>{hostName ?? agent.hostId}</dd>
+        </div>
+        <div className="flex gap-1">
+          <dt>Account</dt>
+          <dd>{accountEmail}</dd>
+        </div>
+        <div className="flex gap-1">
+          <dt>Access expires</dt>
+          <dd>{dateLabel(agent.expiresAt)}</dd>
+        </div>
+      </dl>
+    </div>
+  );
+}
+
+function ApprovalWorkflowControls({
+  send,
+  snapshot,
+}: Readonly<{ send: ApprovalSend; snapshot: ApprovalSnapshot }>) {
+  const { action, agent, error, pendingProvider, reauthentication } =
+    snapshot.context;
+  const pendingAction = snapshot.matches({
+    active: { workflow: "deciding" },
+  })
+    ? action
+    : null;
+  const loadingProviders = snapshot.matches({
+    active: { workflow: "loadingProviders" },
+  });
+  const showReauthentication =
+    loadingProviders ||
+    snapshot.matches({ active: { workflow: "reauthenticating" } });
+  return (
+    <>
       {error && (
         <p role="alert" className="rt-body mt-4 text-[var(--destructive)]">
           {error}
         </p>
       )}
-
-      {reauthentication ? (
+      {showReauthentication ? (
         <ReauthenticationPrompt
-          action={reauthentication.action}
-          providers={reauthentication.providers}
+          action={reauthentication?.action ?? action ?? "approve"}
+          providers={
+            loadingProviders
+              ? null
+              : ((reauthentication?.providers ?? []) as Provider[])
+          }
           pendingProvider={pendingProvider}
-          onSelect={(provider) => void startReauthentication(provider)}
-          onCancel={() => setReauthentication(null)}
+          onSelect={(provider) => send({ type: "SELECT_PROVIDER", provider })}
+          onCancel={() => send({ type: "CANCEL_REAUTHENTICATION" })}
         />
       ) : (
         <ApprovalActions
           agentAvailable={Boolean(agent)}
           pendingAction={pendingAction}
-          onDecide={(action) => void decide(action)}
+          onDecide={(nextAction) =>
+            send({ type: nextAction === "approve" ? "APPROVE" : "DENY" })
+          }
         />
       )}
-    </ApprovalCard>
+    </>
   );
 }
 

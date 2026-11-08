@@ -1160,15 +1160,6 @@
     "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
   },
   {
-    "component": "AgentApprovalView",
-    "maximums": {
-      "lines": 302,
-      "responsibility": 46.5
-    },
-    "path": "components/recipes/settings/agent-approval-view.tsx",
-    "reason": "Existing production hotspot when blocking enforcement was adopted on 2026-10-04; its metric ceilings may only decrease."
-  },
-  {
     "component": "ReauthenticationPrompt",
     "maximums": {
       "lines": 70
