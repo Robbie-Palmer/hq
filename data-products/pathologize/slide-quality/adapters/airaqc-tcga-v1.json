@@ -1,0 +1,17 @@
+{
+  "adapter_id": "airaqc-tcga-to-artifact-spatial-v1",
+  "mappings": [
+    {"source_label": "out_of_focus", "status": "exact", "target_labels": ["out_of_focus"]},
+    {"source_label": "air_bubble", "status": "exact", "target_labels": ["air_bubble"]},
+    {"source_label": "fold", "status": "exact", "target_labels": ["fold"]},
+    {"source_label": "penmark", "status": "exact", "target_labels": ["pen_mark"]},
+    {"source_label": "unlabelled_pixels", "status": "unmapped", "target_labels": ["unlabelled"]}
+  ],
+  "notes": [
+    "AIRAQc unlabelled pixels are not inferred to be tissue or background.",
+    "AIRAQc air-bubble labels retain their finer concept and can be promoted to the union parent for broad comparisons."
+  ],
+  "schema_version": "1.0.0",
+  "source_dataset_id": "airaqc-tcga-public-pilot-v1",
+  "target_ontology_id": "pathologize.artifact-spatial/v1"
+}

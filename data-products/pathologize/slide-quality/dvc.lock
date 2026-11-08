@@ -1,0 +1,86 @@
+schema: '2.0'
+stages:
+  reconcile_artifact_spatial:
+    cmd: uv run --locked slide-quality-data build
+    deps:
+    - path: ../../airaqc/tcga-public-pilot/contracts/subset.json
+      hash: md5
+      md5: 87afb214b066e335a0216de799859f11
+      size: 4054
+    - path: ../../airaqc/tcga-public-pilot/dvc.lock
+      hash: md5
+      md5: 2e5070fad0ca23f157aa859aed97f76a
+      size: 1024
+    - path: ../../airaqc/tcga-public-pilot/outputs/native-corpus.json
+      hash: md5
+      md5: 34439fd0fdc38ab7f7f4f855e9e008fa
+      size: 43849
+    - path: ../../grandqc/mpp20/dvc.lock
+      hash: md5
+      md5: 3d66a00701faff0541878f60b721999d
+      size: 1776
+    - path: ../../grandqc/mpp20/manifest.json
+      hash: md5
+      md5: b13f6f44ca4c94baa3483548109edb89
+      size: 1627
+    - path: ../../grandqc/mpp20/outputs/native-index.jsonl
+      hash: md5
+      md5: 79b4da2435101636b0cf58a96eb8aa3c
+      size: 11907156
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: adapters
+      hash: md5
+      md5: 0f8f81a00bcbc5e92502b0ff1df8db45.dir
+      size: 2158
+      nfiles: 2
+    - path: imports.json
+      hash: md5
+      md5: 3ee6adac53a20ff590565271fbb169ca
+      size: 626
+    - path: ontologies
+      hash: md5
+      md5: b96fc10bec00ab6f13520dac7268d887.dir
+      size: 999
+      nfiles: 1
+    - path: products
+      hash: md5
+      md5: 9c7c7393d19dedf57a0fe5e49a688554.dir
+      size: 657
+      nfiles: 1
+    - path: pyproject.toml
+      hash: md5
+      md5: 972a1a02c9df6ae43c391eabe758d8b5
+      size: 1105
+    - path: src/slide_quality_dataset
+      hash: md5
+      md5: f6ce65d2950d1d6f11a9ae051f346517.dir
+      size: 18046
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 0711d1d43d1e067f6edb7f65a69cccba
+      size: 34598
+    outs:
+    - path: outputs/harmonized/artifact-spatial-v1.jsonl
+      hash: md5
+      md5: bc7c11c959fedf91a4be3906ff5dbf7a
+      size: 19545543
+    - path: outputs/lineage.json
+      hash: md5
+      md5: 60ff71d9bd05b282b93499a949c1b0d2
+      size: 1044
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 27d27639a510e38e315982ca09a4d3df
+      size: 1772
+    - path: outputs/partitions.json
+      hash: md5
+      md5: 8f3be393d411b557da4c555eac8f2a38
+      size: 1184170
+    - path: outputs/reconciliation.json
+      hash: md5
+      md5: e7725b1ac83495bf8102c352ae282341
+      size: 1573

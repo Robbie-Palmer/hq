@@ -1,0 +1,69 @@
+schema: '2.0'
+stages:
+  acquire_mpp20:
+    cmd: uv run --locked grandqc-source-data acquire
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: b13f6f44ca4c94baa3483548109edb89
+      size: 1627
+    - path: pyproject.toml
+      hash: md5
+      md5: 7726a9d315120adb05bf81d249180e84
+      size: 1099
+    - path: src/grandqc_source_data
+      hash: md5
+      md5: 999af07b2bf5cfa5772ea76fa0b0d552.dir
+      size: 12044
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: e296fb24799dac6545259e86ad369e2d
+      size: 37912
+    outs:
+    - path: data/raw/MPP20.tar
+      hash: md5
+      md5: f60d546bd711808b8781d93e491283e5
+      size: 928040960
+  index_mpp20:
+    cmd: uv run --locked grandqc-source-data index
+    deps:
+    - path: data/raw/MPP20.tar
+      hash: md5
+      md5: f60d546bd711808b8781d93e491283e5
+      size: 928040960
+    - path: manifest.json
+      hash: md5
+      md5: b13f6f44ca4c94baa3483548109edb89
+      size: 1627
+    - path: pyproject.toml
+      hash: md5
+      md5: 7726a9d315120adb05bf81d249180e84
+      size: 1099
+    - path: src/grandqc_source_data
+      hash: md5
+      md5: 999af07b2bf5cfa5772ea76fa0b0d552.dir
+      size: 12044
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: e296fb24799dac6545259e86ad369e2d
+      size: 37912
+    outs:
+    - path: data/native/mpp20
+      hash: md5
+      md5: 8491bd92212975e94d39dbfade91ad8f.dir
+      size: 876904444
+      nfiles: 28485
+    - path: outputs/native-index.jsonl
+      hash: md5
+      md5: 79b4da2435101636b0cf58a96eb8aa3c
+      size: 11907156
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: 96e94cd0ac6a1b29363b9a3968725ea5
+      size: 528

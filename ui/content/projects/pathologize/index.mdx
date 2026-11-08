@@ -53,8 +53,8 @@ The initial proposals define the intended research boundary:
 
 * [PDR 000](/projects/pathologize/pdrs/000-open-evidence-bounded-research) proposes an open,
   evidence-bounded research programme rather than a clinical product claim.
-* [PDR 001](/projects/pathologize/pdrs/001-one-versioned-pathology-data-registry) proposes one
-  versioned source registry with independently reproducible downstream projects.
+* [PDR 001](/projects/pathologize/pdrs/001-one-versioned-pathology-data-registry) originally proposed
+  one versioned source registry and is superseded by PDR 009.
 * [PDR 002](/projects/pathologize/pdrs/002-public-source-provenance-boundary) proposes a documented
   public-source boundary from former-employer work.
 * [PDR 003](/projects/pathologize/pdrs/003-independent-pathology-benchmark-families) proposes separate
@@ -71,6 +71,8 @@ The initial proposals define the intended research boundary:
   format-specific acceleration.
 * [PDR 008](/projects/pathologize/pdrs/008-evidence-gated-gpu-pixel-decoding) requires an end-to-end
   workload improvement before GPU pixel decoding becomes a default.
+* [PDR 009](/projects/pathologize/pdrs/009-source-native-pathology-data-mesh) proposes reusable,
+  source-native DVC projects feeding consumer-owned reconciled products through versioned adapters.
 
 # Architecture decisions
 
@@ -113,20 +115,22 @@ One architecture evaluation remains open:
 
 # Research programme
 
-## Data registry
+## Data mesh
 
-One authoritative registry will describe public datasets, licences, checksums, retrieval evidence, and the
-patient, case, specimen, slide and image identities needed to keep related records on one side of each train,
-validation and test boundary. It will preserve source-native labels, scanner metadata, physical pixel spacing
-and stain information without forcing every dataset into one false universal ontology.
+Source datasets live in versioned DVC projects that describe their own domain. A whole-slide source can preserve
+patient, specimen, scanner and physical-scale identities. A published patch source can preserve organ, source
+WSI group, image-mask pair, native pixel class and publisher role without inventing patient or scanner fields.
+Each source owns its bytes, rights, checksums and native ontology.
 
-New annotation layers may apply a finer ontology or replace source categories with an incommensurable ontology.
-The registry will preserve both label systems, their annotation protocols and any partial mappings instead of
-overwriting the source account or claiming equivalence where none exists.
+Downstream dataset projects pin those sources and own the task ontology, adapters, exclusions, reannotations,
+leakage-aware partitions and training or evaluation roles. A mapping records whether it is exact, partial,
+source-merged, unmapped or dropped. Source records and labels remain attached to the derived record, so a uniform
+training view does not overwrite the source account or claim an equivalence that the annotations do not support.
 
-Downstream projects will pin a registry revision and own their task-specific partitions, transformations,
-tiles, embeddings, models and scorecards. Raw slides remain source artifacts. A tile set is a parameterised
-experimental result, not another copy of the truth.
+Each downstream product reports what another source added and what reconciliation lost. That includes record and
+group counts, label coverage, collapsed concepts, unavailable distinctions, reannotations, exclusions and role
+overrides. Raw slides and patches remain source artifacts. Tiles, embeddings and harmonized manifests are
+versioned outputs of the project that defines their parameters.
 
 ## Whole-slide quality and tissue analysis
 

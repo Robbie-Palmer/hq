@@ -1,0 +1,37 @@
+{
+  "archive": {
+    "bytes": 928040960,
+    "filename": "MPP20.tar",
+    "md5": "f60d546bd711808b8781d93e491283e5",
+    "sha256": "1b0b412e7bbcb10311357cce24c890e60fc84e357d3b8d12e49f3b44d9c7613d",
+    "url": "https://zenodo.org/records/14039591/files/MPP20.tar?download=1"
+  },
+  "citation": "Weng, Z. et al. GrandQC: A comprehensive solution to quality control problem in digital pathology. Nature Communications 15, 10685 (2024).",
+  "dataset_id": "grandqc-test-mpp20-v1",
+  "description": "GrandQC expert-annotated test patches at 2.0 micrometres per pixel, preserved in the publisher's vocabulary and directory structure.",
+  "doi": "10.5281/zenodo.14039591",
+  "expected": {
+    "declared_wsi_count": 318,
+    "organs": ["Breast", "Colon", "Kidney", "Prostate"],
+    "paired_patch_count": 14242
+  },
+  "license": {
+    "name": "Non-commercial academic research terms stated by the depositor",
+    "redistribution": "Do not redistribute the archive or extracted image and mask bytes from this repository.",
+    "spdx_id": "LicenseRef-GrandQC-Academic-NonCommercial",
+    "url": "https://zenodo.org/records/14039591"
+  },
+  "native_labels": [
+    {"id": 0, "name": "non_annotated_ignore"},
+    {"id": 1, "name": "tissue"},
+    {"id": 2, "name": "fold"},
+    {"id": 3, "name": "dark_spot_and_foreign_object"},
+    {"id": 4, "name": "pen_marker"},
+    {"id": 5, "name": "edge_and_air_bubble"},
+    {"id": 6, "name": "out_of_focus"},
+    {"id": 7, "name": "background"}
+  ],
+  "native_role": "publisher_test_dataset",
+  "schema_version": "1.0.0",
+  "source_version": "Zenodo record 14039591 version v1, MPP20 distribution"
+}
