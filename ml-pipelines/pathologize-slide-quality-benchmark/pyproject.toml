@@ -9,7 +9,7 @@ dependencies = [
   "openslide-bin>=4.0.0.8,<5",
   "openslide-python>=1.4,<2",
   "pathologize-benchmark-contracts",
-  "pillow>=12,<13",
+  "pillow>=13,<14",
   "pydantic>=2.12,<3",
 ]
 
