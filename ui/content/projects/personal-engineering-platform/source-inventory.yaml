@@ -654,6 +654,38 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/data-product-operations"
+    project: "project:pathologize"
+    paths: [ "data-products/README.md", "data-products/mise.toml" ]
+    toolchains: [ "content", "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/grandqc-mpp20-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/grandqc/mpp20" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/airaqc-tcga-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/airaqc/tcga-public-pilot" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/slide-quality-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/pathologize/slide-quality" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/slide-quality-benchmark"
     project: "project:pathologize"
     paths: [ "ml-pipelines/pathologize-slide-quality-benchmark" ]
@@ -781,7 +813,6 @@ components:
       - "ui/lib"
       - "ui/mise.toml"
       - "ui/next.config.ts"
-      - "ui/next-env.d.ts"
       - "ui/.oxlintrc.json"
       - "ui/package.json"
       - "ui/playwright.mermaid.config.ts"

@@ -1,0 +1,21 @@
+{
+  "adapter_id": "grandqc-mpp20-to-artifact-spatial-v1",
+  "mappings": [
+    {"source_label": "non_annotated_ignore", "status": "exact", "target_labels": ["ignore"]},
+    {"source_label": "tissue", "status": "exact", "target_labels": ["artifact_free_tissue"]},
+    {"source_label": "fold", "status": "exact", "target_labels": ["fold"]},
+    {"source_label": "dark_spot_and_foreign_object", "status": "source_merged", "target_labels": ["dark_spot_or_foreign_object"]},
+    {"source_label": "pen_marker", "status": "exact", "target_labels": ["pen_mark"]},
+    {"source_label": "edge_and_air_bubble", "status": "source_merged", "target_labels": ["air_bubble_or_slide_edge"]},
+    {"source_label": "out_of_focus", "status": "exact", "target_labels": ["out_of_focus"]},
+    {"source_label": "background", "status": "exact", "target_labels": ["background"]}
+  ],
+  "notes": [
+    "The adapter does not split GrandQC class 3 into dark spot and foreign object.",
+    "The adapter does not split GrandQC class 5 into slide edge and air bubble.",
+    "The publisher calls this a test dataset. Development repartitioning is recorded as a role override."
+  ],
+  "schema_version": "1.0.0",
+  "source_dataset_id": "grandqc-test-mpp20-v1",
+  "target_ontology_id": "pathologize.artifact-spatial/v1"
+}

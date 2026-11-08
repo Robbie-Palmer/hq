@@ -1,0 +1,18 @@
+{
+  "description": "Development repartition of GrandQC by source WSI group, with the fixed AIRAQc pilot retained as external evaluation.",
+  "grandqc_split": {
+    "group_key": "source_group_id",
+    "method": "sha256_threshold",
+    "seed": "pathologize.artifact-spatial-development/v1",
+    "test_fraction": 0.15,
+    "train_fraction": 0.70,
+    "validation_fraction": 0.15
+  },
+  "ontology_id": "pathologize.artifact-spatial/v1",
+  "product_id": "pathologize.artifact-spatial-development/v1",
+  "role_policy": {
+    "airaqc-tcga-public-pilot-v1": "external_test",
+    "grandqc-test-mpp20-v1": "development_repartition"
+  },
+  "schema_version": "1.0.0"
+}
