@@ -21,6 +21,7 @@ def test_training_task_state_round_trip(tmp_path: Path) -> None:
         cpu_seconds=4.0,
         peak_rss_bytes=1024,
         peak_vram_bytes=2048,
+        stop_reason="persistent_validation_regression",
         resource={"gpu_seconds": 12.5},
         checkpoint={"best": "best.pt"},
     )

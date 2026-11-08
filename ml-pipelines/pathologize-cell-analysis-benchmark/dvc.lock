@@ -506,13 +506,13 @@ stages:
     - path:
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
       hash: md5
-      md5: d37614becbba031b8158aacea84d3787
-      size: 2921
+      md5: e78958d02659e80728a6abde8e96de32
+      size: 3012
     - path:
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/recovery.py
       hash: md5
-      md5: b9bc316138a12c5a2f24ffabff3fffff
-      size: 3026
+      md5: 101afbaa5736ab301d3a67260f88f650
+      size: 3061
     - path: data/derived/nucls-ultralytics-yolo26n-v1
       hash: md5
       md5: 454a65dadf22419713d743a76391d6b2.dir
@@ -541,8 +541,8 @@ stages:
       size: 1399
     - path: src/pathologize_cell_analysis/learned_baseline/task_training.py
       hash: md5
-      md5: c131905a53ed03f7e5be765da0b6f290
-      size: 15165
+      md5: 3e40c26dadfb959986025e72abff3d43
+      size: 15439
     - path: src/pathologize_cell_analysis/learned_baseline/training.py
       hash: md5
       md5: 5989f02ab848fd82f585c67fb2a9d0d2
@@ -759,8 +759,8 @@ stages:
     - path:
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
       hash: md5
-      md5: d37614becbba031b8158aacea84d3787
-      size: 2921
+      md5: e78958d02659e80728a6abde8e96de32
+      size: 3012
     - path: data/derived/nucls-ultralytics-yolo26n-v1/manifest.json
       hash: md5
       md5: df0bc0ee1f5a153e6d23e7da82914283

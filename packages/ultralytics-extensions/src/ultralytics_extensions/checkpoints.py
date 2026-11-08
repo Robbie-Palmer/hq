@@ -38,6 +38,7 @@ def _safe_checkpoint_globals() -> list[type[Any]]:
     from ultralytics.nn.modules.conv import Concat, Conv, DWConv
     from ultralytics.nn.modules.head import Detect, Segment26
     from ultralytics.nn.tasks import DetectionModel, SegmentationModel
+    from ultralytics.utils import IterableSimpleNamespace
 
     return [
         Attention,
@@ -54,6 +55,7 @@ def _safe_checkpoint_globals() -> list[type[Any]]:
         Detect,
         DetectionModel,
         Identity,
+        IterableSimpleNamespace,
         MaxPool2d,
         ModuleList,
         PSABlock,

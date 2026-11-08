@@ -16,6 +16,7 @@ class TrainingTaskState:
     peak_vram_bytes: int
     attempt_base_gpu_seconds_upper_bound: float | None = None
     attempt_started_at_unix_seconds: float | None = None
+    stop_reason: str | None = None
     resource: dict[str, Any] | None = None
     checkpoint: dict[str, Any] | None = None
 

@@ -350,6 +350,7 @@ def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path
             peak_vram_bytes=20,
             attempt_base_gpu_seconds_upper_bound=0.0,
             attempt_started_at_unix_seconds=time.time(),
+            stop_reason="persistent_validation_regression",
         ),
     )
 
@@ -358,6 +359,10 @@ def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path
     class FakeModel:
         def val(self, **arguments: object) -> None:
             validation_calls.append(arguments)
+
+    class FailingModel:
+        def val(self, **_arguments: object) -> None:
+            raise RuntimeError("validation interrupted")
 
     class FakeEvent:
         def record(self) -> None:
@@ -380,6 +385,21 @@ def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path
         def synchronize(self) -> None:
             pass
 
+    with pytest.raises(RuntimeError, match="validation interrupted"):
+        train_task(
+            experiment,
+            tmp_path,
+            training_root,
+            "detect",
+            torch,
+            FakeCuda(),
+            lambda *_args, **_kwargs: FailingModel(),
+        )
+    interrupted_state = load_training_task_state(training_root / "detect-state.json")
+    assert interrupted_state is not None
+    assert interrupted_state.status == "failed"
+    assert interrupted_state.stop_reason == "persistent_validation_regression"
+
     result = train_task(
         experiment,
         tmp_path,
@@ -394,7 +414,9 @@ def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path
     completed_state = load_training_task_state(training_root / "detect-state.json")
     assert completed_state is not None
     assert completed_state.status == "complete"
+    assert completed_state.stop_reason == "persistent_validation_regression"
     assert result.checkpoint["recovered_final_validation"] is True
+    assert result.checkpoint["stop_reason"] == "persistent_validation_regression"
 
 
 def _write_split(path: Path, rows: list[tuple[str, str]]) -> None:

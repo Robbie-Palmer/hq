@@ -266,7 +266,14 @@ def train_task(  # pragma: no cover
     end_event = cuda.Event(enable_timing=True)
     deadline_state = DeadlineState()
     monitor = seed_training_monitor(rows)
-    if monitor.stop_reason is not None:
+    if task_state is not None and task_state.stop_reason is not None:
+        monitor.stop_reason = task_state.stop_reason
+    finalized_checkpoint = (
+        resume is not None
+        and task_state is not None
+        and checkpoint_epoch(torch_module, resume.checkpoint) == -1
+    )
+    if monitor.stop_reason is not None and not finalized_checkpoint:
         raise RuntimeError(f"cannot resume {task}: {monitor.stop_reason}")
 
     def current_task_state(status: Literal["running", "failed"]) -> TrainingTaskState:
@@ -278,6 +285,7 @@ def train_task(  # pragma: no cover
             cpu_seconds=prior_cpu_seconds + time.process_time() - cpu_start,
             peak_rss_bytes=max(prior_peak_rss, _peak_rss_bytes()),
             peak_vram_bytes=max(prior_peak_vram, int(cuda.max_memory_allocated())),
+            stop_reason=monitor.stop_reason,
             attempt_base_gpu_seconds_upper_bound=(
                 prior_task_seconds if status == "running" else None
             ),
@@ -292,11 +300,7 @@ def train_task(  # pragma: no cover
             deadline_state.stopped = True
 
     try:
-        if (
-            resume is not None
-            and task_state is not None
-            and checkpoint_epoch(torch_module, resume.checkpoint) == -1
-        ):
+        if finalized_checkpoint:
             start_event.record()
             recovered_model = yolo(str(task_output / "weights" / "best.pt"), task=task)
             arguments = training_arguments(experiment, root, task)
@@ -384,6 +388,7 @@ def train_task(  # pragma: no cover
             cpu_seconds=float(task_resource["cpu_seconds"]),
             peak_rss_bytes=int(task_resource["peak_rss_bytes"]),
             peak_vram_bytes=int(task_resource["peak_vram_bytes"]),
+            stop_reason=monitor.stop_reason,
             resource=task_resource,
             checkpoint=task_checkpoint,
         )

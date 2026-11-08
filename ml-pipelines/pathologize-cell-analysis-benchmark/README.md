@@ -69,9 +69,11 @@ The first learned baseline uses framework-native `ultralytics==8.4.202` with
 pinned YOLO26n detection and YOLO26n-seg starting weights. Its derived
 Ultralytics labels remain DVC artifacts. The conversion preserves the five
 source labels, official folds, patient and slide boundaries, empty images, and
-pixel coordinates. Points are excluded from box training because they have no
-area; points and rectangles are excluded from mask training because they have
-no polygon. No surrogate geometry is created.
+pixel-coordinate semantics. Coordinates no more than two pixels outside an
+image are clipped to its bounds. Larger border violations and invalid boxes or
+polygons are excluded. Points are excluded from box training because they have
+no area; points and rectangles are excluded from mask training because they
+have no polygon. No surrogate geometry is created.
 
 `params/nucls-learned.yaml` is the typed experiment configuration. DVC
 tracks the parameter subsets consumed by acquisition,
@@ -103,6 +105,17 @@ mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
   repro report_nucls_learned
 ```
+
+If training already wrote `training/manifest.json` and the interruption happened
+during prediction, skip `learned:train`. Run the downstream DVC target directly:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  repro report_nucls_learned
+```
+
+DVC keeps the completed training stage and replaces incomplete prediction-stage
+outputs before running prediction again.
 
 Per-task state preserves completed tasks, checkpoint resume evidence, and a
 conservative GPU-time charge for failed attempts. The aggregate ceiling applies

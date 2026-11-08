@@ -3,6 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import torch
+from ultralytics.nn.tasks import DetectionModel
+from ultralytics.utils import IterableSimpleNamespace
 
 from ultralytics_extensions.checkpoints import (
     checkpoint_epoch,
@@ -19,6 +21,22 @@ def test_checkpoint_loading_restricts_deserialization(tmp_path: Path) -> None:
     assert checkpoint["epoch"] == 3
     assert torch.equal(checkpoint["loss"], torch.tensor([0.25]))
     assert checkpoint_epoch(torch, checkpoint_path) == 3
+
+
+def test_checkpoint_loading_allows_trainer_argument_namespace(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "last.pt"
+    model = DetectionModel("yolo26n.yaml", nc=5, verbose=False)
+    model.args = IterableSimpleNamespace(batch=4, imgsz=640)
+    torch.save(
+        {"epoch": 3, "ema": model},
+        checkpoint_path,
+    )
+
+    checkpoint = load_safe_checkpoint(torch, checkpoint_path)
+
+    assert isinstance(checkpoint["ema"], DetectionModel)
+    assert checkpoint["ema"].args.batch == 4
+    assert checkpoint["ema"].args.imgsz == 640
 
 
 def test_resume_requires_rows_and_checkpoint(tmp_path: Path) -> None:
