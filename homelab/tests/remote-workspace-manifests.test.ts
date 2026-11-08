@@ -2340,6 +2340,56 @@ esac
   }
 });
 
+test("the Pathologize GPU benchmark image pins CUDA dependencies and public inputs", () => {
+  const dockerfile = readFileSync(
+    new URL("../images/pathologize-gpu-benchmark/Dockerfile", import.meta.url),
+    "utf8",
+  );
+  const installer = readFileSync(
+    new URL("../images/pathologize-gpu-benchmark/install.sh", import.meta.url),
+    "utf8",
+  );
+  const buildScript = readFileSync(
+    new URL("../scripts/build-pathologize-gpu-benchmark-image.sh", import.meta.url),
+    "utf8",
+  );
+  const loadScript = readFileSync(
+    new URL("../scripts/load-vector-pathologize-gpu-image.sh", import.meta.url),
+    "utf8",
+  );
+  const homelabMise = readFileSync(
+    new URL("../mise.toml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    dockerfile,
+    /^FROM docker\.io\/nvidia\/cuda:[^@]+@sha256:[a-f0-9]{64}$/m,
+  );
+  assert.match(dockerfile, /COPY ml-pipelines\/pathologize-data-registry\/data\/raw\/cptac-coad-idc/);
+  assert.match(dockerfile, /USER 1000:1000/);
+  assert.match(dockerfile, /ENTRYPOINT \["pathologize-gpu-decode-benchmark"\]/);
+  assert.match(installer, /pathologize-tiler\[cuda\]/);
+  assert.match(installer, /import nvidia\.nvimgcodec/);
+  assert.match(installer, /cupy-cuda12x==14\.2\.0/);
+  assert.match(installer, /cuda-toolkit\[cudart,nvrtc\]==12\.9\.2\.0/);
+  assert.match(buildScript, /--platform linux\/amd64/);
+  assert.match(buildScript, /--pull=false/);
+  assert.match(
+    loadScript,
+    /^target=\$\{VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development\.tailaa0e46\.ts\.net\}$/m,
+  );
+  assert.match(loadScript, /gzip --decompress --stdout \| k3s ctr images import -/);
+  assert.match(loadScript, /k3s ctr images list "name==\$\{image\}"/);
+  assert.doesNotMatch(loadScript, /k3s ctr images info/);
+  assert.match(loadScript, /k3s crictl inspecti/);
+  assert.match(loadScript, /\.metadata\.labels\.homelab\\\.dev\/location/);
+  assert.match(
+    homelabMise,
+    /\[tasks\.pathologize-gpu-image-push\][\s\S]*?depends = \["pathologize-gpu-image-check"\]/,
+  );
+});
+
 test("the Vector workspace image provides the required glibc version", () => {
   const dockerfile = readFileSync(
     new URL("../images/t3-code/Dockerfile", import.meta.url),

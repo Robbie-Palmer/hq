@@ -32,3 +32,10 @@ readers. DVC owns the public-data experiment, its derived anisotropic region,
 actual tiles, metrics, verification report, and locks. One slide is enough to
 test metric response, but it is not a representative clinical cohort and makes
 no clinical-validity claim.
+
+The optional CUDA harness compares the CPU/OpenJPEG and nvImageCodec JPEG 2000
+paths on Vector without making CUDA a CPU installation requirement. It records
+wall, process CPU, CUDA stage, copy-volume, memory, pixel-agreement, and CPU
+viewer measurements for contiguous and random batches. See the
+[Vector JPEG 2000 GPU decode experiment](reports/vector-jpeg2000-gpu-decode.md)
+for the bounded result and its limitations.

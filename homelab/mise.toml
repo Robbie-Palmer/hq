@@ -285,6 +285,30 @@ run = "bash scripts/vector-development-health.sh"
 description = "Run smoke, benchmark, or unprivileged profile Jobs on the Vector GPU"
 run = "bash scripts/vector-gpu-benchmark.sh"
 
+[tasks.pathologize-gpu-image-build]
+description = "Build the pinned Pathologize GPU decode benchmark image"
+depends = ["//ml-pipelines/pathologize-data-registry:acquire"]
+run = "bash scripts/build-pathologize-gpu-benchmark-image.sh"
+
+[tasks.pathologize-gpu-image-check]
+description = "Check the Pathologize GPU benchmark image without requiring a GPU"
+depends = ["pathologize-gpu-image-build"]
+run = "bash scripts/check-pathologize-gpu-benchmark-image.sh"
+
+[tasks.pathologize-gpu-image-build-check]
+description = "Build and CPU-check the Pathologize GPU benchmark image"
+depends = ["pathologize-gpu-image-check"]
+
+[tasks.pathologize-gpu-image-push]
+description = "Push the checked Pathologize GPU benchmark image to GHCR"
+depends = ["pathologize-gpu-image-check"]
+run = "docker push ghcr.io/robbie-palmer/pathologize-gpu-benchmark:0.1.0"
+
+[tasks.pathologize-gpu-image-load-vector]
+description = "Import the checked Pathologize GPU image into Vector K3s without a registry"
+depends = ["pathologize-gpu-image-check"]
+run = "bash scripts/load-vector-pathologize-gpu-image.sh"
+
 [tasks.vector-gpu-diagnostic]
 description = "Run the bounded DCGM level-1 diagnostic on Vector"
 run = "bash scripts/vector-gpu-diagnostic.sh"
@@ -334,6 +358,9 @@ bash -n \
   scripts/rebuild-vector-development.sh \
   scripts/vector-development-health.sh \
   scripts/vector-gpu-benchmark.sh \
+  scripts/build-pathologize-gpu-benchmark-image.sh \
+  scripts/check-pathologize-gpu-benchmark-image.sh \
+  scripts/load-vector-pathologize-gpu-image.sh \
   scripts/vector-gpu-diagnostic.sh \
   scripts/vector-development-agent-auth-health.sh \
   scripts/install-vector-development-agent-credentials.sh \
