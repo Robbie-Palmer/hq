@@ -22,8 +22,8 @@ from ultralytics_extensions.recovery import (
     write_training_task_state,
 )
 
-from .contracts import AcceleratorResourceEvidence, UltralyticsConfig
-from .ultralytics_training_policy import (
+from ..contracts import AcceleratorResourceEvidence, LearnedBaselineConfig
+from .training_policy import (
     TrainingMonitor,
     monitor_training,
     seed_training_monitor,
@@ -50,7 +50,7 @@ def _peak_rss_bytes() -> int:
 
 
 def _verify_training_inputs(
-    experiment: UltralyticsConfig, root: Path, task: Task
+    experiment: LearnedBaselineConfig, root: Path, task: Task
 ) -> tuple[Path, Path]:
     model = experiment.models[task]
     weights = root / experiment.weights_directory / model.weights
@@ -102,7 +102,7 @@ def _fit_training_model(
 
 
 def _resource_evidence(
-    experiment: UltralyticsConfig,
+    experiment: LearnedBaselineConfig,
     *,
     wall_seconds: float,
     cpu_seconds: float,
@@ -213,7 +213,7 @@ def _run_final_validation(model: Any, arguments: dict[str, object]) -> None:
 
 
 def _validate_continuation_limits(
-    experiment: UltralyticsConfig,
+    experiment: LearnedBaselineConfig,
     peak_vram: int,
     deadline: float,
     deadline_state: DeadlineState,
@@ -225,7 +225,7 @@ def _validate_continuation_limits(
 
 
 def train_task(  # pragma: no cover
-    experiment: UltralyticsConfig,
+    experiment: LearnedBaselineConfig,
     root: Path,
     training_root: Path,
     task: Task,

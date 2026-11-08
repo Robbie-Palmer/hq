@@ -10,23 +10,23 @@ from data_artifacts.files import read_json, read_jsonl, sha256_file, write_json
 from skimage.draw import polygon
 from ultralytics_extensions.checkpoints import load_safe_checkpoint, training_rows
 
-from .contracts import SpatialPrediction, SpatialPredictionRecord
-from .data import Annotation, SplitItem, build_cohort, load_annotations
-from .instance_segmentation import (
+from ..contracts import SpatialPrediction, SpatialPredictionRecord
+from ..data import Annotation, SplitItem, build_cohort, load_annotations
+from ..instance_segmentation import (
     InstanceSegmentationRecords,
     segmentation_metrics,
     update_segmentation_records,
 )
-from .localization import (
+from ..localization import (
     LocalizationRecords,
     localization_metrics,
     match_localizations,
     update_localization_records,
 )
-from .methods import PredictedNucleus
-from .ultralytics_config import (
-    ULTRALYTICS_PARAMS_FILE,
-    load_ultralytics_config,
+from ..methods import PredictedNucleus
+from .config import (
+    PARAMS_FILE,
+    load_config,
     output_root,
     parameters_sha256,
     project_root,
@@ -231,10 +231,10 @@ def _prediction_records(path: Path) -> list[SpatialPredictionRecord]:
     return [SpatialPredictionRecord.model_validate(row) for row in read_jsonl(path)]
 
 
-def evaluate_ultralytics(
-    params_path: Path = ULTRALYTICS_PARAMS_FILE,
+def evaluate_learned_baseline(
+    params_path: Path = PARAMS_FILE,
 ) -> dict[str, object]:  # pragma: no cover
-    config = load_ultralytics_config(params_path)
+    config = load_config(params_path)
     root = project_root(params_path)
     run_root = output_root(root, config)
     evaluation_root = run_root / "evaluation"

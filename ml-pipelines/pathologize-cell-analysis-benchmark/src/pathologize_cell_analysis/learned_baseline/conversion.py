@@ -12,17 +12,17 @@ from data_artifacts.files import sha256_file, write_json
 from PIL import Image
 from ultralytics_extensions.labels import bbox_to_yolo, polygon_to_yolo
 
-from .contracts import UltralyticsConfig
-from .data import (
+from ..contracts import LearnedBaselineConfig
+from ..data import (
     Annotation,
     _HttpsOnlyRedirectHandler,
     build_cohort,
     load_annotations,
     load_dataset_manifest,
 )
-from .ultralytics_config import (
-    ULTRALYTICS_PARAMS_FILE,
-    load_ultralytics_config,
+from .config import (
+    PARAMS_FILE,
+    load_config,
     project_root,
 )
 
@@ -64,10 +64,10 @@ def _download_pinned_file(url: str, output: Path, size: int | None, digest: str)
         raise ValueError(f"model artifact digest differs for {output.name}")
 
 
-def acquire_ultralytics_artifacts(
-    params_path: Path = ULTRALYTICS_PARAMS_FILE,
+def acquire_model_artifacts(
+    params_path: Path = PARAMS_FILE,
 ) -> dict[str, object]:
-    experiment = load_ultralytics_config(params_path)
+    experiment = load_config(params_path)
     root = project_root(params_path)
     output_root = root / experiment.weights_directory
     if output_root.exists():
@@ -258,7 +258,7 @@ def convert_annotations(
     return ConversionResult(tuple(labels), tuple(exclusions), tuple(adjustments))
 
 
-def _write_dataset_yaml(path: Path, task: Task, experiment: UltralyticsConfig) -> None:
+def _write_dataset_yaml(path: Path, task: Task, experiment: LearnedBaselineConfig) -> None:
     names = "\n".join(
         f"  {index}: {json.dumps(label)}" for index, label in enumerate(experiment.ontology_labels)
     )
@@ -278,10 +278,10 @@ def _write_dataset_yaml(path: Path, task: Task, experiment: UltralyticsConfig) -
     )
 
 
-def prepare_ultralytics_layout(
-    params_path: Path = ULTRALYTICS_PARAMS_FILE,
+def prepare_training_layout(
+    params_path: Path = PARAMS_FILE,
 ) -> dict[str, object]:
-    experiment = load_ultralytics_config(params_path)
+    experiment = load_config(params_path)
     root = project_root(params_path)
     data_root = root / experiment.data_directory
     output_root = root / experiment.layout_directory

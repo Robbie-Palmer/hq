@@ -129,25 +129,25 @@ stages:
     outs:
       - outputs/public/nucls-public-baseline-v1
 
-  prepare_ultralytics_artifacts:
-    cmd: uv run --locked pathologize-cell-analysis acquire-ultralytics
+  prepare_learned_artifacts:
+    cmd: uv run --locked pathologize-cell-analysis learned acquire-artifacts
     deps:
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py
-      - src/pathologize_cell_analysis/ultralytics_config.py
-      - src/pathologize_cell_analysis/ultralytics_conversion.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/conversion.py
       - pyproject.toml
       - uv.lock
     params:
-      - params/nucls-ultralytics.yaml:
+      - params/nucls-learned.yaml:
           - package
           - models
           - weights_directory
     outs:
       - models/ultralytics/8.4.0
 
-  prepare_nucls_ultralytics_layout:
-    cmd: uv run --locked pathologize-cell-analysis prepare-ultralytics
+  prepare_nucls_learned_layout:
+    cmd: uv run --locked pathologize-cell-analysis learned prepare
     deps:
       - data/nucls-corrected-single-rater
       - sources/nucls-corrected-single-rater.json
@@ -155,12 +155,12 @@ stages:
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/data.py
-      - src/pathologize_cell_analysis/ultralytics_config.py
-      - src/pathologize_cell_analysis/ultralytics_conversion.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/conversion.py
       - pyproject.toml
       - uv.lock
     params:
-      - params/nucls-ultralytics.yaml:
+      - params/nucls-learned.yaml:
           - data_directory
           - layout_directory
           - test_fold
@@ -170,8 +170,8 @@ stages:
     outs:
       - data/derived/nucls-ultralytics-yolo26n-v1
 
-  train_nucls_ultralytics:
-    cmd: uv run --locked pathologize-cell-analysis train-ultralytics
+  train_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned train
     deps:
       - data/derived/nucls-ultralytics-yolo26n-v1
       - models/ultralytics/8.4.0
@@ -179,14 +179,14 @@ stages:
       - ../../packages/ultralytics-extensions/src/ultralytics_extensions/recovery.py
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py
-      - src/pathologize_cell_analysis/ultralytics_config.py
-      - src/pathologize_cell_analysis/ultralytics_task_training.py
-      - src/pathologize_cell_analysis/ultralytics_training.py
-      - src/pathologize_cell_analysis/ultralytics_training_policy.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/task_training.py
+      - src/pathologize_cell_analysis/learned_baseline/training.py
+      - src/pathologize_cell_analysis/learned_baseline/training_policy.py
       - pyproject.toml
       - uv.lock
     params:
-      - params/nucls-ultralytics.yaml:
+      - params/nucls-learned.yaml:
           - experiment_id
           - layout_directory
           - weights_directory
@@ -201,20 +201,20 @@ stages:
     outs:
       - outputs/public/nucls-ultralytics-yolo26n-v1/training
 
-  predict_nucls_ultralytics:
-    cmd: uv run --locked pathologize-cell-analysis predict-ultralytics
+  predict_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned predict
     deps:
       - data/derived/nucls-ultralytics-yolo26n-v1
       - outputs/public/nucls-ultralytics-yolo26n-v1/training
       - ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py
-      - src/pathologize_cell_analysis/ultralytics_config.py
-      - src/pathologize_cell_analysis/ultralytics_prediction.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
       - pyproject.toml
       - uv.lock
     params:
-      - params/nucls-ultralytics.yaml:
+      - params/nucls-learned.yaml:
           - data_directory
           - layout_directory
           - output_directory
@@ -231,8 +231,8 @@ stages:
       - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/inference.json
       - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/rejections.json
 
-  evaluate_nucls_ultralytics:
-    cmd: uv run --locked pathologize-cell-analysis evaluate-ultralytics
+  evaluate_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned evaluate
     deps:
       - data/nucls-corrected-single-rater
       - data/derived/nucls-ultralytics-yolo26n-v1/manifest.json
@@ -248,12 +248,12 @@ stages:
       - src/pathologize_cell_analysis/instance_segmentation.py
       - src/pathologize_cell_analysis/localization.py
       - src/pathologize_cell_analysis/methods.py
-      - src/pathologize_cell_analysis/ultralytics_config.py
-      - src/pathologize_cell_analysis/ultralytics_evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
       - pyproject.toml
       - uv.lock
     params:
-      - params/nucls-ultralytics.yaml:
+      - params/nucls-learned.yaml:
           - data_directory
           - layout_directory
           - output_directory
@@ -267,18 +267,18 @@ stages:
     outs:
       - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/evidence.json
 
-  report_nucls_ultralytics:
-    cmd: uv run --locked pathologize-cell-analysis report-ultralytics
+  report_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned report
     deps:
       - outputs/public/nucls-ultralytics-yolo26n-v1/evaluation/evidence.json
       - src/pathologize_cell_analysis/contracts.py
-      - src/pathologize_cell_analysis/ultralytics_config.py
-      - src/pathologize_cell_analysis/ultralytics_reporting.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/reporting.py
       - pyproject.toml
       - uv.lock
     params:
-      - params/nucls-ultralytics.yaml:
+      - params/nucls-learned.yaml:
           - package
           - models
     metrics:
-      - reports/nucls-ultralytics-baseline.json
+      - reports/nucls-learned-baseline.json

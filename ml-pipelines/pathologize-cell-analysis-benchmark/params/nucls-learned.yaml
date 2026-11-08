@@ -1,3 +1,4 @@
+# DVC records this branch's learned-baseline implementation and parameters.
 schema_version: 1.0.0
 experiment_id: nucls-ultralytics-yolo26n-v1
 dataset_manifest: sources/nucls-corrected-single-rater.json

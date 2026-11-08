@@ -66,32 +66,32 @@ description = "Write the tracked NuCLS public-baseline evidence report"
 depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis report"
 
-[tasks."ultralytics:prepare"]
-description = "Acquire pinned Ultralytics assets and build the derived NuCLS layouts"
+[tasks."learned:prepare"]
+description = "Acquire pinned model assets and build the derived NuCLS training layouts"
 depends = ["sync"]
-run = "bash ../scripts/dvc.sh repro prepare_ultralytics_artifacts prepare_nucls_ultralytics_layout"
+run = "bash ../scripts/dvc.sh repro prepare_learned_artifacts prepare_nucls_learned_layout"
 
-[tasks."ultralytics:repro"]
-description = "Reproduce the parameterized NuCLS Ultralytics DVC experiment"
+[tasks."learned:repro"]
+description = "Reproduce the parameterized NuCLS learned-baseline DVC experiment"
 depends = ["sync"]
-run = "bash ../scripts/dvc.sh repro report_nucls_ultralytics"
+run = "bash ../scripts/dvc.sh repro report_nucls_learned"
 
-[tasks."ultralytics:train"]
-description = "Train or exactly resume the configured NuCLS Ultralytics experiment"
+[tasks."learned:train"]
+description = "Train or exactly resume the configured NuCLS learned baseline"
 depends = ["sync"]
-run = "uv run --locked pathologize-cell-analysis train-ultralytics"
+run = "uv run --locked pathologize-cell-analysis learned train"
 
-[tasks."ultralytics:predict"]
-description = "Run Ultralytics inference and normalize Pathologize prediction records"
+[tasks."learned:predict"]
+description = "Run configured inference and normalize Pathologize prediction records"
 depends = ["sync"]
-run = "uv run --locked pathologize-cell-analysis predict-ultralytics"
+run = "uv run --locked pathologize-cell-analysis learned predict"
 
-[tasks."ultralytics:evaluate"]
-description = "Evaluate the trained NuCLS Ultralytics baseline on the frozen test fold"
+[tasks."learned:evaluate"]
+description = "Evaluate the trained NuCLS learned baseline on the frozen test fold"
 depends = ["sync"]
-run = "uv run --locked pathologize-cell-analysis evaluate-ultralytics"
+run = "uv run --locked pathologize-cell-analysis learned evaluate"
 
-[tasks."ultralytics:report"]
-description = "Write the NuCLS Ultralytics DVC metric and tracked Markdown report"
+[tasks."learned:report"]
+description = "Write the NuCLS learned-baseline DVC metric and tracked Markdown report"
 depends = ["sync"]
-run = "uv run --locked pathologize-cell-analysis report-ultralytics"
+run = "uv run --locked pathologize-cell-analysis learned report"

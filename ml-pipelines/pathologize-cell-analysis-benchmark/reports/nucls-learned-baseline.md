@@ -1,11 +1,11 @@
-# NuCLS Ultralytics baseline
+# NuCLS learned baseline
 
 This non-clinical DVC experiment trains YOLO26 nano detection and instance-segmentation models on the frozen public
 NuCLS folds. Pathologize records, not Ultralytics-native metrics, are the evaluation boundary.
 
 ## Task results
 
-| Metric | Transparent baseline | Ultralytics |
+| Metric | Transparent baseline | Learned baseline |
 | --- | ---: | ---: |
 | Detection localization F1 | 0.2636 | 0.5207 |
 | Conditional polygon mean IoU | 0.5313 | 0.7598 |

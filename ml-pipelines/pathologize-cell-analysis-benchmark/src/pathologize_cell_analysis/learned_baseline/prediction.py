@@ -10,11 +10,11 @@ from typing import Any, Literal
 from data_artifacts.files import write_json, write_jsonl
 from ultralytics_extensions.results import normalize_result
 
-from .contracts import AcceleratorResourceEvidence, SpatialPrediction, SpatialPredictionRecord
-from .data import SplitItem, build_cohort
-from .ultralytics_config import (
-    ULTRALYTICS_PARAMS_FILE,
-    load_ultralytics_config,
+from ..contracts import AcceleratorResourceEvidence, SpatialPrediction, SpatialPredictionRecord
+from ..data import SplitItem, build_cohort
+from .config import (
+    PARAMS_FILE,
+    load_config,
     output_root,
     project_root,
 )
@@ -23,7 +23,7 @@ Task = Literal["detect", "segment"]
 
 
 def prediction_arguments(params_path: Path, task: Task) -> dict[str, object]:
-    config = load_ultralytics_config(params_path)
+    config = load_config(params_path)
     inference = config.inference
     arguments: dict[str, object] = {
         "imgsz": config.training.image_size,
@@ -105,10 +105,10 @@ def _require_complete_predictions(
         raise ValueError(f"{task} predictions do not cover every frozen test item")
 
 
-def predict_ultralytics(
-    params_path: Path = ULTRALYTICS_PARAMS_FILE,
+def predict_learned_baseline(
+    params_path: Path = PARAMS_FILE,
 ) -> dict[str, object]:  # pragma: no cover
-    config = load_ultralytics_config(params_path)
+    config = load_config(params_path)
     root = project_root(params_path)
     run_root = output_root(root, config)
     prediction_root = run_root / "evaluation"

@@ -6,15 +6,15 @@ import torch
 from data_artifacts.files import read_json, write_json
 from ultralytics_extensions.checkpoints import load_safe_checkpoint
 
-from pathologize_cell_analysis import ultralytics_reporting
-from pathologize_cell_analysis.ultralytics_config import (
-    ULTRALYTICS_JSON_REPORT,
-    ULTRALYTICS_MARKDOWN_REPORT,
-    ULTRALYTICS_OUTPUT_DIRECTORY,
-    load_ultralytics_config,
+from pathologize_cell_analysis.learned_baseline import reporting
+from pathologize_cell_analysis.learned_baseline.config import (
+    JSON_REPORT,
+    MARKDOWN_REPORT,
+    OUTPUT_DIRECTORY,
+    load_config,
     output_root,
 )
-from pathologize_cell_analysis.ultralytics_reporting import report_ultralytics
+from pathologize_cell_analysis.learned_baseline.reporting import report_learned_baseline
 
 
 def test_checkpoint_loading_restricts_deserialization(tmp_path: Path) -> None:
@@ -28,9 +28,9 @@ def test_checkpoint_loading_restricts_deserialization(tmp_path: Path) -> None:
 
 
 def test_experiment_output_directory_is_pinned(tmp_path: Path) -> None:
-    config = load_ultralytics_config()
+    config = load_config()
 
-    assert output_root(tmp_path, config) == tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY
+    assert output_root(tmp_path, config) == tmp_path / OUTPUT_DIRECTORY
 
     escaped = config.model_copy(update={"output_directory": "../../outside"})
     with pytest.raises(ValueError, match="output directory must be"):
@@ -126,30 +126,33 @@ def _evidence(config: Any) -> dict[str, Any]:
 def test_ultralytics_report_writes_only_pinned_paths(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    config = load_ultralytics_config()
+    config = load_config()
     evidence = _evidence(config)
-    evidence_path = tmp_path / ULTRALYTICS_OUTPUT_DIRECTORY / "evaluation/evidence.json"
+    evidence_path = tmp_path / OUTPUT_DIRECTORY / "evaluation/evidence.json"
     write_json(evidence_path, evidence)
-    monkeypatch.setattr(ultralytics_reporting, "ULTRALYTICS_OUTPUT_ROOT", evidence_path.parents[1])
+    monkeypatch.setattr(reporting, "OUTPUT_ROOT", evidence_path.parents[1])
     monkeypatch.setattr(
-        ultralytics_reporting,
-        "ULTRALYTICS_JSON_REPORT_FILE",
-        tmp_path / ULTRALYTICS_JSON_REPORT,
+        reporting,
+        "JSON_REPORT_FILE",
+        tmp_path / JSON_REPORT,
     )
     monkeypatch.setattr(
-        ultralytics_reporting,
-        "ULTRALYTICS_MARKDOWN_REPORT_FILE",
-        tmp_path / ULTRALYTICS_MARKDOWN_REPORT,
+        reporting,
+        "MARKDOWN_REPORT_FILE",
+        tmp_path / MARKDOWN_REPORT,
     )
 
-    observed = report_ultralytics()
+    observed = report_learned_baseline()
 
     assert "parameters" not in observed
+    comparison: Any = observed["comparison"]
+    assert "learned_baseline" in comparison
+    assert "ultralytics" not in comparison
     detection: Any = observed["detection"]
     assert detection["box_map50_95"] == 0.1
-    assert read_json(tmp_path / ULTRALYTICS_JSON_REPORT) == observed
+    assert read_json(tmp_path / JSON_REPORT) == observed
     assert (
-        (tmp_path / ULTRALYTICS_MARKDOWN_REPORT)
+        (tmp_path / MARKDOWN_REPORT)
         .read_text(encoding="utf-8")
-        .startswith("# NuCLS Ultralytics baseline")
+        .startswith("# NuCLS learned baseline")
     )

@@ -73,17 +73,21 @@ pixel coordinates. Points are excluded from box training because they have no
 area; points and rectangles are excluded from mask training because they have
 no polygon. No surrogate geometry is created.
 
-`params/nucls-ultralytics.yaml` is the typed experiment configuration. DVC
+`params/nucls-learned.yaml` is the typed experiment configuration. DVC
 tracks the parameter subsets consumed by acquisition,
 conversion, training, prediction, evaluation, and reporting separately. The
 JSON report is a DVC metric rather than a second copy of the full experiment
 record; cached evaluation evidence retains artifact hashes and audit detail.
+Project code lives under `learned_baseline` and is named for those pipeline
+stages. The configured framework remains in the parameter pins and the
+`ultralytics-extensions` adapter package, so another experiment branch can keep
+the same project module and DVC stage names.
 Parameter variants use DVC Experiments, for example:
 
 ```bash
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
-  exp run -S params/nucls-ultralytics.yaml:training.initial_learning_rate=0.0005 \
-  -S params/nucls-ultralytics.yaml:training.weight_decay=0.001 report_nucls_ultralytics
+  exp run -S params/nucls-learned.yaml:training.initial_learning_rate=0.0005 \
+  -S params/nucls-learned.yaml:training.weight_decay=0.001 report_nucls_learned
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- exp show
 ```
 
@@ -93,11 +97,11 @@ not rerun the training stage through `dvc repro`, because DVC removes that
 output before executing the stage. Resume and commit the recovered stage first:
 
 ```bash
-mise run //ml-pipelines/pathologize-cell-analysis-benchmark:ultralytics:train
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:learned:train
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
-  commit train_nucls_ultralytics
+  commit train_nucls_learned
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
-  repro report_nucls_ultralytics
+  repro report_nucls_learned
 ```
 
 Per-task state preserves completed tasks, checkpoint resume evidence, and a
@@ -122,7 +126,7 @@ polygon mean IoU 0.7598. The transparent baseline values were 0.2636 and
 0.5313 for localization F1 and conditional polygon mean IoU. Aggregate GPU
 evidence was 1,875.5 seconds against the 86,400-second ceiling, and prediction
 normalization rejected no instances. See
-[the learned-baseline evidence report](reports/nucls-ultralytics-baseline.md)
+[the learned-baseline evidence report](reports/nucls-learned-baseline.md)
 for curves, per-class and held-out-site slices, failures, resources, and pins.
 
 Neither path makes a clinical-validity claim.

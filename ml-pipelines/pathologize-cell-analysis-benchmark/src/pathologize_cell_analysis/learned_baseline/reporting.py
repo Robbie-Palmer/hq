@@ -5,12 +5,12 @@ from typing import Any
 
 from data_artifacts.files import read_json, write_json
 
-from .contracts import UltralyticsConfig
-from .ultralytics_config import (
-    ULTRALYTICS_JSON_REPORT_FILE,
-    ULTRALYTICS_MARKDOWN_REPORT_FILE,
-    ULTRALYTICS_OUTPUT_ROOT,
-    load_ultralytics_config,
+from ..contracts import LearnedBaselineConfig
+from .config import (
+    JSON_REPORT_FILE,
+    MARKDOWN_REPORT_FILE,
+    OUTPUT_ROOT,
+    load_config,
 )
 
 
@@ -39,11 +39,20 @@ def _resource_metrics(values: dict[str, Any]) -> dict[str, float | int]:
     return {key: values[key] for key in keys}
 
 
+def _comparison(evidence: dict[str, Any]) -> dict[str, Any]:
+    source = evidence["comparison"]
+    learned_key = "learned_baseline" if "learned_baseline" in source else "ultralytics"
+    return {
+        "transparent_baseline": source["transparent_baseline"],
+        "learned_baseline": source[learned_key],
+    }
+
+
 def metric_summary(evidence: dict[str, Any]) -> dict[str, object]:
     tasks = evidence["tasks"]
     curves = evidence["training_curves"]
     resources = evidence["resources"]
-    comparison = evidence["comparison"]
+    comparison = _comparison(evidence)
     failures = evidence["failures"]
     detection = tasks["detect"]
     segmentation = tasks["segment"]
@@ -99,9 +108,9 @@ def _metric_report_row(label: str, curve: dict[str, Any], key: str) -> str:
     )
 
 
-def _report_markdown(evidence: dict[str, Any], config: UltralyticsConfig) -> str:
+def _report_markdown(evidence: dict[str, Any], config: LearnedBaselineConfig) -> str:
     tasks = evidence["tasks"]
-    comparison = evidence["comparison"]
+    comparison = _comparison(evidence)
     resources = evidence["resources"]
     detection = tasks["detect"]
     segmentation = tasks["segment"]
@@ -126,7 +135,7 @@ def _report_markdown(evidence: dict[str, Any], config: UltralyticsConfig) -> str
     site_rows = "\n".join(site_lines)
     failures = evidence["failures"]
     lines = [
-        "# NuCLS Ultralytics baseline",
+        "# NuCLS learned baseline",
         "",
         textwrap.fill(
             "This non-clinical DVC experiment trains YOLO26 nano detection and "
@@ -137,14 +146,14 @@ def _report_markdown(evidence: dict[str, Any], config: UltralyticsConfig) -> str
         "",
         "## Task results",
         "",
-        "| Metric | Transparent baseline | Ultralytics |",
+        "| Metric | Transparent baseline | Learned baseline |",
         "| --- | ---: | ---: |",
         "| Detection localization F1 | "
         f"{_number(comparison['transparent_baseline']['localization_f1'])} | "
-        f"{_number(comparison['ultralytics']['detection_localization_f1'])} |",
+        f"{_number(comparison['learned_baseline']['detection_localization_f1'])} |",
         "| Conditional polygon mean IoU | "
         f"{_number(comparison['transparent_baseline']['conditional_instance_mean_iou'])} | "
-        f"{_number(comparison['ultralytics']['conditional_instance_mean_iou'])} |",
+        f"{_number(comparison['learned_baseline']['conditional_instance_mean_iou'])} |",
         "",
         "## Learning curves and convergence",
         "",
@@ -225,15 +234,13 @@ def _report_markdown(evidence: dict[str, Any], config: UltralyticsConfig) -> str
     return "\n".join(lines)
 
 
-def report_ultralytics() -> dict[str, object]:
-    config = load_ultralytics_config()
-    evidence = read_json(ULTRALYTICS_OUTPUT_ROOT / "evaluation" / "evidence.json")
+def report_learned_baseline() -> dict[str, object]:
+    config = load_config()
+    evidence = read_json(OUTPUT_ROOT / "evaluation" / "evidence.json")
     if not isinstance(evidence, dict):
         raise TypeError("Ultralytics evidence must be a JSON object")
     metrics = metric_summary(evidence)
-    write_json(ULTRALYTICS_JSON_REPORT_FILE, metrics)
-    ULTRALYTICS_MARKDOWN_REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
-    ULTRALYTICS_MARKDOWN_REPORT_FILE.write_text(
-        _report_markdown(evidence, config), encoding="utf-8"
-    )
+    write_json(JSON_REPORT_FILE, metrics)
+    MARKDOWN_REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)
+    MARKDOWN_REPORT_FILE.write_text(_report_markdown(evidence, config), encoding="utf-8")
     return metrics

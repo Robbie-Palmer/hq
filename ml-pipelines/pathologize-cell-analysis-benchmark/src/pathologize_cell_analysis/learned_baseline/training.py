@@ -6,13 +6,13 @@ from pathlib import Path
 
 from data_artifacts.files import sha256_file, write_json
 
-from .ultralytics_config import (
-    ULTRALYTICS_PARAMS_FILE,
-    load_ultralytics_config,
+from .config import (
+    PARAMS_FILE,
+    load_config,
     output_root,
     project_root,
 )
-from .ultralytics_task_training import train_task
+from .task_training import train_task
 
 
 def _clear_ultralytics_caches(layout_root: Path) -> None:
@@ -33,10 +33,10 @@ def _clean_failed_training_output(output_root: Path, output_root_existed: bool) 
         shutil.rmtree(output_root, ignore_errors=True)
 
 
-def train_ultralytics(  # pragma: no cover
-    params_path: Path = ULTRALYTICS_PARAMS_FILE,
+def train_learned_baseline(  # pragma: no cover
+    params_path: Path = PARAMS_FILE,
 ) -> dict[str, object]:
-    experiment = load_ultralytics_config(params_path)
+    experiment = load_config(params_path)
     root = project_root(params_path)
     training_root = output_root(root, experiment) / "training"
     if (training_root / "manifest.json").exists():

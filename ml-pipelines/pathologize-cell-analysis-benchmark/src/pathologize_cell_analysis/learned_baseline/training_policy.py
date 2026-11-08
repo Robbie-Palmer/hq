@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from .contracts import UltralyticsConfig
+from ..contracts import LearnedBaselineConfig
 
 Task = Literal["detect", "segment"]
 
@@ -18,7 +18,9 @@ class TrainingMonitor:
     stop_reason: str | None = None
 
 
-def training_arguments(experiment: UltralyticsConfig, root: Path, task: Task) -> dict[str, object]:
+def training_arguments(
+    experiment: LearnedBaselineConfig, root: Path, task: Task
+) -> dict[str, object]:
     training = experiment.training
     augmentation = training.augmentation
     return {

@@ -27,37 +27,37 @@ from ultralytics_extensions.recovery import (
 )
 
 from pathologize_cell_analysis.contracts import (
+    LearnedBaselineConfig,
     SplitItem,
-    UltralyticsConfig,
 )
 from pathologize_cell_analysis.data import Annotation
-from pathologize_cell_analysis.ultralytics_config import load_ultralytics_config
-from pathologize_cell_analysis.ultralytics_conversion import (
-    acquire_ultralytics_artifacts,
+from pathologize_cell_analysis.learned_baseline.config import load_config
+from pathologize_cell_analysis.learned_baseline.conversion import (
+    acquire_model_artifacts,
     convert_annotations,
-    prepare_ultralytics_layout,
+    prepare_training_layout,
 )
-from pathologize_cell_analysis.ultralytics_evaluation import (
+from pathologize_cell_analysis.learned_baseline.evaluation import (
     as_predicted_nucleus,
     evaluate_records,
     training_curve_summary,
 )
-from pathologize_cell_analysis.ultralytics_prediction import (
+from pathologize_cell_analysis.learned_baseline.prediction import (
     normalize_pathologize_result,
     prediction_arguments,
 )
-from pathologize_cell_analysis.ultralytics_reporting import _report_markdown
-from pathologize_cell_analysis.ultralytics_task_training import (
+from pathologize_cell_analysis.learned_baseline.reporting import _report_markdown
+from pathologize_cell_analysis.learned_baseline.task_training import (
     _prepare_task_retry,
     _validate_completed_task_state,
     train_task,
 )
-from pathologize_cell_analysis.ultralytics_training import (
+from pathologize_cell_analysis.learned_baseline.training import (
     _clean_failed_training_output,
     _clear_ultralytics_caches,
     _clear_ultralytics_runtime_config,
 )
-from pathologize_cell_analysis.ultralytics_training_policy import (
+from pathologize_cell_analysis.learned_baseline.training_policy import (
     seed_training_monitor,
     training_arguments,
 )
@@ -69,14 +69,14 @@ def _fixture() -> dict[str, Any]:
 
 
 def _params_document() -> dict[str, Any]:
-    path = Path(__file__).parents[1] / "params/nucls-ultralytics.yaml"
+    path = Path(__file__).parents[1] / "params/nucls-learned.yaml"
     document = read_yaml(path)
     assert isinstance(document, dict)
     return document
 
 
 def _write_params(root: Path, document: dict[str, Any]) -> Path:
-    path = root / "params/nucls-ultralytics.yaml"
+    path = root / "params/nucls-learned.yaml"
     path.parent.mkdir(parents=True)
     path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     return path
@@ -169,12 +169,12 @@ def test_conversion_records_bounded_source_border_clipping() -> None:
 
 def test_parameter_config_is_strict_and_complete() -> None:
     document = _params_document()
-    experiment = UltralyticsConfig.model_validate(document)
+    experiment = LearnedBaselineConfig.model_validate(document)
     assert set(experiment.models) == {"detect", "segment"}
     assert experiment.limits.aggregate_gpu_seconds == 86400
     document["models"].pop("segment")
     with pytest.raises(ValidationError):
-        UltralyticsConfig.model_validate(document)
+        LearnedBaselineConfig.model_validate(document)
 
 
 def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> None:
@@ -304,7 +304,7 @@ def test_running_attempt_uses_wall_clock_for_abrupt_failure_accounting(tmp_path:
 
 
 def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path) -> None:
-    experiment = load_ultralytics_config()
+    experiment = load_config()
     pin = experiment.models["detect"]
     model_root = tmp_path / experiment.weights_directory
     weights = model_root / pin.weights
@@ -472,7 +472,7 @@ def test_prepare_layout_preserves_splits_ontology_and_empty_images(tmp_path: Pat
     _write_split(split_root / "fold_1_test.csv", [(test_slide, "TE")])
     _write_split(split_root / "fold_2_test.csv", [(validation_slide, "VA")])
 
-    result: Any = prepare_ultralytics_layout(params_path)
+    result: Any = prepare_training_layout(params_path)
     assert result["source_ontology"] == experiment["ontology_labels"]
     assert result["split"]["patient_intersections"]["train_test"] == []
     layout = tmp_path / experiment["layout_directory"]
@@ -480,7 +480,7 @@ def test_prepare_layout_preserves_splits_ontology_and_empty_images(tmp_path: Pat
     assert (layout / f"segment/labels/test/{test_item}.txt").read_text(encoding="utf-8") == ""
     assert "train: images/train" in (layout / "detect.yaml").read_text(encoding="utf-8")
     with pytest.raises(FileExistsError):
-        prepare_ultralytics_layout(params_path)
+        prepare_training_layout(params_path)
 
 
 def test_acquire_model_artifacts_writes_provenance(
@@ -494,14 +494,14 @@ def test_acquire_model_artifacts_writes_provenance(
         output.write_bytes(output.name.encode())
 
     monkeypatch.setattr(
-        "pathologize_cell_analysis.ultralytics_conversion._download_pinned_file",
+        "pathologize_cell_analysis.learned_baseline.conversion._download_pinned_file",
         fake_download,
     )
-    result: Any = acquire_ultralytics_artifacts(params_path)
+    result: Any = acquire_model_artifacts(params_path)
     assert len(result["artifacts"]) == 4
     assert result["package"]["version"] == "8.4.202"
     with pytest.raises(FileExistsError):
-        acquire_ultralytics_artifacts(params_path)
+        acquire_model_artifacts(params_path)
 
 
 def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Path) -> None:
@@ -550,8 +550,8 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
 
 
 def test_parameterized_runtime_arguments_and_report_helpers(tmp_path: Path) -> None:
-    path = Path(__file__).parents[1] / "params/nucls-ultralytics.yaml"
-    experiment = load_ultralytics_config(path)
+    path = Path(__file__).parents[1] / "params/nucls-learned.yaml"
+    experiment = load_config(path)
     train = training_arguments(experiment, tmp_path, "detect")
     predict = prediction_arguments(path, "segment")
     assert train["optimizer"] == "AdamW"
