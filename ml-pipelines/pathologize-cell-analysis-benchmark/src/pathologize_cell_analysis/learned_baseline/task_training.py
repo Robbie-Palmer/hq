@@ -45,6 +45,25 @@ class TaskTrainingResult:
     gpu_seconds: float
 
 
+@dataclass(frozen=True)
+class TrainingAttempt:
+    resume: ResumeEvidence | None
+    prior_task_seconds: float
+    prior_wall_seconds: float
+    prior_cpu_seconds: float
+    prior_peak_rss: int
+    prior_peak_vram: int
+    deadline: float
+    wall_start: float
+    attempt_started_at: float
+    cpu_start: float
+    start_event: Any
+    end_event: Any
+    deadline_state: DeadlineState
+    monitor: TrainingMonitor
+    finalized_checkpoint: bool
+
+
 def _peak_rss_bytes() -> int:
     return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss * 1024)
 
@@ -224,6 +243,208 @@ def _validate_continuation_limits(
         raise RuntimeError("training exceeded its wall-time ceiling")
 
 
+def _prepare_training_attempt(
+    experiment: LearnedBaselineConfig,
+    task: Task,
+    task_output: Path,
+    task_state: TrainingTaskState | None,
+    torch_module: Any,
+    cuda: Any,
+) -> TrainingAttempt:
+    resume, prior_task_seconds, unrecorded_wall_seconds = _prepare_task_retry(
+        task_output, task_state
+    )
+    prior_wall_seconds = (
+        task_state.wall_seconds + unrecorded_wall_seconds if task_state is not None else 0.0
+    )
+    prior_cpu_seconds = task_state.cpu_seconds if task_state is not None else 0.0
+    prior_peak_rss = task_state.peak_rss_bytes if task_state is not None else 0
+    prior_peak_vram = task_state.peak_vram_bytes if task_state is not None else 0
+    if prior_task_seconds > experiment.limits.aggregate_gpu_seconds:
+        raise RuntimeError("aggregate GPU-time ceiling exceeded")
+    if prior_task_seconds >= experiment.limits.per_task_wall_seconds:
+        raise RuntimeError("training exhausted its wall-time ceiling")
+    deadline = time.monotonic() + experiment.limits.per_task_wall_seconds - prior_task_seconds
+    wall_start = time.monotonic()
+    attempt_started_at = time.time()
+    cpu_start = time.process_time()
+    cuda.reset_peak_memory_stats()
+    monitor = seed_training_monitor(training_rows(task_output))
+    if task_state is not None and task_state.stop_reason is not None:
+        monitor.stop_reason = task_state.stop_reason
+    finalized_checkpoint = (
+        resume is not None
+        and task_state is not None
+        and checkpoint_epoch(torch_module, resume.checkpoint) == -1
+    )
+    if monitor.stop_reason is not None and not finalized_checkpoint:
+        raise RuntimeError(f"cannot resume {task}: {monitor.stop_reason}")
+    return TrainingAttempt(
+        resume=resume,
+        prior_task_seconds=prior_task_seconds,
+        prior_wall_seconds=prior_wall_seconds,
+        prior_cpu_seconds=prior_cpu_seconds,
+        prior_peak_rss=prior_peak_rss,
+        prior_peak_vram=prior_peak_vram,
+        deadline=deadline,
+        wall_start=wall_start,
+        attempt_started_at=attempt_started_at,
+        cpu_start=cpu_start,
+        start_event=cuda.Event(enable_timing=True),
+        end_event=cuda.Event(enable_timing=True),
+        deadline_state=DeadlineState(),
+        monitor=monitor,
+        finalized_checkpoint=finalized_checkpoint,
+    )
+
+
+def _current_task_state(
+    attempt: TrainingAttempt,
+    cuda: Any,
+    status: Literal["running", "failed"],
+) -> TrainingTaskState:
+    elapsed = time.monotonic() - attempt.wall_start
+    return TrainingTaskState(
+        status=status,
+        consumed_gpu_seconds_upper_bound=attempt.prior_task_seconds + elapsed,
+        wall_seconds=attempt.prior_wall_seconds + elapsed,
+        cpu_seconds=attempt.prior_cpu_seconds + time.process_time() - attempt.cpu_start,
+        peak_rss_bytes=max(attempt.prior_peak_rss, _peak_rss_bytes()),
+        peak_vram_bytes=max(attempt.prior_peak_vram, int(cuda.max_memory_allocated())),
+        stop_reason=attempt.monitor.stop_reason,
+        attempt_base_gpu_seconds_upper_bound=(
+            attempt.prior_task_seconds if status == "running" else None
+        ),
+        attempt_started_at_unix_seconds=(
+            attempt.attempt_started_at if status == "running" else None
+        ),
+    )
+
+
+def _stop_at_deadline(trainer: Any, attempt: TrainingAttempt) -> None:
+    if time.monotonic() >= attempt.deadline:
+        trainer.stop = True
+        attempt.deadline_state.stopped = True
+
+
+def _finish_attempt(
+    experiment: LearnedBaselineConfig,
+    root: Path,
+    task: Task,
+    weights: Path,
+    definition: Path,
+    task_output: Path,
+    attempt: TrainingAttempt,
+    cuda: Any,
+    *,
+    recovered_final_validation: bool,
+) -> TaskTrainingResult:
+    attempt.end_event.record()
+    cuda.synchronize()
+    continuation_gpu_seconds = attempt.start_event.elapsed_time(attempt.end_event) / 1000
+    gpu_seconds = attempt.prior_task_seconds + continuation_gpu_seconds
+    peak_vram = max(attempt.prior_peak_vram, int(cuda.max_memory_allocated()))
+    _validate_continuation_limits(experiment, peak_vram, attempt.deadline, attempt.deadline_state)
+    task_resource = _resource_evidence(
+        experiment,
+        wall_seconds=attempt.prior_wall_seconds + time.monotonic() - attempt.wall_start,
+        cpu_seconds=attempt.prior_cpu_seconds + time.process_time() - attempt.cpu_start,
+        gpu_seconds=gpu_seconds,
+        peak_rss_bytes=max(attempt.prior_peak_rss, _peak_rss_bytes()),
+        peak_vram_bytes=peak_vram,
+        resumed=recovered_final_validation or attempt.prior_task_seconds > 0,
+    )
+    task_checkpoint = _checkpoint_evidence(
+        root,
+        task,
+        weights,
+        definition,
+        task_output,
+        attempt.resume,
+        attempt.deadline_state,
+        attempt.monitor,
+        attempt.prior_task_seconds,
+        continuation_gpu_seconds,
+    )
+    if recovered_final_validation:
+        task_checkpoint["recovered_final_validation"] = True
+    return TaskTrainingResult(task_resource, task_checkpoint, gpu_seconds)
+
+
+def _run_recovered_validation(
+    experiment: LearnedBaselineConfig,
+    root: Path,
+    task: Task,
+    weights: Path,
+    definition: Path,
+    task_output: Path,
+    attempt: TrainingAttempt,
+    cuda: Any,
+    yolo: Any,
+) -> TaskTrainingResult:
+    attempt.start_event.record()
+    recovered_model = yolo(str(task_output / "weights" / "best.pt"), task=task)
+    _run_final_validation(recovered_model, training_arguments(experiment, root, task))
+    return _finish_attempt(
+        experiment,
+        root,
+        task,
+        weights,
+        definition,
+        task_output,
+        attempt,
+        cuda,
+        recovered_final_validation=True,
+    )
+
+
+def _run_training_attempt(
+    experiment: LearnedBaselineConfig,
+    root: Path,
+    training_root: Path,
+    task: Task,
+    weights: Path,
+    definition: Path,
+    task_output: Path,
+    state_path: Path,
+    attempt: TrainingAttempt,
+    torch_module: Any,
+    cuda: Any,
+    yolo: Any,
+) -> TaskTrainingResult:
+    model = _load_training_model(yolo, torch_module, task, weights, attempt.resume)
+    model.add_callback("on_train_epoch_end", lambda trainer: _stop_at_deadline(trainer, attempt))
+    model.add_callback(
+        "on_fit_epoch_end",
+        lambda trainer: monitor_training(trainer, attempt.monitor, experiment.training.patience),
+    )
+    model.add_callback(
+        "on_fit_epoch_end",
+        lambda _trainer: write_training_task_state(
+            state_path, _current_task_state(attempt, cuda, "running")
+        ),
+    )
+    attempt.start_event.record()
+    _fit_training_model(
+        model,
+        attempt.resume,
+        training_arguments(experiment, root, task),
+        training_root,
+        task,
+    )
+    return _finish_attempt(
+        experiment,
+        root,
+        task,
+        weights,
+        definition,
+        task_output,
+        attempt,
+        cuda,
+        recovered_final_validation=False,
+    )
+
+
 def train_task(  # pragma: no cover
     experiment: LearnedBaselineConfig,
     root: Path,
@@ -243,159 +464,55 @@ def train_task(  # pragma: no cover
             stored_resource, stored_checkpoint, task_state.consumed_gpu_seconds_upper_bound
         )
 
-    resume, prior_task_seconds, unrecorded_wall_seconds = _prepare_task_retry(
-        task_output, task_state
+    attempt = _prepare_training_attempt(
+        experiment, task, task_output, task_state, torch_module, cuda
     )
-    rows = training_rows(task_output)
-    prior_wall_seconds = (
-        task_state.wall_seconds + unrecorded_wall_seconds if task_state is not None else 0.0
-    )
-    prior_cpu_seconds = task_state.cpu_seconds if task_state is not None else 0.0
-    prior_peak_rss = task_state.peak_rss_bytes if task_state is not None else 0
-    prior_peak_vram = task_state.peak_vram_bytes if task_state is not None else 0
-    if prior_task_seconds > experiment.limits.aggregate_gpu_seconds:
-        raise RuntimeError("aggregate GPU-time ceiling exceeded")
-    if prior_task_seconds >= experiment.limits.per_task_wall_seconds:
-        raise RuntimeError("training exhausted its wall-time ceiling")
-    deadline = time.monotonic() + experiment.limits.per_task_wall_seconds - prior_task_seconds
-    wall_start = time.monotonic()
-    attempt_started_at = time.time()
-    cpu_start = time.process_time()
-    cuda.reset_peak_memory_stats()
-    start_event = cuda.Event(enable_timing=True)
-    end_event = cuda.Event(enable_timing=True)
-    deadline_state = DeadlineState()
-    monitor = seed_training_monitor(rows)
-    if task_state is not None and task_state.stop_reason is not None:
-        monitor.stop_reason = task_state.stop_reason
-    finalized_checkpoint = (
-        resume is not None
-        and task_state is not None
-        and checkpoint_epoch(torch_module, resume.checkpoint) == -1
-    )
-    if monitor.stop_reason is not None and not finalized_checkpoint:
-        raise RuntimeError(f"cannot resume {task}: {monitor.stop_reason}")
-
-    def current_task_state(status: Literal["running", "failed"]) -> TrainingTaskState:
-        elapsed = time.monotonic() - wall_start
-        return TrainingTaskState(
-            status=status,
-            consumed_gpu_seconds_upper_bound=prior_task_seconds + elapsed,
-            wall_seconds=prior_wall_seconds + elapsed,
-            cpu_seconds=prior_cpu_seconds + time.process_time() - cpu_start,
-            peak_rss_bytes=max(prior_peak_rss, _peak_rss_bytes()),
-            peak_vram_bytes=max(prior_peak_vram, int(cuda.max_memory_allocated())),
-            stop_reason=monitor.stop_reason,
-            attempt_base_gpu_seconds_upper_bound=(
-                prior_task_seconds if status == "running" else None
-            ),
-            attempt_started_at_unix_seconds=(attempt_started_at if status == "running" else None),
-        )
-
-    write_training_task_state(state_path, current_task_state("running"))
-
-    def stop_at_deadline(trainer: Any) -> None:
-        if time.monotonic() >= deadline:
-            trainer.stop = True
-            deadline_state.stopped = True
+    write_training_task_state(state_path, _current_task_state(attempt, cuda, "running"))
 
     try:
-        if finalized_checkpoint:
-            start_event.record()
-            recovered_model = yolo(str(task_output / "weights" / "best.pt"), task=task)
-            arguments = training_arguments(experiment, root, task)
-            _run_final_validation(recovered_model, arguments)
-            end_event.record()
-            cuda.synchronize()
-            continuation_gpu_seconds = start_event.elapsed_time(end_event) / 1000
-            gpu_seconds = prior_task_seconds + continuation_gpu_seconds
-            peak_vram = max(prior_peak_vram, int(cuda.max_memory_allocated()))
-            _validate_continuation_limits(experiment, peak_vram, deadline, deadline_state)
-            task_resource = _resource_evidence(
+        if attempt.finalized_checkpoint:
+            result = _run_recovered_validation(
                 experiment,
-                wall_seconds=prior_wall_seconds + time.monotonic() - wall_start,
-                cpu_seconds=prior_cpu_seconds + time.process_time() - cpu_start,
-                gpu_seconds=gpu_seconds,
-                peak_rss_bytes=max(prior_peak_rss, _peak_rss_bytes()),
-                peak_vram_bytes=peak_vram,
-                resumed=True,
-            )
-            task_checkpoint = _checkpoint_evidence(
                 root,
                 task,
                 weights,
                 definition,
                 task_output,
-                resume,
-                deadline_state,
-                monitor,
-                prior_task_seconds,
-                continuation_gpu_seconds,
+                attempt,
+                cuda,
+                yolo,
             )
-            task_checkpoint["recovered_final_validation"] = True
         else:
-            model = _load_training_model(yolo, torch_module, task, weights, resume)
-            model.add_callback("on_train_epoch_end", stop_at_deadline)
-            model.add_callback(
-                "on_fit_epoch_end",
-                lambda trainer: monitor_training(trainer, monitor, experiment.training.patience),
-            )
-            model.add_callback(
-                "on_fit_epoch_end",
-                lambda _trainer: write_training_task_state(
-                    state_path, current_task_state("running")
-                ),
-            )
-            start_event.record()
-            _fit_training_model(
-                model,
-                resume,
-                training_arguments(experiment, root, task),
+            result = _run_training_attempt(
+                experiment,
+                root,
                 training_root,
                 task,
-            )
-            end_event.record()
-            cuda.synchronize()
-            continuation_gpu_seconds = start_event.elapsed_time(end_event) / 1000
-            gpu_seconds = prior_task_seconds + continuation_gpu_seconds
-            peak_vram = max(prior_peak_vram, int(cuda.max_memory_allocated()))
-            _validate_continuation_limits(experiment, peak_vram, deadline, deadline_state)
-            task_resource = _resource_evidence(
-                experiment,
-                wall_seconds=prior_wall_seconds + time.monotonic() - wall_start,
-                cpu_seconds=prior_cpu_seconds + time.process_time() - cpu_start,
-                gpu_seconds=gpu_seconds,
-                peak_rss_bytes=max(prior_peak_rss, _peak_rss_bytes()),
-                peak_vram_bytes=peak_vram,
-                resumed=prior_task_seconds > 0,
-            )
-            task_checkpoint = _checkpoint_evidence(
-                root,
-                task,
                 weights,
                 definition,
                 task_output,
-                resume,
-                deadline_state,
-                monitor,
-                prior_task_seconds,
-                continuation_gpu_seconds,
+                state_path,
+                attempt,
+                torch_module,
+                cuda,
+                yolo,
             )
         complete_state = TrainingTaskState(
             status="complete",
-            consumed_gpu_seconds_upper_bound=gpu_seconds,
-            wall_seconds=float(task_resource["wall_seconds"]),
-            cpu_seconds=float(task_resource["cpu_seconds"]),
-            peak_rss_bytes=int(task_resource["peak_rss_bytes"]),
-            peak_vram_bytes=int(task_resource["peak_vram_bytes"]),
-            stop_reason=monitor.stop_reason,
-            resource=task_resource,
-            checkpoint=task_checkpoint,
+            consumed_gpu_seconds_upper_bound=result.gpu_seconds,
+            wall_seconds=float(result.resource["wall_seconds"]),
+            cpu_seconds=float(result.resource["cpu_seconds"]),
+            peak_rss_bytes=int(result.resource["peak_rss_bytes"]),
+            peak_vram_bytes=int(result.resource["peak_vram_bytes"]),
+            stop_reason=attempt.monitor.stop_reason,
+            resource=result.resource,
+            checkpoint=result.checkpoint,
         )
         write_training_task_state(state_path, complete_state)
-        return TaskTrainingResult(task_resource, task_checkpoint, gpu_seconds)
     except BaseException:
         current_state = load_training_task_state(state_path)
         if current_state is None or current_state.status != "complete":
-            write_training_task_state(state_path, current_task_state("failed"))
+            write_training_task_state(state_path, _current_task_state(attempt, cuda, "failed"))
         raise
+    else:
+        return result

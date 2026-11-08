@@ -13,6 +13,8 @@ from .config import (
     load_config,
 )
 
+THREE_COLUMN_TABLE_ALIGNMENT = "| --- | ---: | ---: |"
+
 
 def _number(value: float | int) -> str:
     if isinstance(value, int):
@@ -147,7 +149,7 @@ def _report_markdown(evidence: dict[str, Any], config: LearnedBaselineConfig) ->
         "## Task results",
         "",
         "| Metric | Transparent baseline | Learned baseline |",
-        "| --- | ---: | ---: |",
+        THREE_COLUMN_TABLE_ALIGNMENT,
         "| Detection localization F1 | "
         f"{_number(comparison['transparent_baseline']['localization_f1'])} | "
         f"{_number(comparison['learned_baseline']['detection_localization_f1'])} |",
@@ -183,11 +185,11 @@ def _report_markdown(evidence: dict[str, Any], config: LearnedBaselineConfig) ->
         "## Per-class and held-out-site slices",
         "",
         "| Source class | Detection localization F1 | Segmentation mean IoU |",
-        "| --- | ---: | ---: |",
+        THREE_COLUMN_TABLE_ALIGNMENT,
         class_rows,
         "",
         "| Held-out site | Detection localization F1 | Segmentation mean IoU |",
-        "| --- | ---: | ---: |",
+        THREE_COLUMN_TABLE_ALIGNMENT,
         site_rows,
         "",
         "## Resources and failures",

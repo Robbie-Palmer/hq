@@ -12,7 +12,7 @@ from data_artifacts.files import sha256_file, write_json
 from PIL import Image
 from ultralytics_extensions.labels import bbox_to_yolo, polygon_to_yolo
 
-from ..contracts import LearnedBaselineConfig
+from ..contracts import LearnedBaselineConfig, SplitItem
 from ..data import (
     Annotation,
     _HttpsOnlyRedirectHandler,
@@ -278,6 +278,64 @@ def _write_dataset_yaml(path: Path, task: Task, experiment: LearnedBaselineConfi
     )
 
 
+def _convert_item(
+    item: SplitItem,
+    data_root: Path,
+    output_root: Path,
+    experiment: LearnedBaselineConfig,
+    exclusion_counts: dict[str, Counter[str]],
+    adjustment_counts: dict[str, Counter[str]],
+) -> dict[str, object]:
+    image_path = data_root / item.image_path
+    with Image.open(image_path) as image:
+        image_size = image.size
+    annotations = load_annotations(data_root / item.annotation_path)
+    task_records: dict[str, object] = {}
+    for task in ("detect", "segment"):
+        task_root = output_root / task
+        derived_image = task_root / "images" / item.split / image_path.name
+        label_path = task_root / "labels" / item.split / f"{item.item_id}.txt"
+        derived_image.parent.mkdir(parents=True, exist_ok=True)
+        label_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(image_path, derived_image)
+        converted = convert_annotations(
+            annotations,
+            image_size,
+            experiment.ontology_labels,
+            task,
+            experiment.maximum_border_clip_pixels,
+        )
+        label_path.write_text(
+            "" if not converted.labels else "\n".join(converted.labels) + "\n",
+            encoding="utf-8",
+        )
+        for exclusion in converted.exclusions:
+            exclusion_counts[task][exclusion.reason] += 1
+        for adjustment in converted.adjustments:
+            adjustment_counts[task][adjustment.reason] += 1
+        task_records[task] = {
+            "label_path": label_path.relative_to(output_root).as_posix(),
+            "label_count": len(converted.labels),
+            "empty_image": not converted.labels,
+            "exclusions": [exclusion.__dict__ for exclusion in converted.exclusions],
+            "adjustments": [adjustment.__dict__ for adjustment in converted.adjustments],
+        }
+    return {
+        "item_id": item.item_id,
+        "slide_id": item.slide_id,
+        "patient_id": item.patient_id,
+        "site_id": item.site_id,
+        "split": item.split,
+        "source_image": item.image_path,
+        "source_annotation": item.annotation_path,
+        "source_image_sha256": sha256_file(image_path),
+        "image_width": image_size[0],
+        "image_height": image_size[1],
+        "source_annotation_count": len(annotations),
+        "tasks": task_records,
+    }
+
+
 def prepare_training_layout(
     params_path: Path = PARAMS_FILE,
 ) -> dict[str, object]:
@@ -303,58 +361,17 @@ def prepare_training_layout(
             "detect": Counter(),
             "segment": Counter(),
         }
-        item_records: list[dict[str, object]] = []
-        for item in cohort.items:
-            image_path = data_root / item.image_path
-            with Image.open(image_path) as image:
-                image_size = image.size
-            annotations = load_annotations(data_root / item.annotation_path)
-            record: dict[str, object] = {
-                "item_id": item.item_id,
-                "slide_id": item.slide_id,
-                "patient_id": item.patient_id,
-                "site_id": item.site_id,
-                "split": item.split,
-                "source_image": item.image_path,
-                "source_annotation": item.annotation_path,
-                "source_image_sha256": sha256_file(image_path),
-                "image_width": image_size[0],
-                "image_height": image_size[1],
-                "source_annotation_count": len(annotations),
-                "tasks": {},
-            }
-            task_records: dict[str, object] = {}
-            for task in ("detect", "segment"):
-                task_root = output_root / task
-                derived_image = task_root / "images" / item.split / image_path.name
-                label_path = task_root / "labels" / item.split / f"{item.item_id}.txt"
-                derived_image.parent.mkdir(parents=True, exist_ok=True)
-                label_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(image_path, derived_image)
-                converted = convert_annotations(
-                    annotations,
-                    image_size,
-                    experiment.ontology_labels,
-                    task,
-                    experiment.maximum_border_clip_pixels,
-                )
-                label_path.write_text(
-                    "" if not converted.labels else "\n".join(converted.labels) + "\n",
-                    encoding="utf-8",
-                )
-                for exclusion in converted.exclusions:
-                    exclusion_counts[task][exclusion.reason] += 1
-                for adjustment in converted.adjustments:
-                    adjustment_counts[task][adjustment.reason] += 1
-                task_records[task] = {
-                    "label_path": label_path.relative_to(output_root).as_posix(),
-                    "label_count": len(converted.labels),
-                    "empty_image": not converted.labels,
-                    "exclusions": [exclusion.__dict__ for exclusion in converted.exclusions],
-                    "adjustments": [adjustment.__dict__ for adjustment in converted.adjustments],
-                }
-            record["tasks"] = task_records
-            item_records.append(record)
+        item_records = [
+            _convert_item(
+                item,
+                data_root,
+                output_root,
+                experiment,
+                exclusion_counts,
+                adjustment_counts,
+            )
+            for item in cohort.items
+        ]
         for task in ("detect", "segment"):
             _write_dataset_yaml(output_root / f"{task}.yaml", task, experiment)
         result: dict[str, object] = {

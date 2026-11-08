@@ -385,6 +385,11 @@ def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path
         def synchronize(self) -> None:
             pass
 
+    fake_cuda = FakeCuda()
+
+    def failing_model_factory(*_args: object, **_kwargs: object) -> FailingModel:
+        return FailingModel()
+
     with pytest.raises(RuntimeError, match="validation interrupted"):
         train_task(
             experiment,
@@ -392,8 +397,8 @@ def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path
             training_root,
             "detect",
             torch,
-            FakeCuda(),
-            lambda *_args, **_kwargs: FailingModel(),
+            fake_cuda,
+            failing_model_factory,
         )
     interrupted_state = load_training_task_state(training_root / "detect-state.json")
     assert interrupted_state is not None

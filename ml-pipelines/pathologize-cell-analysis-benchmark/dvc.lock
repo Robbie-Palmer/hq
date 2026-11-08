@@ -278,8 +278,8 @@ stages:
       size: 2554
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: b4fda445c73786f5201c8aea757f0228
@@ -328,8 +328,8 @@ stages:
       size: 2554
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: b4fda445c73786f5201c8aea757f0228
@@ -377,16 +377,16 @@ stages:
       size: 2554
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
       md5: 5a55f14162b410667e71f9498f9958d1
       size: 1399
     - path: src/pathologize_cell_analysis/learned_baseline/conversion.py
       hash: md5
-      md5: 5c6bc28fa13cb0aa1622a816f13606b2
-      size: 15072
+      md5: a9d84372ea9095f9991919c0dc1ba858
+      size: 15052
     - path: uv.lock
       hash: md5
       md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
@@ -463,8 +463,8 @@ stages:
       size: 2554
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: b4fda445c73786f5201c8aea757f0228
@@ -475,8 +475,8 @@ stages:
       size: 1399
     - path: src/pathologize_cell_analysis/learned_baseline/conversion.py
       hash: md5
-      md5: 5c6bc28fa13cb0aa1622a816f13606b2
-      size: 15072
+      md5: a9d84372ea9095f9991919c0dc1ba858
+      size: 15052
     - path: uv.lock
       hash: md5
       md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
@@ -533,16 +533,16 @@ stages:
       size: 2554
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
       md5: 5a55f14162b410667e71f9498f9958d1
       size: 1399
     - path: src/pathologize_cell_analysis/learned_baseline/task_training.py
       hash: md5
-      md5: 3e40c26dadfb959986025e72abff3d43
-      size: 15439
+      md5: 687b9a748aeb921915d17a9c5e0aa44d
+      size: 17519
     - path: src/pathologize_cell_analysis/learned_baseline/training.py
       hash: md5
       md5: 5989f02ab848fd82f585c67fb2a9d0d2
@@ -691,8 +691,8 @@ stages:
       size: 2554
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
       md5: 5a55f14162b410667e71f9498f9958d1
@@ -805,8 +805,8 @@ stages:
       size: 14915
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: b4fda445c73786f5201c8aea757f0228
@@ -873,16 +873,16 @@ stages:
       size: 2153
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 50c95158485bcf0fcab03b858fb7e145
-      size: 12117
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
       md5: 5a55f14162b410667e71f9498f9958d1
       size: 1399
     - path: src/pathologize_cell_analysis/learned_baseline/reporting.py
       hash: md5
-      md5: d50173f95b7916a691e90e3eb13ce7f9
-      size: 10208
+      md5: 99c8d706cc9beb855dd4f790d6b610d4
+      size: 10279
     - path: uv.lock
       hash: md5
       md5: 3fc92ba6c645e618dc9ae565bd5a2cd9

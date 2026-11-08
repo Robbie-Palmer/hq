@@ -4,6 +4,8 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, model_validator
 
+SHA256_PATTERN = r"^[a-f0-9]{64}$"
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -20,7 +22,7 @@ class SourceArchive(StrictModel):
     url: HttpUrl
     bytes: int = Field(gt=0)
     md5: str = Field(pattern=r"^[a-f0-9]{32}$")
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: str = Field(pattern=SHA256_PATTERN)
     member_prefix: str = Field(min_length=1)
     member_suffix: Literal[".png", ".csv"]
 
@@ -86,11 +88,11 @@ class ModelPin(StrictModel):
     architecture: str
     definition: str
     definition_url: HttpUrl
-    definition_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    definition_sha256: str = Field(pattern=SHA256_PATTERN)
     weights: str = Field(pattern=r"^[a-z0-9-]+\.pt$")
     weights_url: HttpUrl
     weights_bytes: int = Field(gt=0)
-    weights_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    weights_sha256: str = Field(pattern=SHA256_PATTERN)
     weights_license: Literal["AGPL-3.0-or-later"]
 
 
