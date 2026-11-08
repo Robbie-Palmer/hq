@@ -14,8 +14,8 @@ stages:
       nfiles: 4
     - path: pyproject.toml
       hash: md5
-      md5: 45bb495f718398cb3351e2130c1540cf
-      size: 1107
+      md5: e3256b1c8cc916257f4e7249d8761d7c
+      size: 1087
     - path: records
       hash: md5
       md5: c583e8ad762b45ef9f825dd8e75be5e6.dir
