@@ -52,7 +52,7 @@ jobs:
           persist-credentials: false
 
       - name: Setup mise
-        uses: ./.github/actions/setup-mise
+        uses: $/.github/actions/setup-mise
 
       - name: Get pnpm store directory
         id: pnpm-store
@@ -78,7 +78,7 @@ jobs:
 
       - name: Upload UI test results to Codecov
         if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) }}
-        uses: codecov/codecov-action@2320916714171c258d01dbd81040d64d798c6f8e # v7.1.1
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
         with:
           disable_search: true
           fail_ci_if_error: true
