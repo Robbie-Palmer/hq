@@ -10,6 +10,7 @@ from PIL import Image
 from pydicom import dcmread
 from pydicom.errors import InvalidDicomError
 from wsidicom import WsiDicom
+from wsidicom.config import Settings
 from wsidicom.group.level import Level
 
 
@@ -150,10 +151,34 @@ class DicomSlide:
         self._level_metadata_cache: dict[int, DicomLevelMetadata] = {}
 
     @classmethod
-    def open(cls, source: Path) -> Self:
+    def open(
+        cls,
+        source: Path,
+        *,
+        decoded_frame_cache_size: int | None = None,
+        encoded_frame_cache_size: int | None = None,
+    ) -> Self:
         if not source.exists():
             raise FileNotFoundError(f"DICOM source does not exist: {source}")
-        return cls(source, WsiDicom.open(source))
+        cache_sizes = (decoded_frame_cache_size, encoded_frame_cache_size)
+        if any(value is not None and value < 0 for value in cache_sizes):
+            raise ValueError("DICOM frame cache sizes must be non-negative")
+        if decoded_frame_cache_size is None and encoded_frame_cache_size is None:
+            return cls(source, WsiDicom.open(source))
+        defaults = Settings()
+        settings = Settings(
+            decoded_frame_cache_size=(
+                defaults.decoded_frame_cache_size
+                if decoded_frame_cache_size is None
+                else decoded_frame_cache_size
+            ),
+            encoded_frame_cache_size=(
+                defaults.encoded_frame_cache_size
+                if encoded_frame_cache_size is None
+                else encoded_frame_cache_size
+            ),
+        )
+        return cls(source, WsiDicom.open(source, settings=settings))
 
     def __enter__(self) -> Self:
         return self

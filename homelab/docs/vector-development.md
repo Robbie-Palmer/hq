@@ -206,6 +206,37 @@ mise run //homelab:vector-gpu-benchmark -- logs smoke-001
 mise run //homelab:vector-gpu-benchmark -- delete smoke-001
 ```
 
+The Pathologize image pins NVIDIA's minimal CUDA runtime by digest, CuPy by
+version, and the optional nvImageCodec JPEG and JPEG 2000 extensions. It
+bundles the SHA-256-verified public CPTAC DICOM fixture. Build and check it,
+then import it directly into Vector's K3s containerd. The import task prints
+the immutable local reference accepted by the benchmark launcher:
+
+```bash
+mise run //homelab:pathologize-gpu-image-build-check
+mise run //homelab:pathologize-gpu-image-load-vector
+```
+
+Run the experiment with the resolved manifest digest. Its JSON log separates
+the correct CPU/OpenJPEG path, pinned host-to-device transfer, nvImageCodec
+device decode, device preprocessing, and a deterministic linear-pooling GPU
+proxy. It
+also records the CPU decode and PNG encode path needed by tile viewers:
+
+```bash
+mise run //homelab:vector-gpu-benchmark -- create pathologize-decode-001 \
+  ghcr.io/robbie-palmer/pathologize-gpu-benchmark@sha256:<64-hex-digest>
+mise run //homelab:vector-gpu-benchmark -- logs pathologize-decode-001
+```
+
+The local import requires the guarded root SSH path because Docker and K3s use
+separate image stores. It verifies Vector's hostname and location label before
+writing to containerd, then checks the digest through the CRI. For shared or CI
+runs, the optional `pathologize-gpu-image-push` task can publish the same image
+to GHCR when a `write:packages` credential is available. The `ghcr.io` prefix
+remains in the local image name so the admission contract has a stable,
+repository-qualified OCI reference; the import path does not contact GHCR.
+
 Use a unique run ID for each Job. The launcher writes the same run ID to the
 Job and pod under `gpu-benchmark.homelab.dev/run-id`. DCGM emits the generated
 pod name, namespace, and container name from the kubelet pod-resources socket,

@@ -128,6 +128,27 @@ def test_dicom_slide_exposes_metadata_frames_and_host_tiles(tmp_path: Path) -> N
     tile.image.close()
 
 
+def test_dicom_slide_forwards_cache_sizes(tmp_path: Path) -> None:
+    source = tmp_path / "slide.dcm"
+    source.touch()
+    fake = FakeSlide()
+
+    with patch("pathologize_tiler.dicom.WsiDicom.open", return_value=fake) as open_slide:
+        slide = DicomSlide.open(
+            source,
+            decoded_frame_cache_size=0,
+            encoded_frame_cache_size=4096,
+        )
+
+    settings = open_slide.call_args.kwargs["settings"]
+    assert settings.decoded_frame_cache_size == 0
+    assert settings.encoded_frame_cache_size == 4096
+    slide.close()
+
+    with pytest.raises(ValueError, match="cache sizes must be non-negative"):
+        DicomSlide.open(source, decoded_frame_cache_size=-1)
+
+
 def test_associated_images_are_limited_to_selected_slide_instances(
     tmp_path: Path,
 ) -> None:

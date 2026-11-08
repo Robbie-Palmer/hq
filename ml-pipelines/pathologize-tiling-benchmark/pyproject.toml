@@ -5,6 +5,7 @@ description = "Public-data tiling and physical-scale experiment"
 requires-python = ">=3.12,<3.13"
 dependencies = [
     "fire>=0.7.1,<0.8",
+    "numpy>=2.3.5,<3",
     "pathologize-benchmark-contracts",
     "pathologize-tiler",
     "pydantic>=2.12.5,<3",
@@ -12,6 +13,12 @@ dependencies = [
 
 [project.scripts]
 pathologize-tiling-experiment = "pathologize_tiling_benchmark.cli:main"
+pathologize-gpu-decode-benchmark = "pathologize_tiling_benchmark.gpu_cli:main"
+
+[project.optional-dependencies]
+cuda = [
+    "nvidia-nvimgcodec-cu12[nvjpeg,nvjpeg2k]>=0.10.0.9,<0.11; sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
 
 [dependency-groups]
 dev = [
@@ -34,6 +41,11 @@ pathologize-tiler = { path = "../../packages/pathologize-tiler", editable = true
 [tool.pytest.ini_options]
 addopts = "--strict-config --strict-markers --cov=pathologize_tiling_benchmark --cov-report=term-missing --cov-fail-under=80"
 testpaths = ["tests"]
+
+[tool.coverage.run]
+# The CUDA runtime path is exercised in the digest-pinned Vector Job. CPU CI
+# covers its validation, coordinate planning, summaries, and CLI boundary.
+omit = ["src/pathologize_tiling_benchmark/gpu_benchmark.py"]
 
 [tool.ty.environment]
 python-version = "3.12"
@@ -67,3 +79,6 @@ max-complexity = 12
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101"]
+"src/pathologize_tiling_benchmark/gpu_benchmark.py" = [
+    "ANN401", # CuPy and nvImageCodec expose dynamic CUDA array types.
+]

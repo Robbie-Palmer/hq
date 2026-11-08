@@ -235,6 +235,38 @@ wheels = [
 ]
 
 [[package]]
+name = "nvidia-nvimgcodec-cu12"
+version = "0.10.0.9"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/76/f8/ac525882409d24c6f89bb881bc6680e9557f349db2f6e00fa29b602ceebb/nvidia_nvimgcodec_cu12-0.10.0.9-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:c278d6d25296e49b0b3191271e0b584d6f84fc70e5b75fabadb11b3f86c3c3c1", size = 35395982, upload-time = "2026-11-03T17:28:33.878Z" },
+]
+
+[package.optional-dependencies]
+nvjpeg = [
+    { name = "nvidia-nvjpeg-cu12" },
+]
+nvjpeg2k = [
+    { name = "nvidia-nvjpeg2k-cu12" },
+]
+
+[[package]]
+name = "nvidia-nvjpeg-cu12"
+version = "12.4.0.76"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/57/68/d3526394584134a23f2500833c62d3352e1feda7547041f4612b1a183aa3/nvidia_nvjpeg_cu12-12.4.0.76-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:3888f10b32fbd58e80166c48e01073732d752fa5f167b7cb5b9615f1c6375a20", size = 5313609, upload-time = "2025-06-05T20:10:43.92Z" },
+]
+
+[[package]]
+name = "nvidia-nvjpeg2k-cu12"
+version = "0.12.0.58"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/69/69/f61ae09f7bdcdda22bfabad7eadec1f781b33cb47a1f9b4e67a375737c66/nvidia_nvjpeg2k_cu12-0.12.0.58-py3-none-manylinux2014_x86_64.whl", hash = "sha256:9fd28574f72e04a54b406c602fea5141d035f1011646697ac0fcc768062f41ba", size = 9620768, upload-time = "2026-10-28T21:36:58.71Z" },
+]
+
+[[package]]
 name = "openslide-bin"
 version = "4.0.1.2"
 source = { registry = "https://pypi.org/simple" }
@@ -348,9 +380,15 @@ version = "0.1.0"
 source = { editable = "." }
 dependencies = [
     { name = "fire" },
+    { name = "numpy" },
     { name = "pathologize-benchmark-contracts" },
     { name = "pathologize-tiler" },
     { name = "pydantic" },
+]
+
+[package.optional-dependencies]
+cuda = [
+    { name = "nvidia-nvimgcodec-cu12", extra = ["nvjpeg", "nvjpeg2k"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 
 [package.dev-dependencies]
@@ -364,10 +402,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "fire", specifier = ">=0.7.1,<0.8" },
+    { name = "numpy", specifier = ">=2.3.5,<3" },
+    { name = "nvidia-nvimgcodec-cu12", extras = ["nvjpeg", "nvjpeg2k"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=0.10.0.9,<0.11" },
     { name = "pathologize-benchmark-contracts", editable = "../pathologize-benchmark-contracts" },
     { name = "pathologize-tiler", editable = "../../packages/pathologize-tiler" },
     { name = "pydantic", specifier = ">=2.12.5,<3" },
 ]
+provides-extras = ["cuda"]
 
 [package.metadata.requires-dev]
 dev = [
