@@ -3,7 +3,7 @@ set -euo pipefail
 
 repository_root=$(git rev-parse --show-toplevel)
 fixture_root=${repository_root}/ml-pipelines/pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6
-image=ghcr.io/robbie-palmer/pathologize-gpu-benchmark:0.1.0
+image=ghcr.io/robbie-palmer/pathologize-gpu-benchmark:0.2.0
 
 if [[ ! -d ${fixture_root} ]]; then
   echo "public CPTAC DICOM fixture is missing; run the data-registry acquire task" >&2

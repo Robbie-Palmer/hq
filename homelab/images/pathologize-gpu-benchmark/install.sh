@@ -13,7 +13,10 @@ rm --recursive --force /var/lib/apt/lists/*
 
 python3 -m pip install --no-cache-dir --only-binary=:all: \
   cupy-cuda12x==14.2.0 \
-  'cuda-toolkit[cudart,nvrtc]==12.9.2.0'
+  'cuda-toolkit[cudart,nvrtc]==12.8.1' \
+  nvidia-ml-py==13.615.71 \
+  torch==2.9.1 \
+  torchvision==0.24.1
 
 python3 -m pip install --no-cache-dir --only-binary=:all: \
   /tmp/hq/packages/data-artifacts \

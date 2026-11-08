@@ -1,7 +1,7 @@
 FROM docker.io/nvidia/cuda:12.8.1-base-ubuntu24.04@sha256:e711c99333fdfe8ae1e677b4972be6c5021f0128a1d31f775c7e58d88921b6a9
 
 LABEL org.opencontainers.image.source="https://github.com/Robbie-Palmer/hq"
-LABEL org.opencontainers.image.description="Pathologize DICOM GPU decode benchmark for Vector"
+LABEL org.opencontainers.image.description="Pathologize DICOM GPU model-loader benchmark for Vector"
 
 COPY --chmod=0555 homelab/images/pathologize-gpu-benchmark/install.sh /tmp/install.sh
 COPY packages/data-artifacts/pyproject.toml packages/data-artifacts/README.md /tmp/hq/packages/data-artifacts/
@@ -14,6 +14,8 @@ COPY ml-pipelines/pathologize-benchmark-contracts/pyproject.toml ml-pipelines/pa
 COPY ml-pipelines/pathologize-benchmark-contracts/src /tmp/hq/ml-pipelines/pathologize-benchmark-contracts/src
 COPY ml-pipelines/pathologize-tiling-benchmark/pyproject.toml /tmp/hq/ml-pipelines/pathologize-tiling-benchmark/
 COPY ml-pipelines/pathologize-tiling-benchmark/src /tmp/hq/ml-pipelines/pathologize-tiling-benchmark/src
+COPY ml-pipelines/pathologize-data-registry/manifests/assets/cptac-coad-idc-v23-smallest-series.json /opt/pathologize/manifests/assets.json
+COPY ml-pipelines/pathologize-data-registry/manifests/collections/cptac-coad-idc.json /opt/pathologize/manifests/collection.json
 COPY ml-pipelines/pathologize-data-registry/data/raw/cptac-coad-idc/v23/b117aabf-c225-432e-95af-8ee9247a1ad6 /opt/pathologize/fixtures/cptac-coad-dicom
 
 RUN /tmp/install.sh \
@@ -28,5 +30,5 @@ ENV PIP_BREAK_SYSTEM_PACKAGES=1
 USER 1000:1000
 WORKDIR /tmp
 
-ENTRYPOINT ["pathologize-gpu-decode-benchmark"]
-CMD ["run", "--fixture-root=/opt/pathologize/fixtures/cptac-coad-dicom"]
+ENTRYPOINT ["pathologize-model-loader-benchmark"]
+CMD ["run", "--fixture-root=/opt/pathologize/fixtures/cptac-coad-dicom", "--fixture-manifest=/opt/pathologize/manifests/assets.json", "--fixture-collection-manifest=/opt/pathologize/manifests/collection.json"]

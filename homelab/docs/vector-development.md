@@ -206,27 +206,29 @@ mise run //homelab:vector-gpu-benchmark -- logs smoke-001
 mise run //homelab:vector-gpu-benchmark -- delete smoke-001
 ```
 
-The Pathologize image pins NVIDIA's minimal CUDA runtime by digest, CuPy by
-version, and the optional nvImageCodec JPEG and JPEG 2000 extensions. It
-bundles the SHA-256-verified public CPTAC DICOM fixture. Build and check it,
-then import it directly into Vector's K3s containerd. The import task prints
-the immutable local reference accepted by the benchmark launcher:
+The Pathologize image pins NVIDIA's minimal CUDA runtime by digest, PyTorch,
+torchvision, CuPy, NVML bindings, and the optional nvImageCodec JPEG and JPEG
+2000 extensions. It bundles the SHA-256-verified public CPTAC DICOM fixture and
+its provenance manifests. Build and check it, then import it directly into
+Vector's K3s containerd. The import task prints the immutable local reference
+accepted by the benchmark launcher:
 
 ```bash
 mise run //homelab:pathologize-gpu-image-build-check
 mise run //homelab:pathologize-gpu-image-load-vector
 ```
 
-Run the experiment with the resolved manifest digest. Its JSON log separates
-the correct CPU/OpenJPEG path, pinned host-to-device transfer, nvImageCodec
-device decode, device preprocessing, and a deterministic linear-pooling GPU
-proxy. It
-also records the CPU decode and PNG encode path needed by tile viewers:
+Run the experiment with the resolved manifest digest. Its JSON log compares
+CPU/OpenJPEG decode plus pinned transfer with nvImageCodec device decode while
+feeding a deterministic, locally initialized ResNet-18. It records cold and
+steady-state queueing, preprocessing, forward, backward, overlap, throughput,
+host CPU, GPU memory, and transfer bytes. It downloads no model weights. The
+CPU decode and viewer path remain unchanged:
 
 ```bash
-mise run //homelab:vector-gpu-benchmark -- create pathologize-decode-001 \
+mise run //homelab:vector-gpu-benchmark -- create pathologize-loader-001 \
   ghcr.io/robbie-palmer/pathologize-gpu-benchmark@sha256:<64-hex-digest>
-mise run //homelab:vector-gpu-benchmark -- logs pathologize-decode-001
+mise run //homelab:vector-gpu-benchmark -- logs pathologize-loader-001
 ```
 
 The local import requires the guarded root SSH path because Docker and K3s use

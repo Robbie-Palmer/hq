@@ -39,3 +39,9 @@ wall, process CPU, CUDA stage, copy-volume, memory, pixel-agreement, and CPU
 viewer measurements for contiguous and random batches. See the
 [Vector JPEG 2000 GPU decode experiment](reports/vector-jpeg2000-gpu-decode.md)
 for the bounded result and its limitations.
+
+The follow-up [model-loader experiment](reports/vector-jpeg2000-model-loader.md)
+feeds both decode routes into a deterministic, locally initialized ResNet-18.
+It measures cold and steady-state decode, queueing, preprocessing, forward,
+backward, overlap, throughput, host CPU, GPU memory, and transfer bytes across
+batch size and loader concurrency. It downloads no model weights.

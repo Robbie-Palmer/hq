@@ -81,11 +81,15 @@ class NvImageCodecDecoder:
                 f"nvImageCodec initialization failed: {error}"
             ) from error
 
-    def decode(self, frames: tuple[bytes, ...]) -> DeviceDecodeBatch:
+    def decode(
+        self, frames: tuple[bytes, ...], *, cuda_stream: int | object | None = None
+    ) -> DeviceDecodeBatch:
         if not frames:
             raise ValueError("at least one encoded frame is required")
         try:
-            decoded = self._decoder.decode(list(frames), params=self._parameters)
+            decoded = self._decoder.decode(
+                list(frames), params=self._parameters, cuda_stream=cuda_stream
+            )
         except (RuntimeError, ValueError) as error:
             raise DeviceDecodeUnavailableError(f"nvImageCodec decode failed: {error}") from error
         if len(decoded) != len(frames):
@@ -112,6 +116,7 @@ def decode_dicom_frames_nvimagecodec(
     frames: tuple[EncodedDicomFrame, ...],
     *,
     decoder: NvImageCodecDecoder | None = None,
+    cuda_stream: int | object | None = None,
 ) -> DeviceDecodeBatch:
     if not frames:
         raise ValueError("at least one encoded DICOM frame is required")
@@ -126,4 +131,4 @@ def decode_dicom_frames_nvimagecodec(
                 f"{frame.photometric_interpretation}"
             )
     selected = decoder or NvImageCodecDecoder()
-    return selected.decode(tuple(frame.payload for frame in frames))
+    return selected.decode(tuple(frame.payload for frame in frames), cuda_stream=cuda_stream)

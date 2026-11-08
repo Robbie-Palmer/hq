@@ -2364,11 +2364,14 @@ test("the Pathologize GPU benchmark image pins CUDA dependencies and public inpu
   );
   assert.match(dockerfile, /COPY ml-pipelines\/pathologize-data-registry\/data\/raw\/cptac-coad-idc/);
   assert.match(dockerfile, /USER 1000:1000/);
-  assert.match(dockerfile, /ENTRYPOINT \["pathologize-gpu-decode-benchmark"\]/);
+  assert.match(dockerfile, /ENTRYPOINT \["pathologize-model-loader-benchmark"\]/);
   assert.match(installer, /pathologize-tiler\[cuda\]/);
   assert.match(installer, /import nvidia\.nvimgcodec/);
   assert.match(installer, /cupy-cuda12x==14\.2\.0/);
-  assert.match(installer, /cuda-toolkit\[cudart,nvrtc\]==12\.9\.2\.0/);
+  assert.match(installer, /cuda-toolkit\[cudart,nvrtc\]==12\.8\.1/);
+  assert.match(installer, /torch==2\.9\.1/);
+  assert.match(installer, /torchvision==0\.24\.1/);
+  assert.match(installer, /nvidia-ml-py==13\.615\.71/);
   assert.match(buildScript, /--platform linux\/amd64/);
   assert.match(buildScript, /--pull=false/);
   assert.match(
