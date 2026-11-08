@@ -39,3 +39,20 @@ wall, process CPU, CUDA stage, copy-volume, memory, pixel-agreement, and CPU
 viewer measurements for contiguous and random batches. See the
 [Vector JPEG 2000 GPU decode experiment](reports/vector-jpeg2000-gpu-decode.md)
 for the bounded result and its limitations.
+
+The [public WSI decoder fixture matrix](reports/wsi-decoder-fixture-matrix.md)
+adds checksum-pinned Aperio, Leica, generic TIFF, and DICOM WSI cases across
+JPEG and JPEG 2000. The default acquisition downloads only a 1.9 MB smoke
+fixture. The 734 MB extended profile is explicit, and neither profile checks
+large binaries into Git.
+
+```bash
+mise run //ml-pipelines/pathologize-tiling-benchmark:fixtures:validate
+mise run //ml-pipelines/pathologize-tiling-benchmark:fixtures:acquire
+mise run //ml-pipelines/pathologize-tiling-benchmark:fixtures:probe
+```
+
+Use `fixtures:acquire:extended` only when the full public matrix is needed.
+The probe retains host output, tests per-axis level selection and boundary
+tiles, and records why an unavailable accelerator fell back to OpenSlide or
+wsidicom.
