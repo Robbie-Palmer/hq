@@ -27,29 +27,41 @@ class FakeImage:
 
 
 class FakeDecoder:
-    def decode(self, frames: list[bytes], *, params: object) -> list[FakeImage]:
+    def decode(
+        self, frames: list[bytes], *, params: object, cuda_stream: object | None = None
+    ) -> list[FakeImage]:
         assert params is not None
+        assert cuda_stream in (None, 99)
         return [FakeImage() for _ in frames]
 
 
 class FailingDecoder:
-    def decode(self, frames: list[bytes], *, params: object) -> list[None]:
+    def decode(
+        self, frames: list[bytes], *, params: object, cuda_stream: object | None = None
+    ) -> list[None]:
         assert frames
         assert params is not None
+        assert cuda_stream is None
         return [None]
 
 
 class ShortDecoder:
-    def decode(self, frames: list[bytes], *, params: object) -> list[FakeImage]:
+    def decode(
+        self, frames: list[bytes], *, params: object, cuda_stream: object | None = None
+    ) -> list[FakeImage]:
         assert frames
         assert params is not None
+        assert cuda_stream is None
         return []
 
 
 class InvalidImageDecoder:
-    def decode(self, frames: list[bytes], *, params: object) -> list[object]:
+    def decode(
+        self, frames: list[bytes], *, params: object, cuda_stream: object | None = None
+    ) -> list[object]:
         assert frames
         assert params is not None
+        assert cuda_stream is None
         return [object()]
 
 
@@ -115,7 +127,7 @@ def test_direct_decode_preserves_device_results() -> None:
 def test_dicom_decode_validates_codec_and_color_before_device_work() -> None:
     with patch("pathologize_tiler.cuda.import_module", return_value=_fake_module()):
         decoder = NvImageCodecDecoder()
-        batch = decode_dicom_frames_nvimagecodec((_dicom_frame(),), decoder=decoder)
+        batch = decode_dicom_frames_nvimagecodec((_dicom_frame(),), decoder=decoder, cuda_stream=99)
 
     assert len(batch.images) == 1
 

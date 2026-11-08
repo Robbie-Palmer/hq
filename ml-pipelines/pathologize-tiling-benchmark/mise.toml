@@ -74,3 +74,12 @@ run = "uv run --locked pathologize-fixture-matrix probe"
 [tasks.check]
 description = "Check the tiling benchmark"
 depends = ["lint", "typecheck", "test:coverage", "verify", "fixtures:validate"]
+
+[tasks."model-loader:sync"]
+description = "Install the locked CUDA model-loader benchmark environment"
+run = "uv sync --locked --extra cuda --extra model"
+
+[tasks."model-loader:run"]
+description = "Run the CUDA model-loader benchmark against the public DICOM fixture"
+depends = ["model-loader:sync", "//ml-pipelines/pathologize-data-registry:acquire"]
+run = "bash scripts/run-model-loader-benchmark.sh"
