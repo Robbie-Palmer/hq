@@ -183,8 +183,8 @@ def _report_markdown(evidence: dict[str, Any], config: UltralyticsConfig) -> str
         "",
         "## Resources and failures",
         "",
-        f"Aggregate measured GPU time was {_number(resources['aggregate_gpu_seconds'])} seconds "
-        f"against a {resources['aggregate_gpu_ceiling_seconds']:,}-second ceiling.",
+        f"Aggregate measured GPU time was {resources['aggregate_gpu_seconds']:,.1f} seconds "
+        f"against the {resources['aggregate_gpu_ceiling_seconds']:,}-second ceiling.",
         "",
         f"Prediction conversion rejected {len(failures):,} instances. "
         "The cached evaluation evidence records each rejection.",

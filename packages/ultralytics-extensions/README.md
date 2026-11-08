@@ -7,7 +7,8 @@ dataset ontology and split decisions.
 The package owns:
 
 - YOLO box and polygon coordinate encoding;
-- restricted checkpoint loading and exact-resume evidence; and
+- restricted checkpoint loading, exact-resume evidence, and durable task state;
+  and
 - conversion of Ultralytics result objects into neutral spatial instances.
 
 Projects remain responsible for training calls, stop rules, resource limits,

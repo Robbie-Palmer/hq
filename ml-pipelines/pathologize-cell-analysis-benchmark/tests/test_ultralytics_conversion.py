@@ -9,7 +9,7 @@ import numpy as np
 import pytest
 import torch
 import yaml
-from data_artifacts.files import read_yaml, write_json
+from data_artifacts.files import read_yaml, sha256_file, write_json
 from PIL import Image
 from pydantic import ValidationError
 from ultralytics_extensions.checkpoints import resume_evidence
@@ -19,6 +19,7 @@ from ultralytics_extensions.labels import (
     yolo_to_bbox,
     yolo_to_polygon,
 )
+from ultralytics_extensions.recovery import TrainingTaskState
 
 from pathologize_cell_analysis.contracts import (
     SplitItem,
@@ -41,11 +42,17 @@ from pathologize_cell_analysis.ultralytics_prediction import (
     prediction_arguments,
 )
 from pathologize_cell_analysis.ultralytics_reporting import _report_markdown
+from pathologize_cell_analysis.ultralytics_task_training import (
+    _prepare_task_retry,
+    _validate_completed_task_state,
+)
 from pathologize_cell_analysis.ultralytics_training import (
     _clean_failed_training_output,
     _clear_ultralytics_caches,
     _clear_ultralytics_runtime_config,
-    _seed_training_monitor,
+)
+from pathologize_cell_analysis.ultralytics_training_policy import (
+    seed_training_monitor,
     training_arguments,
 )
 
@@ -179,7 +186,7 @@ def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> Non
     assert resume is not None
     assert resume.completed_epochs == 2
     assert resume.elapsed_seconds_upper_bound == 23.0
-    monitor = _seed_training_monitor(
+    monitor = seed_training_monitor(
         [
             {
                 "metrics/mAP50-95(B)": 0.1,
@@ -204,6 +211,12 @@ def test_failed_training_cleanup_preserves_resumable_output(tmp_path: Path) -> N
     _clean_failed_training_output(empty_output, output_root_existed=False)
     assert not empty_output.exists()
 
+    recoverable_output = tmp_path / "recoverable"
+    recoverable_output.mkdir()
+    (recoverable_output / "detect-state.json").write_text("{}", encoding="utf-8")
+    _clean_failed_training_output(recoverable_output, output_root_existed=False)
+    assert recoverable_output.is_dir()
+
     resumable_output = tmp_path / "resumable"
     checkpoint = resumable_output / "detect" / "weights" / "last.pt"
     checkpoint.parent.mkdir(parents=True)
@@ -215,6 +228,53 @@ def test_failed_training_cleanup_preserves_resumable_output(tmp_path: Path) -> N
     preexisting_output.mkdir()
     _clean_failed_training_output(preexisting_output, output_root_existed=True)
     assert preexisting_output.is_dir()
+
+
+def test_completed_training_state_validates_checkpoint_hashes(tmp_path: Path) -> None:
+    best = tmp_path / "training/detect/weights/best.pt"
+    last = tmp_path / "training/detect/weights/last.pt"
+    best.parent.mkdir(parents=True)
+    best.write_bytes(b"best")
+    last.write_bytes(b"last")
+    checkpoint = {
+        "best": best.relative_to(tmp_path).as_posix(),
+        "best_sha256": sha256_file(best),
+        "last": last.relative_to(tmp_path).as_posix(),
+        "last_sha256": sha256_file(last),
+    }
+    resource = {"gpu_seconds": 2.0}
+    state = TrainingTaskState(
+        status="complete",
+        consumed_gpu_seconds_upper_bound=2.0,
+        wall_seconds=2.5,
+        cpu_seconds=1.0,
+        peak_rss_bytes=10,
+        peak_vram_bytes=20,
+        resource=resource,
+        checkpoint=checkpoint,
+    )
+    assert _validate_completed_task_state(tmp_path, "detect", state) == (resource, checkpoint)
+    last.write_bytes(b"changed")
+    with pytest.raises(ValueError, match="checkpoint evidence differs"):
+        _validate_completed_task_state(tmp_path, "detect", state)
+
+
+def test_precheckpoint_failure_is_cleaned_and_gpu_time_is_carried(tmp_path: Path) -> None:
+    task_output = tmp_path / "detect"
+    task_output.mkdir()
+    (task_output / "partial.txt").write_text("failed", encoding="utf-8")
+    state = TrainingTaskState(
+        status="failed",
+        consumed_gpu_seconds_upper_bound=7.5,
+        wall_seconds=7.5,
+        cpu_seconds=1.0,
+        peak_rss_bytes=10,
+        peak_vram_bytes=20,
+    )
+    resume, consumed_seconds = _prepare_task_retry(task_output, state)
+    assert resume is None
+    assert consumed_seconds == 7.5
+    assert not task_output.exists()
 
 
 def _write_split(path: Path, rows: list[tuple[str, str]]) -> None:
@@ -502,4 +562,5 @@ def test_parameterized_runtime_arguments_and_report_helpers(tmp_path: Path) -> N
     }
     markdown = _report_markdown(evidence, experiment)
     assert "YOLO26 nano" in markdown
+    assert "10.0 seconds against the 86,400-second ceiling" in markdown
     assert all(len(line) <= 120 for line in markdown.splitlines())

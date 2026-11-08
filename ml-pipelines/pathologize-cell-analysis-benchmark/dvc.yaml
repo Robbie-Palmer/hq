@@ -176,10 +176,13 @@ stages:
       - data/derived/nucls-ultralytics-yolo26n-v1
       - models/ultralytics/8.4.0
       - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/recovery.py
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/ultralytics_config.py
+      - src/pathologize_cell_analysis/ultralytics_task_training.py
       - src/pathologize_cell_analysis/ultralytics_training.py
+      - src/pathologize_cell_analysis/ultralytics_training_policy.py
       - pyproject.toml
       - uv.lock
     params:

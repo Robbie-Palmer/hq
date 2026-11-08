@@ -6,6 +6,7 @@ import pytest
 import torch
 
 from ultralytics_extensions.checkpoints import (
+    checkpoint_epoch,
     load_safe_checkpoint,
     resume_evidence,
     training_rows,
@@ -18,6 +19,7 @@ def test_checkpoint_loading_restricts_deserialization(tmp_path: Path) -> None:
     checkpoint = load_safe_checkpoint(torch, checkpoint_path)
     assert checkpoint["epoch"] == 3
     assert torch.equal(checkpoint["loss"], torch.tensor([0.25]))
+    assert checkpoint_epoch(torch, checkpoint_path) == 3
 
 
 def test_resume_requires_rows_and_checkpoint(tmp_path: Path) -> None:
@@ -35,7 +37,11 @@ def test_resume_requires_rows_and_checkpoint(tmp_path: Path) -> None:
     assert resume is not None
     assert resume.completed_epochs == 2
     assert resume.elapsed_seconds_upper_bound == 23.0
+    partial = tmp_path / "partial"
+    partial.mkdir()
+    assert resume_evidence(partial) is None
     incomplete = tmp_path / "incomplete"
     incomplete.mkdir()
+    (incomplete / "results.csv").write_text("epoch,time\n1,2\n", encoding="utf-8")
     with pytest.raises(ValueError, match="not resumable"):
         resume_evidence(incomplete)

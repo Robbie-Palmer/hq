@@ -43,7 +43,7 @@ NuCLS folds. Pathologize records, not Ultralytics-native metrics, are the evalua
 
 ## Resources and failures
 
-Aggregate measured GPU time was 1875.5103 seconds against a 86,400-second ceiling.
+Aggregate measured GPU time was 1,875.5 seconds against the 86,400-second ceiling.
 
 Prediction conversion rejected 0 instances. The cached evaluation evidence records each rejection.
 

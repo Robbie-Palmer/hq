@@ -79,6 +79,14 @@ def load_safe_checkpoint(torch_module: Any, checkpoint_path: Path) -> dict[str, 
     return checkpoint
 
 
+def checkpoint_epoch(torch_module: Any, checkpoint_path: Path) -> int:
+    checkpoint = load_safe_checkpoint(torch_module, checkpoint_path)
+    epoch = checkpoint.get("epoch")
+    if not isinstance(epoch, int):
+        raise TypeError("Ultralytics checkpoint epoch must be an integer")
+    return epoch
+
+
 def training_rows(task_output: Path) -> list[dict[str, float]]:
     results_path = task_output / "results.csv"
     if not results_path.is_file():
@@ -95,6 +103,8 @@ def resume_evidence(task_output: Path) -> ResumeEvidence | None:
         return None
     rows = training_rows(task_output)
     checkpoint = task_output / "weights" / "last.pt"
+    if not rows and not checkpoint.is_file():
+        return None
     if not rows or not checkpoint.is_file():
         raise ValueError(f"incomplete training output is not resumable: {task_output}")
     return ResumeEvidence(

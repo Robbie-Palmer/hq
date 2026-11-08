@@ -87,6 +87,24 @@ mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- exp show
 ```
 
+The training output is deliberately non-persistent so a parameter change starts
+a clean DVC experiment. After an interrupted run with unchanged parameters, do
+not rerun the training stage through `dvc repro`, because DVC removes that
+output before executing the stage. Resume and commit the recovered stage first:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:ultralytics:train
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  commit train_nucls_ultralytics
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  repro report_nucls_ultralytics
+```
+
+Per-task state preserves completed tasks, checkpoint resume evidence, and a
+conservative GPU-time charge for failed attempts. The aggregate ceiling applies
+to both restored and new work. Use a new DVC experiment or branch when any
+declared parameter changes.
+
 Durable experiment work is kept on its branch. This project does not maintain
 a parallel experiment-manifest registry or a common training abstraction.
 
