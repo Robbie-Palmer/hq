@@ -87,10 +87,13 @@ def test_source_verification_checks_size_and_digest(tmp_path: Path) -> None:
     )
 
     fixture_matrix._verify_source(source_path, source)
+    wrong_size_source = source.model_copy(update={"bytes": 8})
     with pytest.raises(ValueError, match="size differs"):
-        fixture_matrix._verify_source(source_path, source.model_copy(update={"bytes": 8}))
+        fixture_matrix._verify_source(source_path, wrong_size_source)
+
+    wrong_digest_source = source.model_copy(update={"sha256": "0" * 64})
     with pytest.raises(ValueError, match="SHA-256 differs"):
-        fixture_matrix._verify_source(source_path, source.model_copy(update={"sha256": "0" * 64}))
+        fixture_matrix._verify_source(source_path, wrong_digest_source)
 
 
 def test_source_paths_cannot_escape_fixture_root() -> None:
