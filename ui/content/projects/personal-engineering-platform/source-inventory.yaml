@@ -1,0 +1,1098 @@
+schema_version: 1
+
+additional_roots:
+  - ".agents"
+  - ".claude"
+  - ".coderabbit.yaml"
+  - ".config"
+  - ".copier"
+  - ".gitattributes"
+  - ".github"
+  - ".gitignore"
+  - ".husky"
+  - ".markdownlint.json"
+  - ".markdownlintignore"
+  - ".mise.toml"
+  - ".remarkignore"
+  - ".remarkrc.js"
+  - ".trivyignore.yaml"
+  - ".vale"
+  - ".vale.audit.ini"
+  - ".vale.ini"
+  - ".yamllint"
+  - "AGENTS.md"
+  - "CLAUDE.md"
+  - "CONTRIBUTING.md"
+  - "LICENSE"
+  - "README.md"
+  - "SECURITY.md"
+  - "_typos.toml"
+  - "api-governance"
+  - "biome.json"
+  - "copier-templates"
+  - "copier.yml"
+  - "data-pipelines/README.md"
+  - "docs"
+  - "functions"
+  - "infra/README.md"
+  - "knip.json"
+  - "mise.lock"
+  - "package.json"
+  - "patches"
+  - "pnpm-lock.yaml"
+  - "pnpm-workspace.yaml"
+  - "renovate.json"
+  - "scripts"
+  - "sonar-project.properties"
+  - "t3.json"
+
+components:
+  # Components already represented by project profiles and Copier receipts.
+  - id: "component:agent-first-writing/writing-editor-domain"
+    project: "project:agent-first-writing"
+    paths: [ "packages/writing-editor-domain" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/agent-first-writing/project-profile.yaml", component_id: "writing-editor-domain" }
+    receipt: { path: ".copier/projects/agent-first-writing.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:agent-first-writing/writing-editor-evaluation"
+    project: "project:agent-first-writing"
+    paths: [ "ml-pipelines/writing-editor-evaluation" ]
+    toolchains: [ "python" ]
+    profile: { path: "ui/content/projects/agent-first-writing/project-profile.yaml", component_id: "writing-editor-evaluation" }
+    receipt: { path: ".copier/projects/agent-first-writing.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:agentic-code-review/ai-review-domain"
+    project: "project:agentic-code-review"
+    paths: [ "packages/ai-review-domain" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/agentic-code-review/project-profile.yaml", component_id: "ai-review-domain" }
+    receipt: { path: ".copier/projects/agentic-code-review.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:agentic-code-review/ai-review-evaluation"
+    project: "project:agentic-code-review"
+    paths: [ "ml-pipelines/ai-review-evaluation" ]
+    toolchains: [ "python" ]
+    profile: { path: "ui/content/projects/agentic-code-review/project-profile.yaml", component_id: "ai-review-evaluation" }
+    receipt: { path: ".copier/projects/agentic-code-review.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-digital-infrastructure/publication"
+    project: "project:personal-digital-infrastructure"
+    paths: [ "ui/content/projects/personal-digital-infrastructure" ]
+    toolchains: [ "content" ]
+    profile: { path: "ui/content/projects/personal-digital-infrastructure/project-profile.yaml", component_id: "publication" }
+    receipt: { path: ".copier/projects/personal-digital-infrastructure.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/finance-housing-indices"
+    project: "project:personal-finance-app"
+    paths: [ "packages/finance-housing-indices" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "finance-housing-indices" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/finance-inflation-indices"
+    project: "project:personal-finance-app"
+    paths: [ "packages/finance-inflation-indices" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "finance-inflation-indices" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/finance-tax-rules"
+    project: "project:personal-finance-app"
+    paths: [ "packages/finance-tax-rules" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "finance-tax-rules" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/personal-finance"
+    project: "project:personal-finance-app"
+    paths: [ "infra/personal-finance" ]
+    toolchains: [ "terraform" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "personal-finance" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/personal-finance-api"
+    project: "project:personal-finance-app"
+    paths: [ "workers/personal-finance-api" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "personal-finance-api" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/personal-finance-contracts"
+    project: "project:personal-finance-app"
+    paths: [ "packages/personal-finance-contracts" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "personal-finance-contracts" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/personal-finance-data"
+    project: "project:personal-finance-app"
+    paths: [ "packages/personal-finance-data" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "personal-finance-data" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/planning-case-domain"
+    project: "project:personal-finance-app"
+    paths: [ "packages/planning-case-domain" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "planning-case-domain" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-finance-app/web"
+    project: "project:personal-finance-app"
+    paths: [ "ui/app/_projects/personal-finance-app", "ui/app/assettracker" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/personal-finance-app/project-profile.yaml", component_id: "web" }
+    receipt: { path: ".copier/projects/personal-finance-app.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:personal-knowledge-graph/publication"
+    project: "project:personal-knowledge-graph"
+    paths: [ "ui/content/projects/personal-knowledge-graph" ]
+    toolchains: [ "content" ]
+    profile: { path: "ui/content/projects/personal-knowledge-graph/project-profile.yaml", component_id: "publication" }
+    receipt: { path: ".copier/projects/personal-knowledge-graph.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:recipe-site/recipe-api"
+    project: "project:recipe-site"
+    paths: [ "workers/recipe-api" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/recipe-site/project-profile.yaml", component_id: "recipe-api" }
+    receipt: { path: ".copier/projects/recipe-site.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:recipe-site/recipe-dataset"
+    project: "project:recipe-site"
+    paths: [ "ml-pipelines/recipe-dataset" ]
+    toolchains: [ "python" ]
+    profile: { path: "ui/content/projects/recipe-site/project-profile.yaml", component_id: "recipe-dataset" }
+    receipt: { path: ".copier/projects/recipe-site.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:recipe-site/recipe-db"
+    project: "project:recipe-site"
+    paths: [ "packages/recipe-db" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/recipe-site/project-profile.yaml", component_id: "recipe-db" }
+    receipt: { path: ".copier/projects/recipe-site.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:recipe-site/recipe-domain"
+    project: "project:recipe-site"
+    paths: [ "packages/recipe-domain" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/recipe-site/project-profile.yaml", component_id: "recipe-domain" }
+    receipt: { path: ".copier/projects/recipe-site.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:recipe-site/recipe-ingest"
+    project: "project:recipe-site"
+    paths: [ "workers/recipe-ingest" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/recipe-site/project-profile.yaml", component_id: "recipe-ingest" }
+    receipt: { path: ".copier/projects/recipe-site.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:recipe-site/recipe-parsing"
+    project: "project:recipe-site"
+    paths: [ "packages/recipe-parsing" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/recipe-site/project-profile.yaml", component_id: "recipe-parsing" }
+    receipt: { path: ".copier/projects/recipe-site.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:wedding-planner/publication"
+    project: "project:wedding-planner"
+    paths: [ "ui/content/projects/wedding-planner" ]
+    toolchains: [ "content" ]
+    profile: { path: "ui/content/projects/wedding-planner/project-profile.yaml", component_id: "publication" }
+    receipt: { path: ".copier/projects/wedding-planner.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:wedding-planner/web"
+    project: "project:wedding-planner"
+    paths: [ "ui/app/_projects/wedding-planner", "ui/app/wedding-planner" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/wedding-planner/project-profile.yaml", component_id: "web" }
+    receipt: { path: ".copier/projects/wedding-planner.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:wedding-planner/wedding-planner"
+    project: "project:wedding-planner"
+    paths: [ "infra/wedding-planner" ]
+    toolchains: [ "terraform" ]
+    profile: { path: "ui/content/projects/wedding-planner/project-profile.yaml", component_id: "wedding-planner" }
+    receipt: { path: ".copier/projects/wedding-planner.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:wedding-planner/wedding-planner-api"
+    project: "project:wedding-planner"
+    paths: [ "workers/wedding-planner-api" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/wedding-planner/project-profile.yaml", component_id: "wedding-planner-api" }
+    receipt: { path: ".copier/projects/wedding-planner.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:wedding-planner/wedding-planner-contracts"
+    project: "project:wedding-planner"
+    paths: [ "packages/wedding-planner-contracts" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/wedding-planner/project-profile.yaml", component_id: "wedding-planner-contracts" }
+    receipt: { path: ".copier/projects/wedding-planner.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:wedding-planner/wedding-planner-data"
+    project: "project:wedding-planner"
+    paths: [ "packages/wedding-planner-data" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/wedding-planner/project-profile.yaml", component_id: "wedding-planner-data" }
+    receipt: { path: ".copier/projects/wedding-planner.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:wedding-planner/wedding-planner-domain"
+    project: "project:wedding-planner"
+    paths: [ "packages/wedding-planner-domain" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/wedding-planner/project-profile.yaml", component_id: "wedding-planner-domain" }
+    receipt: { path: ".copier/projects/wedding-planner.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:work-graph/work-graph"
+    project: "project:work-graph"
+    paths: [ "infra/work-graph" ]
+    toolchains: [ "terraform" ]
+    profile: { path: "ui/content/projects/work-graph/project-profile.yaml", component_id: "work-graph" }
+    receipt: { path: ".copier/projects/work-graph.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:work-graph/work-graph-api"
+    project: "project:work-graph"
+    paths: [ "workers/work-graph-api" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/work-graph/project-profile.yaml", component_id: "work-graph-api" }
+    receipt: { path: ".copier/projects/work-graph.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:work-graph/work-graph-cli"
+    project: "project:work-graph"
+    paths: [ "packages/work-graph-cli" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/work-graph/project-profile.yaml", component_id: "work-graph-cli" }
+    receipt: { path: ".copier/projects/work-graph.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:work-graph/work-graph-db"
+    project: "project:work-graph"
+    paths: [ "packages/work-graph-db" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/work-graph/project-profile.yaml", component_id: "work-graph-db" }
+    receipt: { path: ".copier/projects/work-graph.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:work-graph/work-graph-domain"
+    project: "project:work-graph"
+    paths: [ "packages/work-graph-domain" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/work-graph/project-profile.yaml", component_id: "work-graph-domain" }
+    receipt: { path: ".copier/projects/work-graph.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:work-graph/work-graph-observer"
+    project: "project:work-graph"
+    paths: [ "workers/work-graph-observer" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/work-graph/project-profile.yaml", component_id: "work-graph-observer" }
+    receipt: { path: ".copier/projects/work-graph.yml" }
+    adoption: { state: "managed", batch: null }
+
+  # Platform-owned repository and generator source.
+  - id: "component:personal-engineering-platform/repository-governance"
+    project: "project:personal-engineering-platform"
+    paths:
+      - ".agents"
+      - ".claude"
+      - ".coderabbit.yaml"
+      - ".config"
+      - ".copier"
+      - ".gitattributes"
+      - ".github"
+      - ".gitignore"
+      - ".husky"
+      - ".markdownlint.json"
+      - ".markdownlintignore"
+      - ".mise.toml"
+      - ".remarkignore"
+      - ".remarkrc.js"
+      - ".trivyignore.yaml"
+      - ".vale"
+      - ".vale.audit.ini"
+      - ".vale.ini"
+      - ".yamllint"
+      - "AGENTS.md"
+      - "CLAUDE.md"
+      - "CONTRIBUTING.md"
+      - "LICENSE"
+      - "README.md"
+      - "SECURITY.md"
+      - "_typos.toml"
+      - "api-governance"
+      - "biome.json"
+      - "data-pipelines/README.md"
+      - "docs"
+      - "infra/README.md"
+      - "knip.json"
+      - "mise.lock"
+      - "package.json"
+      - "patches"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+      - "renovate.json"
+      - "scripts"
+      - "sonar-project.properties"
+      - "t3.json"
+    toolchains: [ "content", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/project-generator"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/project-generator", "copier-templates", "copier.yml" ]
+    toolchains: [ "copier", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/bootstrap-infrastructure"
+    project: "project:personal-engineering-platform"
+    paths: [ "infra/bootstrap" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/cloudflare-access"
+    project: "project:personal-engineering-platform"
+    paths: [ "infra/cloudflare-access" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/oci-registry-spike"
+    project: "project:personal-engineering-platform"
+    paths: [ "infra/oci-registry-spike" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/project-infrastructure-modules"
+    project: "project:personal-engineering-platform"
+    paths: [ "infra/project-modules" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/public-platform"
+    project: "project:personal-engineering-platform"
+    paths: [ "infra/public-platform" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/browser-base"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/browser-base" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/cedar-authorization"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/cedar-authorization" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/data-artifacts"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/data-artifacts" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/drizzle-postgres"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/drizzle-postgres" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/drizzle-tooling"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/drizzle-tooling" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/iso-codes"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/iso-codes" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/mdx-rendering"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/mdx-rendering" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/ml-evaluation"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/ml-evaluation" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/node-base"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/node-base" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/object-storage"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/object-storage" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/observability"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/observability" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/openrouter-client"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/openrouter-client" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/platform-contracts"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/platform-contracts" ]
+    toolchains: [ "python", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/project-economics-domain"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/project-economics-domain" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/ts-base"
+    project: "project:personal-engineering-platform"
+    paths: [ "packages/ts-base" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/cpp-workspace"
+    project: "project:personal-engineering-platform"
+    paths: [ "cpp/.clang-format", "cpp/.clang-tidy", "cpp/.editorconfig", "cpp/README.md", "cpp/mise.toml" ]
+    toolchains: [ "cpp" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  - id: "component:personal-engineering-platform/python-pipeline-workspace"
+    project: "project:personal-engineering-platform"
+    paths: [ "ml-pipelines/.env.example", "ml-pipelines/README.md", "ml-pipelines/dvc-tool", "ml-pipelines/mise.toml", "ml-pipelines/scripts" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
+  # Project code that has not yet been adopted into a Copier receipt.
+  - id: "component:agent-coordinator/agent-auth"
+    project: "project:agent-coordinator"
+    paths: [ "packages/agent-auth" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:agent-coordinator/agent-auth-mcp"
+    project: "project:agent-coordinator"
+    paths: [ "packages/agent-auth-mcp" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:agent-coordinator/agent-coordinator-domain"
+    project: "project:agent-coordinator"
+    paths: [ "packages/agent-coordinator-domain" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:agent-coordinator/github-client"
+    project: "project:agent-coordinator"
+    paths: [ "packages/github-client" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:agent-friendly-remote-development/remote-development"
+    project: "project:agent-friendly-remote-development"
+    paths: [ "infra/remote-development", "homelab/images/t3-code" ]
+    toolchains: [ "container", "nix", "terraform", "typescript" ]
+    profile: { path: "ui/content/projects/agent-friendly-remote-development/project-profile.yaml", component_id: "remote-development" }
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:agentic-code-review/service"
+    project: "project:agentic-code-review"
+    paths: [ "ai-review" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:autonomic-satellite-swarm/system"
+    project: "project:autonomic-satellite-swarm"
+    paths: [ "cpp/autonomic-satellite-swarm" ]
+    toolchains: [ "cpp" ]
+    profile: { path: "ui/content/projects/autonomic-satellite-swarm/project-profile.yaml", component_id: "autonomic-satellite-swarm" }
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:inbox-signal/data"
+    project: "project:inbox-signal"
+    paths: [ "packages/inbox-signal-data" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:intelligent-document-processing/evaluation"
+    project: "project:intelligent-document-processing"
+    paths: [ "ml-pipelines/financial-document-idp-evaluation" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption:
+      state: "deferred"
+      batch: null
+      reason: "Employer-owned implementation is outside the personal Copier adoption boundary."
+
+  - id: "component:pathologize/benchmark-contracts"
+    project: "project:pathologize"
+    paths: [ "ml-pipelines/pathologize-benchmark-contracts" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/cell-analysis-benchmark"
+    project: "project:pathologize"
+    paths: [ "ml-pipelines/pathologize-cell-analysis-benchmark" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/data-registry"
+    project: "project:pathologize"
+    paths: [ "ml-pipelines/pathologize-data-registry" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/slide-quality-benchmark"
+    project: "project:pathologize"
+    paths: [ "ml-pipelines/pathologize-slide-quality-benchmark" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/tiling-benchmark"
+    project: "project:pathologize"
+    paths: [ "ml-pipelines/pathologize-tiling-benchmark" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/tiler"
+    project: "project:pathologize"
+    paths: [ "packages/pathologize-tiler" ]
+    toolchains: [ "python", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/wsi-analysis"
+    project: "project:pathologize"
+    paths: [ "ml-pipelines/wsi-analysis" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:personal-digital-infrastructure/account-foundation"
+    project: "project:personal-digital-infrastructure"
+    paths: [ "infra/account-foundation" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:personal-digital-infrastructure/backups"
+    project: "project:personal-digital-infrastructure"
+    paths: [ "backups" ]
+    toolchains: [ "shell" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:personal-digital-infrastructure/personal-archive"
+    project: "project:personal-digital-infrastructure"
+    paths: [ "infra/personal-archive" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:personal-digital-infrastructure/tailnet"
+    project: "project:personal-digital-infrastructure"
+    paths: [ "infra/tailnet" ]
+    toolchains: [ "terraform" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:personal-finance-app/finance-tax-monitor"
+    project: "project:personal-finance-app"
+    paths: [ "workers/finance-tax-monitor" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:recipe-site/recipe-parsing-pipeline"
+    project: "project:recipe-site"
+    paths: [ "ml-pipelines/recipe-parsing" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:work-graph/analytics"
+    project: "project:work-graph"
+    paths: [ "data-pipelines/work-graph-analytics" ]
+    toolchains: [ "sql", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:autonomic-satellite-swarm/web"
+    project: "project:autonomic-satellite-swarm"
+    paths: [ "ui/app/satellite-swarm" ]
+    toolchains: [ "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "04-ui-boundaries" }
+
+  - id: "component:recipe-site/web"
+    project: "project:recipe-site"
+    paths:
+      - "functions"
+      - "ui/app/(deck)"
+      - "ui/app/(site)"
+      - "ui/app/recipes"
+      - "ui/app/apple-icon.svg"
+      - "ui/app/catalog.json"
+      - "ui/app/globals.css"
+      - "ui/app/icon.svg"
+      - "ui/app/knowledge-graph.json"
+      - "ui/app/layout.tsx"
+      - "ui/app/not-found.tsx"
+      - "ui/app/posthog.md"
+      - "ui/app/robots.ts"
+      - "ui/app/sitemap.ts"
+      - "ui/app/_projects/README.md"
+      - "ui/biome.json"
+      - "ui/components"
+      - "ui/components.json"
+      - "ui/contexts"
+      - "ui/doctor.config.json"
+      - "ui/e2e"
+      - "ui/global.d.ts"
+      - "ui/hooks"
+      - "ui/instrumentation-client.ts"
+      - "ui/leaflet-fullscreen.d.ts"
+      - "ui/lib"
+      - "ui/mise.toml"
+      - "ui/next.config.ts"
+      - "ui/next-env.d.ts"
+      - "ui/.oxlintrc.json"
+      - "ui/package.json"
+      - "ui/playwright.mermaid.config.ts"
+      - "ui/playwright.preview.config.ts"
+      - "ui/playwright.resume.config.ts"
+      - "ui/postcss.config.mjs"
+      - "ui/public"
+      - "ui/scripts"
+      - "ui/tests"
+      - "ui/tsconfig.e2e.json"
+      - "ui/tsconfig.json"
+      - "ui/tsmetrics.yaml"
+      - "ui/vitest.config.ts"
+    toolchains: [ "cloudflare-workers", "nextjs", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "04-ui-boundaries" }
+
+  - id: "component:personal-knowledge-graph/site-content"
+    project: "project:personal-knowledge-graph"
+    paths:
+      - "ui/content/adr-aliases.ts"
+      - "ui/content/blog"
+      - "ui/content/experience.ts"
+      - "ui/content/ideas"
+      - "ui/content/initiatives"
+      - "ui/content/posthog.ts"
+      - "ui/content/projects/README.md"
+      - "ui/content/projects/building-philosophy.mdx"
+      - "ui/content/recipes"
+      - "ui/content/technologies.ts"
+    toolchains: [ "mdx", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "04-ui-boundaries" }
+
+  - id: "component:homelab/ansible"
+    project: "project:homelab"
+    paths: [ "homelab/ansible" ]
+    toolchains: [ "ansible" ]
+    profile: { path: "ui/content/projects/homelab/project-profile.yaml", component_id: "ansible" }
+    receipt: null
+    adoption: { state: "planned", batch: "05-homelab" }
+
+  - id: "component:homelab/hosts"
+    project: "project:homelab"
+    paths: [ "homelab/flake.lock", "homelab/flake.nix", "homelab/hosts", "homelab/modules", "homelab/packages" ]
+    toolchains: [ "nix" ]
+    profile: { path: "ui/content/projects/homelab/project-profile.yaml", component_id: "hosts" }
+    receipt: null
+    adoption: { state: "planned", batch: "05-homelab" }
+
+  - id: "component:homelab/k3s"
+    project: "project:homelab"
+    paths: [ "homelab/k3s" ]
+    toolchains: [ "kubernetes" ]
+    profile: { path: "ui/content/projects/homelab/project-profile.yaml", component_id: "k3s" }
+    receipt: null
+    adoption: { state: "planned", batch: "05-homelab" }
+
+  - id: "component:homelab/personal-archive-backup"
+    project: "project:homelab"
+    paths: [ "homelab/personal-archive-backup" ]
+    toolchains: [ "shell" ]
+    profile: { path: "ui/content/projects/homelab/project-profile.yaml", component_id: "personal-archive-backup" }
+    receipt: null
+    adoption: { state: "planned", batch: "05-homelab" }
+
+  - id: "component:homelab/remote-development-backup"
+    project: "project:homelab"
+    paths: [ "homelab/remote-development-backup" ]
+    toolchains: [ "shell" ]
+    profile: { path: "ui/content/projects/homelab/project-profile.yaml", component_id: "remote-development-backup" }
+    receipt: null
+    adoption: { state: "planned", batch: "05-homelab" }
+
+  - id: "component:homelab/operations"
+    project: "project:homelab"
+    paths: [ "homelab/.fluxschema.yml", "homelab/.gitignore", "homelab/README.md", "homelab/docs", "homelab/mise.toml", "homelab/scripts", "homelab/tests", "homelab/tsconfig.json" ]
+    toolchains: [ "content", "shell", "typescript" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "05-homelab" }
+
+  - id: "component:agent-coordinator/publication"
+    project: "project:agent-coordinator"
+    paths: [ "ui/content/projects/agent-coordinator" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:agent-first-writing/publication"
+    project: "project:agent-first-writing"
+    paths: [ "ui/content/projects/agent-first-writing" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:agent-friendly-remote-development/publication"
+    project: "project:agent-friendly-remote-development"
+    paths: [ "ui/content/projects/agent-friendly-remote-development" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:agentic-code-review/publication"
+    project: "project:agentic-code-review"
+    paths: [ "ui/content/projects/agentic-code-review" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:ai-assisted-macrodissection/publication"
+    project: "project:ai-assisted-macrodissection"
+    paths: [ "ui/content/projects/ai-assisted-macrodissection" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:automated-macrodissection/publication"
+    project: "project:automated-macrodissection"
+    paths: [ "ui/content/projects/automated-macrodissection" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:autonomic-satellite-swarm/publication"
+    project: "project:autonomic-satellite-swarm"
+    paths: [ "ui/content/projects/autonomic-satellite-swarm" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:bioinformatics-platform/publication"
+    project: "project:bioinformatics-platform"
+    paths: [ "ui/content/projects/bioinformatics-platform" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:chatbot/publication"
+    project: "project:chatbot"
+    paths: [ "ui/content/projects/chatbot" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:commercial-knowledge-graph/publication"
+    project: "project:commercial-knowledge-graph"
+    paths: [ "ui/content/projects/commercial-knowledge-graph" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:confluent-python-udfs/publication"
+    project: "project:confluent-python-udfs"
+    paths: [ "ui/content/projects/confluent-python-udfs" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:customer-health-forecasting/publication"
+    project: "project:customer-health-forecasting"
+    paths: [ "ui/content/projects/customer-health-forecasting" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:genomic-prediction/publication"
+    project: "project:genomic-prediction"
+    paths: [ "ui/content/projects/genomic-prediction" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:homelab/publication"
+    project: "project:homelab"
+    paths: [ "ui/content/projects/homelab" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:inbox-signal/publication"
+    project: "project:inbox-signal"
+    paths: [ "ui/content/projects/inbox-signal" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:intelligent-document-processing/publication"
+    project: "project:intelligent-document-processing"
+    paths: [ "ui/content/projects/intelligent-document-processing" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption:
+      state: "deferred"
+      batch: null
+      reason: "Employer-owned project material remains outside Copier adoption."
+
+  - id: "component:mobile-asset-identification/publication"
+    project: "project:mobile-asset-identification"
+    paths: [ "ui/content/projects/mobile-asset-identification" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption:
+      state: "deferred"
+      batch: null
+      reason: "Employer-owned project material remains outside Copier adoption."
+
+  - id: "component:multi-modal-product-search/publication"
+    project: "project:multi-modal-product-search"
+    paths: [ "ui/content/projects/multi-modal-product-search" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:open-collective-development/publication"
+    project: "project:open-collective-development"
+    paths: [ "ui/content/projects/open-collective-development" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:pathologize/publication"
+    project: "project:pathologize"
+    paths: [ "ui/content/projects/pathologize" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:pathology-viewer/publication"
+    project: "project:pathology-viewer"
+    paths: [ "ui/content/projects/pathology-viewer" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:personal-engineering-platform/publication"
+    project: "project:personal-engineering-platform"
+    paths: [ "ui/content/projects/personal-engineering-platform" ]
+    toolchains: [ "mdx", "yaml" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:personal-finance-app/publication"
+    project: "project:personal-finance-app"
+    paths: [ "ui/content/projects/personal-finance-app" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:pii-detection/publication"
+    project: "project:pii-detection"
+    paths: [ "ui/content/projects/pii-detection" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:real-time-multi-camera-video-analytics/publication"
+    project: "project:real-time-multi-camera-video-analytics"
+    paths: [ "ui/content/projects/real-time-multi-camera-video-analytics" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption:
+      state: "deferred"
+      batch: null
+      reason: "Employer-owned project material remains outside Copier adoption."
+
+  - id: "component:recipe-site/publication"
+    project: "project:recipe-site"
+    paths: [ "ui/content/projects/recipe-site" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:work-graph/publication"
+    project: "project:work-graph"
+    paths: [ "ui/content/projects/work-graph" ]
+    toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+exclusions:
+  - path: "ui/app/_projects/platform-bootstrap-canary"
+    reason: "Checked-in project-generator canary fixture, not maintained product source."
+  - path: "ui/app/platform-bootstrap-canary"
+    reason: "Checked-in project-generator canary route fixture, not maintained product source."

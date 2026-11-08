@@ -95,9 +95,9 @@ if ! command -v xz >/dev/null 2>&1; then
   export PATH="$PWD/scripts/tool-shims:$PATH"
 fi
 if [ ! -x "$emsdk_root/upstream/emscripten/emcmake" ]; then
-  mise exec python@3.14.7 -- "$emsdk_root/emsdk" install 6.0.9
+  mise exec python@3.14.8 -- "$emsdk_root/emsdk" install 6.0.9
 fi
-mise exec python@3.14.7 -- "$emsdk_root/emsdk" activate 6.0.9
+mise exec python@3.14.8 -- "$emsdk_root/emsdk" activate 6.0.9
 '''
 
 [tasks."browser:configure"]
