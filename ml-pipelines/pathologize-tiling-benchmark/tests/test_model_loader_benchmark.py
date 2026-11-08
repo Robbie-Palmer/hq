@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import runpy
+import sys
 from pathlib import Path
 
 import pytest
@@ -12,7 +14,11 @@ from pathologize_tiling_benchmark.model_loader_benchmark import (
     parse_positive_integers,
     plan_coordinate_batches,
 )
-from pathologize_tiling_benchmark.model_loader_cli import _parse_strings, main
+from pathologize_tiling_benchmark.model_loader_cli import (
+    ModelLoaderBenchmarkApplication,
+    _parse_strings,
+    main,
+)
 from pathologize_tiling_benchmark.model_loader_contracts import ModelLoaderBenchmarkConfig
 
 
@@ -33,6 +39,8 @@ def test_model_loader_config_rejects_invalid_matrix_values(tmp_path: Path) -> No
         _config(tmp_path, loader_concurrency=(1, 1))
     with pytest.raises(ValueError, match="must not be empty"):
         _config(tmp_path, workloads=())
+    with pytest.raises(ValueError, match="duplicates"):
+        _config(tmp_path, access_patterns=("random", "random"))
 
 
 def test_coordinate_batch_planning_is_deterministic_and_bounded() -> None:
@@ -160,3 +168,74 @@ def test_parse_positive_integers_and_cli_error_boundary(
         )
         == 2
     )
+
+
+def test_model_loader_cli_prints_or_writes_report(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    configs: list[ModelLoaderBenchmarkConfig] = []
+
+    class Report:
+        @staticmethod
+        def model_dump_json(*, indent: int) -> str:
+            assert indent == 2
+            return '{"result": "ok"}'
+
+    def succeed(config: ModelLoaderBenchmarkConfig) -> Report:
+        configs.append(config)
+        return Report()
+
+    monkeypatch.setattr(
+        "pathologize_tiling_benchmark.model_loader_cli.run_model_loader_benchmark",
+        succeed,
+    )
+    application = ModelLoaderBenchmarkApplication()
+
+    def run(output_path: str | None = None) -> None:
+        application.run(
+            fixture_root=str(tmp_path),
+            fixture_manifest=str(tmp_path / "assets.json"),
+            fixture_collection_manifest=str(tmp_path / "collection.json"),
+            batch_sizes="2",
+            loader_concurrency=3,
+            access_patterns="contiguous",
+            workloads="inference",
+            warmup_batches=1,
+            measured_batches=2,
+            random_seed=7,
+            output_path=output_path,
+        )
+
+    run()
+
+    assert capsys.readouterr().out == '{"result": "ok"}\n'
+    assert configs[0].batch_sizes == (2,)
+    assert configs[0].loader_concurrency == (3,)
+    assert configs[0].access_patterns == ("contiguous",)
+    assert configs[0].workloads == ("inference",)
+    output_path = tmp_path / "reports" / "result.json"
+
+    run(str(output_path))
+
+    assert output_path.read_text(encoding="utf-8") == '{"result": "ok"}\n'
+    assert capsys.readouterr().out == f"{output_path.resolve()}\n"
+
+
+def test_model_loader_cli_success_and_module_entrypoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr("fire.Fire", lambda *_args, **_kwargs: None)
+
+    assert main([]) == 0
+    monkeypatch.delitem(
+        sys.modules,
+        "pathologize_tiling_benchmark.model_loader_cli",
+    )
+    with pytest.raises(SystemExit) as exit_info:
+        runpy.run_module(
+            "pathologize_tiling_benchmark.model_loader_cli",
+            run_name="__main__",
+        )
+    assert exit_info.value.code == 0
