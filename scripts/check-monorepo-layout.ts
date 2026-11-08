@@ -646,12 +646,13 @@ export async function validateRepositoryLayout(
   const catalogRecords = await loadCatalogRecords(repositoryRoot);
   const componentDirectoryCheck = Promise.all(
     (contract.component_kinds ?? []).map(async (component) => {
-      const activeDirectories =
-        contract.schema_version === 2 && contract.enforcement === "migration"
-          ? component.migration_only
-            ? [component.directory]
-            : component.migration_directories
-          : [component.directory];
+      const usesMigrationDirectories =
+        contract.schema_version === 2 &&
+        contract.enforcement === "migration" &&
+        !component.migration_only;
+      const activeDirectories = usesMigrationDirectories
+        ? component.migration_directories
+        : [component.directory];
       if (activeDirectories.length === 0) return null;
       const stablePrefix = activeDirectories[0]
         .split("{")[0]
