@@ -308,6 +308,25 @@ description = "Import the checked Pathologize GPU image into Vector K3s without 
 depends = ["pathologize-gpu-image-check"]
 run = "bash scripts/load-vector-pathologize-gpu-image.sh"
 
+[tasks.pathologize-cucim-image-build]
+description = "Build the pinned Pathologize cuCIM TIFF trial image"
+depends = ["//ml-pipelines/pathologize-tiling-benchmark:fixtures:tiff-gpu"]
+run = "bash scripts/build-pathologize-cucim-benchmark-image.sh"
+
+[tasks.pathologize-cucim-image-check]
+description = "Check the Pathologize cuCIM TIFF trial image without a GPU"
+depends = ["pathologize-cucim-image-build"]
+run = "bash scripts/check-pathologize-cucim-benchmark-image.sh"
+
+[tasks.pathologize-cucim-image-build-check]
+description = "Build and CPU-check the Pathologize cuCIM TIFF trial image"
+depends = ["pathologize-cucim-image-check"]
+
+[tasks.pathologize-cucim-run-local]
+description = "Run the bounded cuCIM TIFF trial on the local NVIDIA GPU"
+depends = ["pathologize-cucim-image-check"]
+run = "bash scripts/run-pathologize-cucim-benchmark-local.sh"
+
 [tasks.vector-gpu-diagnostic]
 description = "Run the bounded DCGM level-1 diagnostic on Vector"
 run = "bash scripts/vector-gpu-diagnostic.sh"
@@ -360,6 +379,9 @@ bash -n \
   scripts/build-pathologize-gpu-benchmark-image.sh \
   scripts/check-pathologize-gpu-benchmark-image.sh \
   scripts/load-vector-pathologize-gpu-image.sh \
+  scripts/build-pathologize-cucim-benchmark-image.sh \
+  scripts/check-pathologize-cucim-benchmark-image.sh \
+  scripts/run-pathologize-cucim-benchmark-local.sh \
   scripts/vector-gpu-diagnostic.sh \
   scripts/vector-development-agent-auth-health.sh \
   scripts/install-vector-development-agent-credentials.sh \
