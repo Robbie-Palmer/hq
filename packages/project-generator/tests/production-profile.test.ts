@@ -213,6 +213,83 @@ describe("Personal Finance production profile", () => {
     });
   });
 
+  it("preserves paths recorded by the existing Copier receipt during migration", async () => {
+    const [{ blueprint }, receiptSource] = await Promise.all([
+      productionBlueprint(),
+      readFile(
+        new URL(".copier/projects/personal-finance-app.yml", repositoryRoot),
+        "utf8",
+      ),
+    ]);
+    const receipt = parse(receiptSource) as {
+      blueprint: {
+        components: Array<{ id: string; path: string }>;
+        repository_paths: typeof blueprint.repository_paths;
+      };
+    };
+
+    expect(
+      blueprint.components.map(({ id, path }) => ({ id, path })),
+    ).toEqual(
+      receipt.blueprint.components.map(({ id, path }) => ({ id, path })),
+    );
+    expect(blueprint.repository_paths).toEqual(
+      receipt.blueprint.repository_paths,
+    );
+  });
+
+  it("resolves target technology paths under final enforcement", async () => {
+    const { blueprint, contracts } = await productionBlueprint();
+    if (contracts.layout.schema_version !== 2) {
+      throw new Error("Expected layout v2");
+    }
+    const profile = parseProjectProfile(await readFile(profileUrl, "utf8"));
+    const target = resolveProjectProfile(
+      profile,
+      {
+        ...contracts,
+        layout: { ...contracts.layout, enforcement: "final" },
+      },
+      effectiveAt,
+    );
+
+    expect(blueprint.components.find(({ id }) => id === "web")?.path).toBe(
+      "ui/app/_projects/personal-finance-app",
+    );
+    expect(target.components).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: "web",
+          path: "typescript/apps/site-ui/features/personal-finance-app",
+        }),
+        expect.objectContaining({
+          id: "personal-finance-api",
+          path: "typescript/apps/personal-finance-api",
+        }),
+        expect.objectContaining({
+          id: "personal-finance",
+          path: "terraform/roots/personal-finance",
+        }),
+      ]),
+    );
+    expect(target.repository_paths.project_index).toBe(
+      "content/projects/personal-finance-app/index.mdx",
+    );
+    expect(
+      blueprint.components
+        .find(({ id }) => id === "web")
+        ?.tasks.find(({ name }) => name === "typecheck-or-compile"),
+    ).toMatchObject({ disposition: "delegated", target: "//ui:typecheck" });
+    expect(
+      target.components
+        .find(({ id }) => id === "web")
+        ?.tasks.find(({ name }) => name === "typecheck-or-compile"),
+    ).toMatchObject({
+      disposition: "delegated",
+      target: "//typescript/apps/site-ui:typecheck",
+    });
+  });
+
   it("pins the production template and inherits local task applicability", async () => {
     const [{ blueprint, contracts }, registrySource] = await Promise.all([
       productionBlueprint(),

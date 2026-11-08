@@ -1,4 +1,5 @@
-schema_version: 1
+schema_version: 2
+enforcement: "migration"
 
 project_kinds:
   - id: "application"
@@ -57,64 +58,159 @@ projects:
 
 component_kinds:
   - id: "ui"
+    description: "Migration-only compatibility kind for the current shared frontend host."
+    technology: "typescript"
     directory: "ui"
+    migration_only: true
     mise_config_root: true
     pnpm_workspace_package: true
     task_ownership: inherited
   - id: "project-ui"
     description: "Project-owned browser code mounted into the shared frontend host."
-    directory: "ui/app/_projects/{project}"
+    technology: "typescript"
+    directory: "typescript/apps/site-ui/features/{project}"
+    migration_directories: [ "ui/app/_projects/{project}" ]
     mise_config_root: false
     pnpm_workspace_package: false
     task_ownership: delegated
-    delegated_task_project: "//ui"
+    delegated_task_project: "//typescript/apps/site-ui"
+    migration_delegated_task_project: "//ui"
   - id: "project-content"
     description: "Project knowledge-graph content rendered by the shared frontend."
-    directory: "ui/content/projects/{project}"
+    technology: "content"
+    directory: "content/projects/{project}"
+    migration_directories: [ "ui/content/projects/{project}" ]
     mise_config_root: false
     pnpm_workspace_package: false
     task_ownership: delegated
-    delegated_task_project: "//ui"
+    delegated_task_project: "//typescript/apps/site-ui"
+    migration_delegated_task_project: "//ui"
   - id: "worker"
-    directory: "workers/{component}"
+    description: "A TypeScript application, Worker, or independently deployed service."
+    technology: "typescript"
+    directory: "typescript/apps/{component}"
+    migration_directories: [ "workers/{component}" ]
     mise_config_root: true
     pnpm_workspace_package: true
     task_ownership: inherited
   - id: "typescript-package"
-    directory: "packages/{component}"
+    technology: "typescript"
+    directory: "typescript/packages/{component}"
+    migration_directories: [ "packages/{component}" ]
     mise_config_root: true
     pnpm_workspace_package: true
     task_ownership: inherited
   - id: "python-pipeline"
-    directory: "ml-pipelines/{component}"
+    description: "A Python application, pipeline, training job, or evaluation."
+    technology: "python"
+    directory: "python/apps/{component}"
+    migration_directories: [ "ml-pipelines/{component}" ]
+    mise_config_root: true
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "python-package"
+    technology: "python"
+    directory: "python/packages/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
     task_ownership: inherited
   - id: "cpp-project"
-    directory: "cpp/{component}"
+    description: "A C++ application, firmware system, simulator, or host tool."
+    technology: "cpp"
+    directory: "cpp/apps/{component}"
+    migration_directories: [ "cpp/{component}" ]
+    mise_config_root: true
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "cpp-library"
+    technology: "cpp"
+    directory: "cpp/packages/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
     task_ownership: inherited
   - id: "terraform-root"
-    directory: "infra/{component}"
+    technology: "terraform"
+    directory: "terraform/roots/{component}"
+    migration_directories: [ "infra/{component}" ]
+    mise_config_root: true
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "terraform-module"
+    technology: "terraform"
+    directory: "terraform/modules/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
     task_ownership: inherited
   - id: "kubernetes-component"
-    directory: "homelab/k3s/components/{component}"
+    description: "A reusable Kubernetes package consumed by one or more applications."
+    technology: "kubernetes"
+    directory: "kubernetes/packages/{component}"
+    migration_directories: [ "homelab/k3s/components/{component}" ]
+    mise_config_root: true
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "kubernetes-app"
+    technology: "kubernetes"
+    directory: "kubernetes/apps/{component}"
     mise_config_root: true
     pnpm_workspace_package: false
     task_ownership: inherited
   - id: "homelab-system"
+    description: "Migration-only compatibility kind for the aggregate Home Lab root."
+    technology: "nix"
     directory: "homelab"
+    migration_only: true
     mise_config_root: true
     pnpm_workspace_package: false
     task_ownership: inherited
   - id: "homelab-subsystem"
-    description: "A project-specific Home Lab subtree that inherits task
-      applicability from the Home Lab mise hierarchy."
+    description: "Migration-only compatibility kind for a Home Lab subtree."
+    technology: "nix"
     directory: "homelab/{component}"
+    migration_only: true
     mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "nix-host"
+    technology: "nix"
+    directory: "nix/hosts/{component}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "nix-module"
+    technology: "nix"
+    directory: "nix/modules/{component}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "nix-package"
+    technology: "nix"
+    directory: "nix/packages/{component}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "ansible-inventory"
+    technology: "ansible"
+    directory: "ansible/inventories/{component}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "ansible-playbook"
+    technology: "ansible"
+    directory: "ansible/playbooks/{component}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "ansible-role"
+    technology: "ansible"
+    directory: "ansible/roles/{component}"
+    mise_config_root: false
+    pnpm_workspace_package: false
+    task_ownership: inherited
+  - id: "container-image"
+    technology: "containers"
+    directory: "containers/images/{component}"
+    mise_config_root: true
     pnpm_workspace_package: false
     task_ownership: inherited
 
@@ -130,6 +226,11 @@ task_contract:
     - "clean"
 
 knowledge_graph:
+  project_index: "content/projects/{project}/index.mdx"
+  architecture_decisions: "content/projects/{project}/adrs/{sequence}-{slug}.mdx"
+  product_decisions: "content/projects/{project}/pdrs/{sequence}-{slug}.mdx"
+
+migration_knowledge_graph:
   project_index: "ui/content/projects/{project}/index.mdx"
   architecture_decisions: "ui/content/projects/{project}/adrs/{sequence}-{slug}.mdx"
   product_decisions: "ui/content/projects/{project}/pdrs/{sequence}-{slug}.mdx"
@@ -152,3 +253,13 @@ workspace_policy:
     - "homelab/images/t3-code/package-lock.json"
     - "packages/agent-auth-mcp/package-lock.json"
   local_mise_roots: [ "homelab/images/t3-code" ]
+  technology_roots:
+    - { id: "typescript", directory: "typescript", workspace: "pnpm" }
+    - { id: "python", directory: "python", workspace: "uv" }
+    - { id: "cpp", directory: "cpp", workspace: "cmake" }
+    - { id: "terraform", directory: "terraform", workspace: "terraform" }
+    - { id: "nix", directory: "nix", workspace: "nix" }
+    - { id: "kubernetes", directory: "kubernetes", workspace: "kubernetes" }
+    - { id: "ansible", directory: "ansible", workspace: "ansible" }
+    - { id: "containers", directory: "containers", workspace: "container" }
+    - { id: "content", directory: "content", workspace: "content" }
