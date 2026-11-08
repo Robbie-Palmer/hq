@@ -47,4 +47,4 @@ def test_resume_requires_rows_and_checkpoint(tmp_path: Path) -> None:
     checkpoint_only = tmp_path / "checkpoint-only/weights"
     checkpoint_only.mkdir(parents=True)
     (checkpoint_only / "last.pt").write_bytes(b"checkpoint")
-    assert resume_evidence(checkpoint_only.parents[1]) is None
+    assert resume_evidence(checkpoint_only.parent) is None
