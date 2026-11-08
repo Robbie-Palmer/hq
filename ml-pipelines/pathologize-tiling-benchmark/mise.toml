@@ -51,9 +51,29 @@ description = "Verify tiling contracts, leakage boundaries, and scorecards"
 depends = ["sync", "repro"]
 run = "uv run --locked pathologize-benchmark verify && uv run --locked pathologize-tiling-experiment verify"
 
+[tasks."fixtures:validate"]
+description = "Validate the public WSI decoder fixture matrix"
+depends = ["sync"]
+run = "uv run --locked pathologize-fixture-matrix validate"
+
+[tasks."fixtures:acquire"]
+description = "Acquire and verify the 1.9 MB public WSI smoke fixture"
+depends = ["sync"]
+run = "uv run --locked pathologize-fixture-matrix acquire --profile smoke"
+
+[tasks."fixtures:acquire:extended"]
+description = "Acquire and verify the opt-in 734 MB public WSI fixture matrix"
+depends = ["sync"]
+run = "uv run --locked pathologize-fixture-matrix acquire --profile extended"
+
+[tasks."fixtures:probe"]
+description = "Probe every materialized WSI fixture with CPU-safe readers"
+depends = ["sync"]
+run = "uv run --locked pathologize-fixture-matrix probe"
+
 [tasks.check]
 description = "Check the tiling benchmark"
-depends = ["lint", "typecheck", "test:coverage", "verify"]
+depends = ["lint", "typecheck", "test:coverage", "verify", "fixtures:validate"]
 
 [tasks."model-loader:sync"]
 description = "Install the locked CUDA model-loader benchmark environment"

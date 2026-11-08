@@ -6,6 +6,7 @@ requires-python = ">=3.12,<3.13"
 dependencies = [
     "fire>=0.7.1,<0.8",
     "numpy>=2.3.5,<3",
+    "openslide-python>=1.4.3",
     "pathologize-benchmark-contracts",
     "pathologize-tiler",
     "pydantic>=2.12.5,<3",
@@ -15,6 +16,7 @@ dependencies = [
 pathologize-tiling-experiment = "pathologize_tiling_benchmark.cli:main"
 pathologize-gpu-decode-benchmark = "pathologize_tiling_benchmark.gpu_cli:main"
 pathologize-model-loader-benchmark = "pathologize_tiling_benchmark.model_loader_cli:main"
+pathologize-fixture-matrix = "pathologize_tiling_benchmark.fixture_matrix:main"
 
 [project.optional-dependencies]
 cuda = [

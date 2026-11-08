@@ -45,3 +45,20 @@ feeds both decode routes into a deterministic, locally initialized ResNet-18.
 It measures cold and steady-state decode, queueing, preprocessing, forward,
 backward, overlap, throughput, host CPU, GPU memory, and transfer bytes across
 batch size and loader concurrency. It downloads no model weights.
+
+The [public WSI decoder fixture matrix](reports/wsi-decoder-fixture-matrix.md)
+adds checksum-pinned Aperio, Leica, generic TIFF, and DICOM WSI cases across
+JPEG and JPEG 2000. The default acquisition downloads only a 1.9 MB smoke
+fixture. The 734 MB extended profile is explicit, and neither profile checks
+large binaries into Git.
+
+```bash
+mise run //ml-pipelines/pathologize-tiling-benchmark:fixtures:validate
+mise run //ml-pipelines/pathologize-tiling-benchmark:fixtures:acquire
+mise run //ml-pipelines/pathologize-tiling-benchmark:fixtures:probe
+```
+
+Use `fixtures:acquire:extended` only when the full public matrix is needed.
+The probe retains host output, tests per-axis level selection and boundary
+tiles, and records why an unavailable accelerator fell back to OpenSlide or
+wsidicom.
