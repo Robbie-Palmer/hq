@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import contextlib
 import io
-import os
 import random
 import resource
 import statistics
+import sys
 import time
 from collections.abc import Callable
 from importlib import import_module
@@ -143,8 +144,13 @@ def _peak_rss_bytes() -> int:
         for line in status.read_text(encoding="utf-8").splitlines():
             if line.startswith("VmHWM:"):
                 return int(line.split()[1]) * 1024
-    multiplier = 1024 if os.name != "darwin" else 1
+    multiplier = 1 if sys.platform == "darwin" else 1024
     return int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss) * multiplier
+
+
+def _reset_peak_rss() -> None:
+    with contextlib.suppress(OSError):
+        Path("/proc/self/clear_refs").write_text("5\n", encoding="ascii")
 
 
 def _consumer_weights(cupy: Any) -> Any:
@@ -363,6 +369,7 @@ def _run_case(
 
     memory_pool = cupy.get_default_memory_pool()
     memory_pool.free_all_blocks()
+    _reset_peak_rss()
     first_stages, first_wall, first_cpu = sample()
     first_result = PipelineCaseResult(
         pipeline=pipeline,
@@ -379,6 +386,7 @@ def _run_case(
     for _ in range(config.warmup_repetitions):
         sample()
     memory_pool.free_all_blocks()
+    _reset_peak_rss()
     steady_samples = tuple(sample() for _ in range(config.measured_repetitions))
     steady_result = PipelineCaseResult(
         pipeline=pipeline,

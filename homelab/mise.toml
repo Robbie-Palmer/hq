@@ -301,6 +301,7 @@ depends = ["pathologize-gpu-image-check"]
 
 [tasks.pathologize-gpu-image-push]
 description = "Push the checked Pathologize GPU benchmark image to GHCR"
+depends = ["pathologize-gpu-image-check"]
 run = "docker push ghcr.io/robbie-palmer/pathologize-gpu-benchmark:0.1.0"
 
 [tasks.pathologize-gpu-image-load-vector]
