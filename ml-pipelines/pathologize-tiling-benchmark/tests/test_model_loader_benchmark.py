@@ -41,15 +41,22 @@ def test_coordinate_batch_planning_is_deterministic_and_bounded() -> None:
         coordinates,
         access_pattern="random",
         batch_size=2,
-        batch_count=4,
+        batch_count=6,
         seed=17,
     )
     second = plan_coordinate_batches(
         coordinates,
         access_pattern="random",
         batch_size=2,
-        batch_count=4,
+        batch_count=6,
         seed=17,
+    )
+    different_seed = plan_coordinate_batches(
+        coordinates,
+        access_pattern="random",
+        batch_size=2,
+        batch_count=6,
+        seed=18,
     )
     contiguous = plan_coordinate_batches(
         coordinates,
@@ -60,6 +67,10 @@ def test_coordinate_batch_planning_is_deterministic_and_bounded() -> None:
     )
 
     assert first == second
+    assert first != different_seed
+    assert first[:3] != first[3:]
+    assert {coordinate for batch in first[:3] for coordinate in batch} == set(coordinates)
+    assert {coordinate for batch in first[3:] for coordinate in batch} == set(coordinates)
     assert all(len(batch) == 2 for batch in first)
     assert contiguous == (((1, 0), (2, 0), (3, 0)), ((4, 0), (5, 0), (0, 0)))
     with pytest.raises(ValueError, match="at least one"):

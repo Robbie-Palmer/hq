@@ -5,7 +5,6 @@ import json
 import os
 import platform
 import queue
-import random
 import socket
 import statistics
 import threading
@@ -60,15 +59,21 @@ def plan_coordinate_batches(
     if batch_size > len(coordinates):
         raise ValueError(f"batch size {batch_size} exceeds {len(coordinates)} complete tiles")
     selected: list[tuple[int, int]] = []
-    generator = random.Random(seed)  # noqa: S311  # NOSONAR - deterministic benchmark sampling.
+    cycle_index = 0
     while len(selected) < batch_size * batch_count:
         cycle = list(coordinates)
         if access_pattern == "random":
-            generator.shuffle(cycle)
+            # Hash ranking is reproducible and carries no security semantics.
+            cycle.sort(
+                key=lambda coordinate: hashlib.sha256(
+                    f"{seed}:{cycle_index}:{coordinate[0]}:{coordinate[1]}".encode()
+                ).digest()
+            )
         else:
             offset = seed % len(cycle)
             cycle = cycle[offset:] + cycle[:offset]
         selected.extend(cycle)
+        cycle_index += 1
     selected = selected[: batch_size * batch_count]
     return tuple(
         tuple(selected[start : start + batch_size]) for start in range(0, len(selected), batch_size)

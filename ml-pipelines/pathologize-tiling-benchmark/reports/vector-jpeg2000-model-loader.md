@@ -67,6 +67,7 @@ the explicit CUDA stream and CUDA array interfaces in its
 | Level | Logical level 0, 14,400 × 14,770, 256 × 256 RGB tiles, 3,192 complete tiles |
 | Physical scale | 0.2501 × 0.2501 µm/px |
 | Transfer syntax | JPEG 2000 `1.2.840.10008.1.2.4.91`, `YBR_ICT` |
+| Measurement source commit | `958c6f8f64866c03746332ce08df73dc0019320b` |
 | Raw run SHA-256 | `831ec410c4c831478c0c7fcf2d9cf116dc2c31b9811dfe0f7354a8981de4a6bb` |
 | Raw run SHA-256 | `ef8f2dcb863c7dd04f97af4137f4e1948fbc37c3f1840e4c2ac27f481fd6f29d` |
 | Raw run SHA-256 | `80267a5a365e3ef6843d2f9150deceacd54dfb215b9de9beff19f0ffc86aaf64` |
