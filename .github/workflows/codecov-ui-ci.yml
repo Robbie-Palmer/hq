@@ -1,0 +1,99 @@
+name: Codecov UI insights
+
+on:
+  pull_request:
+    paths:
+      - "ui/**"
+      - "cpp/autonomic-satellite-swarm/**"
+      - "cpp/mise.toml"
+      - ".github/actions/setup-mise/**"
+      - ".github/workflows/codecov-ui-ci.yml"
+      - ".mise.toml"
+      - "codecov.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  push:
+    branches:
+      - main
+    paths:
+      - "ui/**"
+      - "cpp/autonomic-satellite-swarm/**"
+      - "cpp/mise.toml"
+      - ".github/actions/setup-mise/**"
+      - ".github/workflows/codecov-ui-ci.yml"
+      - ".mise.toml"
+      - "codecov.yml"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "pnpm-workspace.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: codecov-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  ui-insights:
+    name: Bundle and test analytics
+    runs-on: ubuntu-latest
+    environment:
+      name: production-ci
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Setup mise
+        uses: ./.github/actions/setup-mise
+
+      - name: Get pnpm store directory
+        id: pnpm-store
+        shell: bash
+        run: echo "dir=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+
+      - name: Restore pnpm store
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.dir }}
+          key: pnpm-store-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: pnpm-store-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: mise run //:install
+
+      - name: Run UI unit tests
+        id: ui-tests
+        continue-on-error: true
+        env:
+          CODECOV_TEST_RESULTS: "true"
+        run: mise run //ui:test:coverage
+
+      - name: Upload UI test results to Codecov
+        if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) }}
+        uses: codecov/codecov-action@2320916714171c258d01dbd81040d64d798c6f8e # v7.1.1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: ui/test-results/codecov.junit.xml
+          flags: ui-unit
+          report_type: test_results
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Build UI and upload bundle analysis
+        env:
+          CODECOV_BUNDLE_ANALYSIS: "true"
+          CODECOV_USE_OIDC: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false }}
+          NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH: placeholder
+        run: mise run //ui:build
+
+      - name: Propagate UI test failure
+        if: ${{ steps.ui-tests.outcome == 'failure' }}
+        run: exit 1
