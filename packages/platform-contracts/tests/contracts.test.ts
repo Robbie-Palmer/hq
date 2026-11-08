@@ -31,7 +31,7 @@ describe("shared platform contract parsers", () => {
         load("deployment-maturity.yaml"),
       ]);
 
-    expect(parseRepositoryLayoutContract(layout).schema_version).toBe(1);
+    expect(parseRepositoryLayoutContract(layout).schema_version).toBe(2);
     expect(parsePlatformManifestSource(platform).schema_version).toBe(1);
     expect(parseNixFlakeContract(nix).contract).toBe("nix-flake");
     expect(parseOpenTelemetryContract(opentelemetry).contract).toBe(
@@ -120,6 +120,25 @@ describe("shared platform contract parsers", () => {
         task_ownership: "generated",
       }),
     ]);
+  });
+
+  it("parses migration and final version 2 layouts", async () => {
+    const source = parseRepositoryLayoutContract(
+      await load("repository-layout.yaml"),
+    );
+    if (source.schema_version !== 2) throw new Error("Expected layout v2");
+
+    expect(source.enforcement).toBe("migration");
+    expect(source.workspace_policy.technology_roots).toEqual(
+      expect.arrayContaining([
+        { id: "typescript", directory: "typescript", workspace: "pnpm" },
+        { id: "content", directory: "content", workspace: "content" },
+      ]),
+    );
+
+    expect(
+      parseRepositoryLayoutContract({ ...source, enforcement: "final" }),
+    ).toMatchObject({ schema_version: 2, enforcement: "final" });
   });
 
   it("infers policy selections from their value", () => {
