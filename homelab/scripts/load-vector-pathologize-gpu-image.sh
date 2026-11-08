@@ -8,7 +8,7 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 source "${script_dir}/vector-development-ssh.sh"
 vector_development_prepare_ssh "${target}"
 
-for command in docker gzip jq ssh; do
+for command in docker gzip ssh; do
   if ! command -v "${command}" >/dev/null 2>&1; then
     echo "${command} is required" >&2
     exit 1
@@ -26,7 +26,8 @@ digest=$(
         test "$(hostname)" = vector-development
         test "$(k3s kubectl get node vector-development --output=jsonpath='"'"'{.metadata.labels.homelab\.dev/location}'"'"')" = home
         gzip --decompress --stdout | k3s ctr images import - >/dev/null
-        k3s ctr images info "${image}" | jq --exit-status --raw-output .target.digest
+        k3s ctr images list "name==${image}" \
+          | awk "NR > 1 && \$1 == \"${image}\" { print \$3; exit }"
       '
 )
 

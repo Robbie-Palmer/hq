@@ -2357,6 +2357,10 @@ test("the Pathologize GPU benchmark image pins CUDA dependencies and public inpu
     new URL("../scripts/load-vector-pathologize-gpu-image.sh", import.meta.url),
     "utf8",
   );
+  const homelabMise = readFileSync(
+    new URL("../mise.toml", import.meta.url),
+    "utf8",
+  );
 
   assert.match(
     dockerfile,
@@ -2379,8 +2383,14 @@ test("the Pathologize GPU benchmark image pins CUDA dependencies and public inpu
     /^target=\$\{VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development\.tailaa0e46\.ts\.net\}$/m,
   );
   assert.match(loadScript, /gzip --decompress --stdout \| k3s ctr images import -/);
+  assert.match(loadScript, /k3s ctr images list "name==\$\{image\}"/);
+  assert.doesNotMatch(loadScript, /k3s ctr images info/);
   assert.match(loadScript, /k3s crictl inspecti/);
   assert.match(loadScript, /\.metadata\.labels\.homelab\\\.dev\/location/);
+  assert.match(
+    homelabMise,
+    /\[tasks\.pathologize-gpu-image-push\][\s\S]*?depends = \["pathologize-gpu-image-check"\]/,
+  );
 });
 
 test("the Vector workspace image provides the required glibc version", () => {
