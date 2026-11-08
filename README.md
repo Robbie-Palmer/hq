@@ -1,5 +1,6 @@
 # hq
 
+[![Codecov coverage](https://codecov.io/github/Robbie-Palmer/hq/branch/main/graph/badge.svg)](https://app.codecov.io/github/Robbie-Palmer/hq)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
@@ -9,6 +10,15 @@
 
 My monorepo for [robbiepalmer.me](https://robbiepalmer.me), software projects, experiments,
 writing, infrastructure, and homelab configuration.
+
+## CI reports
+
+Codecov [Tests](https://app.codecov.io/github/Robbie-Palmer/hq/tests) tracks per-test durations and
+failures, while [Bundles](https://app.codecov.io/github/Robbie-Palmer/hq/bundles/main/personal-site-ui)
+shows JavaScript bundle changes. The [coverage report](https://app.codecov.io/github/Robbie-Palmer/hq)
+is the same recursive report set consumed by SonarQube.
+
+[![Codecov icicle graph](https://codecov.io/github/Robbie-Palmer/hq/graphs/icicle.svg)](https://app.codecov.io/github/Robbie-Palmer/hq)
 
 Things you can visit:
 

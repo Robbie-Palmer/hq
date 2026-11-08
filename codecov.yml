@@ -16,7 +16,10 @@ coverage:
         threshold: 0%
 
 bundle_analysis:
-  status: informational
+  # Block only when a PR exceeds Codecov's default relative regression threshold.
+  # The current main upload supplies the comparison baseline, so this needs no
+  # guessed byte budget.
+  status: true
   warning_threshold: 5%
 
 comment:
