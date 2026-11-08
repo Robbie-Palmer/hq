@@ -70,12 +70,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     outs:
     - path: data/synthetic
       hash: md5
@@ -144,12 +144,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     outs:
     - path: outputs/runs
       hash: md5
@@ -266,8 +266,8 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: sources/nucls-corrected-single-rater.json
       hash: md5
       md5: 73d9106b3f62a23a40ded7e51f46fc7d
@@ -286,8 +286,8 @@ stages:
       size: 11864
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     outs:
     - path: data/nucls-corrected-single-rater
       hash: md5
@@ -312,8 +312,8 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: sources/nucls-corrected-single-rater.json
       hash: md5
       md5: 73d9106b3f62a23a40ded7e51f46fc7d
@@ -356,8 +356,8 @@ stages:
       size: 7218
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     outs:
     - path: outputs/public/nucls-public-baseline-v1
       hash: md5
@@ -369,8 +369,8 @@ stages:
     deps:
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
       md5: 007015d63112955eed718d69df8ceac7
@@ -389,8 +389,8 @@ stages:
       size: 15072
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     params:
       params/nucls-learned.yaml:
         models:
@@ -451,8 +451,8 @@ stages:
       nfiles: 3501
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: sources/nucls-corrected-single-rater.json
       hash: md5
       md5: 73d9106b3f62a23a40ded7e51f46fc7d
@@ -479,8 +479,8 @@ stages:
       size: 15072
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     params:
       params/nucls-learned.yaml:
         data_directory: data/nucls-corrected-single-rater
@@ -525,8 +525,8 @@ stages:
       nfiles: 5
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
       md5: 007015d63112955eed718d69df8ceac7
@@ -553,8 +553,8 @@ stages:
       size: 4473
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     params:
       params/nucls-learned.yaml:
         experiment_id: nucls-ultralytics-yolo26n-v1
@@ -683,8 +683,8 @@ stages:
       nfiles: 9
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
       md5: 007015d63112955eed718d69df8ceac7
@@ -703,8 +703,8 @@ stages:
       size: 7388
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     params:
       params/nucls-learned.yaml:
         data_directory: data/nucls-corrected-single-rater
@@ -797,8 +797,8 @@ stages:
       nfiles: 9
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: reports/nucls-public-baseline.json
       hash: md5
       md5: 9a2e3d1a84cedd16e15c3695d10d9245
@@ -833,8 +833,8 @@ stages:
       size: 7218
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     params:
       params/nucls-learned.yaml:
         data_directory: data/nucls-corrected-single-rater
@@ -869,8 +869,8 @@ stages:
       size: 21158
     - path: pyproject.toml
       hash: md5
-      md5: 03c955b7bfff38e9c79b154e365de4c6
-      size: 2157
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
       md5: 50c95158485bcf0fcab03b858fb7e145
@@ -885,8 +885,8 @@ stages:
       size: 10208
     - path: uv.lock
       hash: md5
-      md5: b831477b57d21aff4c8b58621d31b80f
-      size: 143144
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     params:
       params/nucls-learned.yaml:
         models:

@@ -26,7 +26,7 @@ def test_checkpoint_loading_restricts_deserialization(tmp_path: Path) -> None:
 def test_checkpoint_loading_allows_trainer_argument_namespace(tmp_path: Path) -> None:
     checkpoint_path = tmp_path / "last.pt"
     model = DetectionModel("yolo26n.yaml", nc=5, verbose=False)
-    model.args = IterableSimpleNamespace(batch=4, imgsz=640)
+    model.__dict__["args"] = IterableSimpleNamespace(batch=4, imgsz=640)
     torch.save(
         {"epoch": 3, "ema": model},
         checkpoint_path,
