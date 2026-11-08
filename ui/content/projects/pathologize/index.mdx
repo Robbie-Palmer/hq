@@ -16,6 +16,7 @@ tech_stack:
   - "W3C PROV"
   - "RO-Crate"
   - "OpenSlide"
+  - "cuCIM"
   - "PyTorch"
   - "fastai"
   - "timm"
@@ -104,12 +105,12 @@ The current implementation decisions and proposals are:
 * [ADR 011](/projects/pathologize/adrs/011-agent-readable-training-monitoring) uses project-owned structured
   logs and OpenTelemetry for framework-neutral training observability, with low-cardinality metrics and
   correlation to the existing DCGM and Netdata path.
-
-One architecture evaluation remains open:
-
 * [ADR 012](/projects/pathologize/adrs/012-evaluate-openlineage-end-to-end-lineage) proposes a bounded
   OpenLineage spike across DVC artifacts, training, evaluation, deployment, and production observations
   before deciding whether a persistent cross-system lineage service earns adoption.
+* [ADR 013](/projects/pathologize/adrs/013-extend-cucim-for-accelerated-tiff-wsi-reads) adopts cuCIM `cuslide2`
+  as the contribution base for accelerated TIFF WSI reads while keeping OpenSlide as the CPU compatibility,
+  viewer, and fail-closed fallback path.
 
 # Research programme
 

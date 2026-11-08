@@ -1,0 +1,134 @@
+---
+title: "ADR 013: Extend cuCIM for accelerated TIFF WSI reads"
+date: "2026-11-08"
+status: "Accepted"
+tech_stack: ["cuCIM"]
+implements_product_decisions:
+  - "pathologize:007-source-native-wsi-compatibility"
+  - "pathologize:008-evidence-gated-gpu-pixel-decoding"
+---
+
+## Context
+
+[ADR 009](/projects/pathologize/adrs/009-separate-wsi-reading-decoding-and-residency)
+separates slide-container semantics, pixel decoding, and output residency. It keeps
+OpenSlide as the broad CPU compatibility path and defers an OpenSlide GPU fork.
+[ADR 010](/projects/pathologize/adrs/010-optional-cuda-wsi-decode-backends)
+then proposes cuCIM `cuslide2` as the first TIFF-family CUDA candidate, subject to
+public-fixture correctness and workload measurements.
+
+The [cuCIM TIFF GPU trial](https://github.com/Robbie-Palmer/hq/blob/e6a54c12ba0cf3e0c0546c24da8a873002eaf2e3/ml-pipelines/pathologize-tiling-benchmark/reports/cucim-tiff-gpu-decode.md)
+tested seven public Aperio, tiled TIFF, and Leica fixtures on an NVIDIA GeForce RTX
+4080 Laptop GPU. cuCIM returned CUDA-resident RGB for every fixture. Where cuCIM and
+OpenSlide selected the same image and level, JPEG and JPEG 2000 differed by at most
+one channel value. Aperio JPEG batches were 1.32 to 3.07 times faster than OpenSlide
+decode plus pinned host-to-device transfer. JPEG 2000 batches of 8 and 32 were 1.92
+to 2.11 times faster, while single-region JPEG 2000 was slower.
+
+The trial also found that no fixture preserved the complete OpenSlide-derived slide
+contract. cuCIM reported incorrect Aperio MPP, added duplicate reduced levels for
+some ImageScope files, omitted associated images, and selected the wrong scene and
+pyramid from the Leica SCN file. The codec path works, but the surrounding TIFF and
+vendor semantics are not ready for Pathologize production routing.
+
+[cuCIM documents](https://github.com/rapidsai/cucim) `cuslide2` as its replacement
+for the original `cuslide` plugin. It already provides TIFF parsing, tile caching,
+asynchronous batch reads, nvImageCodec integration, and CUDA-resident output. Its
+Apache-2.0 repository accepts external contributions. Extending this code keeps the
+new behavior beside the decode path and makes it available to other users.
+
+OpenSlide remains the stronger compatibility reader, but its
+[`openslide_read_region`](https://openslide.org/api/openslide_8h.html) API copies
+premultiplied ARGB into caller-owned host memory. A useful GPU fork would need a new
+device-output API and changes to caches, composition, bindings, packaging, and the
+vendor readers. A new Pathologize reader would have to reproduce much of cuCIM's
+TIFF and CUDA work before it could address the measured metadata failures.
+
+## Decision
+
+Build the missing accelerated TIFF WSI functionality on cuCIM `cuslide2`. Develop
+the changes in the public `Robbie-Palmer/cucim` contribution fork and submit small,
+independent pull requests to `rapidsai/cucim`. Do not establish a permanent
+Pathologize distribution of cuCIM unless upstream contribution proves impractical.
+
+The first contributions will cover:
+
+* a public semantic conformance suite for primary-image selection, pyramids,
+  independent x and y MPP, bounds, orientation, color, alpha, associated images,
+  edge tiles, pixel agreement, and device residency;
+* Aperio MPP, pyramid, and associated-image behavior;
+* Leica scene grouping, primary-scene selection, pyramid construction, and macro
+  images; and
+* decoder provenance that distinguishes GPU, hybrid CPU and GPU, CPU fallback, and
+  unknown execution.
+
+OpenSlide remains the authoritative CPU compatibility backend for the current tiler,
+viewer, exports, unsupported files, and failed capability probes. Pathologize will
+not send a file to cuCIM merely because its extension is supported. Each enabled
+format and codec must pass the semantic and pixel contract on public fixtures.
+Metadata disagreement, missing CUDA support, an unknown decoder, or a read failure
+must fall back before pixels reach the consumer.
+
+Pathologize may evaluate an upstream release or an explicitly pinned patch set after
+the conformance tests pass. Production enablement remains subject to ADR 010's
+packaging, CPU-installation, fallback, memory, and end-to-end performance gates. This
+decision chooses where to implement the missing functionality. It does not approve
+cuCIM as the default production reader.
+
+Reconsider this decision if cuCIM stops maintaining `cuslide2`, upstream rejects a
+required semantic fix on architectural grounds, its dependency or licensing model
+becomes incompatible with Pathologize, or a narrow project-owned reader proves
+materially smaller than carrying the required patches. Any replacement must retain
+the same public conformance and fallback contracts.
+
+## Consequences
+
+Pathologize can reuse the measured CUDA decode, batching, and caching path instead of
+building them again. Fixes can benefit cuCIM users outside this project, and upstream
+review can catch assumptions that a Pathologize-only implementation would miss.
+
+The project now depends on an external C++ and CUDA contribution workflow. Builds
+are heavier than the Python tiler, upstream review may delay fixes, and released
+packages may lag accepted changes. Pathologize must pin every evaluated revision and
+keep its public fixture suite runnable against both upstream main and released
+packages.
+
+cuCIM and OpenSlide will coexist. Their format coverage and output contracts differ,
+so capability reporting and fallback tests become permanent code rather than
+temporary migration work. Viewer latency does not inherit the batched GPU speedup,
+and single-region JPEG 2000 remains a known case where the CPU path may be faster.
+
+The Leica work may reveal vendor semantics that do not belong in cuCIM's generic
+TIFF model. If upstream maintainers decline that scope, Pathologize will keep Leica
+on OpenSlide while retaining cuCIM for combinations that pass. One unsupported
+format does not invalidate the shared reader boundary.
+
+## Alternatives considered
+
+### Add GPU output to an OpenSlide fork
+
+This would preserve OpenSlide's broad vendor semantics in one reader. Its public and
+internal rendering paths assume host pixels, so device output would require a new API,
+cache behavior, composition path, bindings, and long-term rebases across many formats.
+The measured cuCIM decode path makes that cost unjustified.
+
+### Build a project-owned TIFF WSI GPU reader
+
+This gives Pathologize full control over IFD classification, vendor metadata, and
+decoder selection. It also makes the project responsible for TIFF edge cases, CUDA
+codec integration, batching, caching, packaging, and security fixes. Keep this as a
+fallback only if the required changes cannot live upstream in cuCIM.
+
+### Use nvImageCodec directly for every TIFF slide
+
+nvImageCodec can decode supported payloads but does not by itself define the correct
+primary scene, pyramid, physical scale, sparse coordinates, or associated images for
+every vendor container. Direct codec use cannot replace the reader semantics that
+failed in the trial.
+
+### Keep all TIFF decoding on the CPU
+
+This is the lowest-maintenance path and remains the fallback. It would leave the
+repeatable batched JPEG and JPEG 2000 gains unused even though cuCIM already supplies
+the hard decode and device-output machinery. The contribution-first route preserves
+the CPU path while testing whether those gains can be made semantically safe.
