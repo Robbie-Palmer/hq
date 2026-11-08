@@ -2414,7 +2414,7 @@ test("the Pathologize cuCIM trial isolates its pinned image and public fixtures"
 
   assert.match(
     dockerfile,
-    /^FROM docker\.io\/nvidia\/cuda:[^@]+@sha256:[a-f0-9]{64}$/m,
+    /^FROM docker\.io\/nvidia\/cuda@sha256:e711c99333fdfe8ae1e677b4972be6c5021f0128a1d31f775c7e58d88921b6a9$/m,
   );
   assert.match(dockerfile, /COPY ml-pipelines\/pathologize-tiling-benchmark\/data\/tiff-gpu/);
   assert.match(dockerfile, /ENV ENABLE_CUSLIDE2=1/);
