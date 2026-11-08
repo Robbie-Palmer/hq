@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
 import torch
 
 from ultralytics_extensions.checkpoints import (
@@ -43,5 +42,9 @@ def test_resume_requires_rows_and_checkpoint(tmp_path: Path) -> None:
     incomplete = tmp_path / "incomplete"
     incomplete.mkdir()
     (incomplete / "results.csv").write_text("epoch,time\n1,2\n", encoding="utf-8")
-    with pytest.raises(ValueError, match="not resumable"):
-        resume_evidence(incomplete)
+    assert resume_evidence(incomplete) is None
+
+    checkpoint_only = tmp_path / "checkpoint-only/weights"
+    checkpoint_only.mkdir(parents=True)
+    (checkpoint_only / "last.pt").write_bytes(b"checkpoint")
+    assert resume_evidence(checkpoint_only.parents[1]) is None

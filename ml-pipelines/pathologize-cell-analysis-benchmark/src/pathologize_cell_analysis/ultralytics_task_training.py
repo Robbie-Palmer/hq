@@ -17,6 +17,7 @@ from ultralytics_extensions.checkpoints import (
 )
 from ultralytics_extensions.recovery import (
     TrainingTaskState,
+    consumed_gpu_seconds_upper_bound,
     load_training_task_state,
     write_training_task_state,
 )
@@ -176,19 +177,39 @@ def _validate_completed_task_state(
 
 
 def _prepare_task_retry(
-    task_output: Path, task_state: TrainingTaskState | None
-) -> tuple[ResumeEvidence | None, float]:
+    task_output: Path,
+    task_state: TrainingTaskState | None,
+    *,
+    now_unix_seconds: float | None = None,
+) -> tuple[ResumeEvidence | None, float, float]:
     resume = resume_evidence(task_output)
     if resume is None and task_output.exists():
         shutil.rmtree(task_output)
-    consumed_seconds = (
-        task_state.consumed_gpu_seconds_upper_bound
-        if task_state is not None
-        else resume.elapsed_seconds_upper_bound
-        if resume is not None
-        else 0.0
+    if task_state is not None:
+        consumed_seconds = consumed_gpu_seconds_upper_bound(
+            task_state,
+            now_unix_seconds=(time.time() if now_unix_seconds is None else now_unix_seconds),
+        )
+        unrecorded_seconds = max(
+            0.0, consumed_seconds - task_state.consumed_gpu_seconds_upper_bound
+        )
+        return resume, consumed_seconds, unrecorded_seconds
+    if resume is not None:
+        return resume, resume.elapsed_seconds_upper_bound, 0.0
+    return resume, 0.0, 0.0
+
+
+def _run_final_validation(model: Any, arguments: dict[str, object]) -> None:
+    model.val(
+        data=arguments["data"],
+        batch=arguments["batch"],
+        imgsz=arguments["imgsz"],
+        device=arguments["device"],
+        workers=arguments["workers"],
+        plots=False,
+        verbose=True,
+        split="val",
     )
-    return resume, consumed_seconds
 
 
 def _validate_continuation_limits(
@@ -222,16 +243,23 @@ def train_task(  # pragma: no cover
             stored_resource, stored_checkpoint, task_state.consumed_gpu_seconds_upper_bound
         )
 
-    resume, prior_task_seconds = _prepare_task_retry(task_output, task_state)
+    resume, prior_task_seconds, unrecorded_wall_seconds = _prepare_task_retry(
+        task_output, task_state
+    )
     rows = training_rows(task_output)
-    prior_wall_seconds = task_state.wall_seconds if task_state is not None else 0.0
+    prior_wall_seconds = (
+        task_state.wall_seconds + unrecorded_wall_seconds if task_state is not None else 0.0
+    )
     prior_cpu_seconds = task_state.cpu_seconds if task_state is not None else 0.0
     prior_peak_rss = task_state.peak_rss_bytes if task_state is not None else 0
     prior_peak_vram = task_state.peak_vram_bytes if task_state is not None else 0
     if prior_task_seconds > experiment.limits.aggregate_gpu_seconds:
         raise RuntimeError("aggregate GPU-time ceiling exceeded")
+    if prior_task_seconds >= experiment.limits.per_task_wall_seconds:
+        raise RuntimeError("training exhausted its wall-time ceiling")
     deadline = time.monotonic() + experiment.limits.per_task_wall_seconds - prior_task_seconds
     wall_start = time.monotonic()
+    attempt_started_at = time.time()
     cpu_start = time.process_time()
     cuda.reset_peak_memory_stats()
     start_event = cuda.Event(enable_timing=True)
@@ -250,6 +278,10 @@ def train_task(  # pragma: no cover
             cpu_seconds=prior_cpu_seconds + time.process_time() - cpu_start,
             peak_rss_bytes=max(prior_peak_rss, _peak_rss_bytes()),
             peak_vram_bytes=max(prior_peak_vram, int(cuda.max_memory_allocated())),
+            attempt_base_gpu_seconds_upper_bound=(
+                prior_task_seconds if status == "running" else None
+            ),
+            attempt_started_at_unix_seconds=(attempt_started_at if status == "running" else None),
         )
 
     write_training_task_state(state_path, current_task_state("running"))
@@ -265,14 +297,23 @@ def train_task(  # pragma: no cover
             and task_state is not None
             and checkpoint_epoch(torch_module, resume.checkpoint) == -1
         ):
-            gpu_seconds = task_state.consumed_gpu_seconds_upper_bound
+            start_event.record()
+            recovered_model = yolo(str(task_output / "weights" / "best.pt"), task=task)
+            arguments = training_arguments(experiment, root, task)
+            _run_final_validation(recovered_model, arguments)
+            end_event.record()
+            cuda.synchronize()
+            continuation_gpu_seconds = start_event.elapsed_time(end_event) / 1000
+            gpu_seconds = prior_task_seconds + continuation_gpu_seconds
+            peak_vram = max(prior_peak_vram, int(cuda.max_memory_allocated()))
+            _validate_continuation_limits(experiment, peak_vram, deadline, deadline_state)
             task_resource = _resource_evidence(
                 experiment,
-                wall_seconds=task_state.wall_seconds,
-                cpu_seconds=task_state.cpu_seconds,
+                wall_seconds=prior_wall_seconds + time.monotonic() - wall_start,
+                cpu_seconds=prior_cpu_seconds + time.process_time() - cpu_start,
                 gpu_seconds=gpu_seconds,
-                peak_rss_bytes=task_state.peak_rss_bytes,
-                peak_vram_bytes=task_state.peak_vram_bytes,
+                peak_rss_bytes=max(prior_peak_rss, _peak_rss_bytes()),
+                peak_vram_bytes=peak_vram,
                 resumed=True,
             )
             task_checkpoint = _checkpoint_evidence(
@@ -284,9 +325,10 @@ def train_task(  # pragma: no cover
                 resume,
                 deadline_state,
                 monitor,
-                gpu_seconds,
-                0.0,
+                prior_task_seconds,
+                continuation_gpu_seconds,
             )
+            task_checkpoint["recovered_final_validation"] = True
         else:
             model = _load_training_model(yolo, torch_module, task, weights, resume)
             model.add_callback("on_train_epoch_end", stop_at_deadline)

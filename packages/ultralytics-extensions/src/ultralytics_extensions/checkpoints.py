@@ -103,10 +103,8 @@ def resume_evidence(task_output: Path) -> ResumeEvidence | None:
         return None
     rows = training_rows(task_output)
     checkpoint = task_output / "weights" / "last.pt"
-    if not rows and not checkpoint.is_file():
-        return None
     if not rows or not checkpoint.is_file():
-        raise ValueError(f"incomplete training output is not resumable: {task_output}")
+        return None
     return ResumeEvidence(
         checkpoint=checkpoint,
         completed_epochs=int(rows[-1]["epoch"]),

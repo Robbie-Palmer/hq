@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import csv
 import json
+import time
 from pathlib import Path
 from typing import Any
 
@@ -19,7 +20,11 @@ from ultralytics_extensions.labels import (
     yolo_to_bbox,
     yolo_to_polygon,
 )
-from ultralytics_extensions.recovery import TrainingTaskState
+from ultralytics_extensions.recovery import (
+    TrainingTaskState,
+    load_training_task_state,
+    write_training_task_state,
+)
 
 from pathologize_cell_analysis.contracts import (
     SplitItem,
@@ -45,6 +50,7 @@ from pathologize_cell_analysis.ultralytics_reporting import _report_markdown
 from pathologize_cell_analysis.ultralytics_task_training import (
     _prepare_task_retry,
     _validate_completed_task_state,
+    train_task,
 )
 from pathologize_cell_analysis.ultralytics_training import (
     _clean_failed_training_output,
@@ -262,7 +268,7 @@ def test_completed_training_state_validates_checkpoint_hashes(tmp_path: Path) ->
 def test_precheckpoint_failure_is_cleaned_and_gpu_time_is_carried(tmp_path: Path) -> None:
     task_output = tmp_path / "detect"
     task_output.mkdir()
-    (task_output / "partial.txt").write_text("failed", encoding="utf-8")
+    (task_output / "results.csv").write_text("epoch,time\n1,7.5\n", encoding="utf-8")
     state = TrainingTaskState(
         status="failed",
         consumed_gpu_seconds_upper_bound=7.5,
@@ -271,10 +277,124 @@ def test_precheckpoint_failure_is_cleaned_and_gpu_time_is_carried(tmp_path: Path
         peak_rss_bytes=10,
         peak_vram_bytes=20,
     )
-    resume, consumed_seconds = _prepare_task_retry(task_output, state)
+    resume, consumed_seconds, unrecorded_seconds = _prepare_task_retry(task_output, state)
     assert resume is None
     assert consumed_seconds == 7.5
+    assert unrecorded_seconds == 0
     assert not task_output.exists()
+
+
+def test_running_attempt_uses_wall_clock_for_abrupt_failure_accounting(tmp_path: Path) -> None:
+    state = TrainingTaskState(
+        status="running",
+        consumed_gpu_seconds_upper_bound=6.0,
+        wall_seconds=6.0,
+        cpu_seconds=1.0,
+        peak_rss_bytes=10,
+        peak_vram_bytes=20,
+        attempt_base_gpu_seconds_upper_bound=5.0,
+        attempt_started_at_unix_seconds=100.0,
+    )
+    resume, consumed_seconds, unrecorded_seconds = _prepare_task_retry(
+        tmp_path / "detect", state, now_unix_seconds=110.0
+    )
+    assert resume is None
+    assert consumed_seconds == 15.0
+    assert unrecorded_seconds == 9.0
+
+
+def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path) -> None:
+    experiment = load_ultralytics_config()
+    pin = experiment.models["detect"]
+    model_root = tmp_path / experiment.weights_directory
+    weights = model_root / pin.weights
+    definition = model_root / Path(pin.definition).name
+    weights.parent.mkdir(parents=True)
+    weights.write_bytes(b"starting weights")
+    definition.write_bytes(b"model definition")
+    experiment = experiment.model_copy(
+        update={
+            "models": {
+                **experiment.models,
+                "detect": pin.model_copy(
+                    update={
+                        "weights_sha256": sha256_file(weights),
+                        "definition_sha256": sha256_file(definition),
+                    }
+                ),
+            }
+        }
+    )
+    layout_root = tmp_path / experiment.layout_directory
+    layout_root.mkdir(parents=True)
+    (layout_root / "manifest.json").write_text("{}\n", encoding="utf-8")
+
+    training_root = tmp_path / "training"
+    task_output = training_root / "detect"
+    checkpoint_root = task_output / "weights"
+    checkpoint_root.mkdir(parents=True)
+    (checkpoint_root / "best.pt").write_bytes(b"best")
+    torch.save({"epoch": -1}, checkpoint_root / "last.pt")
+    (task_output / "results.csv").write_text(
+        "epoch,time,metrics/mAP50-95(B),val/box_loss\n1,1.0,0.1,2.0\n",
+        encoding="utf-8",
+    )
+    write_training_task_state(
+        training_root / "detect-state.json",
+        TrainingTaskState(
+            status="running",
+            consumed_gpu_seconds_upper_bound=1.0,
+            wall_seconds=1.0,
+            cpu_seconds=0.5,
+            peak_rss_bytes=10,
+            peak_vram_bytes=20,
+            attempt_base_gpu_seconds_upper_bound=0.0,
+            attempt_started_at_unix_seconds=time.time(),
+        ),
+    )
+
+    validation_calls: list[dict[str, object]] = []
+
+    class FakeModel:
+        def val(self, **arguments: object) -> None:
+            validation_calls.append(arguments)
+
+    class FakeEvent:
+        def record(self) -> None:
+            pass
+
+        def elapsed_time(self, _other: object) -> float:
+            return 2_000.0
+
+    class FakeCuda:
+        def reset_peak_memory_stats(self) -> None:
+            pass
+
+        def Event(self, *, enable_timing: bool) -> FakeEvent:  # noqa: N802
+            assert enable_timing
+            return FakeEvent()
+
+        def max_memory_allocated(self) -> int:
+            return 1024
+
+        def synchronize(self) -> None:
+            pass
+
+    result = train_task(
+        experiment,
+        tmp_path,
+        training_root,
+        "detect",
+        torch,
+        FakeCuda(),
+        lambda *_args, **_kwargs: FakeModel(),
+    )
+    assert validation_calls[0]["split"] == "val"
+    assert result.gpu_seconds > 2.0
+    completed_state = load_training_task_state(training_root / "detect-state.json")
+    assert completed_state is not None
+    assert completed_state.status == "complete"
+    assert result.checkpoint["recovered_final_validation"] is True
 
 
 def _write_split(path: Path, rows: list[tuple[str, str]]) -> None:
