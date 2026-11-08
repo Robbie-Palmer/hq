@@ -20,12 +20,12 @@ that gate and therefore falls back to the existing OpenSlide path.
 ## What ran
 
 Three independent processes used the local benchmark image manifest
-`sha256:d450f5461261c9770d23d89353dc896f5640d7a394c9a813c276a3e5ff5e5af5`
-(2,861,246,056 bytes). It was not pushed. The local rootless Docker daemon did not have the NVIDIA
+`sha256:1a323001bec643611863814c9f1e756169d481a931aa34401e181064b72db20e`
+(2,861,246,855 bytes). It was not pushed. The local rootless Docker daemon did not have the NVIDIA
 runtime and could not bind Nix store paths, so a diagnostic descendant copied the host driver libraries
 and attached `/dev/nvidia0`, `/dev/nvidiactl`, and `/dev/nvidia-uvm`. That descendant had local manifest
-`sha256:a833d5f83d6b52756e10fa35a88e349ace0da7ed4df14a3bd4fc595c7f55fbde`
-(3,289,193,715 bytes). This proves the bounded code path on the available GPU, not a K3s deployment.
+`sha256:aad9b73cf127216f6b9b00cfb72f566467c0539e7fd0af7daf8fabb9586ad606`
+(3,289,186,292 bytes). This proves the bounded code path on the available GPU, not a K3s deployment.
 
 | Property | Value |
 | --- | --- |
@@ -47,9 +47,9 @@ and attached `/dev/nvidia0`, `/dev/nvidiactl`, and `/dev/nvidia-uvm`. That desce
 | Timing | `perf_counter` wall time and process CPU time; CUDA events only for caller-stream stages |
 | Cache and initialization | OS page cache warm; reader correctness probes completed; shared CuPy kernels primed |
 | Storage path | Ordinary filesystem I/O; no GPUDirect Storage |
-| Raw JSON SHA-256 | `fcc284eb9d855dffc910336abed10962af799fba2f5df74b2b758c44e6082361` |
-| Raw JSON SHA-256 | `c92a25f4227ebe209c3ef797496b56eaa4ed06dd43fca35ff6a549520cf1b8e0` |
-| Raw JSON SHA-256 | `233126a717b7eb84c070a587e47ab26ac144c1b88a52d9089f80afca64ed57f0` |
+| Raw JSON SHA-256 | `6dc8a8e2545370e71f2c6a161e3642d5f67209dcd47a499168323634417227c8` |
+| Raw JSON SHA-256 | `1ae9a3c12c75ca6b2cb00d3aff1b65678bc161776e231619619d9b211916053b` |
+| Raw JSON SHA-256 | `bb453045ac9299218242094505bfad612efd537d571f67e8b5596ecee3350772` |
 
 cuCIM 26.10 pins nvImageCodec below 0.10, so this experiment uses a separate image from the
 nvImageCodec 0.10 DICOM experiment. The installer uses cuCIM's wheel without transitive dependencies,
@@ -145,8 +145,8 @@ independently by OpenSlide and cuCIM. JPEG and JPEG 2000 both had maximum absolu
 with tolerance 3. Mean absolute error was 0.006397 for JPEG and 0.000032 for JPEG 2000. This oracle
 does not excuse the metadata failures.
 
-The retained CPU viewer decoded one JPEG region in a median 1.24 ms and encoded its PNG in 7.63 ms.
-For JPEG 2000, the corresponding medians were 1.35 ms and 16.45 ms. These are single-request,
+The retained CPU viewer decoded one JPEG region in a median 1.58 ms and encoded its PNG in 9.30 ms.
+For JPEG 2000, the corresponding medians were 0.75 ms and 8.75 ms. These are single-request,
 warm-cache measurements, not HTTP concurrency results.
 
 ## Steady-state timing
@@ -161,17 +161,17 @@ time divided by cuCIM wall time.
 
 | Access | Batch | OpenSlide + pinned H2D | cuCIM device output | Speedup |
 | --- | ---: | ---: | ---: | ---: |
-| Contiguous | 1 | 1.652 ms (1.199–2.023) | 1.151 ms (0.905–1.397) | 1.44× |
-| Contiguous | 8 | 10.880 ms (8.879–12.832) | 3.618 ms (3.184–3.765) | 3.01× |
-| Contiguous | 32 | 42.485 ms (31.246–50.079) | 11.664 ms (9.816–17.741) | 3.64× |
-| Contiguous | 128 | 223.550 ms (181.890–262.666) | 40.518 ms (29.617–55.976) | 5.52× |
-| Random | 1 | 2.952 ms (2.400–6.488) | 1.499 ms (1.229–3.264) | 1.97× |
-| Random | 8 | 12.624 ms (7.510–16.728) | 3.280 ms (3.279–4.035) | 3.85× |
-| Random | 32 | 41.092 ms (32.927–56.416) | 10.524 ms (8.646–24.543) | 3.90× |
-| Random | 128 | 240.640 ms (205.433–291.705) | 30.489 ms (29.547–75.230) | 7.89× |
+| Contiguous | 1 | 1.167 ms (1.164–1.180) | 0.877 ms (0.871–0.883) | 1.33× |
+| Contiguous | 8 | 8.916 ms (8.836–9.454) | 3.087 ms (3.010–3.102) | 2.89× |
+| Contiguous | 32 | 34.129 ms (33.665–34.385) | 15.599 ms (10.463–26.381) | 2.19× |
+| Contiguous | 128 | 183.313 ms (182.114–184.520) | 56.633 ms (53.662–56.730) | 3.24× |
+| Random | 1 | 6.442 ms (6.321–6.467) | 3.170 ms (1.802–3.315) | 2.03× |
+| Random | 8 | 7.422 ms (7.411–7.436) | 3.690 ms (2.856–3.918) | 2.01× |
+| Random | 32 | 32.881 ms (31.887–36.412) | 16.091 ms (14.677–25.300) | 2.04× |
+| Random | 128 | 200.364 ms (196.277–200.502) | 75.226 ms (73.979–75.248) | 2.66× |
 
-At contiguous batch 128, OpenSlide spent 197.37 ms decoding RGBA, 16.47 ms packing 24 MiB of pinned
-RGB, and 2.02 ms on H2D. cuCIM spent 22.97 ms returning the 24 MiB device batch. Common preprocessing
+At contiguous batch 128, OpenSlide spent 160.97 ms decoding RGBA, 12.74 ms packing 24 MiB of pinned
+RGB, and 2.02 ms on H2D. cuCIM spent 46.53 ms returning the 24 MiB device batch. Common preprocessing
 and consumer stages account for the remaining wall time. The CuPy pool reserved 1,130,365,440 bytes
 for cuCIM and 1,155,531,264 bytes for the CPU pipeline. These figures exclude cuCIM's internal device
 allocator.
@@ -180,17 +180,17 @@ allocator.
 
 | Access | Batch | OpenSlide + pinned H2D | cuCIM device output | Speedup |
 | --- | ---: | ---: | ---: | ---: |
-| Contiguous | 1 | 1.836 ms (1.140–1.973) | 3.405 ms (3.234–3.440) | 0.54× |
-| Contiguous | 8 | 10.656 ms (8.003–13.583) | 4.550 ms (4.349–4.812) | 2.34× |
-| Contiguous | 32 | 40.216 ms (32.932–54.775) | 17.705 ms (15.085–20.819) | 2.27× |
-| Random | 1 | 4.144 ms (2.187–6.314) | 2.689 ms (2.488–3.580) | 1.54× |
-| Random | 8 | 11.682 ms (7.267–15.054) | 4.449 ms (4.083–4.934) | 2.63× |
-| Random | 32 | 40.066 ms (32.633–56.518) | 14.621 ms (14.138–16.388) | 2.74× |
+| Contiguous | 1 | 1.146 ms (1.143–1.149) | 3.271 ms (3.223–3.275) | 0.35× |
+| Contiguous | 8 | 8.021 ms (7.921–8.340) | 4.421 ms (4.385–4.874) | 1.81× |
+| Contiguous | 32 | 33.074 ms (32.454–33.606) | 16.634 ms (15.082–17.764) | 1.99× |
+| Random | 1 | 6.343 ms (1.712–6.350) | 3.203 ms (2.438–3.565) | 1.98× |
+| Random | 8 | 7.512 ms (7.256–9.623) | 4.066 ms (3.842–4.951) | 1.85× |
+| Random | 32 | 32.484 ms (30.569–32.905) | 15.974 ms (13.907–16.807) | 2.03× |
 
 The crop contains 81 complete 256 × 256 regions, so batch 128 was omitted rather than padded or
-wrapped. At contiguous batch 32, OpenSlide spent 33.33 ms decoding, 3.90 ms packing 6 MiB of RGB, and
-0.53 ms on H2D. cuCIM returned the 6 MiB device batch in 14.35 ms. Single contiguous JPEG 2000 was
-1.86 times slower through cuCIM, while batches of eight and 32 were faster.
+wrapped. At contiguous batch 32, OpenSlide spent 26.84 ms decoding, 3.23 ms packing 6 MiB of RGB, and
+0.53 ms on H2D. cuCIM returned the 6 MiB device batch in 13.37 ms. Single contiguous JPEG 2000 was
+2.85 times slower through cuCIM, while batches of eight and 32 were faster.
 
 ## Limits
 
