@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
+from pathologize_tiling_benchmark import gpu_benchmark
 from pathologize_tiling_benchmark.gpu_benchmark import (
+    _peak_rss_bytes,
+    _reset_peak_rss,
     complete_tile_coordinates,
     parse_batch_sizes,
     select_coordinates,
@@ -88,6 +92,29 @@ def test_stage_summary_preserves_transfer_counts_and_cuda_timing() -> None:
         summarize_stages(())
     with pytest.raises(ValueError, match="names and order"):
         summarize_stages((samples[0], {"other": samples[1]["decode"]}))
+
+
+def test_peak_rss_reset_and_platform_fallback(monkeypatch: pytest.MonkeyPatch) -> None:
+    writes: list[tuple[Path, str, str]] = []
+
+    def record_write(path: Path, value: str, *, encoding: str) -> int:
+        writes.append((path, value, encoding))
+        return len(value)
+
+    monkeypatch.setattr(Path, "write_text", record_write)
+    _reset_peak_rss()
+    assert writes == [(Path("/proc/self/clear_refs"), "5\n", "ascii")]
+
+    monkeypatch.setattr(Path, "exists", lambda _path: False)
+    monkeypatch.setattr(
+        gpu_benchmark.resource,
+        "getrusage",
+        lambda _who: SimpleNamespace(ru_maxrss=7),
+    )
+    monkeypatch.setattr(gpu_benchmark.sys, "platform", "darwin")
+    assert _peak_rss_bytes() == 7
+    monkeypatch.setattr(gpu_benchmark.sys, "platform", "linux")
+    assert _peak_rss_bytes() == 7 * 1024
 
 
 def test_gpu_cli_reports_missing_cuda_without_a_traceback(monkeypatch: pytest.MonkeyPatch) -> None:
