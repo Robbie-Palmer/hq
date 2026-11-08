@@ -1,0 +1,17 @@
+{
+  "corpus_id": "airaqc-tcga-public-pilot-v1",
+  "slides": [
+    {
+      "annotation": {"relative_path": "annotations/a.png"},
+      "annotation_counts": {"air_bubble": 2, "fold": 1, "out_of_focus": 0, "penmark": 0},
+      "case_id": "case-a",
+      "micrometres_per_pixel": 0.25,
+      "patient_id": "patient-a",
+      "project_id": "TCGA-BRCA",
+      "scanner_manufacturer": "Leica Biosystems",
+      "scanner_model": "Aperio ScanScope",
+      "slide_id": "airaqc:slide-a",
+      "source": {"relative_path": "slides/a.svs"}
+    }
+  ]
+}

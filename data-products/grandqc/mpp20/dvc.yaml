@@ -1,0 +1,25 @@
+stages:
+  acquire_mpp20:
+    cmd: uv run --locked grandqc-source-data acquire
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/grandqc_source_data
+      - uv.lock
+    outs:
+      - data/raw/MPP20.tar
+
+  index_mpp20:
+    cmd: uv run --locked grandqc-source-data index
+    deps:
+      - data/raw/MPP20.tar
+      - manifest.json
+      - pyproject.toml
+      - src/grandqc_source_data
+      - uv.lock
+    outs:
+      - data/native/mpp20
+      - outputs/native-index.jsonl
+    metrics:
+      - outputs/source-metrics.json

@@ -1,0 +1,79 @@
+---
+title: "PDR 009: Build a source-native pathology data mesh"
+date: "2026-11-07"
+status: "Proposed"
+supersedes: "pathologize:001-one-versioned-pathology-data-registry"
+evidence:
+  - title: "DVC data registry and import contract"
+    url: "https://dvc.org/doc/command-reference/import"
+---
+
+## Context
+
+Pathology datasets describe their material in different terms. A whole-slide
+registry may know patients, specimens, scanners, and source masks. A published
+patch dataset may instead expose organs, source WSI groups, image-mask pairs,
+pixel classes, and a publisher-defined test role. Forcing both through one
+source schema either invents missing identities or erases useful source facts.
+
+Training and evaluation still need uniform task datasets. Those products must
+reconcile labels, sample units, physical scale, roles, and leakage groups. The
+reconciliation can merge concepts, drop records, add annotations, or override
+a publisher role. Hiding those decisions behind one canonical export makes it
+impossible to measure what each source contributed or what the mapping lost.
+
+## Proposed decision
+
+Build the pathology data layer as an acyclic mesh of versioned DVC projects.
+Each source dataset owns its acquired bytes, rights, checksums, source
+identities, native ontology, and publisher roles in its own vocabulary. A
+catalog can index these source products, but it does not replace their domain
+contracts or copy their data.
+
+Place each vertical slice under `data-products/<bounded-context>/<product>`.
+The project owns its contracts, acquisition or transformation code, DVC graph,
+quality checks, and published artifacts. Source products use the publisher's
+ubiquitous language. Derived products use the consuming bounded context's
+language and pin upstream product interfaces. Training and evaluation projects
+under `ml-pipelines/` consume these products. Shared orchestration stays thin
+and does not own product semantics.
+
+Downstream dataset projects pin source projects and publish task-specific data
+products. Each product owns its target ontology, adapters, exclusions,
+reannotations, group-aware partitions, and intended training or evaluation
+roles. Adapters must classify mappings as exact, partial, source-merged,
+unmapped, or dropped. They retain source record and group identities so a
+consumer can trace every output back to its native record.
+
+Publish reconciliation metrics with each downstream product. Report records,
+groups, and label coverage added by each source. Also report records dropped,
+concepts collapsed, distinctions unavailable, reannotations introduced, and
+source roles overridden. Preserve source-specific evaluation alongside any
+combined score.
+
+Use local DVC project dependencies while the mesh nodes share this monorepo.
+Use pinned `dvc import` files when a node moves to another Git repository. A
+source update must leave downstream products stale until their imports,
+adapters, partitions, and reports are reproduced deliberately.
+
+## Consequences
+
+Source datasets remain honest about what they know, and task datasets can
+become uniform without pretending their inputs were uniform. Model pipelines
+consume one versioned product contract rather than embedding ontology mapping
+and split logic in training code. Enrichment and information loss become
+measurable outputs.
+
+The mesh creates more contracts and DVC projects than one registry. Adapter
+versions and cross-project dependencies need maintenance. Some sources cannot
+join a requested product without reannotation, and some will remain useful
+only as source-specific evaluation sets. Acyclic ownership is mandatory. A
+downstream product cannot write corrections back into a source dataset.
+
+## Evaluation
+
+Accept the proposal when two source projects with different vocabularies feed
+one downstream dataset product, every output record retains source lineage,
+groups stay within one partition, and the reconciliation report measures both
+added coverage and lost distinctions. Updating either source must make the
+downstream DVC product stale without changing its committed result.
