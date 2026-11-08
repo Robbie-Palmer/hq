@@ -39,3 +39,9 @@ wall, process CPU, CUDA stage, copy-volume, memory, pixel-agreement, and CPU
 viewer measurements for contiguous and random batches. See the
 [Vector JPEG 2000 GPU decode experiment](reports/vector-jpeg2000-gpu-decode.md)
 for the bounded result and its limitations.
+
+The separate cuCIM TIFF harness probes public Aperio SVS, tiled TIFF, and Leica SCN fixtures without
+changing the production tiler or CPU viewer. Its strict capability report compares pyramid geometry,
+per-axis MPP, associated images, output residency, pixel agreement, and the OpenSlide plus pinned-H2D
+baseline. See the [cuCIM TIFF GPU decode trial](reports/cucim-tiff-gpu-decode.md) for the measured
+result and production recommendation.

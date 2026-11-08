@@ -14,6 +14,7 @@ dependencies = [
 [project.scripts]
 pathologize-tiling-experiment = "pathologize_tiling_benchmark.cli:main"
 pathologize-gpu-decode-benchmark = "pathologize_tiling_benchmark.gpu_cli:main"
+pathologize-tiff-gpu-decode-benchmark = "pathologize_tiling_benchmark.tiff_gpu_cli:main"
 
 [project.optional-dependencies]
 cuda = [
@@ -43,9 +44,11 @@ addopts = "--strict-config --strict-markers --cov=pathologize_tiling_benchmark -
 testpaths = ["tests"]
 
 [tool.coverage.run]
-# The CUDA runtime path is exercised in the digest-pinned Vector Job. CPU CI
-# covers its validation, coordinate planning, summaries, and CLI boundary.
-omit = ["src/pathologize_tiling_benchmark/gpu_benchmark.py"]
+# The legacy CUDA experiment remains covered by its digest-pinned Vector Job.
+# The TIFF trial uses CPU fakes in CI to cover its CUDA and reader boundaries.
+omit = [
+    "src/pathologize_tiling_benchmark/gpu_benchmark.py",
+]
 
 [tool.ty.environment]
 python-version = "3.12"
@@ -81,4 +84,7 @@ max-complexity = 12
 "tests/**" = ["S101"]
 "src/pathologize_tiling_benchmark/gpu_benchmark.py" = [
     "ANN401", # CuPy and nvImageCodec expose dynamic CUDA array types.
+]
+"src/pathologize_tiling_benchmark/tiff_gpu_benchmark.py" = [
+    "ANN401", # cuCIM, CuPy, and tifffile expose dynamic runtime types.
 ]

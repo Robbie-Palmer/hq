@@ -51,6 +51,10 @@ description = "Verify tiling contracts, leakage boundaries, and scorecards"
 depends = ["sync", "repro"]
 run = "uv run --locked pathologize-benchmark verify && uv run --locked pathologize-tiling-experiment verify"
 
+[tasks."fixtures:tiff-gpu"]
+description = "Acquire and verify the public TIFF GPU trial fixtures"
+run = "bash scripts/acquire-tiff-gpu-fixtures.sh"
+
 [tasks.check]
 description = "Check the tiling benchmark"
 depends = ["lint", "typecheck", "test:coverage", "verify"]

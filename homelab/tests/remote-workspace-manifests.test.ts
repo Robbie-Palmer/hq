@@ -2390,6 +2390,69 @@ test("the Pathologize GPU benchmark image pins CUDA dependencies and public inpu
   );
 });
 
+test("the Pathologize cuCIM trial isolates its pinned image and public fixtures", () => {
+  const dockerfile = readFileSync(
+    new URL("../images/pathologize-cucim-benchmark/Dockerfile", import.meta.url),
+    "utf8",
+  );
+  const installer = readFileSync(
+    new URL("../images/pathologize-cucim-benchmark/install.sh", import.meta.url),
+    "utf8",
+  );
+  const driverDockerfile = readFileSync(
+    new URL("../images/pathologize-cucim-benchmark/driver.Dockerfile", import.meta.url),
+    "utf8",
+  );
+  const buildScript = readFileSync(
+    new URL("../scripts/build-pathologize-cucim-benchmark-image.sh", import.meta.url),
+    "utf8",
+  );
+  const runScript = readFileSync(
+    new URL("../scripts/run-pathologize-cucim-benchmark-local.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    dockerfile,
+    /^FROM docker\.io\/nvidia\/cuda@sha256:e711c99333fdfe8ae1e677b4972be6c5021f0128a1d31f775c7e58d88921b6a9$/m,
+  );
+  assert.match(dockerfile, /COPY ml-pipelines\/pathologize-tiling-benchmark\/data\/tiff-gpu/);
+  assert.match(dockerfile, /ENV ENABLE_CUSLIDE2=1/);
+  assert.match(dockerfile, /USER 1000:1000/);
+  assert.match(
+    dockerfile,
+    /ENTRYPOINT \["pathologize-tiff-gpu-decode-benchmark"\]/,
+  );
+  assert.match(installer, /cucim-cu12==26\.10\.0/);
+  assert.match(installer, /nvidia-nvimgcodec-cu12==0\.9\.0\.20/);
+  assert.match(installer, /nvidia-nvjpeg-cu12==12\.4\.0\.76/);
+  assert.match(installer, /nvidia-nvjpeg2k-cu12==0\.12\.0\.58/);
+  assert.match(installer, /nvidia-nvtiff-cu12==0\.9\.0\.86/);
+  assert.match(installer, /nvidia-libnvcomp-cu12==5\.3\.0\.16/);
+  assert.match(installer, /cupy-cuda12x==14\.2\.0/);
+  assert.match(installer, /nvidia-cuda-runtime-cu12==12\.9\.79/);
+  assert.match(installer, /nvidia-cuda-nvrtc-cu12==12\.9\.86/);
+  assert.doesNotMatch(installer, /cuda-toolkit/);
+  assert.match(installer, /--no-deps --only-binary=:all:[\s\S]*cucim-cu12==26\.10\.0/);
+  assert.match(installer, /tifffile==2026\.10\.15/);
+  assert.match(buildScript, /--platform linux\/amd64/);
+  assert.match(buildScript, /--pull=false/);
+  assert.match(buildScript, /--provenance=false/);
+  assert.match(runScript, /--device=\/dev\/nvidia0/);
+  assert.match(runScript, /--memory=24g/);
+  assert.match(runScript, /\*-nvidia-x11-\$\{driver_version\}/);
+  assert.match(runScript, /data\/cucim-driver\.XXXXXX/);
+  assert.match(runScript, /libnvidia-ptxjitcompiler\.so/);
+  assert.match(runScript, /driver-\$\{driver_version\}/);
+  assert.match(runScript, /--provenance=false/);
+  assert.match(driverDockerfile, /^FROM ghcr\.io\/robbie-palmer\/pathologize-cucim-benchmark:0\.1\.0$/m);
+  assert.match(driverDockerfile, /COPY driver-libs\/ \/usr\/local\/nvidia\/lib64\//);
+  assert.match(
+    driverDockerfile,
+    /\/usr\/local\/lib\/python3\.12\/dist-packages\/nvidia\/nvimgcodec/,
+  );
+});
+
 test("the Vector workspace image provides the required glibc version", () => {
   const dockerfile = readFileSync(
     new URL("../images/t3-code/Dockerfile", import.meta.url),
