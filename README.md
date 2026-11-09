@@ -16,7 +16,8 @@ writing, infrastructure, and homelab configuration.
 Codecov [Tests](https://app.codecov.io/github/Robbie-Palmer/hq/tests) tracks per-test durations and
 failures, while [Bundles](https://app.codecov.io/github/Robbie-Palmer/hq/bundles/main/personal-site-ui)
 shows JavaScript bundle changes. The [coverage report](https://app.codecov.io/github/Robbie-Palmer/hq)
-is the same recursive report set consumed by SonarQube.
+reuses the same monorepo coverage run as SonarQube: Codecov discovers supported reports recursively,
+while SonarQube imports explicitly configured paths and a dedicated C++ report.
 
 [![Codecov icicle graph](https://codecov.io/github/Robbie-Palmer/hq/graphs/icicle.svg)](https://app.codecov.io/github/Robbie-Palmer/hq)
 
