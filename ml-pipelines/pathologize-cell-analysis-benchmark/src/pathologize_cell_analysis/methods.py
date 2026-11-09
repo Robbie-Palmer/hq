@@ -13,8 +13,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler
 
-from .contracts import SplitItem
-from .data import Annotation, load_annotations
+from .data import Annotation, SplitItem, load_annotations
 
 FloatArray = NDArray[np.float64]
 IntArray = NDArray[np.int64]

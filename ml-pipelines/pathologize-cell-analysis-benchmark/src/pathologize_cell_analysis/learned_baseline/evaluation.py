@@ -11,7 +11,7 @@ from skimage.draw import polygon
 from ultralytics_extensions.checkpoints import load_safe_checkpoint, training_rows
 
 from ..contracts import SpatialPrediction, SpatialPredictionRecord
-from ..data import Annotation, SplitItem, build_cohort, load_annotations
+from ..data import Annotation, SplitItem, load_annotations
 from ..instance_segmentation import (
     InstanceSegmentationRecords,
     segmentation_metrics,
@@ -25,8 +25,13 @@ from ..localization import (
 )
 from ..methods import PredictedNucleus
 from .config import (
+    LAYOUT_DIRECTORY,
     PARAMS_FILE,
+    TRANSPARENT_BASELINE_REPORT,
+    cohort,
+    data_root,
     load_config,
+    ontology_labels,
     output_root,
     parameters_sha256,
     project_root,
@@ -248,9 +253,10 @@ def evaluate_learned_baseline(
         if not required.is_file():
             raise FileNotFoundError(f"required evaluation input is missing: {required}")
 
-    data_root = root / config.data_directory
-    cohort = build_cohort(data_root, config.test_fold, config.validation_fold)
-    test_items = {item.item_id: item for item in cohort.items if item.split == "test"}
+    source_root = data_root()
+    product_cohort = cohort()
+    labels = ontology_labels()
+    test_items = {item.item_id: item for item in product_cohort.items if item.split == "test"}
     prediction_paths = {
         task: evaluation_root / task / "predictions.jsonl" for task in ("detect", "segment")
     }
@@ -259,8 +265,8 @@ def evaluate_learned_baseline(
             task,
             _prediction_records(prediction_paths[task]),
             test_items,
-            data_root,
-            config.ontology_labels,
+            source_root,
+            labels,
             config.localization_tolerance_pixels,
         )
         for task in ("detect", "segment")
@@ -292,7 +298,7 @@ def evaluate_learned_baseline(
     )
     if total_gpu_seconds > config.limits.aggregate_gpu_seconds:
         raise RuntimeError("training and inference exceeded the aggregate GPU-time ceiling")
-    transparent = read_json(root / config.transparent_baseline_report)
+    transparent = read_json(root / TRANSPARENT_BASELINE_REPORT)
     comparison = {
         "transparent_baseline": {
             "localization_f1": transparent["localization"]["f1"],
@@ -300,7 +306,7 @@ def evaluate_learned_baseline(
                 "mean_instance_iou"
             ],
         },
-        "ultralytics": {
+        "learned_baseline": {
             "detection_localization_f1": task_evidence["detect"]["localization"]["f1"],
             "segmentation_localization_f1": task_evidence["segment"]["localization"]["f1"],
             "conditional_instance_mean_iou": task_evidence["segment"]["instance_segmentation"][
@@ -308,7 +314,7 @@ def evaluate_learned_baseline(
             ],
         },
     }
-    layout_manifest_path = root / config.layout_directory / "manifest.json"
+    layout_manifest_path = root / LAYOUT_DIRECTORY / "manifest.json"
     layout_manifest = read_json(layout_manifest_path)
     evidence: dict[str, object] = {
         "schema_version": "1.0.0",
@@ -317,12 +323,13 @@ def evaluate_learned_baseline(
             "sha256": parameters_sha256(params_path),
         },
         "split": {
-            "item_counts": cohort.item_counts,
-            "patient_counts": cohort.patient_counts,
-            "slide_counts": cohort.slide_counts,
-            "patient_intersections": cohort.patient_intersections,
-            "slide_intersections": cohort.slide_intersections,
-            "held_out_test_sites": cohort.held_out_test_sites,
+            "product_id": product_cohort.product_id,
+            "item_counts": product_cohort.item_counts,
+            "patient_counts": product_cohort.patient_counts,
+            "slide_counts": product_cohort.slide_counts,
+            "patient_intersections": product_cohort.patient_intersections,
+            "slide_intersections": product_cohort.slide_intersections,
+            "held_out_test_sites": product_cohort.held_out_test_sites,
         },
         "tasks": task_evidence,
         "training_curves": training_curves,

@@ -1,22 +1,7 @@
-# DVC records this branch's learned-baseline implementation and parameters.
+# DVC records this branch's learned-baseline parameters and experiment variants.
 schema_version: 1.0.0
-experiment_id: nucls-ultralytics-yolo26n-v1
-dataset_manifest: sources/nucls-corrected-single-rater.json
-data_directory: data/nucls-corrected-single-rater
-layout_directory: data/derived/nucls-ultralytics-yolo26n-v1
-weights_directory: models/ultralytics/8.4.0
-output_directory: outputs/public/nucls-ultralytics-yolo26n-v1
-transparent_baseline_report: reports/nucls-public-baseline.json
-test_fold: 1
-validation_fold: 2
 localization_tolerance_pixels: 12.0
 maximum_border_clip_pixels: 2.0
-ontology_labels:
-  - nonTIL_stromal
-  - sTIL
-  - tumor_any
-  - AMBIGUOUS
-  - other_nucleus
 package:
   name: ultralytics
   version: 8.4.202

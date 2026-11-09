@@ -43,10 +43,9 @@ def _resource_metrics(values: dict[str, Any]) -> dict[str, float | int]:
 
 def _comparison(evidence: dict[str, Any]) -> dict[str, Any]:
     source = evidence["comparison"]
-    learned_key = "learned_baseline" if "learned_baseline" in source else "ultralytics"
     return {
         "transparent_baseline": source["transparent_baseline"],
-        "learned_baseline": source[learned_key],
+        "learned_baseline": source["learned_baseline"],
     }
 
 
@@ -240,7 +239,7 @@ def report_learned_baseline() -> dict[str, object]:
     config = load_config()
     evidence = read_json(OUTPUT_ROOT / "evaluation" / "evidence.json")
     if not isinstance(evidence, dict):
-        raise TypeError("Ultralytics evidence must be a JSON object")
+        raise TypeError("learned-baseline evidence must be a JSON object")
     metrics = metric_summary(evidence)
     write_json(JSON_REPORT_FILE, metrics)
     MARKDOWN_REPORT_FILE.parent.mkdir(parents=True, exist_ok=True)

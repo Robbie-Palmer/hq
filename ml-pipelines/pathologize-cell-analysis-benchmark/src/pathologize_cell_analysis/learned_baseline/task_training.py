@@ -23,6 +23,7 @@ from ultralytics_extensions.recovery import (
 )
 
 from ..contracts import AcceleratorResourceEvidence, LearnedBaselineConfig
+from .config import LAYOUT_DIRECTORY, WEIGHTS_DIRECTORY
 from .training_policy import (
     TrainingMonitor,
     monitor_training,
@@ -72,13 +73,13 @@ def _verify_training_inputs(
     experiment: LearnedBaselineConfig, root: Path, task: Task
 ) -> tuple[Path, Path]:
     model = experiment.models[task]
-    weights = root / experiment.weights_directory / model.weights
-    definition = root / experiment.weights_directory / Path(model.definition).name
+    weights = root / WEIGHTS_DIRECTORY / model.weights
+    definition = root / WEIGHTS_DIRECTORY / Path(model.definition).name
     if sha256_file(weights) != model.weights_sha256:
         raise ValueError(f"starting weight digest differs for {task}")
     if sha256_file(definition) != model.definition_sha256:
         raise ValueError(f"model definition digest differs for {task}")
-    layout_manifest = root / experiment.layout_directory / "manifest.json"
+    layout_manifest = root / LAYOUT_DIRECTORY / "manifest.json"
     if not layout_manifest.is_file():
         raise FileNotFoundError("derived Ultralytics layout manifest is missing")
     return weights, definition

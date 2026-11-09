@@ -25,16 +25,18 @@ GigaDB record publish it under CC0 1.0. The source archives retain TCGA slide
 barcodes, official slide folds, hospital codes, the original three biological
 super-classes, and the source's `AMBIGUOUS` and `other_nucleus` categories.
 
-The acquisition stage downloads RGB, annotation, and split archives from the
-publisher. It checks the published byte count and MD5 plus a pinned SHA-256,
-extracts them to a DVC output, and discards the archives. Git stores the source
-manifest, DVC reconstruction lock, and aggregate report. It does not store image
-or annotation bytes.
+The reusable `data-products/nucls/corrected-single-rater` project owns source
+acquisition. It checks the published byte count, MD5, and pinned SHA-256,
+preserves the source ontology and every official fold role, and publishes a
+native record index. Git stores its source contract and DVC lock, not image or
+annotation bytes.
 
-Fold 1 test slides are the test cohort. Fold 2 test slides are validation, and
-the remaining fold 1 training slides are train. The paper reports one slide per
-patient. The run derives patient IDs from TCGA barcodes and rejects any patient
-or slide overlap across splits.
+The `data-products/pathologize/nucleus-analysis` product owns the task adapter,
+ontology, partitions, lineage, reconciliation evidence, and metrics. It keeps
+fold 1 test slides as test, fold 2 test slides as validation, and the remaining
+fold 1 training slides as train. The product derives patient IDs from TCGA
+barcodes and rejects any patient or slide overlap across roles. This pipeline
+consumes that contract; it does not reconstruct the cohort.
 
 Every NuCLS point, rectangle, or polygon contributes its bounding-box midpoint
 to the localization task. A prediction is localized when its centroid is
@@ -75,16 +77,19 @@ polygons are excluded. Points are excluded from box training because they have
 no area; points and rectangles are excluded from mask training because they
 have no polygon. No surrogate geometry is created.
 
-`params/nucls-learned.yaml` is the typed experiment configuration. DVC
-tracks the parameter subsets consumed by acquisition,
-conversion, training, prediction, evaluation, and reporting separately. The
-JSON report is a DVC metric rather than a second copy of the full experiment
-record; cached evaluation evidence retains artifact hashes and audit detail.
+`params/nucls-learned.yaml` is the typed model, training, inference, and resource
+configuration. Dataset identity, folds, ontology, and lineage come from the
+nucleus-analysis data product rather than being duplicated as model params.
+DVC tracks the parameter subsets consumed by model acquisition, conversion,
+training, prediction, evaluation, and reporting separately. The JSON report is
+a DVC metric rather than a second copy of a full experiment object; cached
+evaluation evidence retains artifact hashes and audit detail.
 Project code lives under `learned_baseline` and is named for those pipeline
 stages. The configured framework remains in the parameter pins and the
 `ultralytics-extensions` adapter package, so another experiment branch can keep
 the same project module and DVC stage names.
-Parameter variants use DVC Experiments, for example:
+Durable runs live on their branches. Parameter variants use DVC Experiments,
+for example:
 
 ```bash
 mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \

@@ -512,6 +512,54 @@ wheels = [
 ]
 
 [[package]]
+name = "nucleus-analysis-dataset"
+version = "0.1.0"
+source = { editable = "../../data-products/pathologize/nucleus-analysis" }
+dependencies = [
+    { name = "fire" },
+    { name = "nucls-source-data" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fire", specifier = ">=0.7,<0.8" },
+    { name = "nucls-source-data", editable = "../../data-products/nucls/corrected-single-rater" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9,<10" },
+    { name = "pytest-cov", specifier = ">=7,<8" },
+    { name = "ruff", specifier = ">=0.14,<0.15" },
+    { name = "ty", specifier = ">=0.0.75,<0.1" },
+]
+
+[[package]]
+name = "nucls-source-data"
+version = "0.1.0"
+source = { editable = "../../data-products/nucls/corrected-single-rater" }
+dependencies = [
+    { name = "fire" },
+    { name = "pydantic" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "fire", specifier = ">=0.7,<0.8" },
+    { name = "pydantic", specifier = ">=2.12,<3" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "pytest", specifier = ">=9,<10" },
+    { name = "pytest-cov", specifier = ">=7,<8" },
+    { name = "ruff", specifier = ">=0.14,<0.15" },
+    { name = "ty", specifier = ">=0.0.75,<0.1" },
+]
+
+[[package]]
 name = "numpy"
 version = "2.5.4"
 source = { registry = "https://pypi.org/simple" }
@@ -756,6 +804,8 @@ source = { editable = "." }
 dependencies = [
     { name = "data-artifacts" },
     { name = "fire" },
+    { name = "nucleus-analysis-dataset" },
+    { name = "nucls-source-data" },
     { name = "numpy" },
     { name = "pathologize-benchmark-contracts" },
     { name = "pillow" },
@@ -779,6 +829,8 @@ dev = [
 requires-dist = [
     { name = "data-artifacts", editable = "../../packages/data-artifacts" },
     { name = "fire", specifier = ">=0.7.1,<0.8" },
+    { name = "nucleus-analysis-dataset", editable = "../../data-products/pathologize/nucleus-analysis" },
+    { name = "nucls-source-data", editable = "../../data-products/nucls/corrected-single-rater" },
     { name = "numpy", specifier = ">=2.2.0,<3" },
     { name = "pathologize-benchmark-contracts", editable = "../pathologize-benchmark-contracts" },
     { name = "pillow", specifier = ">=13,<14" },

@@ -2,12 +2,16 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from data_artifacts.files import read_yaml, resolve_under, sha256_file
+from data_artifacts.files import read_yaml, sha256_file
+from nucleus_analysis_dataset import DATASET_ROOT, CohortEvidence, load_cohort, load_ontology_labels
 
 from ..contracts import LearnedBaselineConfig
 
 PARAMS_PATH = Path("params/nucls-learned.yaml")
-OUTPUT_DIRECTORY = Path("outputs/public/nucls-ultralytics-yolo26n-v1")
+LAYOUT_DIRECTORY = Path("data/derived/learned-layout")
+WEIGHTS_DIRECTORY = Path("models/ultralytics/8.4.0")
+OUTPUT_DIRECTORY = Path("outputs/learned-baseline")
+TRANSPARENT_BASELINE_REPORT = Path("reports/nucls-public-baseline.json")
 JSON_REPORT = Path("reports/nucls-learned-baseline.json")
 MARKDOWN_REPORT = Path("reports/nucls-learned-baseline.md")
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -29,10 +33,20 @@ def project_root(params_path: Path) -> Path:
 
 
 def output_root(root: Path, config: LearnedBaselineConfig) -> Path:
-    expected = OUTPUT_DIRECTORY.as_posix()
-    if config.output_directory != expected:
-        raise ValueError(f"Ultralytics output directory must be {expected}")
-    return resolve_under(root, config.output_directory)
+    del config
+    return root / OUTPUT_DIRECTORY
+
+
+def data_root() -> Path:
+    return DATASET_ROOT
+
+
+def cohort() -> CohortEvidence:
+    return load_cohort()
+
+
+def ontology_labels() -> list[str]:
+    return load_ontology_labels()
 
 
 def parameters_sha256(path: Path = PARAMS_FILE) -> str:

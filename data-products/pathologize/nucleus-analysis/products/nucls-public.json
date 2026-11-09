@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "product_id": "pathologize-nucleus-analysis-nucls-public",
+  "description": "Source-preserving NuCLS nucleus-analysis product with frozen patient- and slide-disjoint roles",
+  "source_dataset_id": "nucls-corrected-single-rater-20220301",
+  "ontology_id": "pathologize-nucleus-analysis-source-preserving",
+  "test_fold": 1,
+  "validation_fold": 2,
+  "leakage_units": ["patient_id", "slide_id"],
+  "empty_image_policy": "preserve",
+  "coordinate_policy": "preserve_source_pixels"
+}

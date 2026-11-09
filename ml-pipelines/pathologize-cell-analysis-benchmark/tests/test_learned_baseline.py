@@ -4,13 +4,14 @@ import csv
 import json
 import time
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 import numpy as np
 import pytest
 import torch
 import yaml
-from data_artifacts.files import read_yaml, sha256_file, write_json
+from data_artifacts.files import read_yaml, sha256_file
+from nucleus_analysis_dataset import CohortEvidence
 from PIL import Image
 from pydantic import ValidationError
 from ultralytics_extensions.checkpoints import resume_evidence
@@ -26,12 +27,16 @@ from ultralytics_extensions.recovery import (
     write_training_task_state,
 )
 
+import pathologize_cell_analysis.learned_baseline.conversion as conversion_module
 from pathologize_cell_analysis.contracts import (
     LearnedBaselineConfig,
-    SplitItem,
 )
-from pathologize_cell_analysis.data import Annotation
-from pathologize_cell_analysis.learned_baseline.config import load_config
+from pathologize_cell_analysis.data import Annotation, SplitItem
+from pathologize_cell_analysis.learned_baseline.config import (
+    LAYOUT_DIRECTORY,
+    WEIGHTS_DIRECTORY,
+    load_config,
+)
 from pathologize_cell_analysis.learned_baseline.conversion import (
     acquire_model_artifacts,
     convert_annotations,
@@ -306,7 +311,7 @@ def test_running_attempt_uses_wall_clock_for_abrupt_failure_accounting(tmp_path:
 def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path) -> None:
     experiment = load_config()
     pin = experiment.models["detect"]
-    model_root = tmp_path / experiment.weights_directory
+    model_root = tmp_path / WEIGHTS_DIRECTORY
     weights = model_root / pin.weights
     definition = model_root / Path(pin.definition).name
     weights.parent.mkdir(parents=True)
@@ -325,7 +330,7 @@ def test_finalized_checkpoint_reruns_validation_before_completion(tmp_path: Path
             }
         }
     )
-    layout_root = tmp_path / experiment.layout_directory
+    layout_root = tmp_path / LAYOUT_DIRECTORY
     layout_root.mkdir(parents=True)
     (layout_root / "manifest.json").write_text("{}\n", encoding="utf-8")
 
@@ -478,31 +483,73 @@ def _write_item(root: Path, slide: str, *, empty: bool = False) -> str:
     return item_id
 
 
-def test_prepare_layout_preserves_splits_ontology_and_empty_images(tmp_path: Path) -> None:
-    repository_root = Path(__file__).parents[1]
-    source = json.loads(
-        (repository_root / "sources/nucls-corrected-single-rater.json").read_text(encoding="utf-8")
-    )
+def test_prepare_layout_preserves_splits_ontology_and_empty_images(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     document = _params_document()
-    experiment = document
-    write_json(tmp_path / experiment["dataset_manifest"], source)
     params_path = _write_params(tmp_path, document)
-    data_root = tmp_path / experiment["data_directory"]
+    data_root = tmp_path / "source-product"
     train_slide = "TCGA-TR-0001-DX1"
     validation_slide = "TCGA-VA-0002-DX1"
     test_slide = "TCGA-TE-0003-DX1"
-    _write_item(data_root, train_slide)
-    _write_item(data_root, validation_slide)
+    train_item = _write_item(data_root, train_slide)
+    validation_item = _write_item(data_root, validation_slide)
     test_item = _write_item(data_root, test_slide, empty=True)
-    split_root = data_root / "splits"
-    _write_split(split_root / "fold_1_train.csv", [(train_slide, "TR"), (validation_slide, "VA")])
-    _write_split(split_root / "fold_1_test.csv", [(test_slide, "TE")])
-    _write_split(split_root / "fold_2_test.csv", [(validation_slide, "VA")])
+    labels = _fixture()["ontology_labels"]
+
+    def record(
+        item_id: str,
+        slide: str,
+        site: str,
+        split: Literal["train", "validation", "test"],
+        count: int,
+    ) -> SplitItem:
+        return SplitItem(
+            product_id="pathologize-nucleus-analysis-nucls-public",
+            source_dataset_id="nucls-corrected-single-rater-20220301",
+            item_id=item_id,
+            slide_id=slide,
+            patient_id="-".join(slide.split("-")[:3]),
+            site_id=site,
+            split=split,
+            image_path=f"rgb/{item_id}.png",
+            annotation_path=f"annotations/{item_id}.csv",
+            source_roles={"1": "test" if split == "test" else "train"},
+            source_labels_present=[] if count == 0 else ["tumor_any"],
+            target_labels_present=[] if count == 0 else ["tumor_any"],
+            annotation_count=count,
+            adapter_id="nucls-corrected-single-rater-to-nucleus-analysis",
+        )
+
+    items = [
+        record(train_item, train_slide, "TR", "train", 1),
+        record(validation_item, validation_slide, "VA", "validation", 1),
+        record(test_item, test_slide, "TE", "test", 0),
+    ]
+    product_cohort = CohortEvidence(
+        schema_version="1.0.0",
+        product_id="pathologize-nucleus-analysis-nucls-public",
+        leakage_unit="patient_id",
+        secondary_leakage_unit="slide_id",
+        source_statement="fixture",
+        items=items,
+        item_counts={"train": 1, "validation": 1, "test": 1},
+        patient_counts={"train": 1, "validation": 1, "test": 1},
+        slide_counts={"train": 1, "validation": 1, "test": 1},
+        site_counts={"TE": 1},
+        patient_intersections={"train_validation": [], "train_test": [], "validation_test": []},
+        slide_intersections={"train_validation": [], "train_test": [], "validation_test": []},
+        site_intersections={"train_validation": [], "train_test": [], "validation_test": []},
+        held_out_test_sites=["TE"],
+    )
+    monkeypatch.setattr(conversion_module, "data_root", lambda: data_root)
+    monkeypatch.setattr(conversion_module, "cohort", lambda: product_cohort)
+    monkeypatch.setattr(conversion_module, "ontology_labels", lambda: labels)
 
     result: Any = prepare_training_layout(params_path)
-    assert result["source_ontology"] == experiment["ontology_labels"]
+    assert result["source_ontology"] == labels
     assert result["split"]["patient_intersections"]["train_test"] == []
-    layout = tmp_path / experiment["layout_directory"]
+    layout = tmp_path / LAYOUT_DIRECTORY
     assert (layout / f"detect/labels/test/{test_item}.txt").read_text(encoding="utf-8") == ""
     assert (layout / f"segment/labels/test/{test_item}.txt").read_text(encoding="utf-8") == ""
     assert "train: images/train" in (layout / "detect.yaml").read_text(encoding="utf-8")
@@ -547,6 +594,8 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
         masks = Masks()
 
     item = SplitItem(
+        product_id="pathologize-nucleus-analysis-nucls-public",
+        source_dataset_id="nucls-corrected-single-rater-20220301",
         item_id="item",
         slide_id="TCGA-TE-0003-DX1",
         patient_id="TCGA-TE-0003",
@@ -554,6 +603,11 @@ def test_native_prediction_normalization_and_pathologize_evaluation(tmp_path: Pa
         split="test",
         image_path="rgb/item.png",
         annotation_path="annotations/item.csv",
+        source_roles={"1": "test", "2": "train"},
+        source_labels_present=["tumor_any"],
+        target_labels_present=["tumor_any"],
+        annotation_count=1,
+        adapter_id="nucls-corrected-single-rater-to-nucleus-analysis",
     )
     _write_annotation(tmp_path / item.annotation_path)
     record, rejections = normalize_pathologize_result(
@@ -666,14 +720,14 @@ def test_parameterized_runtime_arguments_and_report_helpers(tmp_path: Path) -> N
         "tasks": {
             "detect": {
                 "per_class": {
-                    label: {"localization": {"f1": 0.5}} for label in experiment.ontology_labels
+                    label: {"localization": {"f1": 0.5}} for label in _fixture()["ontology_labels"]
                 },
                 "held_out_site_slices": {"TE": {"localization": {"f1": 0.5}}},
             },
             "segment": {
                 "per_class": {
                     label: {"instance_segmentation": {"mean_instance_iou": 0.4}}
-                    for label in experiment.ontology_labels
+                    for label in _fixture()["ontology_labels"]
                 },
                 "held_out_site_slices": {
                     "TE": {"instance_segmentation": {"mean_instance_iou": 0.4}}
@@ -699,7 +753,7 @@ def test_parameterized_runtime_arguments_and_report_helpers(tmp_path: Path) -> N
                 "localization_f1": 0.3,
                 "conditional_instance_mean_iou": 0.2,
             },
-            "ultralytics": {
+            "learned_baseline": {
                 "detection_localization_f1": 0.5,
                 "conditional_instance_mean_iou": 0.4,
             },

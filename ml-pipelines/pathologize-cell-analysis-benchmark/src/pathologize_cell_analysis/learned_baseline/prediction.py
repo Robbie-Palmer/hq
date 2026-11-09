@@ -11,10 +11,13 @@ from data_artifacts.files import write_json, write_jsonl
 from ultralytics_extensions.results import normalize_result
 
 from ..contracts import AcceleratorResourceEvidence, SpatialPrediction, SpatialPredictionRecord
-from ..data import SplitItem, build_cohort
+from ..data import SplitItem
 from .config import (
+    LAYOUT_DIRECTORY,
     PARAMS_FILE,
+    cohort,
     load_config,
+    ontology_labels,
     output_root,
     project_root,
 )
@@ -127,9 +130,9 @@ def predict_learned_baseline(
     from torch import cuda
     from ultralytics import YOLO
 
-    data_root = root / config.data_directory
-    cohort = build_cohort(data_root, config.test_fold, config.validation_fold)
-    test_items = {item.item_id: item for item in cohort.items if item.split == "test"}
+    product_cohort = cohort()
+    labels = ontology_labels()
+    test_items = {item.item_id: item for item in product_cohort.items if item.split == "test"}
     resources: dict[str, object] = {}
     all_rejections: list[dict[str, object]] = []
     written: list[Path] = []
@@ -137,7 +140,7 @@ def predict_learned_baseline(
         for task in ("detect", "segment"):
             checkpoint = run_root / "training" / task / "weights" / "best.pt"
             model = YOLO(str(checkpoint), task=task)
-            test_image_root = root / config.layout_directory / task / "images" / "test"
+            test_image_root = root / LAYOUT_DIRECTORY / task / "images" / "test"
             source_paths = [
                 str(test_image_root / f"{item_id}.png") for item_id in sorted(test_items)
             ]
@@ -160,7 +163,7 @@ def predict_learned_baseline(
                     result_value,
                     _require_known_item(item_id, test_items),
                     task,
-                    config.ontology_labels,
+                    labels,
                 )
                 records.append(record)
                 all_rejections.extend({"task": task, **rejection} for rejection in rejections)
@@ -192,5 +195,5 @@ def predict_learned_baseline(
             path.unlink(missing_ok=True)
         raise
     finally:
-        _clear_runtime_files(root / config.layout_directory, prediction_root)
+        _clear_runtime_files(root / LAYOUT_DIRECTORY, prediction_root)
     return evidence

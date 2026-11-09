@@ -7,6 +7,8 @@ dependencies = [
     "data-artifacts",
     "fire>=0.7.1,<0.8",
     "numpy>=2.2.0,<3",
+    "nucleus-analysis-dataset",
+    "nucls-source-data",
     "pathologize-benchmark-contracts",
     "pillow>=13,<14",
     "pydantic>=2.12.5,<3",
@@ -41,6 +43,8 @@ module-name = "pathologize_cell_analysis"
 [tool.uv.sources]
 data-artifacts = { path = "../../packages/data-artifacts", editable = true }
 ml-evaluation = { path = "../../packages/ml-evaluation", editable = true }
+nucleus-analysis-dataset = { path = "../../data-products/pathologize/nucleus-analysis", editable = true }
+nucls-source-data = { path = "../../data-products/nucls/corrected-single-rater", editable = true }
 pathologize-benchmark-contracts = { path = "../pathologize-benchmark-contracts", editable = true }
 ultralytics-extensions = { path = "../../packages/ultralytics-extensions", editable = true }
 

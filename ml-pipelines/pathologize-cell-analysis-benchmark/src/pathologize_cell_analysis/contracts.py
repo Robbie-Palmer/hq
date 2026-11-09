@@ -11,56 +11,9 @@ class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
 
-class License(StrictModel):
-    spdx_id: Literal["CC0-1.0"]
-    url: HttpUrl
-    evidence_url: HttpUrl
-
-
-class SourceArchive(StrictModel):
-    name: Literal["rgb", "annotations", "splits"]
-    url: HttpUrl
-    bytes: int = Field(gt=0)
-    md5: str = Field(pattern=r"^[a-f0-9]{32}$")
-    sha256: str = Field(pattern=SHA256_PATTERN)
-    member_prefix: str = Field(min_length=1)
-    member_suffix: Literal[".png", ".csv"]
-
-
-class DatasetManifest(StrictModel):
+class PublicBaselineConfig(StrictModel):
     schema_version: Literal["1.0.0"]
-    dataset_id: Literal["nucls-corrected-single-rater-20220301"]
-    title: str
-    doi: Literal["10.5524/102207"]
-    paper_doi: Literal["10.1093/gigascience/giac037"]
-    license: License
-    publisher: str
-    publisher_record: HttpUrl
-    archives: list[SourceArchive]
-    classification_field: Literal["super_classification"]
-    classification_labels: list[str] = Field(min_length=2)
-    unmappable_categories: dict[str, str]
-
-    @model_validator(mode="after")
-    def require_complete_source(self) -> Self:
-        if {archive.name for archive in self.archives} != {"rgb", "annotations", "splits"}:
-            raise ValueError("NuCLS source must pin RGB, annotation, and split archives")
-        if len(self.classification_labels) != len(set(self.classification_labels)):
-            raise ValueError("classification labels must be unique")
-        if set(self.classification_labels).intersection(self.unmappable_categories):
-            raise ValueError("unmappable categories cannot also be classification labels")
-        return self
-
-
-class Experiment(StrictModel):
-    schema_version: Literal["1.0.0"]
-    experiment_id: Literal["nucls-public-baseline-v1"]
-    dataset_manifest: str
-    data_directory: str
-    output_directory: str
     random_seed: int = Field(ge=0)
-    test_fold: int = Field(ge=1, le=5)
-    validation_fold: int = Field(ge=1, le=5)
     localization_tolerance_pixels: float = Field(gt=0)
     minimum_nucleus_pixels: int = Field(gt=0)
     watershed_minimum_distance_pixels: int = Field(gt=0)
@@ -68,12 +21,6 @@ class Experiment(StrictModel):
     per_run_wall_seconds: int = Field(gt=0, le=86400)
     aggregate_accelerator_seconds: int = Field(gt=0, le=86400)
     accelerator: Literal["none"]
-
-    @model_validator(mode="after")
-    def require_distinct_folds(self) -> Self:
-        if self.test_fold == self.validation_fold:
-            raise ValueError("validation and test folds must differ")
-        return self
 
 
 class PackagePin(StrictModel):
@@ -160,18 +107,8 @@ class ExportDecision(StrictModel):
 
 class LearnedBaselineConfig(StrictModel):
     schema_version: Literal["1.0.0"]
-    experiment_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
-    dataset_manifest: str
-    data_directory: str
-    layout_directory: str
-    weights_directory: str
-    output_directory: str
-    transparent_baseline_report: str
-    test_fold: int = Field(ge=1, le=5)
-    validation_fold: int = Field(ge=1, le=5)
     localization_tolerance_pixels: float = Field(gt=0)
     maximum_border_clip_pixels: float = Field(ge=0, le=2)
-    ontology_labels: list[str] = Field(min_length=1)
     package: PackagePin
     models: dict[Literal["detect", "segment"], ModelPin]
     training: TrainingConfig
@@ -184,10 +121,6 @@ class LearnedBaselineConfig(StrictModel):
 
     @model_validator(mode="after")
     def require_complete_predeclaration(self) -> Self:
-        if self.test_fold == self.validation_fold:
-            raise ValueError("validation and test folds must differ")
-        if len(self.ontology_labels) != len(set(self.ontology_labels)):
-            raise ValueError("ontology labels must be unique")
         if set(self.models) != {"detect", "segment"}:
             raise ValueError("detect and segment model pins are required")
         if any(key != model.task for key, model in self.models.items()):
@@ -197,47 +130,6 @@ class LearnedBaselineConfig(StrictModel):
         if len(set(self.seeds.values())) != 2:
             raise ValueError("task seeds must differ")
         return self
-
-
-class ArchiveEvidence(StrictModel):
-    name: str
-    url: str
-    bytes: int
-    md5: str
-    sha256: str
-    extracted_files: int = Field(gt=0)
-
-
-class AcquisitionEvidence(StrictModel):
-    schema_version: Literal["1.0.0"]
-    dataset_id: str
-    archives: list[ArchiveEvidence]
-
-
-class SplitItem(StrictModel):
-    item_id: str
-    slide_id: str
-    patient_id: str
-    site_id: str
-    split: Literal["train", "validation", "test"]
-    image_path: str
-    annotation_path: str
-
-
-class CohortEvidence(StrictModel):
-    schema_version: Literal["1.0.0"]
-    leakage_unit: Literal["patient_id"]
-    secondary_leakage_unit: Literal["slide_id"]
-    source_statement: str
-    items: list[SplitItem]
-    item_counts: dict[str, int]
-    patient_counts: dict[str, int]
-    slide_counts: dict[str, int]
-    site_counts: dict[str, int]
-    patient_intersections: dict[str, list[str]]
-    slide_intersections: dict[str, list[str]]
-    site_intersections: dict[str, list[str]]
-    held_out_test_sites: list[str]
 
 
 class ResourceEvidence(StrictModel):

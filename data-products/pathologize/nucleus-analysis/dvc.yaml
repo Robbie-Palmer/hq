@@ -1,0 +1,23 @@
+stages:
+  build_nucls_public:
+    cmd: uv run --locked nucleus-analysis-data build
+    deps:
+      - .python-version
+      - adapters
+      - imports.json
+      - ontologies
+      - products
+      - pyproject.toml
+      - src/nucleus_analysis_dataset
+      - uv.lock
+      - ../../nucls/corrected-single-rater/dvc.lock
+      - ../../nucls/corrected-single-rater/manifest.json
+      - ../../nucls/corrected-single-rater/outputs/native-index.jsonl
+    outs:
+      - outputs/records.jsonl
+      - outputs/cohort.json
+      - outputs/partitions.json
+      - outputs/lineage.json
+      - outputs/reconciliation.json
+    metrics:
+      - outputs/metrics.json

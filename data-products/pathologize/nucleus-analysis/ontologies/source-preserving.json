@@ -1,0 +1,11 @@
+{
+  "schema_version": "1.0.0",
+  "ontology_id": "pathologize-nucleus-analysis-source-preserving",
+  "labels": ["nonTIL_stromal", "sTIL", "tumor_any", "AMBIGUOUS", "other_nucleus"],
+  "coordinate_semantics": {
+    "boxes": "integer pixel bounds from source xmin, ymin, xmax, ymax",
+    "points": "source point coordinates and source bounding-box midpoint",
+    "polygons": "paired source coords_x and coords_y pixel vertices",
+    "ignored_regions": "source annotation CSVs remain unmodified; this release has no separate ignore-region geometry"
+  }
+}

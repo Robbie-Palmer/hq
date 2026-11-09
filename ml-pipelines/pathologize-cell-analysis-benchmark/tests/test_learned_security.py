@@ -12,6 +12,7 @@ from pathologize_cell_analysis.learned_baseline.config import (
     MARKDOWN_REPORT,
     OUTPUT_DIRECTORY,
     load_config,
+    ontology_labels,
     output_root,
 )
 from pathologize_cell_analysis.learned_baseline.reporting import report_learned_baseline
@@ -31,10 +32,7 @@ def test_experiment_output_directory_is_pinned(tmp_path: Path) -> None:
     config = load_config()
 
     assert output_root(tmp_path, config) == tmp_path / OUTPUT_DIRECTORY
-
-    escaped = config.model_copy(update={"output_directory": "../../outside"})
-    with pytest.raises(ValueError, match="output directory must be"):
-        output_root(tmp_path, escaped)
+    assert "output_directory" not in type(config).model_fields
 
 
 def _curve(box: bool) -> dict[str, Any]:
@@ -68,6 +66,8 @@ def _curve(box: bool) -> dict[str, Any]:
 
 
 def _evidence(config: Any) -> dict[str, Any]:
+    del config
+    labels = ontology_labels()
     localization = {"precision": 0.5, "recall": 0.5, "f1": 0.5}
     segmentation = {
         "localization_coverage": 0.8,
@@ -86,18 +86,13 @@ def _evidence(config: Any) -> dict[str, Any]:
         "tasks": {
             "detect": {
                 "localization": localization,
-                "per_class": {
-                    label: {"localization": localization} for label in config.ontology_labels
-                },
+                "per_class": {label: {"localization": localization} for label in labels},
                 "held_out_site_slices": {"TE": {"localization": localization}},
             },
             "segment": {
                 "localization": localization,
                 "instance_segmentation": segmentation,
-                "per_class": {
-                    label: {"instance_segmentation": segmentation}
-                    for label in config.ontology_labels
-                },
+                "per_class": {label: {"instance_segmentation": segmentation} for label in labels},
                 "held_out_site_slices": {"TE": {"instance_segmentation": segmentation}},
             },
         },
@@ -107,7 +102,7 @@ def _evidence(config: Any) -> dict[str, Any]:
                 "localization_f1": 0.3,
                 "conditional_instance_mean_iou": 0.2,
             },
-            "ultralytics": {
+            "learned_baseline": {
                 "detection_localization_f1": 0.5,
                 "segmentation_localization_f1": 0.5,
                 "conditional_instance_mean_iou": 0.4,

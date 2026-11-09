@@ -7,6 +7,7 @@ from pathlib import Path
 from data_artifacts.files import sha256_file, write_json
 
 from .config import (
+    LAYOUT_DIRECTORY,
     PARAMS_FILE,
     load_config,
     output_root,
@@ -65,7 +66,7 @@ def train_learned_baseline(  # pragma: no cover
                 raise RuntimeError("aggregate GPU-time ceiling exceeded")
         result: dict[str, object] = {
             "schema_version": "1.0.0",
-            "experiment_id": experiment.experiment_id,
+            "data_product": "pathologize-nucleus-analysis-nucls-public",
             "package": experiment.package.model_dump(mode="json"),
             "package_lock": "uv.lock",
             "package_lock_sha256": sha256_file(root / "uv.lock"),
@@ -82,7 +83,7 @@ def train_learned_baseline(  # pragma: no cover
         write_json(training_root / "manifest.json", result)
         complete = True
     finally:
-        _clear_ultralytics_caches(root / experiment.layout_directory)
+        _clear_ultralytics_caches(root / LAYOUT_DIRECTORY)
         _clear_ultralytics_runtime_config(training_root)
         if not complete:
             _clean_failed_training_output(training_root, output_root_existed)

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, Literal
 
 from ..contracts import LearnedBaselineConfig
+from .config import LAYOUT_DIRECTORY
 
 Task = Literal["detect", "segment"]
 
@@ -24,7 +25,7 @@ def training_arguments(
     training = experiment.training
     augmentation = training.augmentation
     return {
-        "data": str(root / experiment.layout_directory / f"{task}.yaml"),
+        "data": str(root / LAYOUT_DIRECTORY / f"{task}.yaml"),
         "epochs": training.epochs,
         "patience": training.patience,
         "batch": training.batch,

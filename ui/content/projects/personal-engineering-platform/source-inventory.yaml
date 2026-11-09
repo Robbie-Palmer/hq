@@ -646,6 +646,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/ultralytics-extensions"
+    project: "project:pathologize"
+    paths: [ "packages/ultralytics-extensions" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/data-registry"
     project: "project:pathologize"
     paths: [ "ml-pipelines/pathologize-data-registry" ]
@@ -662,9 +670,25 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/gpu-benchmark-image"
+    project: "project:pathologize"
+    paths: [ "homelab/images/pathologize-gpu-benchmark" ]
+    toolchains: [ "shell" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/grandqc-mpp20-data-product"
     project: "project:pathologize"
     paths: [ "data-products/grandqc/mpp20" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/nucls-corrected-single-rater-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/nucls/corrected-single-rater" ]
     toolchains: [ "python" ]
     profile: null
     receipt: null
@@ -681,6 +705,14 @@ components:
   - id: "component:pathologize/slide-quality-data-product"
     project: "project:pathologize"
     paths: [ "data-products/pathologize/slide-quality" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/nucleus-analysis-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/pathologize/nucleus-analysis" ]
     toolchains: [ "python" ]
     profile: null
     receipt: null

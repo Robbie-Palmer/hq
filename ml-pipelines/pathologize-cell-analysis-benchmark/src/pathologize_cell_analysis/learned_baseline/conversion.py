@@ -9,20 +9,21 @@ from pathlib import Path
 from typing import Literal
 
 from data_artifacts.files import sha256_file, write_json
+from nucls_source_data import load_manifest
 from PIL import Image
+from ultralytics_extensions.downloads import HttpsOnlyRedirectHandler
 from ultralytics_extensions.labels import bbox_to_yolo, polygon_to_yolo
 
-from ..contracts import LearnedBaselineConfig, SplitItem
-from ..data import (
-    Annotation,
-    _HttpsOnlyRedirectHandler,
-    build_cohort,
-    load_annotations,
-    load_dataset_manifest,
-)
+from ..contracts import LearnedBaselineConfig
+from ..data import Annotation, SplitItem, load_annotations
 from .config import (
+    LAYOUT_DIRECTORY,
     PARAMS_FILE,
+    WEIGHTS_DIRECTORY,
+    cohort,
+    data_root,
     load_config,
+    ontology_labels,
     project_root,
 )
 
@@ -55,7 +56,7 @@ def _download_pinned_file(url: str, output: Path, size: int | None, digest: str)
     if not url.startswith("https://"):
         raise ValueError("model artifact URL must use HTTPS")
     request = urllib.request.Request(url, headers={"User-Agent": "Pathologize/1.0"})  # noqa: S310
-    opener = urllib.request.build_opener(_HttpsOnlyRedirectHandler())
+    opener = urllib.request.build_opener(HttpsOnlyRedirectHandler())
     with opener.open(request, timeout=60) as response, output.open("wb") as target:
         shutil.copyfileobj(response, target, length=1024 * 1024)
     if size is not None and output.stat().st_size != size:
@@ -69,7 +70,7 @@ def acquire_model_artifacts(
 ) -> dict[str, object]:
     experiment = load_config(params_path)
     root = project_root(params_path)
-    output_root = root / experiment.weights_directory
+    output_root = root / WEIGHTS_DIRECTORY
     if output_root.exists():
         raise FileExistsError(f"Ultralytics artifact output already exists: {output_root}")
     complete = False
@@ -258,14 +259,12 @@ def convert_annotations(
     return ConversionResult(tuple(labels), tuple(exclusions), tuple(adjustments))
 
 
-def _write_dataset_yaml(path: Path, task: Task, experiment: LearnedBaselineConfig) -> None:
-    names = "\n".join(
-        f"  {index}: {json.dumps(label)}" for index, label in enumerate(experiment.ontology_labels)
-    )
+def _write_dataset_yaml(path: Path, task: Task, labels: list[str]) -> None:
+    names = "\n".join(f"  {index}: {json.dumps(label)}" for index, label in enumerate(labels))
     path.write_text(
         "\n".join(
             (
-                f"path: {experiment.layout_directory}/{task}",
+                f"path: {LAYOUT_DIRECTORY.as_posix()}/{task}",
                 "train: images/train",
                 "val: images/validation",
                 "test: images/test",
@@ -283,6 +282,7 @@ def _convert_item(
     data_root: Path,
     output_root: Path,
     experiment: LearnedBaselineConfig,
+    labels: list[str],
     exclusion_counts: dict[str, Counter[str]],
     adjustment_counts: dict[str, Counter[str]],
 ) -> dict[str, object]:
@@ -301,7 +301,7 @@ def _convert_item(
         converted = convert_annotations(
             annotations,
             image_size,
-            experiment.ontology_labels,
+            labels,
             task,
             experiment.maximum_border_clip_pixels,
         )
@@ -341,15 +341,16 @@ def prepare_training_layout(
 ) -> dict[str, object]:
     experiment = load_config(params_path)
     root = project_root(params_path)
-    data_root = root / experiment.data_directory
-    output_root = root / experiment.layout_directory
+    source_root = data_root()
+    output_root = root / LAYOUT_DIRECTORY
     if output_root.exists():
         raise FileExistsError(f"Ultralytics layout already exists: {output_root}")
-    manifest = load_dataset_manifest(root / experiment.dataset_manifest)
+    manifest = load_manifest()
     expected_ontology = [*manifest.classification_labels, *manifest.unmappable_categories]
-    if experiment.ontology_labels != expected_ontology:
+    labels = ontology_labels()
+    if labels != expected_ontology:
         raise ValueError("Ultralytics ontology differs from the pinned public source ontology")
-    cohort = build_cohort(data_root, experiment.test_fold, experiment.validation_fold)
+    product_cohort = cohort()
     complete = False
     try:
         output_root.mkdir(parents=True)
@@ -364,21 +365,22 @@ def prepare_training_layout(
         item_records = [
             _convert_item(
                 item,
-                data_root,
+                source_root,
                 output_root,
                 experiment,
+                labels,
                 exclusion_counts,
                 adjustment_counts,
             )
-            for item in cohort.items
+            for item in product_cohort.items
         ]
         for task in ("detect", "segment"):
-            _write_dataset_yaml(output_root / f"{task}.yaml", task, experiment)
+            _write_dataset_yaml(output_root / f"{task}.yaml", task, labels)
         result: dict[str, object] = {
             "schema_version": "1.0.0",
-            "experiment_id": experiment.experiment_id,
+            "product_id": product_cohort.product_id,
             "dataset_id": manifest.dataset_id,
-            "source_ontology": experiment.ontology_labels,
+            "source_ontology": labels,
             "ontology_mapping_performed": False,
             "coordinate_semantics": (
                 "Source pixel-edge coordinates use x from the left and y from the top. "
@@ -386,7 +388,7 @@ def prepare_training_layout(
                 "Only Ultralytics label serialization normalizes values by image width and height."
             ),
             "leakage_units": ["patient_id", "slide_id"],
-            "split": cohort.model_dump(mode="json"),
+            "split": product_cohort.model_dump(mode="json"),
             "items": item_records,
             "exclusion_counts": {
                 task: dict(sorted(counts.items())) for task, counts in exclusion_counts.items()

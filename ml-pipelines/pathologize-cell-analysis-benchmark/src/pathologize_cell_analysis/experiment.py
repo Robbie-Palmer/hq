@@ -1,32 +1,39 @@
 from __future__ import annotations
 
-import shutil
 import textwrap
 from collections import Counter
 from pathlib import Path
 from typing import Any
 
-from data_artifacts.files import load_model, sha256_file, write_json
+from data_artifacts.files import load_model, read_yaml, sha256_file, write_json
+from nucleus_analysis_dataset import DATASET_ROOT, load_cohort
+from nucleus_analysis_dataset import PROJECT_DIR as PRODUCT_DIR
+from nucls_source_data import load_manifest
 
 from .contracts import (
-    AcquisitionEvidence,
     ClassificationRunEvidence,
-    DatasetManifest,
-    Experiment,
     ExperimentEvidence,
     GateEvidence,
     MorphologyEvidence,
+    PublicBaselineConfig,
     RunEvidence,
 )
-from .data import build_cohort, load_dataset_manifest
+from .data import load_annotations
 from .evaluation import evaluate_adapter
 from .methods import ClassPrior, MorphologyLogistic
 
 FOUR_COLUMN_TABLE_ALIGNMENT = "| --- | ---: | ---: | ---: |"
 
 
-def _load_experiment(path: Path) -> Experiment:
-    return load_model(path, Experiment)
+PUBLIC_OUTPUT_DIRECTORY = Path("outputs/public-baseline")
+PUBLIC_BASELINE_ID = "nucls-public-baseline"
+
+
+def _load_experiment(path: Path) -> PublicBaselineConfig:
+    document = read_yaml(path)
+    if not isinstance(document, dict):
+        raise TypeError("public-baseline parameters must be a YAML object")
+    return PublicBaselineConfig.model_validate(document)
 
 
 def _project_root(experiment_path: Path) -> Path:
@@ -62,7 +69,7 @@ def _classification_run(run: RunEvidence) -> ClassificationRunEvidence:
 
 
 def _comparison_gates(
-    experiment: Experiment,
+    experiment: PublicBaselineConfig,
     baseline: ClassificationRunEvidence,
     candidate: ClassificationRunEvidence,
 ) -> list[GateEvidence]:
@@ -156,8 +163,6 @@ def _comparison_gates(
 
 
 def _ontology_counts(data_root: Path, items: list[Any]) -> dict[str, int]:
-    from .data import load_annotations
-
     counts: Counter[str] = Counter()
     for item in items:
         for annotation in load_annotations(data_root / item.annotation_path):
@@ -165,43 +170,20 @@ def _ontology_counts(data_root: Path, items: list[Any]) -> dict[str, int]:
     return dict(sorted(counts.items()))
 
 
-def _validate_acquisition(path: Path, manifest: DatasetManifest) -> AcquisitionEvidence:
-    evidence = load_model(path, AcquisitionEvidence)
-    if evidence.dataset_id != manifest.dataset_id:
-        raise ValueError("acquisition dataset ID differs from the source manifest")
-    expected = {archive.name: archive for archive in manifest.archives}
-    observed = {archive.name: archive for archive in evidence.archives}
-    if set(observed) != set(expected):
-        raise ValueError("acquisition archives differ from the source manifest")
-    for name, archive in expected.items():
-        acquired = observed[name]
-        if (
-            acquired.bytes != archive.bytes
-            or acquired.md5 != archive.md5
-            or acquired.sha256 != archive.sha256
-            or acquired.url != str(archive.url)
-        ):
-            raise ValueError(f"acquisition evidence differs for {name}")
-    return evidence
-
-
 def run(experiment_path: Path) -> dict[str, Any]:
     experiment = _load_experiment(experiment_path)
     root = _project_root(experiment_path)
-    manifest_path = root / experiment.dataset_manifest
-    manifest = load_dataset_manifest(manifest_path)
-    data_root = root / experiment.data_directory
-    output_root = root / experiment.output_directory
-    acquisition_path = data_root / "acquisition.json"
+    manifest = load_manifest()
+    data_root = DATASET_ROOT
+    output_root = root / PUBLIC_OUTPUT_DIRECTORY
+    acquisition_path = data_root / "data/native/acquisition.json"
     if not acquisition_path.is_file():
         raise FileNotFoundError("NuCLS acquisition evidence is missing")
-    _validate_acquisition(acquisition_path, manifest)
     if output_root.exists():
         raise FileExistsError(f"experiment output already exists: {output_root}")
     output_root.mkdir(parents=True)
-    cohort = build_cohort(data_root, experiment.test_fold, experiment.validation_fold)
-    cohort_path = output_root / "cohort.json"
-    write_json(cohort_path, cohort)
+    cohort = load_cohort()
+    cohort_path = PRODUCT_DIR / "outputs/cohort.json"
     train_items = [item for item in cohort.items if item.split == "train"]
     test_items = [item for item in cohort.items if item.split == "test"]
     classes = tuple(manifest.classification_labels)
@@ -255,7 +237,7 @@ def run(experiment_path: Path) -> dict[str, Any]:
     )
     evidence = ExperimentEvidence(
         schema_version="1.1.0",
-        experiment_id=experiment.experiment_id,
+        experiment_id=PUBLIC_BASELINE_ID,
         dataset={
             "dataset_id": manifest.dataset_id,
             "title": manifest.title,
@@ -263,7 +245,7 @@ def run(experiment_path: Path) -> dict[str, Any]:
             "paper_doi": manifest.paper_doi,
             "license": manifest.license.model_dump(mode="json"),
             "publisher_record": str(manifest.publisher_record),
-            "acquisition_evidence": acquisition_path.relative_to(root).as_posix(),
+            "acquisition_evidence": acquisition_path.relative_to(root.parents[1]).as_posix(),
             "acquisition_sha256": sha256_file(acquisition_path),
         },
         ontology={
@@ -275,11 +257,11 @@ def run(experiment_path: Path) -> dict[str, Any]:
         },
         split={
             "policy": (
-                f"Official fold {experiment.test_fold} test slides are test; official fold "
-                f"{experiment.validation_fold} test slides are validation; the remaining fold "
-                f"{experiment.test_fold} training slides are train."
+                "The Pathologize nucleus-analysis data product preserves official fold 1 test "
+                "slides as test, official fold 2 test slides as validation, and the remaining "
+                "official fold 1 training slides as train."
             ),
-            "cohort_artifact": cohort_path.relative_to(root).as_posix(),
+            "cohort_artifact": cohort_path.relative_to(root.parents[1]).as_posix(),
             "cohort_sha256": sha256_file(cohort_path),
             "item_counts": cohort.item_counts,
             "patient_counts": cohort.patient_counts,
@@ -519,14 +501,42 @@ def _markdown(evidence: ExperimentEvidence) -> str:
     return "\n".join(wrapped)
 
 
+def metric_summary(evidence: ExperimentEvidence) -> dict[str, object]:
+    return {
+        "localization": evidence.localization.model_dump(mode="json"),
+        "instance_segmentation": evidence.instance_segmentation.model_dump(mode="json"),
+        "classification": {
+            "baseline": evidence.baseline.classification.model_dump(mode="json"),
+            "candidate": evidence.candidate.classification.model_dump(mode="json"),
+            "baseline_per_class": evidence.baseline.per_class,
+            "candidate_per_class": evidence.candidate.per_class,
+            "baseline_held_out_sites": {
+                site: metrics.model_dump(mode="json")
+                for site, metrics in evidence.baseline.site_slices.items()
+            },
+            "candidate_held_out_sites": {
+                site: metrics.model_dump(mode="json")
+                for site, metrics in evidence.candidate.site_slices.items()
+            },
+        },
+        "recommendation": evidence.recommendation,
+        "failed_gates": [gate.gate for gate in evidence.gates if not gate.passed],
+        "failure_count": len(evidence.baseline.failures) + len(evidence.candidate.failures),
+        "resources": {
+            "baseline": evidence.baseline.resources.model_dump(mode="json"),
+            "candidate": evidence.candidate.resources.model_dump(mode="json"),
+        },
+    }
+
+
 def report(experiment_path: Path, json_output: Path, markdown_output: Path) -> dict[str, Any]:
-    experiment = _load_experiment(experiment_path)
+    _load_experiment(experiment_path)
     root = _project_root(experiment_path)
-    evidence_path = root / experiment.output_directory / "evidence.json"
+    evidence_path = root / PUBLIC_OUTPUT_DIRECTORY / "evidence.json"
     evidence = load_model(evidence_path, ExperimentEvidence)
     json_output.parent.mkdir(parents=True, exist_ok=True)
     markdown_output.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copyfile(evidence_path, json_output)
+    write_json(json_output, metric_summary(evidence))
     markdown_output.write_text(_markdown(evidence), encoding="utf-8")
     return {
         "json": json_output.as_posix(),
