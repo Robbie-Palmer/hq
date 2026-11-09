@@ -104,7 +104,9 @@ stages:
       - ../../data-products/pathologize/nucleus-analysis/dvc.lock
       - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
       - ../../data-products/pathologize/nucleus-analysis/outputs/metrics.json
-      - ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset
+      - ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/__init__.py
+      - ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/models.py
+      - ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/product.py
       - src/pathologize_cell_analysis/classification.py
       - src/pathologize_cell_analysis/cli.py
       - src/pathologize_cell_analysis/contracts.py

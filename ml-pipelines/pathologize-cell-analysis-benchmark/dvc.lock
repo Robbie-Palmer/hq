@@ -324,11 +324,20 @@ stages:
       md5: 0d13a343c9ff16dc261b25e5218da4c2
       size: 838
     - path:
-        ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset
+        ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/__init__.py
       hash: md5
-      md5: dde8fef9fb2ec6e01638bd8b110aeafe.dir
-      size: 38961
-      nfiles: 8
+      md5: acbc9cbca6a19a3d86549f03b96fbc3e
+      size: 513
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/models.py
+      hash: md5
+      md5: 8259ff2107e8c8a53d203261182b7b8f
+      size: 2850
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/product.py
+      hash: md5
+      md5: 04e03bebe58441cf9e8397a195d34eca
+      size: 11258
     - path: outputs/data-artifacts-source.sha256
       hash: md5
       md5: f62a4716a516038d37a482a759edf175
