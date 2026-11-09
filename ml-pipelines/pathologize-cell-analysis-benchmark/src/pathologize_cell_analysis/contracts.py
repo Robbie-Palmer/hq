@@ -132,6 +132,71 @@ class LearnedBaselineConfig(StrictModel):
         return self
 
 
+class DoubleDescentAnalysis(StrictModel):
+    interpolation_error_maximum: float = Field(ge=0, le=1)
+    sustained_epochs: int = Field(ge=2)
+    baseline_horizon_epochs: int = Field(gt=0)
+    minimum_error_change: float = Field(gt=0, le=1)
+    bootstrap_replicates: int = Field(ge=1000)
+    bootstrap_seed: int = Field(ge=0)
+    confidence_level: float = Field(gt=0, lt=1)
+
+
+class DoubleDescentSafety(StrictModel):
+    training_loss_multiple: float = Field(gt=1)
+    training_loss_epochs: int = Field(ge=2)
+    validation_loss_multiple: float = Field(gt=1)
+    validation_regression_epochs: int = Field(ge=2)
+
+
+class DoubleDescentLimits(StrictModel):
+    per_seed_wall_seconds: int = Field(gt=0, le=86400)
+    per_seed_gpu_seconds: int = Field(gt=0, le=86400)
+    aggregate_gpu_seconds: int = Field(gt=0, le=86400)
+    maximum_peak_vram_bytes: int = Field(gt=0)
+    minimum_free_disk_bytes: int = Field(gt=0)
+
+
+class DoubleDescentBaseline(StrictModel):
+    merge_commit: str = Field(pattern=r"^[a-f0-9]{40}$")
+    report: str
+    detection_best_map50: float = Field(ge=0, le=1)
+    detection_best_map50_95: float = Field(ge=0, le=1)
+    detection_test_localization_f1: float = Field(ge=0, le=1)
+    best_checkpoint_sha256: str = Field(pattern=SHA256_PATTERN)
+    last_checkpoint_sha256: str = Field(pattern=SHA256_PATTERN)
+
+
+class DoubleDescentConfig(StrictModel):
+    schema_version: Literal["1.0.0"]
+    experiment_id: str = Field(min_length=1)
+    localization_tolerance_pixels: float = Field(gt=0)
+    maximum_border_clip_pixels: float = Field(ge=0, le=2)
+    package: PackagePin
+    model: ModelPin
+    training: TrainingConfig
+    inference: InferenceConfig
+    seeds: list[int] = Field(min_length=3, max_length=3)
+    checkpoint_cadence_epochs: Literal[1]
+    analysis: DoubleDescentAnalysis
+    safety: DoubleDescentSafety
+    limits: DoubleDescentLimits
+    baseline: DoubleDescentBaseline
+    stop_rules: list[str] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def require_bounded_detector_experiment(self) -> Self:
+        if self.model.task != "detect":
+            raise ValueError("double-descent experiment must remain detector-only")
+        if len(set(self.seeds)) != 3:
+            raise ValueError("double-descent seeds must be unique")
+        if self.training.patience != 0:
+            raise ValueError("research-run early stopping must be disabled")
+        if self.analysis.baseline_horizon_epochs >= self.training.epochs:
+            raise ValueError("extended horizon must exceed the baseline horizon")
+        return self
+
+
 class ResourceEvidence(StrictModel):
     wall_seconds: float = Field(ge=0)
     cpu_seconds: float = Field(ge=0)
@@ -174,7 +239,7 @@ class SpatialPredictionRecord(StrictModel):
     slide_id: str
     patient_id: str
     site_id: str
-    split: Literal["test"]
+    split: Literal["train", "validation", "test"]
     image_width: int = Field(gt=0)
     image_height: int = Field(gt=0)
     predictions: list[SpatialPrediction]

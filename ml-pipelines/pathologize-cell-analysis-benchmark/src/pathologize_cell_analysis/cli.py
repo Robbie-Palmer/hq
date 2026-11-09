@@ -6,6 +6,11 @@ from typing import Any
 import fire
 
 from .contracts import StrictModel
+from .double_descent.analysis import analyze as analyze_double_descent
+from .double_descent.evaluation import evaluate as evaluate_double_descent
+from .double_descent.reporting import report as report_double_descent
+from .double_descent.test_evaluation import evaluate_test as evaluate_double_descent_test
+from .double_descent.training import train as train_double_descent
 from .experiment import report, run
 from .learned_baseline.conversion import acquire_model_artifacts, prepare_training_layout
 from .learned_baseline.evaluation import evaluate_learned_baseline
@@ -43,8 +48,26 @@ class LearnedCommands:
         return report_learned_baseline()
 
 
+class DoubleDescentCommands:
+    def train(self, seed: int) -> dict[str, Any]:
+        return train_double_descent(seed)
+
+    def curve(self, seed: int) -> dict[str, Any]:
+        return evaluate_double_descent(seed)
+
+    def analyze(self) -> dict[str, Any]:
+        return analyze_double_descent()
+
+    def test(self) -> dict[str, Any]:
+        return evaluate_double_descent_test()
+
+    def report(self) -> dict[str, Any]:
+        return report_double_descent()
+
+
 class Commands:
     learned = LearnedCommands()
+    double_descent = DoubleDescentCommands()
 
     def run(
         self,

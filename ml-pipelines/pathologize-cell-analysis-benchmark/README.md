@@ -147,4 +147,36 @@ normalization rejected no instances. See
 [the learned-baseline evidence report](reports/nucls-learned-baseline.md)
 for curves, per-class and held-out-site slices, failures, resources, and pins.
 
+## Epoch-wise double-descent experiment
+
+`params/nucls-double-descent.yaml` predeclares one detector-only extension of
+the merged baseline. It keeps the cohort, conversion contract, package, model,
+starting weights, optimizer, augmentation, batch size, and image size fixed.
+The run changes only the horizon to 120 epochs, disables model-selection early
+stopping, and saves every epoch. Seeds `20261107`, `20261109`, and `20261111`
+repeat that same setup. The safety guards still stop non-finite loss, sustained
+divergence, sustained validation regression, resource exhaustion, or a broken
+resume.
+
+Separate DVC stages train and evaluate each seed. Curve evaluation runs the
+Pathologize localization evaluator on every fixed train and validation record
+at every checkpoint. The analysis resamples patients, never nuclei, for its
+uncertainty intervals. Only after the curve analysis completes does a separate
+stage evaluate the fixed epoch-120 endpoints on the sealed test split.
+
+Run the declared graph through mise:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:double-descent:repro
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  metrics show reports/nucls-double-descent.json
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  plots show outputs/nucls-double-descent/analysis/curves.csv
+```
+
+The seed outputs are persistent so an infrastructure interruption can resume
+without deleting completed checkpoints or epoch evaluations. The parameter
+file, DVC lock, compact metric, and Markdown report are the experiment record.
+No parallel full-experiment manifest is maintained.
+
 Neither path makes a clinical-validity claim.

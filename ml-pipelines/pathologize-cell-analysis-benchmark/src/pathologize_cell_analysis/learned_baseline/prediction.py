@@ -74,7 +74,7 @@ def normalize_pathologize_result(
             slide_id=item.slide_id,
             patient_id=item.patient_id,
             site_id=item.site_id,
-            split="test",
+            split=item.split,
             image_width=width,
             image_height=height,
             predictions=predictions,

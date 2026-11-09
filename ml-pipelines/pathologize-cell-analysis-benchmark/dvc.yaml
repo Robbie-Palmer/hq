@@ -286,3 +286,172 @@ stages:
           - models
     metrics:
       - reports/nucls-learned-baseline.json
+
+  train_nucls_double_descent_seed_20261107:
+    cmd: uv run --locked pathologize-cell-analysis double-descent train --seed 20261107
+    deps:
+      - data/derived/learned-layout
+      - models/ultralytics/8.4.0
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/double_descent
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - params/nucls-learned.yaml
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/training/20261107:
+          persist: true
+
+  train_nucls_double_descent_seed_20261109:
+    cmd: uv run --locked pathologize-cell-analysis double-descent train --seed 20261109
+    deps:
+      - data/derived/learned-layout
+      - models/ultralytics/8.4.0
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/double_descent
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - params/nucls-learned.yaml
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/training/20261109:
+          persist: true
+
+  train_nucls_double_descent_seed_20261111:
+    cmd: uv run --locked pathologize-cell-analysis double-descent train --seed 20261111
+    deps:
+      - data/derived/learned-layout
+      - models/ultralytics/8.4.0
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/double_descent
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - params/nucls-learned.yaml
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/training/20261111:
+          persist: true
+
+  evaluate_nucls_double_descent_seed_20261107:
+    cmd: uv run --locked pathologize-cell-analysis double-descent curve --seed 20261107
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout
+      - outputs/nucls-double-descent/training/20261107
+      - src/pathologize_cell_analysis/double_descent
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/curves/20261107:
+          persist: true
+
+  evaluate_nucls_double_descent_seed_20261109:
+    cmd: uv run --locked pathologize-cell-analysis double-descent curve --seed 20261109
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout
+      - outputs/nucls-double-descent/training/20261109
+      - src/pathologize_cell_analysis/double_descent
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/curves/20261109:
+          persist: true
+
+  evaluate_nucls_double_descent_seed_20261111:
+    cmd: uv run --locked pathologize-cell-analysis double-descent curve --seed 20261111
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout
+      - outputs/nucls-double-descent/training/20261111
+      - src/pathologize_cell_analysis/double_descent
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/curves/20261111:
+          persist: true
+
+  analyze_nucls_double_descent:
+    cmd: uv run --locked pathologize-cell-analysis double-descent analyze
+    deps:
+      - outputs/nucls-double-descent/curves/20261107
+      - outputs/nucls-double-descent/curves/20261109
+      - outputs/nucls-double-descent/curves/20261111
+      - src/pathologize_cell_analysis/double_descent/analysis.py
+      - src/pathologize_cell_analysis/double_descent/config.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/analysis/evidence.json
+    plots:
+      - outputs/nucls-double-descent/analysis/curves.csv:
+          x: epoch
+
+  evaluate_nucls_double_descent_test:
+    cmd: uv run --locked pathologize-cell-analysis double-descent test
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout
+      - outputs/nucls-double-descent/analysis/evidence.json
+      - outputs/nucls-double-descent/training/20261107
+      - outputs/nucls-double-descent/training/20261109
+      - outputs/nucls-double-descent/training/20261111
+      - src/pathologize_cell_analysis/double_descent
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    outs:
+      - outputs/nucls-double-descent/test/evidence.json
+
+  report_nucls_double_descent:
+    cmd: uv run --locked pathologize-cell-analysis double-descent report
+    deps:
+      - outputs/nucls-double-descent/analysis/evidence.json
+      - outputs/nucls-double-descent/test/evidence.json
+      - outputs/nucls-double-descent/training/20261107/run.json
+      - outputs/nucls-double-descent/training/20261109/run.json
+      - outputs/nucls-double-descent/training/20261111/run.json
+      - src/pathologize_cell_analysis/double_descent/reporting.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-double-descent.yaml
+    metrics:
+      - reports/nucls-double-descent.json:
+          cache: false
+    outs:
+      - reports/nucls-double-descent.md:
+          cache: false

@@ -95,3 +95,33 @@ run = "uv run --locked pathologize-cell-analysis learned evaluate"
 description = "Write the NuCLS learned-baseline DVC metric and tracked Markdown report"
 depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis learned report"
+
+[tasks."double-descent:repro"]
+description = "Reproduce the predeclared three-seed NuCLS double-descent experiment"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro report_nucls_double_descent"
+
+[tasks."double-descent:train"]
+description = "Train one predeclared NuCLS double-descent seed"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis double-descent train"
+
+[tasks."double-descent:curve"]
+description = "Evaluate one NuCLS seed at every epoch checkpoint"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis double-descent curve"
+
+[tasks."double-descent:analyze"]
+description = "Analyze the three NuCLS curves with patient-cluster bootstrap uncertainty"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis double-descent analyze"
+
+[tasks."double-descent:test"]
+description = "Evaluate fixed epoch-120 endpoints on the sealed NuCLS test split"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis double-descent test"
+
+[tasks."double-descent:report"]
+description = "Write compact NuCLS double-descent metrics and the tracked report"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis double-descent report"
