@@ -300,8 +300,23 @@ stages:
       - params/nucls-learned.yaml
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: &nucls_double_descent_params
+      - params/nucls-double-descent.yaml:
+          - schema_version
+          - experiment_id
+          - localization_tolerance_pixels
+          - maximum_border_clip_pixels
+          - package
+          - model
+          - training
+          - inference
+          - seeds
+          - checkpoint_cadence_epochs
+          - analysis
+          - safety
+          - limits
+          - baseline
+          - stop_rules
     outs:
       - outputs/nucls-double-descent/training/20261107:
           persist: true
@@ -319,8 +334,7 @@ stages:
       - params/nucls-learned.yaml
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     outs:
       - outputs/nucls-double-descent/training/20261109:
           persist: true
@@ -338,8 +352,7 @@ stages:
       - params/nucls-learned.yaml
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     outs:
       - outputs/nucls-double-descent/training/20261111:
           persist: true
@@ -356,8 +369,7 @@ stages:
       - src/pathologize_cell_analysis/learned_baseline/prediction.py
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     outs:
       - outputs/nucls-double-descent/curves/20261107:
           persist: true
@@ -374,8 +386,7 @@ stages:
       - src/pathologize_cell_analysis/learned_baseline/prediction.py
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     outs:
       - outputs/nucls-double-descent/curves/20261109:
           persist: true
@@ -392,8 +403,7 @@ stages:
       - src/pathologize_cell_analysis/learned_baseline/prediction.py
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     outs:
       - outputs/nucls-double-descent/curves/20261111:
           persist: true
@@ -408,8 +418,7 @@ stages:
       - src/pathologize_cell_analysis/double_descent/config.py
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     outs:
       - outputs/nucls-double-descent/analysis/evidence.json
     plots:
@@ -431,8 +440,7 @@ stages:
       - src/pathologize_cell_analysis/learned_baseline/prediction.py
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     outs:
       - outputs/nucls-double-descent/test/evidence.json
 
@@ -447,8 +455,7 @@ stages:
       - src/pathologize_cell_analysis/double_descent/reporting.py
       - pyproject.toml
       - uv.lock
-    params:
-      - params/nucls-double-descent.yaml
+    params: *nucls_double_descent_params
     metrics:
       - reports/nucls-double-descent.json:
           cache: false
