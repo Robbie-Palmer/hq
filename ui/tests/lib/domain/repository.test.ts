@@ -475,7 +475,6 @@ title: "Personalized Medicine"
 description: "Making patient-specific treatment decisions accessible"
 date: "2017-07-04"
 updated: "2021-11-01"
-status: "inactive"
 ideas: ["Digital Twins"]
 project_contributions:
   pathology-viewer: "Made model output inspectable."
@@ -494,7 +493,6 @@ project_contributions:
         title: "Personalized Medicine",
         date: "2017-07-04",
         updated: "2021-11-01",
-        status: "inactive",
         projectContributions: {
           "pathology-viewer": "Made model output inspectable.",
         },
@@ -522,6 +520,24 @@ title: "Invalid Initiative"
         "Initiative invalid-initiative failed validation",
       );
       expect(consoleError).toHaveBeenCalledOnce();
+    });
+
+    it("rejects a manually authored initiative status", () => {
+      vi.mocked(fs.readdirSync).mockReturnValue([
+        "manual-status.mdx",
+      ] as unknown as ReaddirResult);
+      vi.mocked(fs.readFileSync).mockReturnValue(`---
+title: "Manual Status"
+description: "An initiative with a manually authored status"
+date: "2026-11-09"
+status: "active"
+---
+
+# Goal`);
+
+      expect(() => loadInitiatives()).toThrow(
+        "Initiative manual-status must not define status because linked projects determine it",
+      );
     });
 
     it("returns schema errors for an invalid initiative", () => {

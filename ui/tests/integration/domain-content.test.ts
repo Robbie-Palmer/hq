@@ -155,6 +155,8 @@ describe("Domain Content Validation (Integration)", () => {
     const initiativeSlug = "personalized-medicine";
     const projectSlugs = getProjectsForInitiative(repo.graph, initiativeSlug);
 
+    expect(repo.initiatives.get(initiativeSlug)?.status).toBe("active");
+
     expect(projectSlugs).toEqual(
       new Set([
         "ai-assisted-macrodissection",
