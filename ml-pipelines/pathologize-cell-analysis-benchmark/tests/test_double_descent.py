@@ -73,6 +73,7 @@ def test_predeclaration_matches_merged_baseline() -> None:
     assert training_arguments(config, 20261107)["save_period"] == 1
     assert training_arguments(config, 20261107)["seed"] == 20261107
     assert _prediction_arguments(config)["conf"] == 0.05
+    assert _prediction_arguments(config)["batch"] == 8
     assert seed_output(7).as_posix().endswith("training/7")
     assert seed_evaluation(7).as_posix().endswith("curves/7")
     assert training_module._peak_rss_bytes() > 0

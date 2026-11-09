@@ -29,6 +29,7 @@ def _prediction_arguments(config: Any) -> dict[str, object]:
     inference = config.inference
     return {
         "imgsz": config.training.image_size,
+        "batch": config.training.batch,
         "device": config.training.device,
         "conf": inference.confidence_threshold,
         "iou": inference.iou_threshold,
