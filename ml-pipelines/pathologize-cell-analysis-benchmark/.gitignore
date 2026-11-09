@@ -1,5 +1,6 @@
 /data/
 /outputs/
+/models/
 /.venv/
 /coverage.xml
 /.coverage

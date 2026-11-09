@@ -70,12 +70,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 0443843eead538aac8dc4fa0381247a4
-      size: 2006
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
     - path: uv.lock
       hash: md5
-      md5: f6a45ad8d2d1659981ab4016471edbe6
-      size: 62093
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
     outs:
     - path: data/synthetic
       hash: md5
@@ -144,12 +144,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 0443843eead538aac8dc4fa0381247a4
-      size: 2006
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
     - path: uv.lock
       hash: md5
-      md5: f6a45ad8d2d1659981ab4016471edbe6
-      size: 62093
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
     outs:
     - path: outputs/runs
       hash: md5
@@ -177,16 +177,19 @@ stages:
       hash: md5
       md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
-    - path: outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/failures.json
+    - path:
+        outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/failures.json
       hash: md5
       md5: f508b159fe9d8c3b2ebca9ac0e3f7e29
       size: 50
-    - path: outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/predictions.jsonl
+    - path:
+        outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/predictions.jsonl
       hash: md5
       md5: d5a566bec9e3460ab4e09c5c160f8a61
       size: 2233
     outs:
-    - path: outputs/evaluations/cell-analysis-contract-v1/deterministic-color-v1.json
+    - path:
+        outputs/evaluations/cell-analysis-contract-v1/deterministic-color-v1.json
       hash: md5
       md5: ad349d341f81003d619456511d0e2521
       size: 1831
@@ -206,7 +209,8 @@ stages:
       hash: md5
       md5: d9bceb816daf9aef0482ff2a2640cb84
       size: 2524
-    - path: outputs/evaluations/cell-analysis-contract-v1/deterministic-color-v1.json
+    - path:
+        outputs/evaluations/cell-analysis-contract-v1/deterministic-color-v1.json
       hash: md5
       md5: ad349d341f81003d619456511d0e2521
       size: 1831
@@ -214,7 +218,8 @@ stages:
       hash: md5
       md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
-    - path: outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/run-record.json
+    - path:
+        outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/run-record.json
       hash: md5
       md5: d1a4a979f57e6a45a74b3fe8d868247c
       size: 1020
@@ -261,28 +266,28 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 0443843eead538aac8dc4fa0381247a4
-      size: 2006
+      md5: f74d27a9c5f20d50ff1aeace39e3e788
+      size: 2153
     - path: sources/nucls-corrected-single-rater.json
       hash: md5
       md5: 73d9106b3f62a23a40ded7e51f46fc7d
       size: 2113
     - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: 540436e84329d2b148ec633c5afaca41
-      size: 1640
+      md5: 007015d63112955eed718d69df8ceac7
+      size: 2554
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 49831cd665acd0d53133e1739161e24d
-      size: 6583
+      md5: 5f22a18a9060fb5ef60d5df045c47ed0
+      size: 12144
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: b4fda445c73786f5201c8aea757f0228
       size: 11864
     - path: uv.lock
       hash: md5
-      md5: f6a45ad8d2d1659981ab4016471edbe6
-      size: 62093
+      md5: 3fc92ba6c645e618dc9ae565bd5a2cd9
+      size: 144782
     outs:
     - path: data/nucls-corrected-single-rater
       hash: md5
@@ -292,39 +297,713 @@ stages:
   evaluate_nucls_public_baseline:
     cmd: uv run --locked pathologize-cell-analysis run
     deps:
-    - path: data/nucls-corrected-single-rater
+    - path: ../../data-products/nucls/corrected-single-rater/data/native
       hash: md5
-      md5: df782f77b256fb31624a7c726329ab9e.dir
+      md5: aa4b2d693a4b0ee3df8c1a6ea3be7d4b.dir
       size: 399546523
       nfiles: 3501
-    - path: experiments/nucls-public-baseline.json
+    - path: ../../data-products/nucls/corrected-single-rater/dvc.lock
       hash: md5
-      md5: e429c4cdce326c9c99ae5ae9d8d7ac63
-      size: 590
+      md5: aa6b5b7d94273dcbd439cbcbc00ab45e
+      size: 1666
+    - path: ../../data-products/nucls/corrected-single-rater/manifest.json
+      hash: md5
+      md5: 3661264a0edfaacfc7819860bb797acb
+      size: 2211
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/outputs/metrics.json
+      hash: md5
+      md5: 0d13a343c9ff16dc261b25e5218da4c2
+      size: 838
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/__init__.py
+      hash: md5
+      md5: acbc9cbca6a19a3d86549f03b96fbc3e
+      size: 513
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/models.py
+      hash: md5
+      md5: 8259ff2107e8c8a53d203261182b7b8f
+      size: 2850
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/product.py
+      hash: md5
+      md5: 04e03bebe58441cf9e8397a195d34eca
+      size: 11258
     - path: outputs/data-artifacts-source.sha256
       hash: md5
       md5: f62a4716a516038d37a482a759edf175
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 0443843eead538aac8dc4fa0381247a4
-      size: 2006
-    - path: sources/nucls-corrected-single-rater.json
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/classification.py
       hash: md5
-      md5: 73d9106b3f62a23a40ded7e51f46fc7d
-      size: 2113
-    - path: src/pathologize_cell_analysis
+      md5: 9ab86c8d0bd20cbde37658888ecf1f45
+      size: 3912
+    - path: src/pathologize_cell_analysis/cli.py
       hash: md5
-      md5: e72b5bdda544df48323dddfcd91cc1f3.dir
-      size: 67896
-      nfiles: 10
+      md5: 3b41eaf634fd1255a38924106064c289
+      size: 2019
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/data.py
+      hash: md5
+      md5: 76cad890f324a54e56a02e91c0070398
+      size: 284
+    - path: src/pathologize_cell_analysis/evaluation.py
+      hash: md5
+      md5: a3b99298dcca59ffdaf489592057700e
+      size: 7653
+    - path: src/pathologize_cell_analysis/experiment.py
+      hash: md5
+      md5: 86a49222a988b1f44fc80f22f4d81083
+      size: 23989
+    - path: src/pathologize_cell_analysis/instance_segmentation.py
+      hash: md5
+      md5: 9e5d2396f5f0b1123a672c37d59ed000
+      size: 2800
+    - path: src/pathologize_cell_analysis/localization.py
+      hash: md5
+      md5: bb84d559648e79f47cb4fca34bd39c58
+      size: 2812
+    - path: src/pathologize_cell_analysis/methods.py
+      hash: md5
+      md5: 33c9f8f8451e7d08bab619348eca3396
+      size: 7196
     - path: uv.lock
       hash: md5
-      md5: f6a45ad8d2d1659981ab4016471edbe6
-      size: 62093
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-public.yaml:
+        accelerator: none
+        aggregate_accelerator_seconds: 86400
+        classification_minimum_gain: 0.01
+        localization_tolerance_pixels: 12.0
+        minimum_nucleus_pixels: 18
+        per_run_wall_seconds: 1800
+        random_seed: 20261107
+        watershed_minimum_distance_pixels: 4
     outs:
-    - path: outputs/public/nucls-public-baseline-v1
+    - path: outputs/public-baseline
       hash: md5
-      md5: e7a39981ca53dbd2bd8c5c69eddfef3f.dir
-      size: 25607479
-      nfiles: 6
+      md5: 9a1e235b6bdecd202607ac802077b7f3.dir
+      size: 24730432
+      nfiles: 5
+  prepare_learned_artifacts:
+    cmd: uv run --locked pathologize-cell-analysis learned acquire-artifacts
+    deps:
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/downloads.py
+      hash: md5
+      md5: fe46b316d09a96e80822f3120ba16e34
+      size: 675
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/cli.py
+      hash: md5
+      md5: 3b41eaf634fd1255a38924106064c289
+      size: 2019
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path: src/pathologize_cell_analysis/learned_baseline/conversion.py
+      hash: md5
+      md5: 5b853e4b40a617b311eb5ef76ce1899b
+      size: 15009
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-learned.yaml:
+        models:
+          detect:
+            task: detect
+            architecture: YOLO26n
+            definition: ultralytics/cfg/models/26/yolo26.yaml
+            definition_url:
+              https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26.yaml
+            definition_sha256:
+              b1d1fa0c69eced64f9939536038bd8d697c32e72200b34187a767de431af7ef0
+            weights: yolo26n.pt
+            weights_url:
+              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
+            weights_bytes: 5544453
+            weights_sha256:
+              9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef
+            weights_license: AGPL-3.0-or-later
+          segment:
+            task: segment
+            architecture: YOLO26n-seg
+            definition: ultralytics/cfg/models/26/yolo26-seg.yaml
+            definition_url:
+              https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26-seg.yaml
+            definition_sha256:
+              53c0348a36a3e19bbc3bd4f695f50cbbfc97a3059f62e9b251f278ad74fdd7cb
+            weights: yolo26n-seg.pt
+            weights_url:
+              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n-seg.pt
+            weights_bytes: 6719965
+            weights_sha256:
+              361fbfabab285c3237700b6bb91d7ecfa602cd945fffda8dbe1242829b71e73f
+            weights_license: AGPL-3.0-or-later
+        package:
+          name: ultralytics
+          version: 8.4.202
+          license: AGPL-3.0-or-later
+          source_commit: ae725d5cb20c2d849b864cd34fc15f5c55f877a5
+    outs:
+    - path: models/ultralytics/8.4.0
+      hash: md5
+      md5: 0e04878bddee01b88600a11ec296b40e.dir
+      size: 12270496
+      nfiles: 5
+  prepare_nucls_learned_layout:
+    cmd: uv run --locked pathologize-cell-analysis learned prepare
+    deps:
+    - path: ../../data-products/nucls/corrected-single-rater/data/native
+      hash: md5
+      md5: aa4b2d693a4b0ee3df8c1a6ea3be7d4b.dir
+      size: 399546523
+      nfiles: 3501
+    - path: ../../data-products/nucls/corrected-single-rater/dvc.lock
+      hash: md5
+      md5: aa6b5b7d94273dcbd439cbcbc00ab45e
+      size: 1666
+    - path: ../../data-products/nucls/corrected-single-rater/manifest.json
+      hash: md5
+      md5: 3661264a0edfaacfc7819860bb797acb
+      size: 2211
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      hash: md5
+      md5: 657453f93aebb8f894188161e68d5499
+      size: 551
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/outputs/records.jsonl
+      hash: md5
+      md5: 32a8928cbe26e40e0b1c6d4affb894f1
+      size: 2035255
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/labels.py
+      hash: md5
+      md5: c603a5b5abea59f230bd3b025f6e4879
+      size: 2333
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/cli.py
+      hash: md5
+      md5: 3b41eaf634fd1255a38924106064c289
+      size: 2019
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/data.py
+      hash: md5
+      md5: 76cad890f324a54e56a02e91c0070398
+      size: 284
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path: src/pathologize_cell_analysis/learned_baseline/conversion.py
+      hash: md5
+      md5: 5b853e4b40a617b311eb5ef76ce1899b
+      size: 15009
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-learned.yaml:
+        maximum_border_clip_pixels: 2.0
+    outs:
+    - path: data/derived/learned-layout
+      hash: md5
+      md5: 14149d82af98ee8534e499d3180844d3.dir
+      size: 805598623
+      nfiles: 6979
+  train_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned train
+    deps:
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      hash: md5
+      md5: e78958d02659e80728a6abde8e96de32
+      size: 3012
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/recovery.py
+      hash: md5
+      md5: 101afbaa5736ab301d3a67260f88f650
+      size: 3061
+    - path: data/derived/learned-layout
+      hash: md5
+      md5: 14149d82af98ee8534e499d3180844d3.dir
+      size: 805598623
+      nfiles: 6979
+    - path: models/ultralytics/8.4.0
+      hash: md5
+      md5: 0e04878bddee01b88600a11ec296b40e.dir
+      size: 12270496
+      nfiles: 5
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/cli.py
+      hash: md5
+      md5: 3b41eaf634fd1255a38924106064c289
+      size: 2019
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path: src/pathologize_cell_analysis/learned_baseline/task_training.py
+      hash: md5
+      md5: 7a5739b5a5fc0a17cb8641005d245a3b
+      size: 17542
+    - path: src/pathologize_cell_analysis/learned_baseline/training.py
+      hash: md5
+      md5: 17e08f577388d3aa86893d5073bca657
+      size: 3589
+    - path: src/pathologize_cell_analysis/learned_baseline/training_policy.py
+      hash: md5
+      md5: 3f35d4fb18b855a0c939b52f61d62730
+      size: 4499
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-learned.yaml:
+        limits:
+          per_task_wall_seconds: 14400
+          aggregate_gpu_seconds: 86400
+          maximum_peak_vram_bytes: 12884901888
+        models:
+          detect:
+            task: detect
+            architecture: YOLO26n
+            definition: ultralytics/cfg/models/26/yolo26.yaml
+            definition_url:
+              https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26.yaml
+            definition_sha256:
+              b1d1fa0c69eced64f9939536038bd8d697c32e72200b34187a767de431af7ef0
+            weights: yolo26n.pt
+            weights_url:
+              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
+            weights_bytes: 5544453
+            weights_sha256:
+              9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef
+            weights_license: AGPL-3.0-or-later
+          segment:
+            task: segment
+            architecture: YOLO26n-seg
+            definition: ultralytics/cfg/models/26/yolo26-seg.yaml
+            definition_url:
+              https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26-seg.yaml
+            definition_sha256:
+              53c0348a36a3e19bbc3bd4f695f50cbbfc97a3059f62e9b251f278ad74fdd7cb
+            weights: yolo26n-seg.pt
+            weights_url:
+              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n-seg.pt
+            weights_bytes: 6719965
+            weights_sha256:
+              361fbfabab285c3237700b6bb91d7ecfa602cd945fffda8dbe1242829b71e73f
+            weights_license: AGPL-3.0-or-later
+        package:
+          name: ultralytics
+          version: 8.4.202
+          license: AGPL-3.0-or-later
+          source_commit: ae725d5cb20c2d849b864cd34fc15f5c55f877a5
+        prior_failed_gpu_seconds_upper_bound: 30.0
+        seeds:
+          detect: 20261107
+          segment: 20261108
+        stop_rules:
+        - Stop before training if source rights, official folds, patient IDs,
+          slide IDs, empty images, ignored categories, or pixel coordinates
+          cannot be preserved.
+        - Stop before training if golden label conversion or coordinate
+          round-trip tests fail.
+        - Stop a task at 40 epochs, after 8 epochs without validation
+          improvement, or after 4 wall-clock hours, whichever comes first.
+        - Stop the experiment before aggregate GPU time exceeds 86400 seconds or
+          peak allocation exceeds 12884901888 bytes.
+        - Do not train a larger model in this experiment. A larger follow-up
+          requires separate authorization and a measured quality case from
+          validation results.
+        - Reject promotion if the learned result has conversion failures,
+          violates leakage boundaries, or fails to improve the corresponding
+          transparent-baseline task without an explicit failure analysis.
+        training:
+          device: 0
+          image_size: 640
+          epochs: 40
+          patience: 8
+          batch: 8
+          workers: 0
+          optimizer: AdamW
+          initial_learning_rate: 0.001
+          final_learning_rate_fraction: 0.01
+          momentum: 0.9
+          weight_decay: 0.0005
+          warmup_epochs: 3.0
+          cosine_learning_rate: false
+          amp: true
+          deterministic: true
+          cache: false
+          rectangular_batches: false
+          multi_scale: false
+          close_mosaic_epochs: 10
+          augmentation:
+            hsv_h: 0.015
+            hsv_s: 0.7
+            hsv_v: 0.4
+            degrees: 90.0
+            translate: 0.1
+            scale: 0.5
+            shear: 0.0
+            perspective: 0.0
+            flip_up_down: 0.5
+            flip_left_right: 0.5
+            bgr: 0.0
+            mosaic: 0.5
+            mixup: 0.0
+            cutmix: 0.0
+            copy_paste: 0.0
+    outs:
+    - path: outputs/learned-baseline/training
+      hash: md5
+      md5: 43595db29e036012cedd506d0cc29a2e.dir
+      size: 24135496
+      nfiles: 9
+  predict_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned predict
+    deps:
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      hash: md5
+      md5: 657453f93aebb8f894188161e68d5499
+      size: 551
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
+      hash: md5
+      md5: c5b0be027fbab71381c978d3628239a7
+      size: 2584
+    - path: data/derived/learned-layout
+      hash: md5
+      md5: 14149d82af98ee8534e499d3180844d3.dir
+      size: 805598623
+      nfiles: 6979
+    - path: outputs/learned-baseline/training
+      hash: md5
+      md5: 43595db29e036012cedd506d0cc29a2e.dir
+      size: 24135496
+      nfiles: 9
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/cli.py
+      hash: md5
+      md5: 3b41eaf634fd1255a38924106064c289
+      size: 2019
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path: src/pathologize_cell_analysis/learned_baseline/prediction.py
+      hash: md5
+      md5: 51119a205f701ab0f0dbdd4daa369977
+      size: 7344
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-learned.yaml:
+        inference:
+          confidence_threshold: 0.05
+          iou_threshold: 0.7
+          class_agnostic_nms: false
+          nms: true
+          maximum_detections: 1000
+          half_precision: false
+          retina_masks: true
+        limits:
+          per_task_wall_seconds: 14400
+          aggregate_gpu_seconds: 86400
+          maximum_peak_vram_bytes: 12884901888
+        training.device: 0
+        training.image_size: 640
+    outs:
+    - path: outputs/learned-baseline/evaluation/detect/predictions.jsonl
+      hash: md5
+      md5: ffeaca45a60236915737380cf202ba6d
+      size: 3668351
+    - path: outputs/learned-baseline/evaluation/inference.json
+      hash: md5
+      md5: ea1cddb1dd3a2d8546eafee8ee6bcd79
+      size: 873
+    - path: outputs/learned-baseline/evaluation/rejections.json
+      hash: md5
+      md5: 58e0494c51d30eb3494f7c9198986bb9
+      size: 3
+    - path: outputs/learned-baseline/evaluation/segment/predictions.jsonl
+      hash: md5
+      md5: 88bf215959e45cac44ba5ee3efe499d8
+      size: 4540695
+  evaluate_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned evaluate
+    deps:
+    - path: ../../data-products/nucls/corrected-single-rater/data/native
+      hash: md5
+      md5: aa4b2d693a4b0ee3df8c1a6ea3be7d4b.dir
+      size: 399546523
+      nfiles: 3501
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      hash: md5
+      md5: 657453f93aebb8f894188161e68d5499
+      size: 551
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      hash: md5
+      md5: e78958d02659e80728a6abde8e96de32
+      size: 3012
+    - path: data/derived/learned-layout/manifest.json
+      hash: md5
+      md5: e92fb3fcbccf1d32fcb86ddb1124c0c1
+      size: 13010464
+    - path: outputs/learned-baseline/evaluation/detect/predictions.jsonl
+      hash: md5
+      md5: ffeaca45a60236915737380cf202ba6d
+      size: 3668351
+    - path: outputs/learned-baseline/evaluation/inference.json
+      hash: md5
+      md5: ea1cddb1dd3a2d8546eafee8ee6bcd79
+      size: 873
+    - path: outputs/learned-baseline/evaluation/rejections.json
+      hash: md5
+      md5: 58e0494c51d30eb3494f7c9198986bb9
+      size: 3
+    - path: outputs/learned-baseline/evaluation/segment/predictions.jsonl
+      hash: md5
+      md5: 88bf215959e45cac44ba5ee3efe499d8
+      size: 4540695
+    - path: outputs/learned-baseline/training
+      hash: md5
+      md5: 43595db29e036012cedd506d0cc29a2e.dir
+      size: 24135496
+      nfiles: 9
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: reports/nucls-public-baseline.json
+      hash: md5
+      md5: d8964b13b8e897fc82a09bc42735ba68
+      size: 5080
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/data.py
+      hash: md5
+      md5: 76cad890f324a54e56a02e91c0070398
+      size: 284
+    - path: src/pathologize_cell_analysis/instance_segmentation.py
+      hash: md5
+      md5: 9e5d2396f5f0b1123a672c37d59ed000
+      size: 2800
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      hash: md5
+      md5: cc66a3db78fbdd64c99dda0aee1d4ff0
+      size: 14323
+    - path: src/pathologize_cell_analysis/localization.py
+      hash: md5
+      md5: bb84d559648e79f47cb4fca34bd39c58
+      size: 2812
+    - path: src/pathologize_cell_analysis/methods.py
+      hash: md5
+      md5: 33c9f8f8451e7d08bab619348eca3396
+      size: 7196
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-learned.yaml:
+        limits:
+          per_task_wall_seconds: 14400
+          aggregate_gpu_seconds: 86400
+          maximum_peak_vram_bytes: 12884901888
+        localization_tolerance_pixels: 12.0
+        training.epochs: 40
+    outs:
+    - path: outputs/learned-baseline/evaluation/evidence.json
+      hash: md5
+      md5: a6e3fc1ee0afe78dca6411b418bf1766
+      size: 21094
+  report_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned report
+    deps:
+    - path: outputs/learned-baseline/evaluation/evidence.json
+      hash: md5
+      md5: a6e3fc1ee0afe78dca6411b418bf1766
+      size: 21094
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path: src/pathologize_cell_analysis/learned_baseline/reporting.py
+      hash: md5
+      md5: b5329e499219dcb893307a10bd69e10a
+      size: 10203
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-learned.yaml:
+        models:
+          detect:
+            task: detect
+            architecture: YOLO26n
+            definition: ultralytics/cfg/models/26/yolo26.yaml
+            definition_url:
+              https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26.yaml
+            definition_sha256:
+              b1d1fa0c69eced64f9939536038bd8d697c32e72200b34187a767de431af7ef0
+            weights: yolo26n.pt
+            weights_url:
+              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
+            weights_bytes: 5544453
+            weights_sha256:
+              9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef
+            weights_license: AGPL-3.0-or-later
+          segment:
+            task: segment
+            architecture: YOLO26n-seg
+            definition: ultralytics/cfg/models/26/yolo26-seg.yaml
+            definition_url:
+              https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26-seg.yaml
+            definition_sha256:
+              53c0348a36a3e19bbc3bd4f695f50cbbfc97a3059f62e9b251f278ad74fdd7cb
+            weights: yolo26n-seg.pt
+            weights_url:
+              https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n-seg.pt
+            weights_bytes: 6719965
+            weights_sha256:
+              361fbfabab285c3237700b6bb91d7ecfa602cd945fffda8dbe1242829b71e73f
+            weights_license: AGPL-3.0-or-later
+        package:
+          name: ultralytics
+          version: 8.4.202
+          license: AGPL-3.0-or-later
+          source_commit: ae725d5cb20c2d849b864cd34fc15f5c55f877a5
+    outs:
+    - path: reports/nucls-learned-baseline.json
+      hash: md5
+      md5: fb124d3fac6357e7aa7a402b4db1494e
+      size: 5375
+  report_nucls_public_baseline:
+    cmd: uv run --locked pathologize-cell-analysis report
+    deps:
+    - path: outputs/public-baseline/evidence.json
+      hash: md5
+      md5: ed928e5951c1a88d6000bdd7c13015a5
+      size: 15014
+    - path: params/nucls-public.yaml
+      hash: md5
+      md5: 8407dc917671a32b515ae48a12770d35
+      size: 260
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/experiment.py
+      hash: md5
+      md5: 86a49222a988b1f44fc80f22f4d81083
+      size: 23989
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    outs:
+    - path: reports/nucls-public-baseline.json
+      hash: md5
+      md5: d8964b13b8e897fc82a09bc42735ba68
+      size: 5080

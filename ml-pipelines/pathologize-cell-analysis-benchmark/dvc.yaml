@@ -95,28 +95,194 @@ stages:
     outs:
       - outputs/benchmark/index.json
 
-  prepare_nucls_public_data:
-    cmd: uv run --locked pathologize-cell-analysis acquire
-    deps:
-      - sources/nucls-corrected-single-rater.json
-      - src/pathologize_cell_analysis/cli.py
-      - src/pathologize_cell_analysis/contracts.py
-      - src/pathologize_cell_analysis/data.py
-      - outputs/data-artifacts-source.sha256
-      - pyproject.toml
-      - uv.lock
-    outs:
-      - data/nucls-corrected-single-rater
-
   evaluate_nucls_public_baseline:
     cmd: uv run --locked pathologize-cell-analysis run
     deps:
-      - data/nucls-corrected-single-rater
-      - experiments/nucls-public-baseline.json
-      - sources/nucls-corrected-single-rater.json
-      - src/pathologize_cell_analysis
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/nucls/corrected-single-rater/dvc.lock
+      - ../../data-products/nucls/corrected-single-rater/manifest.json
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/metrics.json
+      - ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/__init__.py
+      - ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/models.py
+      - ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/product.py
+      - src/pathologize_cell_analysis/classification.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/data.py
+      - src/pathologize_cell_analysis/evaluation.py
+      - src/pathologize_cell_analysis/experiment.py
+      - src/pathologize_cell_analysis/instance_segmentation.py
+      - src/pathologize_cell_analysis/localization.py
+      - src/pathologize_cell_analysis/methods.py
       - outputs/data-artifacts-source.sha256
       - pyproject.toml
       - uv.lock
+    params:
+      - params/nucls-public.yaml:
+          - random_seed
+          - localization_tolerance_pixels
+          - minimum_nucleus_pixels
+          - watershed_minimum_distance_pixels
+          - classification_minimum_gain
+          - per_run_wall_seconds
+          - aggregate_accelerator_seconds
+          - accelerator
     outs:
-      - outputs/public/nucls-public-baseline-v1
+      - outputs/public-baseline
+
+  report_nucls_public_baseline:
+    cmd: uv run --locked pathologize-cell-analysis report
+    deps:
+      - outputs/public-baseline/evidence.json
+      - params/nucls-public.yaml
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/experiment.py
+      - pyproject.toml
+      - uv.lock
+    metrics:
+      - reports/nucls-public-baseline.json
+
+  prepare_learned_artifacts:
+    cmd: uv run --locked pathologize-cell-analysis learned acquire-artifacts
+    deps:
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/downloads.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/conversion.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - package
+          - models
+    outs:
+      - models/ultralytics/8.4.0
+
+  prepare_nucls_learned_layout:
+    cmd: uv run --locked pathologize-cell-analysis learned prepare
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/nucls/corrected-single-rater/dvc.lock
+      - ../../data-products/nucls/corrected-single-rater/manifest.json
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/records.jsonl
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/labels.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/data.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/conversion.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - maximum_border_clip_pixels
+    outs:
+      - data/derived/learned-layout
+
+  train_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned train
+    deps:
+      - data/derived/learned-layout
+      - models/ultralytics/8.4.0
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/recovery.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/task_training.py
+      - src/pathologize_cell_analysis/learned_baseline/training.py
+      - src/pathologize_cell_analysis/learned_baseline/training_policy.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - package
+          - models
+          - training
+          - seeds
+          - limits
+          - prior_failed_gpu_seconds_upper_bound
+          - stop_rules
+    outs:
+      - outputs/learned-baseline/training
+
+  predict_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned predict
+    deps:
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout
+      - outputs/learned-baseline/training
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
+      - src/pathologize_cell_analysis/cli.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - training.device
+          - training.image_size
+          - inference
+          - limits
+    outs:
+      - outputs/learned-baseline/evaluation/detect/predictions.jsonl
+      - outputs/learned-baseline/evaluation/segment/predictions.jsonl
+      - outputs/learned-baseline/evaluation/inference.json
+      - outputs/learned-baseline/evaluation/rejections.json
+
+  evaluate_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned evaluate
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout/manifest.json
+      - outputs/learned-baseline/training
+      - outputs/learned-baseline/evaluation/detect/predictions.jsonl
+      - outputs/learned-baseline/evaluation/segment/predictions.jsonl
+      - outputs/learned-baseline/evaluation/inference.json
+      - outputs/learned-baseline/evaluation/rejections.json
+      - reports/nucls-public-baseline.json
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/data.py
+      - src/pathologize_cell_analysis/instance_segmentation.py
+      - src/pathologize_cell_analysis/localization.py
+      - src/pathologize_cell_analysis/methods.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - localization_tolerance_pixels
+          - training.epochs
+          - limits
+    outs:
+      - outputs/learned-baseline/evaluation/evidence.json
+
+  report_nucls_learned:
+    cmd: uv run --locked pathologize-cell-analysis learned report
+    deps:
+      - outputs/learned-baseline/evaluation/evidence.json
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/reporting.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - package
+          - models
+    metrics:
+      - reports/nucls-learned-baseline.json

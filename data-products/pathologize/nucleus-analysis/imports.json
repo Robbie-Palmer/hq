@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "imports": [
+    {
+      "dataset_id": "nucls-corrected-single-rater-20220301",
+      "project": "../../nucls/corrected-single-rater",
+      "interface": "outputs/native-index.jsonl",
+      "lock": "dvc.lock",
+      "manifest": "manifest.json"
+    }
+  ]
+}

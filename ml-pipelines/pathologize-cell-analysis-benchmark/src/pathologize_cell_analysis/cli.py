@@ -6,17 +6,16 @@ from typing import Any
 import fire
 
 from .contracts import StrictModel
-from .data import acquire_dataset
 from .experiment import report, run
-
-
-class AcquireOptions(StrictModel):
-    manifest: Path
-    output: Path
+from .learned_baseline.conversion import acquire_model_artifacts, prepare_training_layout
+from .learned_baseline.evaluation import evaluate_learned_baseline
+from .learned_baseline.prediction import predict_learned_baseline
+from .learned_baseline.reporting import report_learned_baseline
+from .learned_baseline.training import train_learned_baseline
 
 
 class RunOptions(StrictModel):
-    experiment: Path
+    params: Path
 
 
 class ReportOptions(RunOptions):
@@ -24,36 +23,50 @@ class ReportOptions(RunOptions):
     markdown_output: Path
 
 
+class LearnedCommands:
+    def acquire_artifacts(self) -> dict[str, Any]:
+        return acquire_model_artifacts()
+
+    def prepare(self) -> dict[str, Any]:
+        return prepare_training_layout()
+
+    def train(self) -> dict[str, Any]:
+        return train_learned_baseline()
+
+    def predict(self) -> dict[str, Any]:
+        return predict_learned_baseline()
+
+    def evaluate(self) -> dict[str, Any]:
+        return evaluate_learned_baseline()
+
+    def report(self) -> dict[str, Any]:
+        return report_learned_baseline()
+
+
 class Commands:
-    def acquire(
-        self,
-        manifest: str = "sources/nucls-corrected-single-rater.json",
-        output: str = "data/nucls-corrected-single-rater",
-    ) -> dict[str, Any]:
-        options = AcquireOptions.model_validate({"manifest": manifest, "output": output})
-        return acquire_dataset(options.manifest, options.output).model_dump(mode="json")
+    learned = LearnedCommands()
 
     def run(
         self,
-        experiment: str = "experiments/nucls-public-baseline.json",
+        params: str = "params/nucls-public.yaml",
     ) -> dict[str, Any]:
-        options = RunOptions.model_validate({"experiment": experiment})
-        return run(options.experiment)
+        options = RunOptions.model_validate({"params": params})
+        return run(options.params)
 
     def report(
         self,
-        experiment: str = "experiments/nucls-public-baseline.json",
+        params: str = "params/nucls-public.yaml",
         json_output: str = "reports/nucls-public-baseline.json",
         markdown_output: str = "reports/nucls-public-baseline.md",
     ) -> dict[str, Any]:
         options = ReportOptions.model_validate(
             {
-                "experiment": experiment,
+                "params": params,
                 "json_output": json_output,
                 "markdown_output": markdown_output,
             }
         )
-        return report(options.experiment, options.json_output, options.markdown_output)
+        return report(options.params, options.json_output, options.markdown_output)
 
 
 def main() -> None:

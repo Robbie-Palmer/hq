@@ -13,10 +13,14 @@ retains source lineage.
 Current products:
 
 - `grandqc/mpp20`: source-native GrandQC MPP20 patch pairs and masks.
+- `nucls/corrected-single-rater`: source-native NuCLS fields of view,
+  annotations, ontology, and official fold roles.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
+- `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
+  with frozen patient- and slide-disjoint roles.
 
 Projects under `ml-pipelines/` consume these products for training and
 evaluation. Shared packages and orchestration do not own product semantics.

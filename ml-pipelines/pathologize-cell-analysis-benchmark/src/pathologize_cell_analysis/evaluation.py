@@ -18,13 +18,12 @@ from .classification import (
     validate_probabilities,
 )
 from .contracts import (
-    Experiment,
+    PublicBaselineConfig,
     ResourceEvidence,
     RunEvidence,
-    SplitItem,
     TaskEvidence,
 )
-from .data import Annotation, load_annotations
+from .data import Annotation, SplitItem, load_annotations
 from .instance_segmentation import (
     InstanceSegmentationRecords,
     segmentation_metrics,
@@ -117,7 +116,7 @@ def _peak_rss_bytes() -> int:
 
 
 def evaluate_adapter(
-    experiment: Experiment,
+    experiment: PublicBaselineConfig,
     data_root: Path,
     output_root: Path,
     classifier: Classifier,

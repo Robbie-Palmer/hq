@@ -25,16 +25,18 @@ GigaDB record publish it under CC0 1.0. The source archives retain TCGA slide
 barcodes, official slide folds, hospital codes, the original three biological
 super-classes, and the source's `AMBIGUOUS` and `other_nucleus` categories.
 
-The acquisition stage downloads RGB, annotation, and split archives from the
-publisher. It checks the published byte count and MD5 plus a pinned SHA-256,
-extracts them to a DVC output, and discards the archives. Git stores the source
-manifest, DVC reconstruction lock, and aggregate report. It does not store image
-or annotation bytes.
+The reusable `data-products/nucls/corrected-single-rater` project owns source
+acquisition. It checks the published byte count, MD5, and pinned SHA-256,
+preserves the source ontology and every official fold role, and publishes a
+native record index. Git stores its source contract and DVC lock, not image or
+annotation bytes.
 
-Fold 1 test slides are the test cohort. Fold 2 test slides are validation, and
-the remaining fold 1 training slides are train. The paper reports one slide per
-patient. The run derives patient IDs from TCGA barcodes and rejects any patient
-or slide overlap across splits.
+The `data-products/pathologize/nucleus-analysis` product owns the task adapter,
+ontology, partitions, lineage, reconciliation evidence, and metrics. It keeps
+fold 1 test slides as test, fold 2 test slides as validation, and the remaining
+fold 1 training slides as train. The product derives patient IDs from TCGA
+barcodes and rejects any patient or slide overlap across roles. This pipeline
+consumes that contract; it does not reconstruct the cohort.
 
 Every NuCLS point, rectangle, or polygon contributes its bounding-box midpoint
 to the localization task. A prediction is localized when its centroid is
@@ -62,5 +64,87 @@ but multiclass Brier score worsened from 0.6476 to 0.7061 and 10-bin expected
 calibration error worsened from 0.0540 to 0.2190. No second candidate was tried.
 See [the full evidence report](reports/nucls-public-baseline.md) for per-class,
 site, failure, exclusion, and resource results.
+
+## Learned NuCLS baseline
+
+The first learned baseline uses framework-native `ultralytics==8.4.202` with
+pinned YOLO26n detection and YOLO26n-seg starting weights. Its derived
+Ultralytics labels remain DVC artifacts. The conversion preserves the five
+source labels, official folds, patient and slide boundaries, empty images, and
+pixel-coordinate semantics. Coordinates no more than two pixels outside an
+image are clipped to its bounds. Larger border violations and invalid boxes or
+polygons are excluded. Points are excluded from box training because they have
+no area; points and rectangles are excluded from mask training because they
+have no polygon. No surrogate geometry is created.
+
+`params/nucls-learned.yaml` is the typed model, training, inference, and resource
+configuration. Dataset identity, folds, ontology, and lineage come from the
+nucleus-analysis data product rather than being duplicated as model params.
+DVC tracks the parameter subsets consumed by model acquisition, conversion,
+training, prediction, evaluation, and reporting separately. The JSON report is
+a DVC metric rather than a second copy of a full experiment object; cached
+evaluation evidence retains artifact hashes and audit detail.
+Project code lives under `learned_baseline` and is named for those pipeline
+stages. The configured framework remains in the parameter pins and the
+`ultralytics-extensions` adapter package, so another experiment branch can keep
+the same project module and DVC stage names.
+Durable runs live on their branches. Parameter variants use DVC Experiments,
+for example:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  exp run -S params/nucls-learned.yaml:training.initial_learning_rate=0.0005 \
+  -S params/nucls-learned.yaml:training.weight_decay=0.001 report_nucls_learned
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- exp show
+```
+
+The training output is deliberately non-persistent so a parameter change starts
+a clean DVC experiment. After an interrupted run with unchanged parameters, do
+not rerun the training stage through `dvc repro`, because DVC removes that
+output before executing the stage. Resume and commit the recovered stage first:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:learned:train
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  commit train_nucls_learned
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  repro report_nucls_learned
+```
+
+If training already wrote `training/manifest.json` and the interruption happened
+during prediction, skip `learned:train`. Run the downstream DVC target directly:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:dvc -- \
+  repro report_nucls_learned
+```
+
+DVC keeps the completed training stage and replaces incomplete prediction-stage
+outputs before running prediction again.
+
+Per-task state preserves completed tasks, checkpoint resume evidence, and a
+conservative GPU-time charge for failed attempts. The aggregate ceiling applies
+to both restored and new work. Use a new DVC experiment or branch when any
+declared parameter changes.
+
+Durable experiment work is kept on its branch. This project does not maintain
+a parallel experiment-manifest registry or a common training abstraction.
+
+Detection ran to the 40-epoch ceiling. Training and validation loss sums fell
+from 5.0105 to 3.1257 and 5.9297 to 3.3774. Best validation box mAP50 was
+0.4284 at epoch 38, and best mAP50-95 was 0.1860 at epoch 35. The run learned,
+but convergence was not established before the epoch ceiling. Segmentation
+stopped at epoch 16 under the declared eight-epoch patience rule. Best mask
+mAP50 and mAP50-95 were 0.2698 and 0.1248 at epoch 8, which supports a
+validation plateau.
+
+On the frozen test fold, Pathologize-native evaluation produced detection
+localization F1 0.5207, segmentation localization F1 0.6112, and conditional
+polygon mean IoU 0.7598. The transparent baseline values were 0.2636 and
+0.5313 for localization F1 and conditional polygon mean IoU. Aggregate GPU
+evidence was 1,875.5 seconds against the 86,400-second ceiling, and prediction
+normalization rejected no instances. See
+[the learned-baseline evidence report](reports/nucls-learned-baseline.md)
+for curves, per-class and held-out-site slices, failures, resources, and pins.
 
 Neither path makes a clinical-validity claim.

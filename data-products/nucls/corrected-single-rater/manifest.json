@@ -40,6 +40,7 @@
       "member_suffix": ".csv"
     }
   ],
+  "classification_fields": ["raw_classification", "main_classification", "super_classification"],
   "classification_field": "super_classification",
   "classification_labels": ["nonTIL_stromal", "sTIL", "tumor_any"],
   "unmappable_categories": {
