@@ -352,3 +352,312 @@ TEST_CASE("unknown durable-state schemas are rejected without mutation") {
         StateLoadResult::UnsupportedSchema);
   CHECK(sameState(state, before));
 }
+
+TEST_CASE("the evolution codec rejects malformed record contracts") {
+  std::array<uint8_t, ProtocolEvolutionCodec::kPacketSize> packet{};
+
+  SECTION("journal summary") {
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalSummary(1U, 0U, 1U, 1U,
+                                               JournalSummaryRecord{kMaximumNodes, 1U, 1U, 1U}),
+        packet.data(), packet.size()));
+    CHECK_FALSE(
+        ProtocolEvolutionCodec::encode(ProtocolEvolutionCodec::journalSummary(
+                                           1U, 0U, 1U, 1U, JournalSummaryRecord{0U, 0U, 1U, 1U}),
+                                       packet.data(), packet.size()));
+    CHECK_FALSE(
+        ProtocolEvolutionCodec::encode(ProtocolEvolutionCodec::journalSummary(
+                                           1U, 0U, 1U, 1U, JournalSummaryRecord{0U, 1U, 0U, 1U}),
+                                       packet.data(), packet.size()));
+    CHECK_FALSE(
+        ProtocolEvolutionCodec::encode(ProtocolEvolutionCodec::journalSummary(
+                                           1U, 0U, 1U, 1U, JournalSummaryRecord{0U, 1U, 2U, 1U}),
+                                       packet.data(), packet.size()));
+  }
+
+  SECTION("missing record request") {
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::missingRecordRequest(
+            1U, 0U, 1U, 1U, MissingRecordRequest{kMaximumNodes, 1U, 1U, 1U}),
+        packet.data(), packet.size()));
+    CHECK_FALSE(
+        ProtocolEvolutionCodec::encode(ProtocolEvolutionCodec::missingRecordRequest(
+                                           1U, 0U, 1U, 1U, MissingRecordRequest{0U, 0U, 1U, 1U}),
+                                       packet.data(), packet.size()));
+    CHECK_FALSE(
+        ProtocolEvolutionCodec::encode(ProtocolEvolutionCodec::missingRecordRequest(
+                                           1U, 0U, 1U, 1U, MissingRecordRequest{0U, 1U, 0U, 1U}),
+                                       packet.data(), packet.size()));
+    CHECK_FALSE(
+        ProtocolEvolutionCodec::encode(ProtocolEvolutionCodec::missingRecordRequest(
+                                           1U, 0U, 1U, 1U, MissingRecordRequest{0U, 1U, 2U, 1U}),
+                                       packet.data(), packet.size()));
+  }
+
+  SECTION("journal entry") {
+    JournalEntryRecord entry = normalEntry();
+    entry.kind = JournalEntryKind::HealthObservation;
+    CHECK(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(1U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+
+    entry.kind = static_cast<JournalEntryKind>(0U);
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(1U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+    entry = normalEntry();
+    entry.required_capabilities = 0U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(1U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+    entry = normalEntry();
+    entry.data_size = static_cast<uint8_t>(kMaximumJournalDataSize + 1U);
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(1U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+    entry = normalEntry();
+    entry.priority = static_cast<JournalPriority>(2U);
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(1U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+    entry = normalEntry();
+    entry.priority = JournalPriority::Critical;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(2U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+    entry = normalEntry();
+    entry.record_schema = 2U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(1U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+    entry = normalEntry();
+    entry.data[entry.data_size] = 1U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::journalEntry(1U, 0U, 1U, 1U, entry), packet.data(), packet.size()));
+  }
+
+  SECTION("capability advertisement") {
+    CapabilityAdvertisement advertisement;
+    advertisement.software_version = 0U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::capabilityAdvertisement(1U, 0U, 1U, 1U, advertisement),
+        packet.data(), packet.size()));
+    advertisement = CapabilityAdvertisement();
+    advertisement.minimum_wire_version = 0U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::capabilityAdvertisement(1U, 0U, 1U, 1U, advertisement),
+        packet.data(), packet.size()));
+    advertisement = CapabilityAdvertisement();
+    advertisement.minimum_wire_version = 2U;
+    advertisement.maximum_wire_version = 1U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::capabilityAdvertisement(1U, 0U, 1U, 1U, advertisement),
+        packet.data(), packet.size()));
+    advertisement = CapabilityAdvertisement();
+    advertisement.durable_state_schema = 0U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::capabilityAdvertisement(1U, 0U, 1U, 1U, advertisement),
+        packet.data(), packet.size()));
+    advertisement = CapabilityAdvertisement();
+    advertisement.capabilities = capability(ProtocolCapability::JournalExchange);
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(
+        ProtocolEvolutionCodec::capabilityAdvertisement(1U, 0U, 1U, 1U, advertisement),
+        packet.data(), packet.size()));
+  }
+}
+
+TEST_CASE("the evolution codec rejects malformed envelope headers and reader mismatches") {
+  std::array<uint8_t, ProtocolEvolutionCodec::kPacketSize> packet{};
+  const JournalSummaryRecord summary{0U, 1U, 1U, 1U};
+  EvolutionEnvelope envelope = ProtocolEvolutionCodec::journalSummary(1U, 0U, 1U, 1U, summary);
+
+  CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, nullptr, packet.size()));
+  CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, packet.data(), packet.size() - 1U));
+
+  SECTION("wire version") {
+    envelope.version = 0U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, packet.data(), packet.size()));
+    envelope.version = 3U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, packet.data(), packet.size()));
+  }
+  SECTION("sender") {
+    envelope.sender = kMaximumNodes;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, packet.data(), packet.size()));
+  }
+  SECTION("boot epoch") {
+    envelope.boot_epoch = 0U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, packet.data(), packet.size()));
+  }
+  SECTION("sender sequence") {
+    envelope.sender_sequence = 0U;
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, packet.data(), packet.size()));
+  }
+  SECTION("payload size") {
+    envelope.payload_size = static_cast<uint8_t>(ProtocolEvolutionCodec::kMaximumPayloadSize + 1U);
+    CHECK_FALSE(ProtocolEvolutionCodec::encode(envelope, packet.data(), packet.size()));
+  }
+
+  JournalSummaryRecord restored_summary;
+  MissingRecordRequest restored_request;
+  JournalEntryRecord restored_entry;
+  CapabilityAdvertisement restored_advertisement;
+  CHECK_FALSE(ProtocolEvolutionCodec::readJournalSummary(
+      ProtocolEvolutionCodec::missingRecordRequest(1U, 0U, 1U, 1U, {}), restored_summary));
+  CHECK_FALSE(ProtocolEvolutionCodec::readMissingRecordRequest(envelope, restored_request));
+  CHECK_FALSE(ProtocolEvolutionCodec::readJournalEntry(envelope, restored_entry));
+  CHECK_FALSE(
+      ProtocolEvolutionCodec::readCapabilityAdvertisement(envelope, restored_advertisement));
+
+  EvolutionEnvelope wrong_size = envelope;
+  wrong_size.payload_size = 0U;
+  CHECK_FALSE(ProtocolEvolutionCodec::readJournalSummary(wrong_size, restored_summary));
+  wrong_size.type = EvolutionRecordType::MissingRecordRequest;
+  CHECK_FALSE(ProtocolEvolutionCodec::readMissingRecordRequest(wrong_size, restored_request));
+  wrong_size.type = EvolutionRecordType::JournalEntry;
+  CHECK_FALSE(ProtocolEvolutionCodec::readJournalEntry(wrong_size, restored_entry));
+  wrong_size.type = EvolutionRecordType::CapabilityAdvertisement;
+  CHECK_FALSE(
+      ProtocolEvolutionCodec::readCapabilityAdvertisement(wrong_size, restored_advertisement));
+}
+
+TEST_CASE("decoded evolution envelopes reject invalid sender identity without mutating output") {
+  std::array<uint8_t, ProtocolEvolutionCodec::kPacketSize> packet{};
+  const EvolutionEnvelope valid =
+      ProtocolEvolutionCodec::journalSummary(1U, 0U, 1U, 1U, {0U, 1U, 1U, 1U});
+  REQUIRE(ProtocolEvolutionCodec::encode(valid, packet.data(), packet.size()));
+  packet[3] = kMaximumNodes;
+  packet.back() = packetChecksum(packet.data(), packet.size() - 1U);
+
+  EvolutionEnvelope decoded;
+  decoded.sender = 2U;
+  CHECK(ProtocolEvolutionCodec::decode(packet.data(), packet.size(), decoded) ==
+        EvolutionDecodeResult::InvalidEnvelope);
+  CHECK(decoded.sender == 2U);
+  CHECK(ProtocolEvolutionCodec::decode(nullptr, packet.size(), decoded) ==
+        EvolutionDecodeResult::InvalidSize);
+}
+
+TEST_CASE("durable protocol state validation rejects corrupt journal metadata") {
+  DurableProtocolState state;
+  const SoftwareProfile software = ProtocolEvolution::currentProfile();
+
+  SECTION("node ID") { state.node_id = kMaximumNodes; }
+  SECTION("zero schema") { state.schema_version = 0U; }
+  SECTION("zero minimum reader") { state.minimum_reader_schema = 0U; }
+  SECTION("minimum reader exceeds schema") { state.minimum_reader_schema = 2U; }
+  SECTION("zero boot epoch") { state.boot_epoch = 0U; }
+  SECTION("zero next sequence") { state.next_sender_sequence = 0U; }
+  SECTION("oversized journal") {
+    state.journal_size = static_cast<uint8_t>(kDurableJournalCapacity + 1U);
+  }
+  SECTION("zero journal sequence") {
+    state.journal_size = 1U;
+    state.next_sender_sequence = 2U;
+    state.journal[0].sequence = 0U;
+    state.journal[0].record = normalEntry();
+  }
+  SECTION("journal sequence reaches next sequence") {
+    state.journal_size = 1U;
+    state.next_sender_sequence = 2U;
+    state.journal[0].sequence = 2U;
+    state.journal[0].record = normalEntry();
+  }
+  SECTION("journal sequences are not increasing") {
+    state.journal_size = 2U;
+    state.next_sender_sequence = 3U;
+    state.journal[0] = {1U, normalEntry()};
+    state.journal[1] = {1U, normalEntry()};
+  }
+  SECTION("journal record is malformed") {
+    state.journal_size = 1U;
+    state.next_sender_sequence = 2U;
+    state.journal[0] = {1U, normalEntry()};
+    state.journal[0].record.required_capabilities = 0U;
+  }
+
+  const DurableProtocolState before = state;
+  CHECK(ProtocolEvolution::loadState(state, software) == StateLoadResult::InvalidState);
+  CHECK(sameState(state, before));
+}
+
+TEST_CASE("protocol operations fail closed across rollback and capability boundaries") {
+  SECTION("invalid software profile") {
+    DurableProtocolState state;
+    SoftwareProfile software = ProtocolEvolution::currentProfile();
+    software.software_version = 0U;
+    CHECK(ProtocolEvolution::loadState(state, software) == StateLoadResult::InvalidState);
+    software = ProtocolEvolution::currentProfile();
+    software.maximum_state_schema = 0U;
+    CHECK(ProtocolEvolution::loadState(state, software) == StateLoadResult::InvalidState);
+  }
+
+  SECTION("compatible rollback") {
+    DurableProtocolState state;
+    state.schema_version = 2U;
+    state.minimum_reader_schema = 1U;
+    CHECK(ProtocolEvolution::loadState(state, ProtocolEvolution::legacyProfile()) ==
+          StateLoadResult::RollbackCompatible);
+  }
+
+  SECTION("append invalid state") {
+    DurableProtocolState state;
+    state.node_id = kMaximumNodes;
+    const DurableProtocolState before = state;
+    CHECK(ProtocolEvolution::append(state, ProtocolEvolution::currentProfile(), normalEntry()) ==
+          JournalAppendResult::InvalidState);
+    CHECK(sameState(state, before));
+  }
+
+  SECTION("append unsupported capability") {
+    DurableProtocolState state;
+    JournalEntryRecord entry = normalEntry();
+    entry.required_capabilities = capability(ProtocolCapability::JournalExchange);
+    SoftwareProfile software = ProtocolEvolution::legacyProfile();
+    software.capabilities = capability(ProtocolCapability::MissionCoordination);
+    CHECK(ProtocolEvolution::append(state, software, entry) ==
+          JournalAppendResult::UnsupportedCapability);
+  }
+
+  SECTION("reserve from invalid state") {
+    DurableProtocolState state;
+    state.next_sender_sequence = 0U;
+    const DurableProtocolState before = state;
+    uint32_t sequence = 9U;
+    CHECK(ProtocolEvolution::reserveSenderSequence(state, ProtocolEvolution::currentProfile(),
+                                                   sequence) ==
+          SequenceReservationResult::InvalidState);
+    CHECK(sequence == 9U);
+    CHECK(sameState(state, before));
+  }
+
+  SECTION("reserve across unsafe rollback") {
+    DurableProtocolState state;
+    state.schema_version = 2U;
+    state.minimum_reader_schema = 2U;
+    uint32_t sequence = 9U;
+    CHECK(ProtocolEvolution::reserveSenderSequence(state, ProtocolEvolution::legacyProfile(),
+                                                   sequence) ==
+          SequenceReservationResult::UnsupportedSchema);
+    CHECK(sequence == 9U);
+  }
+}
+
+TEST_CASE("wire negotiation rejects invalid and disjoint advertisements") {
+  const CapabilityAdvertisement current =
+      ProtocolEvolution::advertise(ProtocolEvolution::currentProfile(), DurableProtocolState{});
+  uint8_t negotiated_version = 7U;
+
+  CapabilityAdvertisement invalid = current;
+  invalid.software_version = 0U;
+  CHECK_FALSE(ProtocolEvolution::negotiateWireVersion(invalid, current, negotiated_version));
+  CHECK(negotiated_version == 7U);
+
+  CapabilityAdvertisement version_two_only = current;
+  version_two_only.minimum_wire_version = 2U;
+  version_two_only.maximum_wire_version = 2U;
+  CapabilityAdvertisement version_one_only = current;
+  version_one_only.maximum_wire_version = 1U;
+  version_one_only.capabilities = capability(ProtocolCapability::MissionCoordination);
+  CHECK_FALSE(ProtocolEvolution::negotiateWireVersion(version_two_only, version_one_only,
+                                                      negotiated_version));
+  CHECK(negotiated_version == 7U);
+
+  CHECK_FALSE(ProtocolEvolution::supports(current, 0U));
+  CHECK_FALSE(
+      ProtocolEvolution::supports(invalid, capability(ProtocolCapability::MissionCoordination)));
+  CHECK_FALSE(ProtocolEvolution::supports(version_one_only,
+                                          capability(ProtocolCapability::CriticalJournalPriority)));
+}

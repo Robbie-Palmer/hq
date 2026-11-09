@@ -1,6 +1,7 @@
 #include "satellite_swarm/network_laboratory.hpp"
 #include "satellite_swarm/wire_codec.hpp"
 
+#include <catch2/catch_approx.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <limits>
 #include <stdexcept>
@@ -826,6 +827,111 @@ TEST_CASE("run measurement deduplicates packet and mission evidence") {
   CHECK(metrics.missions_completed == 1U);
   CHECK(metrics.deliveries == 2U);
   CHECK(metrics.useful_bytes_delivered == WireCodec::kPacketSize);
+}
+
+TEST_CASE("run measurement combines delayed delivery, latency, and resource accounting") {
+  SimulationTrace trace;
+  trace.nodes = {{0U, SatelliteSnapshot()}, {1U, SatelliteSnapshot()}};
+  SimulationResult result;
+
+  FrameObservation frame;
+  NodeObservation first = activeObservation(0U, MissionKey(0U, 1U, 1U), 0U);
+  first.buffer_occupancy = 3U;
+  first.transmit_queue_occupancy = 2U;
+  NodeObservation second = activeObservation(1U, MissionKey(1U, 1U, 1U), 1U);
+  second.buffer_occupancy = 5U;
+  second.transmit_queue_occupancy = 4U;
+  frame.nodes = {first, second};
+  result.frames.push_back(frame);
+
+  SimulationEvent first_command;
+  first_command.type = SimulationEventType::MissionCommand;
+  first_command.accepted = true;
+  first_command.now_ms = 10U;
+  result.events.push_back(first_command);
+  SimulationEvent first_active;
+  first_active.type = SimulationEventType::StateChanged;
+  first_active.current_state = ControllerState::Active;
+  first_active.mission_key = MissionKey(0U, 1U, 1U);
+  first_active.now_ms = 30U;
+  result.events.push_back(first_active);
+  SimulationEvent second_command = first_command;
+  second_command.now_ms = 100U;
+  result.events.push_back(second_command);
+  SimulationEvent second_active = first_active;
+  second_active.mission_key = MissionKey(1U, 1U, 1U);
+  second_active.now_ms = 160U;
+  result.events.push_back(second_active);
+
+  SimulationEvent delayed_delivery;
+  delayed_delivery.type = SimulationEventType::DelayedMessageDelivered;
+  delayed_delivery.packet_id = 7U;
+  delayed_delivery.packet_size = static_cast<uint16_t>(WireCodec::kPacketSize);
+  result.events.push_back(delayed_delivery);
+  SimulationEvent duplicate_delivery = delayed_delivery;
+  duplicate_delivery.type = SimulationEventType::MessageDelivered;
+  result.events.push_back(duplicate_delivery);
+  SimulationEvent dropped;
+  dropped.type = SimulationEventType::MessageDropped;
+  result.events.push_back(dropped);
+
+  SimulationEvent first_sample;
+  first_sample.type = SimulationEventType::ResourceSample;
+  first_sample.node_id = 0U;
+  first_sample.bytes_sent = 20U;
+  first_sample.bytes_received = 10U;
+  first_sample.bytes_dropped = 2U;
+  first_sample.airtime_microseconds = 30U;
+  first_sample.estimated_energy_millijoules = 1.2;
+  first_sample.peak_buffer_occupancy = 6U;
+  first_sample.peak_transmit_queue_occupancy = 5U;
+  result.events.push_back(first_sample);
+  SimulationEvent second_sample = first_sample;
+  second_sample.node_id = 1U;
+  second_sample.bytes_sent = 40U;
+  second_sample.bytes_received = 15U;
+  second_sample.bytes_dropped = 3U;
+  second_sample.airtime_microseconds = 50U;
+  second_sample.estimated_energy_millijoules = 2.0;
+  second_sample.peak_buffer_occupancy = 8U;
+  second_sample.peak_transmit_queue_occupancy = 7U;
+  result.events.push_back(second_sample);
+
+  const RunMetrics metrics = measureRun(trace, result);
+  CHECK(metrics.safety_violations == 0U);
+  CHECK(metrics.missions_started == 2U);
+  CHECK(metrics.missions_completed == 2U);
+  CHECK(metrics.liveness_failures == 0U);
+  CHECK(metrics.mean_assignment_latency_ms == 40.0);
+  CHECK(metrics.deliveries == 2U);
+  CHECK(metrics.delivery_failures == 1U);
+  CHECK(metrics.useful_bytes_delivered == WireCodec::kPacketSize);
+  CHECK(metrics.bytes_sent == 60U);
+  CHECK(metrics.bytes_received == 25U);
+  CHECK(metrics.bytes_dropped == 5U);
+  CHECK(metrics.airtime_microseconds == 80U);
+  CHECK(metrics.estimated_energy_millijoules == 3.2);
+  CHECK(metrics.energy_per_delivered_byte_millijoules ==
+        Catch::Approx(3.2 / static_cast<double>(WireCodec::kPacketSize)));
+  CHECK(metrics.peak_buffer_occupancy == 8U);
+  CHECK(metrics.peak_transmit_queue_occupancy == 7U);
+}
+
+TEST_CASE("laboratory serializers keep empty evidence arrays explicit") {
+  NetworkLaboratoryConfig config;
+  LaboratoryRun run;
+  run.variant_id = "empty";
+  run.trace.provenance = {config.scenario_id, config.code_revision, config.configuration_id, 4U};
+
+  const std::string run_json = serializeLaboratoryRun(config, run);
+  CHECK(run_json.find(R"("nodes":[])") != std::string::npos);
+  CHECK(run_json.find(R"("routes":[])") != std::string::npos);
+  CHECK(run_json.find(R"("events":[])") != std::string::npos);
+
+  const std::string batch_json = serializeBatchReport(config, BatchReport());
+  CHECK(batch_json.find(R"("rawRuns":[])") != std::string::npos);
+  CHECK(batch_json.find(R"("summaries":[])") != std::string::npos);
+  CHECK(batch_json.find(R"("worstFailures":[])") != std::string::npos);
 }
 
 TEST_CASE("laboratory serialization names every evidence branch") {
