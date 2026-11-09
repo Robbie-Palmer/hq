@@ -116,12 +116,16 @@ jobs:
       - name: Generate coverage reports
         # Several coverage tasks invoke pnpm install against the shared workspace.
         # Serial execution avoids install races and CPU-starved test timeouts.
+        env:
+          CODECOV_TEST_RESULTS: "true"
+          PYTEST_ADDOPTS: --junitxml=test-results/codecov.junit.xml
         run: mise run --jobs 1 //:sonar:coverage
 
       - name: Upload coverage reports
+        if: ${{ !cancelled() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: sonar-coverage-${{ github.run_id }}
+          name: coverage-reports-${{ github.run_id }}
           path: |
             **/coverage/lcov.info
             **/coverage-*/lcov.info
@@ -131,6 +135,7 @@ jobs:
             cpp/autonomic-satellite-swarm/build/coverage/compile_commands.json
             cpp/autonomic-satellite-swarm/build/coverage/_deps/catch2-src/src
             cpp/autonomic-satellite-swarm/build/coverage/_deps/catch2-build/generated-includes
+            **/test-results/*.junit.xml
             !**/node_modules/**
             !**/.next/**
           if-no-files-found: error
@@ -140,8 +145,11 @@ jobs:
   analysis:
     name: Analysis
     needs: coverage
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false
+    if: ${{ !cancelled() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.fork == false) }}
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     environment:
       name: production-ci
     timeout-minutes: 20
@@ -152,8 +160,44 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Download coverage reports
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-reports-${{ github.run_id }}
+          path: .
+
+      - name: Verify Codecov credential
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+        run: |
+          if [ -z "$CODECOV_TOKEN" ]; then
+            echo "::error::CODECOV_TOKEN is required for Codecov uploads"
+            exit 1
+          fi
+
+      - name: Upload test results to Codecov
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          disable_search: true
+          fail_ci_if_error: true
+          files: "**/test-results/*.junit.xml"
+          report_type: test_results
+          token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Upload coverage to Codecov
+        if: ${{ needs.coverage.result == 'success' }}
+        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          # Codecov recursively finds lcov.info, coverage.xml, and cobertura.xml.
+          directory: .
+          exclude: node_modules,.next,out,_deps
+          fail_ci_if_error: true
+          name: full-monorepo
+          token: ${{ secrets.CODECOV_TOKEN }}
+
       - name: Restore SonarQube package cache
         id: sonar-cache
+        if: ${{ needs.coverage.result == 'success' }}
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.sonar/cache
@@ -163,6 +207,7 @@ jobs:
         uses: $/.github/actions/setup-mise
 
       - name: Install the compiler described by the C++ compilation database
+        if: ${{ needs.coverage.result == 'success' }}
         run: mise install --jobs 1 --cd cpp/autonomic-satellite-swarm conda:gxx
 
       - name: Get pnpm store directory
@@ -180,34 +225,10 @@ jobs:
       - name: Install dependencies
         run: mise run //:install
 
-      - name: Download coverage reports
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: sonar-coverage-${{ github.run_id }}
-          path: .
-
-      - name: Verify Codecov credential
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-        run: |
-          if [ -z "$CODECOV_TOKEN" ]; then
-            echo "::error::CODECOV_TOKEN is required for Codecov uploads"
-            exit 1
-          fi
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
-        with:
-          # Codecov recursively finds lcov.info, coverage.xml, and cobertura.xml.
-          directory: .
-          exclude: node_modules,.next,out,_deps
-          fail_ci_if_error: true
-          name: full-monorepo
-          token: ${{ secrets.CODECOV_TOKEN }}
-
       # This job never runs for fork pull requests, so environment protection
       # and repository secrets cannot delay or leak into their test job.
       - name: Verify SonarQube credential
+        if: ${{ needs.coverage.result == 'success' }}
         env:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
         run: |
@@ -217,7 +238,7 @@ jobs:
           fi
 
       - name: Read project version
-        if: github.ref == 'refs/heads/main'
+        if: ${{ needs.coverage.result == 'success' && github.ref == 'refs/heads/main' }}
         id: project-version
         shell: bash
         run: |
@@ -230,6 +251,7 @@ jobs:
 
       - name: Configure scanner arguments
         id: scanner-arguments
+        if: ${{ needs.coverage.result == 'success' }}
         shell: bash
         env:
           PROJECT_VERSION: ${{ steps.project-version.outputs.version }}
@@ -257,6 +279,7 @@ jobs:
           printf 'args=%s\n' "${args[*]}" >> "$GITHUB_OUTPUT"
 
       - name: Scan with SonarQube Cloud
+        if: ${{ needs.coverage.result == 'success' }}
         uses: SonarSource/sonarqube-scan-action@ba9859eae8dd6bd29e412f25ddbbef3d032000f4 # v8.2.2
         with:
           args: ${{ steps.scanner-arguments.outputs.args }}
@@ -264,8 +287,15 @@ jobs:
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
       - name: Save SonarQube package cache
-        if: github.ref == 'refs/heads/main' && steps.sonar-cache.outputs.cache-hit != 'true'
+        if: ${{ needs.coverage.result == 'success' && github.ref == 'refs/heads/main' && steps.sonar-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.sonar/cache
           key: ${{ steps.sonar-cache.outputs.cache-primary-key }}
+
+      - name: Build UI and upload bundle analysis
+        env:
+          CODECOV_BUNDLE_ANALYSIS: "true"
+          CODECOV_USE_OIDC: "true"
+          NEXT_PUBLIC_CF_IMAGES_ACCOUNT_HASH: placeholder
+        run: mise run //ui:build
