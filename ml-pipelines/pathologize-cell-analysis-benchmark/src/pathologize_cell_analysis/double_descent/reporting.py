@@ -197,23 +197,21 @@ def _report_markdown(metrics: dict[str, Any], config: Any) -> str:
         [
             "# NuCLS epoch-wise double descent",
             "",
-            "This detector-only DVC experiment kept the merged NuCLS baseline fixed "
-            "except for a 120-epoch horizon, disabled model-selection patience, and "
-            "per-epoch checkpoints. It ran the same YOLO26n setup with seeds "
-            + ", ".join(str(seed) for seed in config.seeds)
-            + ".",
+            "This detector-only DVC experiment kept the merged NuCLS baseline fixed",
+            "except for a 120-epoch horizon, disabled model-selection patience, and",
+            "per-epoch checkpoints. It ran the same YOLO26n setup with seeds",
+            ", ".join(str(seed) for seed in config.seeds) + ".",
             "",
             "## Result",
             "",
             f"Conclusion: `{metrics['conclusion']}`.",
             "",
-            f"The three-epoch first minimum was epochs {first_window[0]} to "
-            f"{first_window[1]}. The later peak was epochs {peak_window[0]} to "
-            f"{peak_window[1]}. The later minimum was epochs {later_window[0]} to "
-            f"{later_window[1]}.",
+            f"The three-epoch first minimum was epochs {first_window[0]} to {first_window[1]}.",
+            f"The later peak was epochs {peak_window[0]} to {peak_window[1]}.",
+            f"The later minimum was epochs {later_window[0]} to {later_window[1]}.",
             "",
-            "The complete patient-bootstrap curve is the DVC plot at "
-            f"`{metrics['curves']['path']}`. It contains all 120 epochs for train error, "
+            "The complete patient-bootstrap curve is the DVC plot at",
+            f"`{metrics['curves']['path']}`. It contains all 120 epochs for train error,",
             "validation error, 95% intervals, mAP50, and mAP50-95.",
             "",
             "## Metrics",
@@ -246,8 +244,9 @@ def _report_markdown(metrics: dict[str, Any], config: Any) -> str:
             f"{resources['aggregate_gpu_ceiling_seconds']:,}-second cap. Peak allocated VRAM was "
             f"{resources['peak_vram_bytes'] / (1024**3):.2f} GiB.",
             "",
-            f"The three runs recorded {checkpoint_count:,} checkpoint digests. The package "
-            f"lock digest was `{package_lock}` and the starting weight digest was "
+            f"The three runs recorded {checkpoint_count:,} checkpoint digests.",
+            "The package lock digest was",
+            f"`{package_lock}` and the starting weight digest was",
             f"`{starting_weights}`.",
             "",
             f"Prediction conversion rejected {curve_failures:,} curve instances and "

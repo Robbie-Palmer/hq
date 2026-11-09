@@ -1,0 +1,243 @@
+{
+  "baseline_comparison": {
+    "baseline_best_validation_map50": 0.42835,
+    "baseline_best_validation_map50_95": 0.186,
+    "baseline_test_localization_f1": 0.5207,
+    "best_validation_map50_95_delta": 0.00010666666666664382,
+    "best_validation_map50_delta": -0.0021433333333333304,
+    "merged_baseline_commit": "2d14e4afd11ff9b97d3eaf457e4b570023a55ebe",
+    "test_localization_f1_delta": 0.018667042433898606
+  },
+  "clinical_validity": false,
+  "conclusion": "negative_failure_to_interpolate",
+  "curves": {
+    "epochs": 120,
+    "path": "outputs/nucls-double-descent/analysis/curves.csv"
+  },
+  "epoch_wise_double_descent_observed": false,
+  "experiment_id": "nucls-yolo26n-epoch-wise-double-descent-v1",
+  "failures": {
+    "curve_prediction_rejections": 0,
+    "sealed_test_prediction_rejections": 0
+  },
+  "pattern": {
+    "conclusion": "negative_failure_to_interpolate",
+    "first_validation_minimum": {
+      "epoch_window": [
+        35,
+        37
+      ],
+      "mean_error": 0.4378145159027766
+    },
+    "interpolation_epochs": {
+      "20261107": null,
+      "20261109": null,
+      "20261111": null
+    },
+    "later_minimum": {
+      "beats_first": true,
+      "decrease_from_peak": 0.04358825782797476,
+      "difference_ci": [
+        -0.06043062322804869,
+        -0.0295250961885491
+      ],
+      "difference_from_first": -0.01828589452698387,
+      "epoch_window": [
+        82,
+        84
+      ],
+      "mean_error": 0.4195286213757927,
+      "supported_second_descent": true
+    },
+    "later_peak": {
+      "difference_ci": [
+        0.014158717449149835,
+        0.03860178069633095
+      ],
+      "epoch_window": [
+        46,
+        48
+      ],
+      "increase_from_first": 0.025302363300990893,
+      "mean_error": 0.4631168792037675,
+      "supported": true
+    },
+    "observed": false,
+    "seed_agreement": {
+      "20261107": {
+        "later_better_than_peak": true,
+        "peak_worse_than_first": true
+      },
+      "20261109": {
+        "later_better_than_peak": true,
+        "peak_worse_than_first": true
+      },
+      "20261111": {
+        "later_better_than_peak": true,
+        "peak_worse_than_first": true
+      }
+    }
+  },
+  "provenance": {
+    "checkpoint_cadence_epochs": 1,
+    "checkpoint_digest_count": 360,
+    "package": {
+      "license": "AGPL-3.0-or-later",
+      "name": "ultralytics",
+      "source_commit": "ae725d5cb20c2d849b864cd34fc15f5c55f877a5",
+      "version": "8.4.202"
+    },
+    "package_lock": {
+      "path": "uv.lock",
+      "sha256": "bc85c458fb74706f8166ef1208ff62b91d8dc371a3dae596974173eebeec1798"
+    },
+    "parameters": {
+      "path": "params/nucls-double-descent.yaml",
+      "sha256": "d492c7dc3cf842fcfed7137e2105617062ffd1560797849ecb23acbace6f5737"
+    },
+    "run_evidence": {
+      "20261107": "outputs/nucls-double-descent/training/20261107/run.json",
+      "20261109": "outputs/nucls-double-descent/training/20261109/run.json",
+      "20261111": "outputs/nucls-double-descent/training/20261111/run.json"
+    },
+    "seeds": [
+      20261107,
+      20261109,
+      20261111
+    ],
+    "starting_weights": {
+      "name": "yolo26n.pt",
+      "sha256": "9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef"
+    }
+  },
+  "resources": {
+    "aggregate_gpu_ceiling_seconds": 86400,
+    "aggregate_gpu_seconds": 12792.298593490967,
+    "curve_evaluation": {
+      "20261107": {
+        "cpu_seconds": 1628.308525184002,
+        "gpu_seconds": 1495.7717929687499,
+        "peak_rss_bytes": 2004443136,
+        "peak_vram_bytes": 1623047168,
+        "wall_seconds": 1495.916244159569
+      },
+      "20261109": {
+        "cpu_seconds": 1627.636057392,
+        "gpu_seconds": 1492.915908203125,
+        "peak_rss_bytes": 2013409280,
+        "peak_vram_bytes": 1725151232,
+        "wall_seconds": 1493.0087024035165
+      },
+      "20261111": {
+        "cpu_seconds": 1615.8688759410004,
+        "gpu_seconds": 1483.491080078125,
+        "peak_rss_bytes": 1990459392,
+        "peak_vram_bytes": 1692768768,
+        "wall_seconds": 1483.5983451355714
+      }
+    },
+    "peak_vram_bytes": 1725151232,
+    "sealed_test_evaluation": {
+      "cpu_seconds": 61.436346295999996,
+      "experiment_gpu_ceiling_seconds": 86400,
+      "experiment_gpu_seconds": 12792.298593490967,
+      "gpu_seconds": 20.917125,
+      "peak_rss_bytes": 1950326784,
+      "peak_vram_bytes": 256484352,
+      "wall_seconds": 21.2940825590631
+    },
+    "training": {
+      "20261107": {
+        "cpu_seconds": 6544.349538639,
+        "gpu_seconds": 2808.4734372409666,
+        "peak_rss_bytes": 3274919936,
+        "peak_vram_bytes": 1623047168,
+        "resumed": false,
+        "wall_seconds": 2824.5658676850144
+      },
+      "20261109": {
+        "cpu_seconds": 6314.6685817259995,
+        "gpu_seconds": 2694.17875,
+        "peak_rss_bytes": 3275620352,
+        "peak_vram_bytes": 1725151232,
+        "resumed": false,
+        "wall_seconds": 2709.410666459007
+      },
+      "20261111": {
+        "cpu_seconds": 6362.998740530999,
+        "gpu_seconds": 2796.5505,
+        "peak_rss_bytes": 3269066752,
+        "peak_vram_bytes": 1692768768,
+        "resumed": false,
+        "wall_seconds": 2814.435144447023
+      }
+    }
+  },
+  "schema_version": "1.0.0",
+  "sealed_test": {
+    "localization_f1_by_seed": {
+      "20261107": 0.5098218713048785,
+      "20261109": 0.5495016611295681,
+      "20261111": 0.5587775948672491
+    },
+    "localization_f1_mean": 0.5393670424338987,
+    "mAP50_95_mean": 0.1498242167387914,
+    "mAP50_mean": 0.34746636853491397,
+    "per_class": {
+      "AMBIGUOUS": {
+        "localization_f1_max": 0.16952789699570817,
+        "localization_f1_mean": 0.16126925771897568,
+        "localization_f1_min": 0.15365132967496833
+      },
+      "nonTIL_stromal": {
+        "localization_f1_max": 0.31522323830016136,
+        "localization_f1_mean": 0.3006254252596337,
+        "localization_f1_min": 0.2844868735083532
+      },
+      "other_nucleus": {
+        "localization_f1_max": 0.0,
+        "localization_f1_mean": 0.0,
+        "localization_f1_min": 0.0
+      },
+      "sTIL": {
+        "localization_f1_max": 0.579244315267567,
+        "localization_f1_mean": 0.5729808665655549,
+        "localization_f1_min": 0.5691471287801564
+      },
+      "tumor_any": {
+        "localization_f1_max": 0.4098618350293704,
+        "localization_f1_mean": 0.39796261830094853,
+        "localization_f1_min": 0.37610652384140447
+      }
+    },
+    "selection_policy": "fixed_epoch_120_endpoint",
+    "site_slices": {
+      "A1": {
+        "localization_f1_max": 0.5425101214574899,
+        "localization_f1_mean": 0.5066318188418149,
+        "localization_f1_min": 0.46914357682619645
+      },
+      "AC": {
+        "localization_f1_max": 0.6045016077170418,
+        "localization_f1_mean": 0.5939171264595532,
+        "localization_f1_min": 0.5735068912710567
+      },
+      "BH": {
+        "localization_f1_max": 0.5574971815107103,
+        "localization_f1_mean": 0.5503610853776993,
+        "localization_f1_min": 0.5397111913357401
+      },
+      "OL": {
+        "localization_f1_max": 0.5516449885233359,
+        "localization_f1_mean": 0.5213565442901082,
+        "localization_f1_min": 0.47042464434698894
+      }
+    }
+  },
+  "validation": {
+    "best_map50": 0.4262066666666667,
+    "best_map50_95": 0.18610666666666664,
+    "endpoint_map50": 0.4153266666666666,
+    "endpoint_map50_95": 0.17949666666666667
+  }
+}
