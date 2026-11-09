@@ -62,10 +62,7 @@ export function deriveInitiativeStatus(
   ) {
     return "active";
   }
-  if (
-    projectStatuses.length === 0 ||
-    projectStatuses.some((status) => status === "idea")
-  ) {
+  if (projectStatuses.length === 0 || projectStatuses.includes("idea")) {
     return "idea";
   }
   return "inactive";
