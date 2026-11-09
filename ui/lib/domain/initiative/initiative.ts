@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { ProjectStatus } from "../project/project";
 import {
   IdeaSlugSchema,
   InitiativeSlugSchema,
@@ -46,6 +47,29 @@ export const InitiativeSchema = z.object({
 });
 
 export type Initiative = z.infer<typeof InitiativeSchema>;
+
+export const InitiativeSourceSchema = InitiativeSchema.omit({ status: true });
+
+export type InitiativeSource = z.infer<typeof InitiativeSourceSchema>;
+
+export function deriveInitiativeStatus(
+  projectStatuses: readonly ProjectStatus[],
+): InitiativeStatus {
+  if (
+    projectStatuses.some(
+      (status) => status === "in_progress" || status === "live",
+    )
+  ) {
+    return "active";
+  }
+  if (
+    projectStatuses.length === 0 ||
+    projectStatuses.some((status) => status === "idea")
+  ) {
+    return "idea";
+  }
+  return "inactive";
+}
 
 export const InitiativeRelationsSchema = z.object({
   ideas: z.array(IdeaSlugSchema).default([]),
