@@ -53,25 +53,29 @@ def _predict_split(
 ) -> tuple[list[SpatialPredictionRecord], list[dict[str, object]]]:
     image_root = PROJECT_ROOT / LAYOUT_DIRECTORY / "detect" / "images" / split
     source_paths = [str(image_root / f"{item_id}.png") for item_id in sorted(items)]
-    results = model.predict(
-        source=source_paths,
-        stream=True,
-        **_prediction_arguments(config),
-    )
     records: list[SpatialPredictionRecord] = []
     rejections: list[dict[str, object]] = []
-    for result in results:
-        item_id = Path(result.path).stem
-        if item_id not in items:
-            raise ValueError(f"prediction source is outside the frozen {split} split: {item_id}")
-        record, rejected = normalize_pathologize_result(
-            result,
-            items[item_id],
-            "detect",
-            labels,
+    batch_size = config.training.batch
+    for offset in range(0, len(source_paths), batch_size):
+        results = model.predict(
+            source=source_paths[offset : offset + batch_size],
+            stream=True,
+            **_prediction_arguments(config),
         )
-        records.append(record)
-        rejections.extend({"split": split, **entry} for entry in rejected)
+        for result in results:
+            item_id = Path(result.path).stem
+            if item_id not in items:
+                raise ValueError(
+                    f"prediction source is outside the frozen {split} split: {item_id}"
+                )
+            record, rejected = normalize_pathologize_result(
+                result,
+                items[item_id],
+                "detect",
+                labels,
+            )
+            records.append(record)
+            rejections.extend({"split": split, **entry} for entry in rejected)
     if {record.item_id for record in records} != set(items):
         raise ValueError(f"predictions do not cover every frozen {split} item")
     return records, rejections

@@ -134,6 +134,31 @@ def test_prediction_record_supports_curve_splits() -> None:
     assert record.split == "validation"
 
 
+def test_curve_prediction_chunks_the_frozen_split(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    item_ids = [f"item-{index}" for index in range(10)]
+    items = {item_id: SimpleNamespace() for item_id in item_ids}
+    calls: list[list[str]] = []
+
+    class Model:
+        def predict(self, *, source: list[str], **_: object) -> list[SimpleNamespace]:
+            calls.append(source)
+            return [SimpleNamespace(path=path) for path in source]
+
+    monkeypatch.setattr(
+        evaluation_module,
+        "normalize_pathologize_result",
+        lambda result, *_: (SimpleNamespace(item_id=Path(result.path).stem), []),
+    )
+    records, rejections = evaluation_module._predict_split(
+        Model(), "train", cast(Any, items), [], _config()
+    )
+    assert [len(call) for call in calls] == [8, 2]
+    assert {record.item_id for record in records} == set(item_ids)
+    assert rejections == []
+
+
 def _trainer(training_loss: float, validation_loss: float, map50_95: float) -> Any:
     return SimpleNamespace(
         stop=False,
