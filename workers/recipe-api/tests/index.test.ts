@@ -267,6 +267,24 @@ const dbMock = vi.hoisted(() => {
     createdAt: Date;
     updatedAt: Date;
   };
+  type RecipeImportJobRow = {
+    id: string;
+    userId: string;
+    status: "queued" | "running" | "succeeded" | "failed";
+    currentStage: string | null;
+    progressLabel: string | null;
+    errorType: string | null;
+    errorMessage: string | null;
+    workflowInstanceId: string | null;
+    imageCount: number;
+    sourceType: string;
+    reviewState: string;
+    draftVersion: number;
+    executionAttempt: number;
+    createdAt: Date;
+    updatedAt: Date;
+    finishedAt: Date | null;
+  };
 
   const state = {
     users: [] as UserRow[],
@@ -334,6 +352,7 @@ const dbMock = vi.hoisted(() => {
     pantryAggregates: [] as PantryAggregateRow[],
     pantryOperations: [] as PantryOperationRow[],
     shoppingLists: [] as ShoppingListRow[],
+    recipeImportJobs: [] as RecipeImportJobRow[],
     pantryOperationSweeps: 0,
     ingredientGroupMembers: [] as {
       groupKey: string;
@@ -500,6 +519,7 @@ const dbMock = vi.hoisted(() => {
     state.pantryAggregates = [];
     state.pantryOperations = [];
     state.shoppingLists = [];
+    state.recipeImportJobs = [];
     state.pantryOperationSweeps = 0;
     state.ingredientGroupMembers = [];
     state.ingredientGroupHierarchy = [];
@@ -557,6 +577,113 @@ const dbMock = vi.hoisted(() => {
     }
 
     return undefined;
+  }
+
+  function recipeImportJobRow(job: RecipeImportJobRow): unknown[] {
+    return [
+      job.id,
+      job.userId,
+      job.status,
+      job.currentStage,
+      job.progressLabel,
+      job.errorType,
+      job.errorMessage,
+      job.workflowInstanceId,
+      job.imageCount,
+      null,
+      null,
+      job.sourceType,
+      null,
+      null,
+      null,
+      null,
+      job.reviewState,
+      job.draftVersion,
+      job.executionAttempt,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      job.createdAt,
+      job.updatedAt,
+      job.finishedAt,
+    ];
+  }
+
+  function countRecipeImportRows(
+    query: string,
+    _params: unknown[],
+  ): QueryRows | undefined {
+    return query.includes('count(') && query.includes('from "recipe_import_job"')
+      ? [[0]]
+      : undefined;
+  }
+
+  function insertRecipeImportRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (!query.startsWith('insert into "recipe_import_job"')) return undefined;
+    const job: RecipeImportJobRow = {
+      id: crypto.randomUUID(),
+      userId: insertedParam(query, params, "user_id") as string,
+      status: "queued",
+      currentStage: null,
+      progressLabel: null,
+      errorType: null,
+      errorMessage: null,
+      workflowInstanceId: null,
+      imageCount: insertedParam(query, params, "image_count") as number,
+      sourceType: "photo",
+      reviewState: "waiting",
+      draftVersion: 1,
+      executionAttempt: 1,
+      createdAt: date,
+      updatedAt: date,
+      finishedAt: null,
+    };
+    state.recipeImportJobs.push(job);
+    return [recipeImportJobRow(job)];
+  }
+
+  function updateRecipeImportRows(
+    query: string,
+    params: unknown[],
+  ): QueryRows | undefined {
+    if (!query.startsWith('update "recipe_import_job"')) return undefined;
+    const id = boundParam(query, params, "id") as string;
+    const job = state.recipeImportJobs.find((candidate) => candidate.id === id);
+    if (!job) return [];
+    const status = boundParam(query, params, "status") as
+      | RecipeImportJobRow["status"]
+      | undefined;
+    const progressLabel = boundParam(query, params, "progress_label") as
+      | string
+      | undefined;
+    const errorType = boundParam(query, params, "error_type") as
+      | string
+      | undefined;
+    const errorMessage = boundParam(query, params, "error_message") as
+      | string
+      | undefined;
+    const finishedAt = boundParam(query, params, "finished_at");
+    Object.assign(job, {
+      status: status ?? job.status,
+      progressLabel: progressLabel ?? job.progressLabel,
+      errorType: errorType ?? job.errorType,
+      errorMessage: errorMessage ?? job.errorMessage,
+      finishedAt: finishedAt
+        ? finishedAt instanceof Date
+          ? finishedAt
+          : new Date(finishedAt as string)
+        : job.finishedAt,
+      updatedAt: date,
+    });
+    return [];
   }
 
   function updateShoppingRows(
@@ -2852,6 +2979,9 @@ const dbMock = vi.hoisted(() => {
   }
 
   const queryRowsHandlers: QueryRowsHandler[] = [
+    countRecipeImportRows,
+    insertRecipeImportRows,
+    updateRecipeImportRows,
     queryShoppingRows,
     updateShoppingRows,
     selectShoppingRows,
@@ -9305,6 +9435,142 @@ describe("preview authentication", () => {
       const res = await app.request(path, { method: "POST" }, previewEnv);
       expect(res.status).toBe(404);
     }
+  });
+});
+
+describe("recipe photo imports", () => {
+  const pngHeader = new Uint8Array([
+    0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00,
+  ]);
+  const executionCtx = {
+    waitUntil: vi.fn(),
+  } as unknown as ExecutionContext;
+
+  function photoForm(bytes: string | Uint8Array = pngHeader, type = "image/png") {
+    const form = new FormData();
+    form.append("images", new File([bytes], "recipe.png", { type }));
+    return form;
+  }
+
+  function importServices() {
+    const put = vi.fn().mockResolvedValue(undefined);
+    const list = vi.fn(({ prefix }: { prefix: string }) =>
+      Promise.resolve({ objects: [{ key: `${prefix}source/0.png` }] }),
+    );
+    const remove = vi.fn().mockResolvedValue(undefined);
+    const create = vi.fn().mockResolvedValue(undefined);
+    return {
+      put,
+      list,
+      remove,
+      create,
+      bindings: {
+        ...env,
+        ARTIFACTS: { put, list, delete: remove } as unknown as R2Bucket,
+        RECIPE_INGEST_WORKFLOW: { create } as unknown as Workflow,
+      },
+    };
+  }
+
+  beforeEach(() => {
+    authzMock.session = sessionFor({
+      id: "photo-user",
+      email: "photo@example.test",
+      name: "Photo cook",
+    });
+  });
+
+  it(
+    "validates image contents before reserving a durable job",
+    async () => {
+      const services = importServices();
+
+      const response = await app.request(
+        "/recipe-imports",
+        {
+          method: "POST",
+          headers: { origin: env.BETTER_AUTH_URL },
+          body: photoForm("not a png"),
+        },
+        services.bindings,
+        executionCtx,
+      );
+
+      expect(response.status).toBe(415);
+      expect(await response.json()).toEqual({
+        error: "Image contents do not match the declared file type",
+      });
+      expect(dbMock.state.recipeImportJobs).toHaveLength(0);
+      expect(services.put).not.toHaveBeenCalled();
+      expect(services.create).not.toHaveBeenCalled();
+    },
+    15_000,
+  );
+
+  it("uploads a validated image and starts the matching workflow instance", async () => {
+    const services = importServices();
+
+    const response = await app.request(
+      "/recipe-imports",
+      {
+        method: "POST",
+        headers: { origin: env.BETTER_AUTH_URL },
+        body: photoForm(),
+      },
+      services.bindings,
+      executionCtx,
+    );
+
+    expect(response.status).toBe(202);
+    const job = (await response.json()) as { id: string; imageCount: number };
+    expect(job).toMatchObject({ imageCount: 1, status: "queued" });
+    expect(services.put).toHaveBeenCalledWith(
+      `imports/${job.id}/source/0.png`,
+      expect.any(File),
+      { httpMetadata: { contentType: "image/png" } },
+    );
+    expect(services.create).toHaveBeenCalledWith({
+      id: job.id,
+      params: { jobId: job.id },
+    });
+    expect(dbMock.state.recipeImportJobs).toEqual([
+      expect.objectContaining({ id: job.id, status: "queued", imageCount: 1 }),
+    ]);
+  });
+
+  it("cleans uploaded objects and marks the job failed when workflow start fails", async () => {
+    const services = importServices();
+    services.create.mockRejectedValueOnce(new Error("workflow unavailable"));
+
+    const response = await app.request(
+      "/recipe-imports",
+      {
+        method: "POST",
+        headers: { origin: env.BETTER_AUTH_URL },
+        body: photoForm(),
+      },
+      services.bindings,
+      executionCtx,
+    );
+
+    expect(response.status).toBe(502);
+    expect(await response.json()).toEqual({
+      error: "Failed to start the import",
+    });
+    const [job] = dbMock.state.recipeImportJobs;
+    expect(services.list).toHaveBeenCalledWith({
+      prefix: `imports/${job?.id}/`,
+    });
+    expect(services.remove).toHaveBeenCalledWith(
+      `imports/${job?.id}/source/0.png`,
+    );
+    expect(job).toMatchObject({
+      status: "failed",
+      progressLabel: "Import failed",
+      errorType: "StartError",
+      errorMessage: "Failed to start the import",
+      finishedAt: expect.any(Date),
+    });
   });
 });
 
