@@ -1054,8 +1054,18 @@ stages:
     - path:
         src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
       hash: md5
-      md5: b4663661365edf484d3000c77449044c
-      size: 40519
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_inference.py
+      hash: md5
+      md5: 0936e685a9c6374aae93ad265b5bf7bd
+      size: 7278
     - path: src/pathologize_cell_analysis/learned_baseline/prediction.py
       hash: md5
       md5: 51119a205f701ab0f0dbdd4daa369977
@@ -1167,8 +1177,23 @@ stages:
     - path:
         src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
       hash: md5
-      md5: b4663661365edf484d3000c77449044c
-      size: 40519
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_validation.py
+      hash: md5
+      md5: 327a000c0e531385c2ae20e69864d220
+      size: 12007
     - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
       hash: md5
       md5: cc66a3db78fbdd64c99dda0aee1d4ff0
@@ -1274,8 +1299,23 @@ stages:
     - path:
         src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
       hash: md5
-      md5: b4663661365edf484d3000c77449044c
-      size: 40519
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      hash: md5
+      md5: 62c68257ec49eae8faa64b2fde4305d5
+      size: 5511
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
     - path: uv.lock
       hash: md5
       md5: b7f14431db9e106a193512fd6b5cf0fe
@@ -1394,8 +1434,28 @@ stages:
     - path:
         src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
       hash: md5
-      md5: b4663661365edf484d3000c77449044c
-      size: 40519
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      hash: md5
+      md5: 62c68257ec49eae8faa64b2fde4305d5
+      size: 5511
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_inference.py
+      hash: md5
+      md5: 0936e685a9c6374aae93ad265b5bf7bd
+      size: 7278
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
     - path: src/pathologize_cell_analysis/learned_baseline/prediction.py
       hash: md5
       md5: 51119a205f701ab0f0dbdd4daa369977
@@ -1502,8 +1562,23 @@ stages:
     - path:
         src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
       hash: md5
-      md5: b4663661365edf484d3000c77449044c
-      size: 40519
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      hash: md5
+      md5: 62c68257ec49eae8faa64b2fde4305d5
+      size: 5511
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
     - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
       hash: md5
       md5: cc66a3db78fbdd64c99dda0aee1d4ff0
@@ -1552,8 +1627,18 @@ stages:
     - path:
         src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
       hash: md5
-      md5: b4663661365edf484d3000c77449044c
-      size: 40519
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_reporting.py
+      hash: md5
+      md5: 8b2097270048c57c2199b4b8875afb71
+      size: 5696
     - path: uv.lock
       hash: md5
       md5: b7f14431db9e106a193512fd6b5cf0fe

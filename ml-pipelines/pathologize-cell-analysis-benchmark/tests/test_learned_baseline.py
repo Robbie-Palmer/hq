@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import importlib
 import json
 import time
 from pathlib import Path
@@ -215,6 +216,13 @@ def test_detection_calibration_grid_is_predeclared_and_ordered(tmp_path: Path) -
     mismatched.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
     with pytest.raises(ValueError, match="differs from the merged baseline"):
         load_calibration_config(mismatched)
+
+
+def test_detection_calibration_components_import_without_cycles() -> None:
+    package = "pathologize_cell_analysis.learned_baseline.detection_calibration"
+    for component in ("evaluation", "inference", "validation"):
+        module = importlib.import_module(f"{package}_{component}")
+        assert module.__name__.endswith(component)
 
 
 def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> None:

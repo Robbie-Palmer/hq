@@ -299,6 +299,8 @@ stages:
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/learned_baseline/config.py
       - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_inference.py
       - src/pathologize_cell_analysis/learned_baseline/prediction.py
       - pyproject.toml
       - uv.lock
@@ -330,6 +332,9 @@ stages:
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/learned_baseline/config.py
       - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_validation.py
       - src/pathologize_cell_analysis/learned_baseline/evaluation.py
       - src/pathologize_cell_analysis/localization.py
       - pyproject.toml
@@ -371,6 +376,9 @@ stages:
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/learned_baseline/config.py
       - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
       - pyproject.toml
       - uv.lock
     params:
@@ -411,6 +419,10 @@ stages:
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/learned_baseline/config.py
       - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_inference.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
       - src/pathologize_cell_analysis/learned_baseline/prediction.py
       - pyproject.toml
       - uv.lock
@@ -444,6 +456,9 @@ stages:
       - src/pathologize_cell_analysis/contracts.py
       - src/pathologize_cell_analysis/learned_baseline/config.py
       - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
       - src/pathologize_cell_analysis/learned_baseline/evaluation.py
       - src/pathologize_cell_analysis/localization.py
       - pyproject.toml
@@ -465,6 +480,8 @@ stages:
       - outputs/learned-baseline/detection-calibration/test/evidence.json
       - src/pathologize_cell_analysis/learned_baseline/config.py
       - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration_reporting.py
       - pyproject.toml
       - uv.lock
     metrics:
