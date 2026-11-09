@@ -188,6 +188,17 @@ def test_training_state_and_resource_guards(tmp_path: Path) -> None:
         _validate_resources(config, 1.0, config.limits.maximum_peak_vram_bytes + 1)
 
 
+def test_non_resumable_attempt_preserves_failed_gpu_charge(tmp_path: Path) -> None:
+    output = tmp_path / "seed"
+    output.mkdir()
+    write_json(output / "state.json", {"consumed_gpu_seconds_upper_bound": 20.0})
+    model, prior_seconds, resumed = training_module._resume_model(output, object(), object())
+    assert model is None
+    assert prior_seconds == 20.0
+    assert resumed is False
+    assert not output.exists()
+
+
 def test_checkpoint_index_records_every_epoch(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

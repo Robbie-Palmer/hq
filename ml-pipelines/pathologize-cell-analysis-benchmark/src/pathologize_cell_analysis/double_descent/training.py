@@ -18,7 +18,7 @@ from ultralytics_extensions.checkpoints import (
 
 from ..contracts import DoubleDescentConfig
 from ..learned_baseline.config import LAYOUT_DIRECTORY, WEIGHTS_DIRECTORY
-from .config import PARAMS_FILE, PROJECT_ROOT, load_config, seed_output
+from .config import OUTPUT_ROOT, PARAMS_FILE, PROJECT_ROOT, load_config, seed_output
 
 
 @dataclass
@@ -207,9 +207,11 @@ def _resume_model(output: Path, yolo: Any, torch_module: Any) -> tuple[Any, floa
     rows = training_rows(output)
     checkpoint = output / "weights" / "last.pt"
     if not rows or not checkpoint.is_file():
+        stored = _prior_state(output)
+        prior_failed_seconds = float(stored.get("consumed_gpu_seconds_upper_bound", 0.0))
         if output.exists():
             shutil.rmtree(output)
-        return None, 0.0, False
+        return None, prior_failed_seconds, False
     observed_epoch = checkpoint_epoch(torch_module, checkpoint)
     if observed_epoch >= 0 and observed_epoch + 1 != int(rows[-1]["epoch"]):
         raise ValueError("resume checkpoint epoch differs from results.csv")
@@ -270,7 +272,9 @@ def train(seed: int, params_path: str = str(PARAMS_FILE)) -> dict[str, object]: 
         if not isinstance(result, dict):
             raise TypeError("completed run evidence must be an object")
         return cast(dict[str, object], result)
-    os.environ["YOLO_CONFIG_DIR"] = str(output / "ultralytics-config")
+    runtime_root = OUTPUT_ROOT / "runtime" / str(seed)
+    shutil.rmtree(runtime_root, ignore_errors=True)
+    os.environ["YOLO_CONFIG_DIR"] = str(runtime_root)
     import torch
     from torch import cuda
     from ultralytics import YOLO, settings
@@ -280,7 +284,6 @@ def train(seed: int, params_path: str = str(PARAMS_FILE)) -> dict[str, object]: 
     settings.update({"datasets_dir": str(PROJECT_ROOT)})
     model, prior_seconds, resumed = _resume_model(output, YOLO, torch)
     if model is None:
-        output.mkdir(parents=True, exist_ok=True)
         model = YOLO(str(weights), task="detect")
     state = SafetyMonitor()
     wall_start = time.monotonic()
@@ -340,6 +343,7 @@ def train(seed: int, params_path: str = str(PARAMS_FILE)) -> dict[str, object]: 
                 "path": (output / "results.csv").relative_to(PROJECT_ROOT).as_posix(),
                 "sha256": sha256_file(output / "results.csv"),
             },
+            "prior_failed_gpu_seconds_upper_bound": (prior_seconds if not resumed else 0.0),
             "checkpoints": checkpoints,
             "resources": {
                 "wall_seconds": prior_seconds + time.monotonic() - wall_start,
@@ -350,7 +354,7 @@ def train(seed: int, params_path: str = str(PARAMS_FILE)) -> dict[str, object]: 
                 "resumed": resumed,
             },
         }
-        shutil.rmtree(output / "ultralytics-config", ignore_errors=True)
+        shutil.rmtree(runtime_root, ignore_errors=True)
         write_json(completed, result)
         _write_state(output, state, wall_start, prior_seconds, cuda, "complete")
     except BaseException:
@@ -361,4 +365,4 @@ def train(seed: int, params_path: str = str(PARAMS_FILE)) -> dict[str, object]: 
     finally:
         for cache_path in (PROJECT_ROOT / LAYOUT_DIRECTORY).rglob("*.cache"):
             cache_path.unlink()
-        shutil.rmtree(output / "ultralytics-config", ignore_errors=True)
+        shutil.rmtree(runtime_root, ignore_errors=True)
