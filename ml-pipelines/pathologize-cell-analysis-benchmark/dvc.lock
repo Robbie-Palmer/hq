@@ -1044,8 +1044,8 @@ stages:
       size: 11138
     - path: src/pathologize_cell_analysis/double_descent
       hash: md5
-      md5: 76cec57f03994b2816099daf7899d759.dir
-      size: 58836
+      md5: c9326265d493da91a0f170422bd32f31.dir
+      size: 59875
       nfiles: 7
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
@@ -1214,8 +1214,8 @@ stages:
       size: 11138
     - path: src/pathologize_cell_analysis/double_descent
       hash: md5
-      md5: 76cec57f03994b2816099daf7899d759.dir
-      size: 58836
+      md5: c9326265d493da91a0f170422bd32f31.dir
+      size: 59875
       nfiles: 7
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
@@ -1376,8 +1376,8 @@ stages:
       size: 2415
     - path: src/pathologize_cell_analysis/double_descent
       hash: md5
-      md5: 76cec57f03994b2816099daf7899d759.dir
-      size: 58836
+      md5: c9326265d493da91a0f170422bd32f31.dir
+      size: 59875
       nfiles: 7
     - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
       hash: md5
@@ -1550,8 +1550,8 @@ stages:
       size: 11138
     - path: src/pathologize_cell_analysis/double_descent
       hash: md5
-      md5: 76cec57f03994b2816099daf7899d759.dir
-      size: 58836
+      md5: c9326265d493da91a0f170422bd32f31.dir
+      size: 59875
       nfiles: 7
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
@@ -1712,8 +1712,8 @@ stages:
       size: 2415
     - path: src/pathologize_cell_analysis/double_descent
       hash: md5
-      md5: 76cec57f03994b2816099daf7899d759.dir
-      size: 58836
+      md5: c9326265d493da91a0f170422bd32f31.dir
+      size: 59875
       nfiles: 7
     - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
       hash: md5
@@ -1878,8 +1878,8 @@ stages:
       size: 2415
     - path: src/pathologize_cell_analysis/double_descent
       hash: md5
-      md5: 76cec57f03994b2816099daf7899d759.dir
-      size: 58836
+      md5: c9326265d493da91a0f170422bd32f31.dir
+      size: 59875
       nfiles: 7
     - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
       hash: md5
@@ -2216,8 +2216,8 @@ stages:
       size: 2415
     - path: src/pathologize_cell_analysis/double_descent
       hash: md5
-      md5: 76cec57f03994b2816099daf7899d759.dir
-      size: 58836
+      md5: c9326265d493da91a0f170422bd32f31.dir
+      size: 59875
       nfiles: 7
     - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
       hash: md5
@@ -2350,8 +2350,8 @@ stages:
     outs:
     - path: outputs/nucls-double-descent/test/evidence.json
       hash: md5
-      md5: 218beef7e720dbd71f1787281f68bada
-      size: 46301
+      md5: e86d190a794e2822c17ec5e714ad8161
+      size: 46304
   report_nucls_double_descent:
     cmd: uv run --locked pathologize-cell-analysis double-descent report
     deps:
@@ -2361,8 +2361,8 @@ stages:
       size: 2195
     - path: outputs/nucls-double-descent/test/evidence.json
       hash: md5
-      md5: 218beef7e720dbd71f1787281f68bada
-      size: 46301
+      md5: e86d190a794e2822c17ec5e714ad8161
+      size: 46304
     - path: outputs/nucls-double-descent/training/20261107/run.json
       hash: md5
       md5: 34fab0e495e25a49e5283086889d7b1b
@@ -2381,8 +2381,8 @@ stages:
       size: 2415
     - path: src/pathologize_cell_analysis/double_descent/reporting.py
       hash: md5
-      md5: a2ac258a5b0fa96e753c6eabe5cc3691
-      size: 11809
+      md5: c2cb90176b6706235c1dd5b6f8e7abaf
+      size: 11904
     - path: uv.lock
       hash: md5
       md5: b7f14431db9e106a193512fd6b5cf0fe
@@ -2506,9 +2506,9 @@ stages:
     outs:
     - path: reports/nucls-double-descent.json
       hash: md5
-      md5: f82fe71f817ababdfde86d83abfaed61
-      size: 7430
+      md5: 474b6837c632654ad3d299ce9da95a03
+      size: 7440
     - path: reports/nucls-double-descent.md
       hash: md5
-      md5: 2eafa604782e06d65dfe02bcf21c69d4
+      md5: fd5fc4f108de2305399e0798e5d2f042
       size: 2138

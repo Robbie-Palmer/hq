@@ -161,6 +161,31 @@ def _validation_metrics(rows: list[dict[str, float]], epoch: int) -> dict[str, f
     }
 
 
+def _completed_curve(path: Path) -> dict[str, object] | None:
+    if not path.is_file():
+        return None
+    value = read_json(path)
+    if not isinstance(value, dict):
+        raise TypeError("curve evidence must be an object")
+    return cast(dict[str, object], value)
+
+
+def _validate_evaluation_resources(
+    config: Any,
+    training_gpu_seconds: float,
+    evaluation_gpu_seconds: float,
+    training_wall_seconds: float,
+    evaluation_wall_seconds: float,
+    peak_vram: int,
+) -> None:
+    if training_gpu_seconds + evaluation_gpu_seconds > config.limits.per_seed_gpu_seconds:
+        raise RuntimeError("per-seed GPU-time ceiling exceeded during curve evaluation")
+    if training_wall_seconds + evaluation_wall_seconds > config.limits.per_seed_wall_seconds:
+        raise RuntimeError("per-seed wall-time ceiling exceeded during curve evaluation")
+    if peak_vram > config.limits.maximum_peak_vram_bytes:
+        raise RuntimeError("peak VRAM ceiling exceeded during curve evaluation")
+
+
 def evaluate(  # pragma: no cover
     seed: int, params_path: str = str(PARAMS_FILE)
 ) -> dict[str, object]:
@@ -173,11 +198,9 @@ def evaluate(  # pragma: no cover
         raise TypeError("training evidence must be an object")
     output = seed_evaluation(seed)
     completed = output / "curve.json"
-    if completed.is_file():
-        value = read_json(completed)
-        if not isinstance(value, dict):
-            raise TypeError("curve evidence must be an object")
-        return cast(dict[str, object], value)
+    completed_value = _completed_curve(completed)
+    if completed_value is not None:
+        return completed_value
     output.mkdir(parents=True, exist_ok=True)
     os.environ["YOLO_CONFIG_DIR"] = str(output / "ultralytics-config")
     from torch import cuda
@@ -235,13 +258,14 @@ def evaluate(  # pragma: no cover
         evaluation_wall_seconds += time.monotonic() - epoch_wall_start
         evaluation_cpu_seconds += time.process_time() - epoch_cpu_start
         peak_vram = max(peak_vram, epoch_peak_vram)
-        if training_gpu_seconds + evaluation_gpu_seconds > config.limits.per_seed_gpu_seconds:
-            raise RuntimeError("per-seed GPU-time ceiling exceeded during curve evaluation")
-        total_wall_seconds = training_wall_seconds + evaluation_wall_seconds
-        if total_wall_seconds > config.limits.per_seed_wall_seconds:
-            raise RuntimeError("per-seed wall-time ceiling exceeded during curve evaluation")
-        if peak_vram > config.limits.maximum_peak_vram_bytes:
-            raise RuntimeError("peak VRAM ceiling exceeded during curve evaluation")
+        _validate_evaluation_resources(
+            config,
+            training_gpu_seconds,
+            evaluation_gpu_seconds,
+            training_wall_seconds,
+            evaluation_wall_seconds,
+            peak_vram,
+        )
         evidence: dict[str, object] = {
             "schema_version": "1.0.0",
             "seed": seed,

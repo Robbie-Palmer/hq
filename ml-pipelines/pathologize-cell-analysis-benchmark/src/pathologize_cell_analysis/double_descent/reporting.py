@@ -18,6 +18,8 @@ from .config import (
     seed_output,
 )
 
+RUN_EVIDENCE_FILE = "run.json"
+
 
 def _seed_values(test: dict[str, Any]) -> list[dict[str, Any]]:
     return [test["seeds"][seed] for seed in sorted(test["seeds"])]
@@ -58,7 +60,8 @@ def _curve_failure_count(seed: int) -> int:
 
 def _resources(config: Any, test: dict[str, Any]) -> dict[str, object]:
     training = {
-        str(seed): read_json(seed_output(seed) / "run.json")["resources"] for seed in config.seeds
+        str(seed): read_json(seed_output(seed) / RUN_EVIDENCE_FILE)["resources"]
+        for seed in config.seeds
     }
     curves = {
         str(seed): read_json(seed_evaluation(seed) / "curve.json")["resources"]
@@ -146,11 +149,13 @@ def metric_summary(
             "seeds": config.seeds,
             "checkpoint_cadence_epochs": config.checkpoint_cadence_epochs,
             "checkpoint_digest_count": sum(
-                len(read_json(seed_output(seed) / "run.json")["checkpoints"])
+                len(read_json(seed_output(seed) / RUN_EVIDENCE_FILE)["checkpoints"])
                 for seed in config.seeds
             ),
             "run_evidence": {
-                str(seed): (seed_output(seed) / "run.json").relative_to(PROJECT_ROOT).as_posix()
+                str(seed): (seed_output(seed) / RUN_EVIDENCE_FILE)
+                .relative_to(PROJECT_ROOT)
+                .as_posix()
                 for seed in config.seeds
             },
         },

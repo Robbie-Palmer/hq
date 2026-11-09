@@ -112,7 +112,7 @@
   },
   "resources": {
     "aggregate_gpu_ceiling_seconds": 86400,
-    "aggregate_gpu_seconds": 12792.298593490967,
+    "aggregate_gpu_seconds": 12788.591259994873,
     "curve_evaluation": {
       "20261107": {
         "cpu_seconds": 1628.308525184002,
@@ -138,13 +138,13 @@
     },
     "peak_vram_bytes": 1725151232,
     "sealed_test_evaluation": {
-      "cpu_seconds": 61.436346295999996,
+      "cpu_seconds": 55.342275431000004,
       "experiment_gpu_ceiling_seconds": 86400,
-      "experiment_gpu_seconds": 12792.298593490967,
-      "gpu_seconds": 20.917125,
-      "peak_rss_bytes": 1950326784,
+      "experiment_gpu_seconds": 12788.591259994873,
+      "gpu_seconds": 17.20979150390625,
+      "peak_rss_bytes": 1949147136,
       "peak_vram_bytes": 256484352,
-      "wall_seconds": 21.2940825590631
+      "wall_seconds": 17.641836183029227
     },
     "training": {
       "20261107": {

@@ -114,8 +114,9 @@ def test_predeclaration_requires_an_object(tmp_path: Path) -> None:
 def test_predeclaration_rejects_changes_beyond_horizon(
     tmp_path: Path, mutate: Any, message: str
 ) -> None:
+    params_path = _write_params(tmp_path, mutate)
     with pytest.raises(ValueError, match=message):
-        load_config(_write_params(tmp_path, mutate))
+        load_config(params_path)
 
 
 def test_prediction_record_supports_curve_splits() -> None:
@@ -157,6 +158,63 @@ def test_curve_prediction_chunks_the_frozen_split(
     assert [len(call) for call in calls] == [8, 2]
     assert {record.item_id for record in records} == set(item_ids)
     assert rejections == []
+
+
+def test_completed_evidence_helpers_validate_cached_objects(tmp_path: Path) -> None:
+    curve_path = tmp_path / "curve.json"
+    test_path = tmp_path / "test.json"
+    assert evaluation_module._completed_curve(curve_path) is None
+    assert test_evaluation_module._completed_test(test_path) is None
+
+    write_json(curve_path, {"seed": 1})
+    write_json(test_path, {"seeds": {}})
+    assert evaluation_module._completed_curve(curve_path) == {"seed": 1}
+    assert test_evaluation_module._completed_test(test_path) == {"seeds": {}}
+
+    write_json(curve_path, ["invalid"])
+    write_json(test_path, ["invalid"])
+    with pytest.raises(TypeError, match="curve evidence"):
+        evaluation_module._completed_curve(curve_path)
+    with pytest.raises(TypeError, match="test evidence"):
+        test_evaluation_module._completed_test(test_path)
+
+
+def test_curve_resource_guards_cover_every_limit() -> None:
+    config = _config()
+    evaluation_module._validate_evaluation_resources(config, 1.0, 1.0, 1.0, 1.0, 1)
+    with pytest.raises(RuntimeError, match="GPU-time"):
+        evaluation_module._validate_evaluation_resources(
+            config, config.limits.per_seed_gpu_seconds, 1.0, 1.0, 1.0, 1
+        )
+    with pytest.raises(RuntimeError, match="wall-time"):
+        evaluation_module._validate_evaluation_resources(
+            config, 1.0, 1.0, config.limits.per_seed_wall_seconds, 1.0, 1
+        )
+    with pytest.raises(RuntimeError, match="peak VRAM"):
+        evaluation_module._validate_evaluation_resources(
+            config, 1.0, 1.0, 1.0, 1.0, config.limits.maximum_peak_vram_bytes + 1
+        )
+
+
+def test_fixed_endpoint_and_test_resource_guards() -> None:
+    config = _config()
+    checkpoint = {"epoch": config.training.epochs, "path": "endpoint.pt"}
+    assert (
+        test_evaluation_module._endpoint({"checkpoints": [checkpoint]}, 7, config.training.epochs)
+        == checkpoint
+    )
+    with pytest.raises(ValueError, match="did not reach"):
+        test_evaluation_module._endpoint({"checkpoints": []}, 7, config.training.epochs)
+
+    test_evaluation_module._validate_test_resources(config, 1.0, 1)
+    with pytest.raises(RuntimeError, match="GPU-time"):
+        test_evaluation_module._validate_test_resources(
+            config, config.limits.aggregate_gpu_seconds + 1, 1
+        )
+    with pytest.raises(RuntimeError, match="peak VRAM"):
+        test_evaluation_module._validate_test_resources(
+            config, 1.0, config.limits.maximum_peak_vram_bytes + 1
+        )
 
 
 def _trainer(training_loss: float, validation_loss: float, map50_95: float) -> Any:

@@ -23,6 +23,32 @@ def _box_metrics(validation: Any) -> dict[str, float]:
     return {"mAP50": float(box.map50), "mAP50_95": float(box.map)}
 
 
+def _completed_test(path: Path) -> dict[str, object] | None:
+    if not path.is_file():
+        return None
+    value = read_json(path)
+    if not isinstance(value, dict):
+        raise TypeError("test evidence must be an object")
+    return cast(dict[str, object], value)
+
+
+def _endpoint(run: dict[str, Any], seed: int, epoch: int) -> dict[str, Any]:
+    value = next(
+        (checkpoint for checkpoint in run["checkpoints"] if int(checkpoint["epoch"]) == epoch),
+        None,
+    )
+    if value is None:
+        raise ValueError(f"seed {seed} did not reach the fixed test endpoint")
+    return cast(dict[str, Any], value)
+
+
+def _validate_test_resources(config: Any, gpu_seconds: float, peak_vram: int) -> None:
+    if gpu_seconds > config.limits.aggregate_gpu_seconds:
+        raise RuntimeError("experiment exceeded the aggregate GPU-time ceiling")
+    if peak_vram > config.limits.maximum_peak_vram_bytes:
+        raise RuntimeError("test evaluation exceeded the peak VRAM ceiling")
+
+
 def evaluate_test(params_path: str = str(PARAMS_FILE)) -> dict[str, object]:  # pragma: no cover
     config = load_config(Path(params_path))
     analysis = read_json(OUTPUT_ROOT / "analysis" / "evidence.json")
@@ -32,11 +58,9 @@ def evaluate_test(params_path: str = str(PARAMS_FILE)) -> dict[str, object]:  # 
         raise ValueError("sealed test evaluation requires the fixed endpoint policy")
     output = OUTPUT_ROOT / "test"
     evidence_path = output / "evidence.json"
-    if evidence_path.is_file():
-        value = read_json(evidence_path)
-        if not isinstance(value, dict):
-            raise TypeError("test evidence must be an object")
-        return cast(dict[str, object], value)
+    completed = _completed_test(evidence_path)
+    if completed is not None:
+        return completed
     output.mkdir(parents=True, exist_ok=True)
     os.environ["YOLO_CONFIG_DIR"] = str(output / "ultralytics-config")
     from torch import cuda
@@ -56,16 +80,7 @@ def evaluate_test(params_path: str = str(PARAMS_FILE)) -> dict[str, object]:  # 
         run = read_json(seed_output(seed) / "run.json")
         if not isinstance(run, dict):
             raise TypeError("training evidence must be an object")
-        endpoint = next(
-            (
-                checkpoint
-                for checkpoint in run["checkpoints"]
-                if int(checkpoint["epoch"]) == config.training.epochs
-            ),
-            None,
-        )
-        if endpoint is None:
-            raise ValueError(f"seed {seed} did not reach the fixed test endpoint")
+        endpoint = _endpoint(run, seed, config.training.epochs)
         checkpoint = PROJECT_ROOT / str(endpoint["path"])
         if sha256_file(checkpoint) != endpoint["sha256"]:
             raise ValueError(f"seed {seed} endpoint checkpoint digest differs")
@@ -120,10 +135,7 @@ def evaluate_test(params_path: str = str(PARAMS_FILE)) -> dict[str, object]:  # 
         for seed in config.seeds
     )
     total_gpu_seconds = training_gpu_seconds + curve_gpu_seconds + aggregate_gpu_seconds
-    if total_gpu_seconds > config.limits.aggregate_gpu_seconds:
-        raise RuntimeError("experiment exceeded the aggregate GPU-time ceiling")
-    if peak_vram > config.limits.maximum_peak_vram_bytes:
-        raise RuntimeError("test evaluation exceeded the peak VRAM ceiling")
+    _validate_test_resources(config, total_gpu_seconds, peak_vram)
     result: dict[str, object] = {
         "schema_version": "1.0.0",
         "experiment_id": config.experiment_id,
