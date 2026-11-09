@@ -1,0 +1,33 @@
+schema_version: 1.0.0
+selection_split: validation
+baseline_confidence_threshold: 0.05
+baseline_nms_iou_threshold: 0.70
+confidence_thresholds: [0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45, 0.50]
+nms_iou_thresholds: [0.50, 0.70]
+inference_batch_size: 64
+objective: maximize_aggregate_localization_f1
+tie_break:
+  - higher_precision
+  - higher_recall
+  - higher_worst_site_f1_delta
+  - higher_worst_supported_class_f1_delta
+  - lower_confidence_threshold
+  - nms_iou_closest_to_baseline
+minimum_f1_gain: 0.03
+minimum_precision_gain: 0.10
+maximum_recall_loss: 0.15
+maximum_site_f1_regression: 0.03
+maximum_class_f1_regression: 0.03
+supported_class_minimum_truth: 100
+bootstrap_resamples: 5000
+bootstrap_seed: 20261109
+confidence_level: 0.95
+maximum_test_evaluations: 1
+stop_rules:
+  - Stop before GPU inference if deterministic unit, conversion, leakage, or normalization checks fail.
+  - Stop before GPU inference while another NuCLS process owns the accelerator.
+  - Select confidence and NMS IoU only on the frozen validation fold. Never inspect frozen-test candidate results during selection.
+  - Stop before frozen-test inference unless localization F1 gains at least 0.03, precision gains at least 0.10, recall loses no more than 0.15, and the paired slide-bootstrap 95 percent F1-delta interval excludes zero.
+  - Stop before frozen-test inference if any validation site or supported class loses more than 0.03 localization F1.
+  - Stop before frozen-test inference if prediction normalization rejects any instance.
+  - Lock one operating point after validation and run at most one frozen-test evaluation without revisiting selection.

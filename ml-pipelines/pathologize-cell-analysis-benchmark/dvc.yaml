@@ -286,3 +286,186 @@ stages:
           - models
     metrics:
       - reports/nucls-learned-baseline.json
+
+  predict_nucls_detection_calibration_validation:
+    cmd: uv run --locked python -m pathologize_cell_analysis.learned_baseline.detection_calibration predict-validation
+    deps:
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout/detect/images/validation
+      - outputs/learned-baseline/training/detect/weights/best.pt
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - training.device
+          - training.image_size
+          - inference
+          - limits
+      - params/nucls-detection-calibration.yaml:
+          - confidence_thresholds
+          - nms_iou_thresholds
+          - inference_batch_size
+    outs:
+      - outputs/learned-baseline/detection-calibration/validation/predictions
+      - outputs/learned-baseline/detection-calibration/validation/inference.json
+      - outputs/learned-baseline/detection-calibration/validation/rejections.json
+
+  calibrate_nucls_detection_validation:
+    cmd: uv run --locked python -m pathologize_cell_analysis.learned_baseline.detection_calibration evaluate-validation
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - outputs/learned-baseline/detection-calibration/validation/predictions
+      - outputs/learned-baseline/detection-calibration/validation/inference.json
+      - outputs/learned-baseline/detection-calibration/validation/rejections.json
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      - src/pathologize_cell_analysis/localization.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - localization_tolerance_pixels
+          - inference.confidence_threshold
+          - inference.iou_threshold
+      - params/nucls-detection-calibration.yaml:
+          - selection_split
+          - baseline_confidence_threshold
+          - baseline_nms_iou_threshold
+          - confidence_thresholds
+          - nms_iou_thresholds
+          - inference_batch_size
+          - objective
+          - tie_break
+          - minimum_f1_gain
+          - minimum_precision_gain
+          - maximum_recall_loss
+          - maximum_site_f1_regression
+          - maximum_class_f1_regression
+          - supported_class_minimum_truth
+          - bootstrap_resamples
+          - bootstrap_seed
+          - confidence_level
+          - maximum_test_evaluations
+          - stop_rules
+    outs:
+      - outputs/learned-baseline/detection-calibration/validation/evidence.json
+    metrics:
+      - reports/nucls-detection-calibration-validation.json
+
+  lock_nucls_detection_calibration:
+    cmd: uv run --locked python -m pathologize_cell_analysis.learned_baseline.detection_calibration lock
+    deps:
+      - outputs/learned-baseline/detection-calibration/validation/evidence.json
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-detection-calibration.yaml:
+          - schema_version
+          - selection_split
+          - baseline_confidence_threshold
+          - baseline_nms_iou_threshold
+          - confidence_thresholds
+          - nms_iou_thresholds
+          - inference_batch_size
+          - objective
+          - tie_break
+          - minimum_f1_gain
+          - minimum_precision_gain
+          - maximum_recall_loss
+          - maximum_site_f1_regression
+          - maximum_class_f1_regression
+          - supported_class_minimum_truth
+          - bootstrap_resamples
+          - bootstrap_seed
+          - confidence_level
+          - maximum_test_evaluations
+          - stop_rules
+    outs:
+      - outputs/learned-baseline/detection-calibration/locked-operating-point.json
+
+  predict_nucls_detection_calibration_test:
+    cmd: uv run --locked python -m pathologize_cell_analysis.learned_baseline.detection_calibration predict-test
+    deps:
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - data/derived/learned-layout/detect/images/test
+      - outputs/learned-baseline/training/detect/weights/best.pt
+      - outputs/learned-baseline/detection-calibration/locked-operating-point.json
+      - ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/prediction.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - training.device
+          - training.image_size
+          - inference
+          - limits
+      - params/nucls-detection-calibration.yaml:
+          - inference_batch_size
+          - maximum_test_evaluations
+    outs:
+      - outputs/learned-baseline/detection-calibration/test/predictions
+      - outputs/learned-baseline/detection-calibration/test/inference.json
+      - outputs/learned-baseline/detection-calibration/test/rejections.json
+
+  evaluate_nucls_detection_calibration_test:
+    cmd: uv run --locked python -m pathologize_cell_analysis.learned_baseline.detection_calibration evaluate-test
+    deps:
+      - ../../data-products/nucls/corrected-single-rater/data/native
+      - ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      - ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      - ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      - outputs/learned-baseline/evaluation/detect/predictions.jsonl
+      - outputs/learned-baseline/detection-calibration/locked-operating-point.json
+      - outputs/learned-baseline/detection-calibration/validation/inference.json
+      - outputs/learned-baseline/detection-calibration/test/predictions
+      - outputs/learned-baseline/detection-calibration/test/inference.json
+      - outputs/learned-baseline/detection-calibration/test/rejections.json
+      - src/pathologize_cell_analysis/contracts.py
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      - src/pathologize_cell_analysis/localization.py
+      - pyproject.toml
+      - uv.lock
+    params:
+      - params/nucls-learned.yaml:
+          - localization_tolerance_pixels
+      - params/nucls-detection-calibration.yaml:
+          - bootstrap_resamples
+          - bootstrap_seed
+          - maximum_test_evaluations
+    outs:
+      - outputs/learned-baseline/detection-calibration/test/evidence.json
+
+  report_nucls_detection_calibration:
+    cmd: uv run --locked python -m pathologize_cell_analysis.learned_baseline.detection_calibration report
+    deps:
+      - outputs/learned-baseline/detection-calibration/validation/evidence.json
+      - outputs/learned-baseline/detection-calibration/test/evidence.json
+      - src/pathologize_cell_analysis/learned_baseline/config.py
+      - src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      - pyproject.toml
+      - uv.lock
+    metrics:
+      - reports/nucls-detection-calibration.json

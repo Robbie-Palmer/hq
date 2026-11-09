@@ -130,6 +130,32 @@ declared parameter changes.
 Durable experiment work is kept on its branch. This project does not maintain
 a parallel experiment-manifest registry or a common training abstraction.
 
+Detection confidence and NMS calibration uses the learned detection checkpoint
+without changing its weights or training configuration.
+`params/nucls-detection-calibration.yaml` fixes the validation-only candidate
+grid, objective, tie-break order, slice safeguards, paired slide-bootstrap
+method, and stop rules. The DVC graph keeps validation predictions and compact
+calibration evidence separate from the frozen test stage.
+
+Run validation first and inspect
+`reports/nucls-detection-calibration-validation.json`:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:learned:calibration:validation
+```
+
+If every declared gate passes, lock the selected operating point and run the
+single allowed frozen-test evaluation:
+
+```bash
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:learned:calibration:lock
+mise run //ml-pipelines/pathologize-cell-analysis-benchmark:learned:calibration:test
+```
+
+The lock records the validation-evidence and parameter digests. Test inference
+refuses a changed parameter file. Do not run either test command after a failed
+validation gate.
+
 Detection ran to the 40-epoch ceiling. Training and validation loss sums fell
 from 5.0105 to 3.1257 and 5.9297 to 3.3774. Best validation box mAP50 was
 0.4284 at epoch 38, and best mAP50-95 was 0.1860 at epoch 35. The run learned,
