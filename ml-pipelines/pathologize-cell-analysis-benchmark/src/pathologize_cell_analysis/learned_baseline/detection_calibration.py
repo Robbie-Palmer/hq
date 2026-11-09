@@ -51,6 +51,9 @@ CALIBRATION_VALIDATION_REPORT_FILE = (
 )
 CALIBRATION_JSON_REPORT_FILE = PROJECT_ROOT / "reports/nucls-detection-calibration.json"
 CALIBRATION_MARKDOWN_REPORT_FILE = PROJECT_ROOT / "reports/nucls-detection-calibration.md"
+EVIDENCE_FILENAME = "evidence.json"
+INFERENCE_FILENAME = "inference.json"
+REJECTIONS_FILENAME = "rejections.json"
 
 
 class DetectionCalibrationConfig(StrictModel):
@@ -293,9 +296,9 @@ def _run_detection_inference(
             "parameters_sha256": sha256_file(params_path),
             "resources": resources,
         }
-        write_json(destination / "rejections.json", rejections)
-        write_json(destination / "inference.json", inference)
-        written.extend((destination / "rejections.json", destination / "inference.json"))
+        write_json(destination / REJECTIONS_FILENAME, rejections)
+        write_json(destination / INFERENCE_FILENAME, inference)
+        written.extend((destination / REJECTIONS_FILENAME, destination / INFERENCE_FILENAME))
     except BaseException:
         for path in written:
             path.unlink(missing_ok=True)
@@ -459,7 +462,7 @@ def calibrate_detection_validation(
     config = load_config()
     calibration = load_calibration_config(params_path)
     validation_root = VALIDATION_ROOT
-    evidence_path = validation_root / "evidence.json"
+    evidence_path = validation_root / EVIDENCE_FILENAME
     if evidence_path.exists() or CALIBRATION_VALIDATION_REPORT_FILE.exists():
         raise FileExistsError("validation calibration evidence already exists")
     items = _split_items("validation")
@@ -590,8 +593,8 @@ def calibrate_detection_validation(
     worst_class_delta = min(
         selected_classes[label]["f1"] - baseline_classes[label]["f1"] for label in supported_classes
     )
-    rejection_count = len(read_json(validation_root / "rejections.json"))
-    inference = read_json(validation_root / "inference.json")
+    rejection_count = len(read_json(validation_root / REJECTIONS_FILENAME))
+    inference = read_json(validation_root / INFERENCE_FILENAME)
     gates = [
         {"gate": "eligible_candidate_exists", "passed": bool(candidates)},
         {
@@ -689,7 +692,7 @@ def calibrate_detection_validation(
 def lock_detection_calibration(
     params_path: Path = CALIBRATION_PARAMS_FILE,
 ) -> dict[str, object]:  # pragma: no cover
-    validation_evidence_path = VALIDATION_ROOT / "evidence.json"
+    validation_evidence_path = VALIDATION_ROOT / EVIDENCE_FILENAME
     evidence = read_json(validation_evidence_path)
     if not evidence["passed"]:
         raise RuntimeError("validation gate failed; refusing to lock a test operating point")
@@ -747,7 +750,7 @@ def evaluate_detection_test(
     config = load_config()
     calibration = load_calibration_config(params_path)
     lock = _load_lock(params_path)
-    evidence_path = TEST_ROOT / "evidence.json"
+    evidence_path = TEST_ROOT / EVIDENCE_FILENAME
     if evidence_path.exists():
         raise FileExistsError(f"test evidence already exists: {evidence_path}")
     operating_point = lock["operating_point"]
@@ -790,11 +793,11 @@ def evaluate_detection_test(
     )
     baseline_localization = _localization(baseline["localization"])
     candidate_localization = _localization(candidate["localization"])
-    validation_inference = read_json(VALIDATION_ROOT / "inference.json")
-    test_inference = read_json(TEST_ROOT / "inference.json")
+    validation_inference = read_json(VALIDATION_ROOT / INFERENCE_FILENAME)
+    test_inference = read_json(TEST_ROOT / INFERENCE_FILENAME)
     validation_resources = _resource_summary(validation_inference["resources"])
     test_resources = _resource_summary(test_inference["resources"])
-    failures = read_json(TEST_ROOT / "rejections.json")
+    failures = read_json(TEST_ROOT / REJECTIONS_FILENAME)
     evidence: dict[str, object] = {
         "schema_version": "1.0.0",
         "split": "test",
@@ -925,9 +928,21 @@ def _report_markdown(  # pragma: no cover
     )
 
 
+def _write_markdown_report(
+    content: str,
+    destination: Path = CALIBRATION_MARKDOWN_REPORT_FILE,
+    reports_root: Path = PROJECT_ROOT / "reports",
+) -> None:
+    resolved_root = reports_root.resolve()
+    resolved_destination = destination.resolve()
+    if resolved_destination.parent != resolved_root:
+        raise ValueError("calibration report destination must be inside the reports directory")
+    resolved_destination.write_text(content, encoding="utf-8")  # NOSONAR - validated above.
+
+
 def report_detection_calibration() -> dict[str, object]:  # pragma: no cover
-    validation = read_json(VALIDATION_ROOT / "evidence.json")
-    test = read_json(TEST_ROOT / "evidence.json")
+    validation = read_json(VALIDATION_ROOT / EVIDENCE_FILENAME)
+    test = read_json(TEST_ROOT / EVIDENCE_FILENAME)
     metrics: dict[str, object] = {
         "validation_passed": validation["passed"],
         "operating_point": validation["selected"]["operating_point"],
@@ -947,9 +962,7 @@ def report_detection_calibration() -> dict[str, object]:  # pragma: no cover
         "resources": test["resources"],
     }
     write_json(CALIBRATION_JSON_REPORT_FILE, metrics)
-    CALIBRATION_MARKDOWN_REPORT_FILE.write_text(
-        _report_markdown(validation, test), encoding="utf-8"
-    )
+    _write_markdown_report(_report_markdown(validation, test))
     return metrics
 
 

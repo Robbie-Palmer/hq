@@ -48,6 +48,7 @@ from pathologize_cell_analysis.learned_baseline.detection_calibration import (
     DetectionCalibrationConfig,
     _filter_records,
     _require_complete_records,
+    _write_markdown_report,
     load_calibration_config,
     paired_slide_bootstrap,
 )
@@ -585,6 +586,16 @@ def test_confidence_filter_and_paired_slide_bootstrap_are_deterministic(
         tolerance_pixels=1.0,
     )
     assert observed["delta_intervals"]["f1"] == {"lower": 1.0, "upper": 1.0}
+
+
+def test_calibration_report_writer_rejects_path_escape(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    destination = reports / "calibration.md"
+    _write_markdown_report("evidence\n", destination, reports)
+    assert destination.read_text(encoding="utf-8") == "evidence\n"
+    with pytest.raises(ValueError, match="inside the reports directory"):
+        _write_markdown_report("escape\n", tmp_path / "escape.md", reports)
 
 
 def test_prepare_layout_preserves_splits_ontology_and_empty_images(
