@@ -1007,3 +1007,644 @@ stages:
       hash: md5
       md5: d8964b13b8e897fc82a09bc42735ba68
       size: 5080
+  predict_nucls_detection_calibration_validation:
+    cmd: uv run --locked python -m
+      pathologize_cell_analysis.learned_baseline.detection_calibration
+      predict-validation
+    deps:
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      hash: md5
+      md5: 657453f93aebb8f894188161e68d5499
+      size: 551
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
+      hash: md5
+      md5: c5b0be027fbab71381c978d3628239a7
+      size: 2584
+    - path: data/derived/learned-layout/detect/images/validation
+      hash: md5
+      md5: 5532150a5c378ca7a972616dc6c2ea69.dir
+      size: 107754620
+      nfiles: 505
+    - path: outputs/learned-baseline/training/detect/weights/best.pt
+      hash: md5
+      md5: ae492f96f7bb32a62902daf3cecf6eee
+      size: 5455493
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      hash: md5
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_inference.py
+      hash: md5
+      md5: 0936e685a9c6374aae93ad265b5bf7bd
+      size: 7278
+    - path: src/pathologize_cell_analysis/learned_baseline/prediction.py
+      hash: md5
+      md5: 51119a205f701ab0f0dbdd4daa369977
+      size: 7344
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-detection-calibration.yaml:
+        confidence_thresholds:
+        - 0.05
+        - 0.1
+        - 0.15
+        - 0.2
+        - 0.25
+        - 0.3
+        - 0.35
+        - 0.4
+        - 0.45
+        - 0.5
+        inference_batch_size: 64
+        nms_iou_thresholds:
+        - 0.5
+        - 0.7
+      params/nucls-learned.yaml:
+        inference:
+          confidence_threshold: 0.05
+          iou_threshold: 0.7
+          class_agnostic_nms: false
+          nms: true
+          maximum_detections: 1000
+          half_precision: false
+          retina_masks: true
+        limits:
+          per_task_wall_seconds: 14400
+          aggregate_gpu_seconds: 86400
+          maximum_peak_vram_bytes: 12884901888
+        training.device: 0
+        training.image_size: 640
+    outs:
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/inference.json
+      hash: md5
+      md5: ba2544a092f7ee60ad05c9fb5798b3a9
+      size: 1151
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/predictions
+      hash: md5
+      md5: f6bd2dc9ef789a9bf100ae77de7a21fa.dir
+      size: 15813693
+      nfiles: 2
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/rejections.json
+      hash: md5
+      md5: 58e0494c51d30eb3494f7c9198986bb9
+      size: 3
+  calibrate_nucls_detection_validation:
+    cmd: uv run --locked python -m
+      pathologize_cell_analysis.learned_baseline.detection_calibration
+      evaluate-validation
+    deps:
+    - path: ../../data-products/nucls/corrected-single-rater/data/native
+      hash: md5
+      md5: aa4b2d693a4b0ee3df8c1a6ea3be7d4b.dir
+      size: 399546523
+      nfiles: 3501
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      hash: md5
+      md5: 657453f93aebb8f894188161e68d5499
+      size: 551
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/inference.json
+      hash: md5
+      md5: ba2544a092f7ee60ad05c9fb5798b3a9
+      size: 1151
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/predictions
+      hash: md5
+      md5: f6bd2dc9ef789a9bf100ae77de7a21fa.dir
+      size: 15813693
+      nfiles: 2
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/rejections.json
+      hash: md5
+      md5: 58e0494c51d30eb3494f7c9198986bb9
+      size: 3
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      hash: md5
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_validation.py
+      hash: md5
+      md5: 327a000c0e531385c2ae20e69864d220
+      size: 12007
+    - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      hash: md5
+      md5: cc66a3db78fbdd64c99dda0aee1d4ff0
+      size: 14323
+    - path: src/pathologize_cell_analysis/localization.py
+      hash: md5
+      md5: bb84d559648e79f47cb4fca34bd39c58
+      size: 2812
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-detection-calibration.yaml:
+        baseline_confidence_threshold: 0.05
+        baseline_nms_iou_threshold: 0.7
+        bootstrap_resamples: 5000
+        bootstrap_seed: 20261109
+        confidence_level: 0.95
+        confidence_thresholds:
+        - 0.05
+        - 0.1
+        - 0.15
+        - 0.2
+        - 0.25
+        - 0.3
+        - 0.35
+        - 0.4
+        - 0.45
+        - 0.5
+        inference_batch_size: 64
+        maximum_class_f1_regression: 0.03
+        maximum_recall_loss: 0.15
+        maximum_site_f1_regression: 0.03
+        maximum_test_evaluations: 1
+        minimum_f1_gain: 0.03
+        minimum_precision_gain: 0.1
+        nms_iou_thresholds:
+        - 0.5
+        - 0.7
+        objective: maximize_aggregate_localization_f1
+        selection_split: validation
+        stop_rules:
+        - Stop before GPU inference if deterministic unit, conversion, leakage,
+          or normalization checks fail.
+        - Select confidence and NMS IoU only on the frozen validation fold.
+          Never inspect frozen-test candidate results during selection.
+        - Stop before frozen-test inference unless localization F1 gains at
+          least 0.03, precision gains at least 0.10, recall loses no more than
+          0.15, and the paired slide-bootstrap 95 percent F1-delta interval
+          excludes zero.
+        - Stop before frozen-test inference if any validation site or supported
+          class loses more than 0.03 localization F1.
+        - Stop before frozen-test inference if prediction normalization rejects
+          any instance.
+        - Lock one operating point after validation and run at most one
+          frozen-test evaluation without revisiting selection.
+        supported_class_minimum_truth: 100
+        tie_break:
+        - higher_precision
+        - higher_recall
+        - higher_worst_site_f1_delta
+        - higher_worst_supported_class_f1_delta
+        - lower_confidence_threshold
+        - nms_iou_closest_to_baseline
+      params/nucls-learned.yaml:
+        inference.confidence_threshold: 0.05
+        inference.iou_threshold: 0.7
+        localization_tolerance_pixels: 12.0
+    outs:
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/evidence.json
+      hash: md5
+      md5: df8c209ea25fcd00ceea8ace59528495
+      size: 22649
+    - path: reports/nucls-detection-calibration-validation.json
+      hash: md5
+      md5: 7db7e5314e366c5adb060529a8fa6e11
+      size: 2591
+  lock_nucls_detection_calibration:
+    cmd: uv run --locked python -m
+      pathologize_cell_analysis.learned_baseline.detection_calibration lock
+    deps:
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/evidence.json
+      hash: md5
+      md5: df8c209ea25fcd00ceea8ace59528495
+      size: 22649
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      hash: md5
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      hash: md5
+      md5: 62c68257ec49eae8faa64b2fde4305d5
+      size: 5511
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-detection-calibration.yaml:
+        baseline_confidence_threshold: 0.05
+        baseline_nms_iou_threshold: 0.7
+        bootstrap_resamples: 5000
+        bootstrap_seed: 20261109
+        confidence_level: 0.95
+        confidence_thresholds:
+        - 0.05
+        - 0.1
+        - 0.15
+        - 0.2
+        - 0.25
+        - 0.3
+        - 0.35
+        - 0.4
+        - 0.45
+        - 0.5
+        inference_batch_size: 64
+        maximum_class_f1_regression: 0.03
+        maximum_recall_loss: 0.15
+        maximum_site_f1_regression: 0.03
+        maximum_test_evaluations: 1
+        minimum_f1_gain: 0.03
+        minimum_precision_gain: 0.1
+        nms_iou_thresholds:
+        - 0.5
+        - 0.7
+        objective: maximize_aggregate_localization_f1
+        schema_version: 1.0.0
+        selection_split: validation
+        stop_rules:
+        - Stop before GPU inference if deterministic unit, conversion, leakage,
+          or normalization checks fail.
+        - Select confidence and NMS IoU only on the frozen validation fold.
+          Never inspect frozen-test candidate results during selection.
+        - Stop before frozen-test inference unless localization F1 gains at
+          least 0.03, precision gains at least 0.10, recall loses no more than
+          0.15, and the paired slide-bootstrap 95 percent F1-delta interval
+          excludes zero.
+        - Stop before frozen-test inference if any validation site or supported
+          class loses more than 0.03 localization F1.
+        - Stop before frozen-test inference if prediction normalization rejects
+          any instance.
+        - Lock one operating point after validation and run at most one
+          frozen-test evaluation without revisiting selection.
+        supported_class_minimum_truth: 100
+        tie_break:
+        - higher_precision
+        - higher_recall
+        - higher_worst_site_f1_delta
+        - higher_worst_supported_class_f1_delta
+        - lower_confidence_threshold
+        - nms_iou_closest_to_baseline
+    outs:
+    - path:
+        outputs/learned-baseline/detection-calibration/locked-operating-point.json
+      hash: md5
+      md5: b70192580a49629500bda4763df00e6c
+      size: 382
+  predict_nucls_detection_calibration_test:
+    cmd: uv run --locked python -m
+      pathologize_cell_analysis.learned_baseline.detection_calibration
+      predict-test
+    deps:
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      hash: md5
+      md5: 657453f93aebb8f894188161e68d5499
+      size: 551
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
+      hash: md5
+      md5: c5b0be027fbab71381c978d3628239a7
+      size: 2584
+    - path: data/derived/learned-layout/detect/images/test
+      hash: md5
+      md5: 1fe2564beec6080ffeea27726e315b0f.dir
+      size: 47929569
+      nfiles: 263
+    - path:
+        outputs/learned-baseline/detection-calibration/locked-operating-point.json
+      hash: md5
+      md5: b70192580a49629500bda4763df00e6c
+      size: 382
+    - path: outputs/learned-baseline/training/detect/weights/best.pt
+      hash: md5
+      md5: ae492f96f7bb32a62902daf3cecf6eee
+      size: 5455493
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      hash: md5
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      hash: md5
+      md5: 62c68257ec49eae8faa64b2fde4305d5
+      size: 5511
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_inference.py
+      hash: md5
+      md5: 0936e685a9c6374aae93ad265b5bf7bd
+      size: 7278
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
+    - path: src/pathologize_cell_analysis/learned_baseline/prediction.py
+      hash: md5
+      md5: 51119a205f701ab0f0dbdd4daa369977
+      size: 7344
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-detection-calibration.yaml:
+        inference_batch_size: 64
+        maximum_test_evaluations: 1
+      params/nucls-learned.yaml:
+        inference:
+          confidence_threshold: 0.05
+          iou_threshold: 0.7
+          class_agnostic_nms: false
+          nms: true
+          maximum_detections: 1000
+          half_precision: false
+          retina_masks: true
+        limits:
+          per_task_wall_seconds: 14400
+          aggregate_gpu_seconds: 86400
+          maximum_peak_vram_bytes: 12884901888
+        training.device: 0
+        training.image_size: 640
+    outs:
+    - path: outputs/learned-baseline/detection-calibration/test/inference.json
+      hash: md5
+      md5: 8c1b56de2e081fbd3162a306b276fde3
+      size: 726
+    - path: outputs/learned-baseline/detection-calibration/test/predictions
+      hash: md5
+      md5: 739e098fded53f98ec2fff16336d360c.dir
+      size: 1795924
+      nfiles: 1
+    - path: outputs/learned-baseline/detection-calibration/test/rejections.json
+      hash: md5
+      md5: 58e0494c51d30eb3494f7c9198986bb9
+      size: 3
+  evaluate_nucls_detection_calibration_test:
+    cmd: uv run --locked python -m
+      pathologize_cell_analysis.learned_baseline.detection_calibration
+      evaluate-test
+    deps:
+    - path: ../../data-products/nucls/corrected-single-rater/data/native
+      hash: md5
+      md5: aa4b2d693a4b0ee3df8c1a6ea3be7d4b.dir
+      size: 399546523
+      nfiles: 3501
+    - path: ../../data-products/pathologize/nucleus-analysis/dvc.lock
+      hash: md5
+      md5: 34f2bfc5825209957d2f58c2781029a1
+      size: 2114
+    - path:
+        ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
+      hash: md5
+      md5: 657453f93aebb8f894188161e68d5499
+      size: 551
+    - path: ../../data-products/pathologize/nucleus-analysis/outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path:
+        outputs/learned-baseline/detection-calibration/locked-operating-point.json
+      hash: md5
+      md5: b70192580a49629500bda4763df00e6c
+      size: 382
+    - path: outputs/learned-baseline/detection-calibration/test/inference.json
+      hash: md5
+      md5: 8c1b56de2e081fbd3162a306b276fde3
+      size: 726
+    - path: outputs/learned-baseline/detection-calibration/test/predictions
+      hash: md5
+      md5: 739e098fded53f98ec2fff16336d360c.dir
+      size: 1795924
+      nfiles: 1
+    - path: outputs/learned-baseline/detection-calibration/test/rejections.json
+      hash: md5
+      md5: 58e0494c51d30eb3494f7c9198986bb9
+      size: 3
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/inference.json
+      hash: md5
+      md5: ba2544a092f7ee60ad05c9fb5798b3a9
+      size: 1151
+    - path: outputs/learned-baseline/evaluation/detect/predictions.jsonl
+      hash: md5
+      md5: ffeaca45a60236915737380cf202ba6d
+      size: 3668351
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/contracts.py
+      hash: md5
+      md5: 2708ecbd737d4d945549e88d1946974b
+      size: 8548
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      hash: md5
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_evaluation.py
+      hash: md5
+      md5: 62c68257ec49eae8faa64b2fde4305d5
+      size: 5511
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_statistics.py
+      hash: md5
+      md5: d56413012dc8ee137168365aeaf1d57d
+      size: 4301
+    - path: src/pathologize_cell_analysis/learned_baseline/evaluation.py
+      hash: md5
+      md5: cc66a3db78fbdd64c99dda0aee1d4ff0
+      size: 14323
+    - path: src/pathologize_cell_analysis/localization.py
+      hash: md5
+      md5: bb84d559648e79f47cb4fca34bd39c58
+      size: 2812
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    params:
+      params/nucls-detection-calibration.yaml:
+        bootstrap_resamples: 5000
+        bootstrap_seed: 20261109
+        maximum_test_evaluations: 1
+      params/nucls-learned.yaml:
+        localization_tolerance_pixels: 12.0
+    outs:
+    - path: outputs/learned-baseline/detection-calibration/test/evidence.json
+      hash: md5
+      md5: c0f901d245fe2583886382c3e0118055
+      size: 6421
+  report_nucls_detection_calibration:
+    cmd: uv run --locked python -m
+      pathologize_cell_analysis.learned_baseline.detection_calibration report
+    deps:
+    - path: outputs/learned-baseline/detection-calibration/test/evidence.json
+      hash: md5
+      md5: c0f901d245fe2583886382c3e0118055
+      size: 6421
+    - path:
+        outputs/learned-baseline/detection-calibration/validation/evidence.json
+      hash: md5
+      md5: df8c209ea25fcd00ceea8ace59528495
+      size: 22649
+    - path: pyproject.toml
+      hash: md5
+      md5: 64fbddd9d6c95a222885b664f3c31294
+      size: 2415
+    - path: src/pathologize_cell_analysis/learned_baseline/config.py
+      hash: md5
+      md5: 6d520a2484f894e38b7336c7f7cee45e
+      size: 1659
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration.py
+      hash: md5
+      md5: f4b0900efa4fbd61e6975b331935bdce
+      size: 2781
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_contracts.py
+      hash: md5
+      md5: 35b98663690d80249b8ecbc2b559c759
+      size: 7623
+    - path:
+        src/pathologize_cell_analysis/learned_baseline/detection_calibration_reporting.py
+      hash: md5
+      md5: 8b2097270048c57c2199b4b8875afb71
+      size: 5696
+    - path: uv.lock
+      hash: md5
+      md5: b7f14431db9e106a193512fd6b5cf0fe
+      size: 146380
+    outs:
+    - path: reports/nucls-detection-calibration.json
+      hash: md5
+      md5: 1d18e3ebd5c4de47cff0d80606555e6d
+      size: 7765
+    - path: reports/nucls-detection-calibration.md
+      hash: md5
+      md5: bff5736312c54ab8a2c9d4f858b5be7b
+      size: 1792

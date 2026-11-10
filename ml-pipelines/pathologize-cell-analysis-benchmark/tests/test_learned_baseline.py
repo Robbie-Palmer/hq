@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import csv
+import importlib
 import json
 import time
 from pathlib import Path
@@ -30,6 +31,7 @@ from ultralytics_extensions.recovery import (
 import pathologize_cell_analysis.learned_baseline.conversion as conversion_module
 from pathologize_cell_analysis.contracts import (
     LearnedBaselineConfig,
+    SpatialPrediction,
 )
 from pathologize_cell_analysis.data import Annotation, SplitItem
 from pathologize_cell_analysis.learned_baseline.config import (
@@ -41,6 +43,15 @@ from pathologize_cell_analysis.learned_baseline.conversion import (
     acquire_model_artifacts,
     convert_annotations,
     prepare_training_layout,
+)
+from pathologize_cell_analysis.learned_baseline.detection_calibration import (
+    CalibrationPredictionRecord,
+    DetectionCalibrationConfig,
+    _filter_records,
+    _require_complete_records,
+    _write_markdown_report,
+    load_calibration_config,
+    paired_slide_bootstrap,
 )
 from pathologize_cell_analysis.learned_baseline.evaluation import (
     as_predicted_nucleus,
@@ -75,6 +86,13 @@ def _fixture() -> dict[str, Any]:
 
 def _params_document() -> dict[str, Any]:
     path = Path(__file__).parents[1] / "params/nucls-learned.yaml"
+    document = read_yaml(path)
+    assert isinstance(document, dict)
+    return document
+
+
+def _calibration_params_document() -> dict[str, Any]:
+    path = Path(__file__).parents[1] / "params/nucls-detection-calibration.yaml"
     document = read_yaml(path)
     assert isinstance(document, dict)
     return document
@@ -180,6 +198,31 @@ def test_parameter_config_is_strict_and_complete() -> None:
     document["models"].pop("segment")
     with pytest.raises(ValidationError):
         LearnedBaselineConfig.model_validate(document)
+
+
+def test_detection_calibration_grid_is_predeclared_and_ordered(tmp_path: Path) -> None:
+    document = _calibration_params_document()
+    calibration = DetectionCalibrationConfig.model_validate(document)
+    assert load_calibration_config() == calibration
+    assert calibration.selection_split == "validation"
+    assert calibration.confidence_thresholds[0] == calibration.baseline_confidence_threshold
+    assert calibration.baseline_nms_iou_threshold in calibration.nms_iou_thresholds
+    document["confidence_thresholds"] = [0.1, 0.05]
+    with pytest.raises(ValidationError, match="strictly increasing"):
+        DetectionCalibrationConfig.model_validate(document)
+    document = _calibration_params_document()
+    document["baseline_confidence_threshold"] = 0.1
+    mismatched = tmp_path / "mismatched.yaml"
+    mismatched.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+    with pytest.raises(ValueError, match="differs from the merged baseline"):
+        load_calibration_config(mismatched)
+
+
+def test_detection_calibration_components_import_without_cycles() -> None:
+    package = "pathologize_cell_analysis.learned_baseline.detection_calibration"
+    for component in ("evaluation", "inference", "validation"):
+        module = importlib.import_module(f"{package}_{component}")
+        assert module.__name__.endswith(component)
 
 
 def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> None:
@@ -481,6 +524,86 @@ def _write_item(root: Path, slide: str, *, empty: bool = False) -> str:
     Image.new("RGB", (100, 80), "white").save(image_path)
     _write_annotation(root / "annotations" / f"{item_id}.csv", empty=empty)
     return item_id
+
+
+def test_confidence_filter_and_paired_slide_bootstrap_are_deterministic(
+    tmp_path: Path,
+) -> None:
+    items: dict[str, SplitItem] = {}
+    baseline_records: list[CalibrationPredictionRecord] = []
+    candidate_records: list[CalibrationPredictionRecord] = []
+    for index in range(2):
+        slide = f"TCGA-VA-000{index}-DX1"
+        item_id = _write_item(tmp_path, slide)
+        item = SplitItem(
+            product_id="pathologize-nucleus-analysis-nucls-public",
+            source_dataset_id="nucls-corrected-single-rater-20220301",
+            item_id=item_id,
+            slide_id=slide,
+            patient_id="-".join(slide.split("-")[:3]),
+            site_id="VA",
+            split="validation",
+            image_path=f"rgb/{item_id}.png",
+            annotation_path=f"annotations/{item_id}.csv",
+            source_roles={"1": "train"},
+            source_labels_present=["tumor_any"],
+            target_labels_present=["tumor_any"],
+            annotation_count=1,
+            adapter_id="nucls-corrected-single-rater-to-nucleus-analysis",
+        )
+        items[item_id] = item
+        common = {
+            "schema_version": "1.0.0",
+            "task": "detect",
+            "item_id": item_id,
+            "slide_id": slide,
+            "patient_id": item.patient_id,
+            "site_id": item.site_id,
+            "split": "validation",
+            "image_width": 100,
+            "image_height": 80,
+        }
+        baseline_records.append(CalibrationPredictionRecord(**common, predictions=[]))
+        candidate_records.append(
+            CalibrationPredictionRecord(
+                **common,
+                predictions=[
+                    SpatialPrediction(
+                        instance_id=1,
+                        class_name="tumor_any",
+                        confidence=0.25,
+                        bbox_xyxy_pixels=(10.0, 20.0, 30.0, 40.0),
+                        polygon_xy_pixels=None,
+                    )
+                ],
+            )
+        )
+    assert all(not record.predictions for record in _filter_records(candidate_records, 0.3))
+    retained = _filter_records(candidate_records, 0.25)
+    assert all(len(record.predictions) == 1 for record in retained)
+    _require_complete_records(retained, items, "validation")
+    with pytest.raises(ValueError, match="do not cover every frozen validation item"):
+        _require_complete_records(retained[:1], items, "validation")
+    observed = paired_slide_bootstrap(
+        baseline_records,
+        retained,
+        items,
+        tmp_path,
+        resamples=1000,
+        seed=20261109,
+        tolerance_pixels=1.0,
+    )
+    assert observed["delta_intervals"]["f1"] == {"lower": 1.0, "upper": 1.0}
+
+
+def test_calibration_report_writer_rejects_path_escape(tmp_path: Path) -> None:
+    reports = tmp_path / "reports"
+    reports.mkdir()
+    destination = reports / "calibration.md"
+    _write_markdown_report("evidence\n", destination, reports)
+    assert destination.read_text(encoding="utf-8") == "evidence\n"
+    with pytest.raises(ValueError, match="inside the reports directory"):
+        _write_markdown_report("escape\n", tmp_path / "escape.md", reports)
 
 
 def test_prepare_layout_preserves_splits_ontology_and_empty_images(
