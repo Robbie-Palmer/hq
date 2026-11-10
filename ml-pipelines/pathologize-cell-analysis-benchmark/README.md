@@ -154,7 +154,9 @@ mise run //ml-pipelines/pathologize-cell-analysis-benchmark:learned:calibration:
 
 The lock records the validation-evidence and parameter digests. Test inference
 refuses a changed parameter file. Do not run either test command after a failed
-validation gate.
+validation gate. DVC owns the final Markdown report at
+`reports/nucls-detection-calibration.md`; restore or reproduce the report through
+the calibration DVC stage instead of committing it to Git.
 
 Detection ran to the 40-epoch ceiling. Training and validation loss sums fell
 from 5.0105 to 3.1257 and 5.9297 to 3.3774. Best validation box mAP50 was

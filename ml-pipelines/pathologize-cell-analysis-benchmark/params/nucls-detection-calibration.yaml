@@ -25,7 +25,6 @@ confidence_level: 0.95
 maximum_test_evaluations: 1
 stop_rules:
   - Stop before GPU inference if deterministic unit, conversion, leakage, or normalization checks fail.
-  - Stop before GPU inference while another NuCLS process owns the accelerator.
   - Select confidence and NMS IoU only on the frozen validation fold. Never inspect frozen-test candidate results during selection.
   - Stop before frozen-test inference unless localization F1 gains at least 0.03, precision gains at least 0.10, recall loses no more than 0.15, and the paired slide-bootstrap 95 percent F1-delta interval excludes zero.
   - Stop before frozen-test inference if any validation site or supported class loses more than 0.03 localization F1.

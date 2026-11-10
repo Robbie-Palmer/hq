@@ -486,3 +486,5 @@ stages:
       - uv.lock
     metrics:
       - reports/nucls-detection-calibration.json
+    outs:
+      - reports/nucls-detection-calibration.md

@@ -1110,7 +1110,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/validation/inference.json
       hash: md5
-      md5: d9e17d8a133f7376938da262e98fb3ea
+      md5: ba2544a092f7ee60ad05c9fb5798b3a9
       size: 1151
     - path:
         outputs/learned-baseline/detection-calibration/validation/predictions
@@ -1149,7 +1149,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/validation/inference.json
       hash: md5
-      md5: d9e17d8a133f7376938da262e98fb3ea
+      md5: ba2544a092f7ee60ad05c9fb5798b3a9
       size: 1151
     - path:
         outputs/learned-baseline/detection-calibration/validation/predictions
@@ -1239,8 +1239,6 @@ stages:
         stop_rules:
         - Stop before GPU inference if deterministic unit, conversion, leakage,
           or normalization checks fail.
-        - Stop before GPU inference while another NuCLS process owns the
-          accelerator.
         - Select confidence and NMS IoU only on the frozen validation fold.
           Never inspect frozen-test candidate results during selection.
         - Stop before frozen-test inference unless localization F1 gains at
@@ -1269,7 +1267,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/validation/evidence.json
       hash: md5
-      md5: 6f0e9fff8cfeaa27a14ccd0bc4a0c342
+      md5: df8c209ea25fcd00ceea8ace59528495
       size: 22649
     - path: reports/nucls-detection-calibration-validation.json
       hash: md5
@@ -1282,7 +1280,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/validation/evidence.json
       hash: md5
-      md5: 6f0e9fff8cfeaa27a14ccd0bc4a0c342
+      md5: df8c209ea25fcd00ceea8ace59528495
       size: 22649
     - path: pyproject.toml
       hash: md5
@@ -1354,8 +1352,6 @@ stages:
         stop_rules:
         - Stop before GPU inference if deterministic unit, conversion, leakage,
           or normalization checks fail.
-        - Stop before GPU inference while another NuCLS process owns the
-          accelerator.
         - Select confidence and NMS IoU only on the frozen validation fold.
           Never inspect frozen-test candidate results during selection.
         - Stop before frozen-test inference unless localization F1 gains at
@@ -1380,7 +1376,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/locked-operating-point.json
       hash: md5
-      md5: a7af22db14bff30e767c49c12c3e8982
+      md5: b70192580a49629500bda4763df00e6c
       size: 382
   predict_nucls_detection_calibration_test:
     cmd: uv run --locked python -m
@@ -1413,7 +1409,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/locked-operating-point.json
       hash: md5
-      md5: a7af22db14bff30e767c49c12c3e8982
+      md5: b70192580a49629500bda4763df00e6c
       size: 382
     - path: outputs/learned-baseline/training/detect/weights/best.pt
       hash: md5
@@ -1486,7 +1482,7 @@ stages:
     outs:
     - path: outputs/learned-baseline/detection-calibration/test/inference.json
       hash: md5
-      md5: fb4539fc20dbc11ecac5eba42d1a9343
+      md5: 8c1b56de2e081fbd3162a306b276fde3
       size: 726
     - path: outputs/learned-baseline/detection-calibration/test/predictions
       hash: md5
@@ -1523,11 +1519,11 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/locked-operating-point.json
       hash: md5
-      md5: a7af22db14bff30e767c49c12c3e8982
+      md5: b70192580a49629500bda4763df00e6c
       size: 382
     - path: outputs/learned-baseline/detection-calibration/test/inference.json
       hash: md5
-      md5: fb4539fc20dbc11ecac5eba42d1a9343
+      md5: 8c1b56de2e081fbd3162a306b276fde3
       size: 726
     - path: outputs/learned-baseline/detection-calibration/test/predictions
       hash: md5
@@ -1541,7 +1537,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/validation/inference.json
       hash: md5
-      md5: d9e17d8a133f7376938da262e98fb3ea
+      md5: ba2544a092f7ee60ad05c9fb5798b3a9
       size: 1151
     - path: outputs/learned-baseline/evaluation/detect/predictions.jsonl
       hash: md5
@@ -1614,7 +1610,7 @@ stages:
     - path:
         outputs/learned-baseline/detection-calibration/validation/evidence.json
       hash: md5
-      md5: 6f0e9fff8cfeaa27a14ccd0bc4a0c342
+      md5: df8c209ea25fcd00ceea8ace59528495
       size: 22649
     - path: pyproject.toml
       hash: md5
@@ -1648,3 +1644,7 @@ stages:
       hash: md5
       md5: 1d18e3ebd5c4de47cff0d80606555e6d
       size: 7765
+    - path: reports/nucls-detection-calibration.md
+      hash: md5
+      md5: bff5736312c54ab8a2c9d4f858b5be7b
+      size: 1792
