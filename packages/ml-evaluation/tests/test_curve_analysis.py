@@ -2,10 +2,12 @@ from collections.abc import Sequence
 from typing import cast
 
 import pytest
+from pydantic import ValidationError
 
-from ml_evaluation.contracts import BootstrapConfig
+from ml_evaluation.contracts import BootstrapConfig, ConfidenceInterval, CurveWindow
 from ml_evaluation.curve_analysis import (
     ReplicatedCurve,
+    _quantile,
     clustered_bootstrap_interval,
     compare_error_curve,
     mean_curve,
@@ -61,6 +63,14 @@ def test_clustered_bootstrap_and_curve_comparison_find_supported_pattern() -> No
     )
 
 
+def test_quantile_and_curve_contract_edge_cases() -> None:
+    assert _quantile([3.0], 0.5) == 3.0
+    with pytest.raises(ValidationError, match="bounds must be ordered"):
+        ConfidenceInterval(lower=2, upper=1)
+    with pytest.raises(ValidationError, match="steps must be ordered"):
+        CurveWindow(start_step=2, end_step=1, mean=0.5)
+
+
 def test_curve_pattern_does_not_depend_on_an_interpolation_gate() -> None:
     curves = _curves([0.60, 0.40, 0.30, 0.35, 0.50, 0.55, 0.45, 0.25, 0.20, 0.18])
     comparison = compare_error_curve(
@@ -94,6 +104,7 @@ def test_paired_difference_is_deterministic_and_preserves_cluster_pairing() -> N
     [
         ({}, "at least one replicate"),
         ({"one": []}, "same non-zero step count"),
+        ({"one": [{}]}, "at least one cluster"),
         ({"one": [{"a": (1.0,)}, {"b": (1.0,)}]}, "identities"),
         ({"one": [{"a": ()}]}, "non-empty finite"),
         ({"one": [{"a": (float("nan"),)}]}, "non-empty finite"),
@@ -138,6 +149,15 @@ def test_rejects_invalid_curve_requests_and_non_finite_statistics() -> None:
             baseline_horizon_steps=2,
             smoothing_window_steps=1,
             minimum_change=0,
+            bootstrap=_bootstrap(),
+        )
+    with pytest.raises(ValueError, match="windows after"):
+        compare_error_curve(
+            _curves([0.5, 0.4, 0.6]),
+            _mean,
+            baseline_horizon_steps=2,
+            smoothing_window_steps=1,
+            minimum_change=0.1,
             bootstrap=_bootstrap(),
         )
 

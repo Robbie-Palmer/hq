@@ -51,6 +51,28 @@ def test_checkpoint_verification_rejects_drift_and_escaped_paths(tmp_path: Path)
         )
 
 
+def test_checkpoint_provenance_rejects_missing_files(tmp_path: Path) -> None:
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        index_checkpoints(
+            tmp_path,
+            {1: "missing.bin"},
+            parameters_sha256=DIGEST,
+            source_run_sha256="b" * 64,
+        )
+
+    checkpoint = tmp_path / "checkpoint.bin"
+    checkpoint.write_bytes(b"checkpoint")
+    series = index_checkpoints(
+        tmp_path,
+        {1: "checkpoint.bin"},
+        parameters_sha256=DIGEST,
+        source_run_sha256="b" * 64,
+    )
+    checkpoint.unlink()
+    with pytest.raises(FileNotFoundError, match="does not exist"):
+        verify_checkpoint_series(tmp_path, series)
+
+
 def test_checkpoint_contract_rejects_empty_duplicate_or_unordered_series() -> None:
     first = CheckpointArtifact(step=1, path="one.bin", sha256=DIGEST)
     second = CheckpointArtifact(step=2, path="two.bin", sha256="b" * 64)
