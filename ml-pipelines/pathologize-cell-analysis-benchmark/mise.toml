@@ -95,3 +95,18 @@ run = "uv run --locked pathologize-cell-analysis learned evaluate"
 description = "Write the NuCLS learned-baseline DVC metric and tracked Markdown report"
 depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis learned report"
+
+[tasks."annotation:pilot"]
+description = "Benchmark box-prompt mask proposals and render a NuCLS review batch"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis annotation pilot"
+
+[tasks."annotation:compare"]
+description = "Smoke-test pinned MedSAM, SAM 2, and CellSAM box-prompt mask proposals"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis annotation compare"
+
+[tasks."annotation:cellsam:acquire"]
+description = "Download and verify the pinned gated CellSAM archive"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis annotation acquire-cellsam"

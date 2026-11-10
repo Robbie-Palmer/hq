@@ -28,6 +28,7 @@ from ultralytics_extensions.recovery import (
 )
 
 import pathologize_cell_analysis.learned_baseline.conversion as conversion_module
+import pathologize_cell_analysis.learned_baseline.task_training as task_training_module
 from pathologize_cell_analysis.contracts import (
     LearnedBaselineConfig,
 )
@@ -56,6 +57,7 @@ from pathologize_cell_analysis.learned_baseline.task_training import (
     _prepare_task_retry,
     _validate_completed_task_state,
     train_task,
+    transfer_backbone_neck_from_checkpoint,
 )
 from pathologize_cell_analysis.learned_baseline.training import (
     _clean_failed_training_output,
@@ -177,9 +179,63 @@ def test_parameter_config_is_strict_and_complete() -> None:
     experiment = LearnedBaselineConfig.model_validate(document)
     assert set(experiment.models) == {"detect", "segment"}
     assert experiment.limits.aggregate_gpu_seconds == 86400
+    assert experiment.training.segment_initialization == "detect_checkpoint_backbone_neck"
     document["models"].pop("segment")
     with pytest.raises(ValidationError):
         LearnedBaselineConfig.model_validate(document)
+
+
+def test_segment_initialization_transfers_shared_weights_and_retains_head(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    class FakeSourceModel:
+        def float(self) -> FakeSourceModel:
+            return self
+
+        def state_dict(self) -> dict[str, torch.Tensor]:
+            return {
+                "model.0.weight": torch.tensor([7.0]),
+                "model.1.weight": torch.tensor([8.0]),
+                "model.2.weight": torch.tensor([9.0]),
+            }
+
+    class FakeTargetModel:
+        def __init__(self) -> None:
+            self.model = [object(), object(), object()]
+            self.values = {
+                "model.0.weight": torch.tensor([1.0]),
+                "model.1.weight": torch.tensor([2.0]),
+                "model.2.weight": torch.tensor([3.0]),
+                "model.2.mask": torch.tensor([4.0]),
+            }
+
+        def state_dict(self) -> dict[str, torch.Tensor]:
+            return self.values
+
+        def load_state_dict(self, values: dict[str, torch.Tensor], *, strict: bool) -> None:
+            assert strict is False
+            self.values.update(values)
+
+    class FakeYolo:
+        def __init__(self) -> None:
+            self.model = FakeTargetModel()
+
+    checkpoint = tmp_path / "detect.pt"
+    checkpoint.write_bytes(b"pinned detection checkpoint")
+    monkeypatch.setattr(
+        task_training_module,
+        "load_safe_checkpoint",
+        lambda _torch, _path: {"model": FakeSourceModel()},
+    )
+    target = FakeYolo()
+    evidence = transfer_backbone_neck_from_checkpoint(target, torch, checkpoint)
+    assert target.model.values["model.0.weight"].item() == 7.0
+    assert target.model.values["model.1.weight"].item() == 8.0
+    assert target.model.values["model.2.weight"].item() == 3.0
+    assert target.model.values["model.2.mask"].item() == 4.0
+    assert evidence["excluded_head_prefix"] == "model.2."
+    assert evidence["transferred_tensor_count"] == 2
+    assert evidence["retained_head_tensor_count"] == 2
 
 
 def test_interrupted_training_resume_evidence_and_monitor(tmp_path: Path) -> None:

@@ -1,0 +1,85 @@
+[tools]
+python = "3.12"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+UV_PYTHON = "3.12"
+
+[tasks.install]
+description = "Install the locked Annotation Workbench service environment"
+run = "uv sync --locked"
+
+[tasks.lock]
+description = "Update the Annotation Workbench service lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format Annotation Workbench service Python code"
+depends = ["install"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint Annotation Workbench service Python code"
+depends = ["install"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check Annotation Workbench service Python code"
+depends = ["install"]
+run = "uv run --locked ty check"
+
+[tasks."openapi:generate"]
+description = "Generate the committed Annotation Workbench OpenAPI contract"
+depends = ["install"]
+run = "uv run --locked annotation-workbench openapi --output=openapi.json"
+
+[tasks."openapi:check"]
+description = "Check that the committed Annotation Workbench OpenAPI contract is current"
+depends = ["install"]
+run = "uv run --locked annotation-workbench openapi --output=openapi.json --check=true"
+
+[tasks."lint:api"]
+description = "Check and lint the Annotation Workbench OpenAPI contract"
+depends = ["openapi:check"]
+run = "pnpm --dir ../../workers/personal-finance-api exec spectral lint ../../ml-pipelines/annotation-workbench-service/openapi.json --ruleset ../../ml-pipelines/annotation-workbench-service/.spectral.yaml --fail-severity error"
+
+[tasks.test]
+description = "Run Annotation Workbench service tests"
+depends = ["install"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run Annotation Workbench service coverage"
+depends = ["install"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks.build]
+description = "Build the Annotation Workbench service package"
+depends = ["install"]
+run = "uv build"
+
+[tasks.clean]
+description = "Remove disposable Annotation Workbench service outputs"
+run = "bash scripts/clean.sh"
+
+[tasks.check]
+description = "Check the Annotation Workbench local service"
+depends = ["lint", "lint:api", "serve:tailnet:check", "typecheck", "test:coverage"]
+
+[tasks.validate]
+description = "Validate an Annotation Workbench bundle"
+depends = ["install"]
+run = "uv run --locked annotation-workbench validate"
+
+[tasks.serve]
+description = "Serve an Annotation Workbench bundle on loopback or an explicit private address"
+depends = ["install"]
+run = "uv run --locked annotation-workbench serve"
+
+[tasks."serve:tailnet"]
+description = "Serve the Annotation Workbench UI and API on this machine's tailnet IPv4 address"
+run = "bash scripts/serve-tailnet.sh"
+
+[tasks."serve:tailnet:check"]
+description = "Check the tailnet QA launcher"
+run = "bash -n scripts/serve-tailnet.sh"
