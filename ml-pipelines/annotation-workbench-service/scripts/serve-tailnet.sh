@@ -22,7 +22,17 @@ if [[ -z "$tailnet_ip" ]]; then
   exit 2
 fi
 
-ui_origin="http://${tailnet_ip}:3000"
+ui_port="${ANNOTATION_WORKBENCH_UI_PORT:-3000}"
+if [[ ! "$ui_port" =~ ^[0-9]+$ ]] || ((ui_port < 1024 || ui_port > 65535)); then
+  echo "ANNOTATION_WORKBENCH_UI_PORT must be between 1024 and 65535" >&2
+  exit 2
+fi
+if nc -z -w 1 "$tailnet_ip" "$ui_port" >/dev/null 2>&1; then
+  echo "tailnet UI port is already in use: ${tailnet_ip}:${ui_port}" >&2
+  exit 2
+fi
+
+ui_origin="http://${tailnet_ip}:${ui_port}"
 api_url="http://${tailnet_ip}:8765"
 api_pid=""
 
@@ -57,4 +67,4 @@ fi
 
 echo "Annotation Workbench mobile QA: ${ui_origin}/annotation-workbench"
 echo "FastAPI docs: ${api_url}/api/docs"
-mise //ui:dev -- --hostname "$tailnet_ip"
+mise //ui:dev -- --hostname "$tailnet_ip" --port "$ui_port"

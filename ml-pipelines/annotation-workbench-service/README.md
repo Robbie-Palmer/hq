@@ -44,6 +44,16 @@ mise //ml-pipelines/annotation-workbench-service:serve:tailnet -- \
   /absolute/path/to/bundle.json
 ```
 
+Set `ANNOTATION_WORKBENCH_UI_PORT` when port `3000` already belongs to another
+private service. The launcher uses the same port in the UI bind, printed URL,
+and API CORS allowlist, and refuses to let Next.js silently choose another one.
+
+```sh
+ANNOTATION_WORKBENCH_UI_PORT=3001 \
+  mise //ml-pipelines/annotation-workbench-service:serve:tailnet -- \
+  /absolute/path/to/bundle.json
+```
+
 Review history is append-only and scoped by item and reviewer. A correction
 names the event it supersedes, so stale browser tabs cannot silently replace a
 newer decision.
