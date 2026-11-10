@@ -30,13 +30,14 @@ def test_accepts_usage_within_execution_budget() -> None:
 
 
 def test_reports_every_exceeded_or_unverified_limit() -> None:
+    budget = _budget()
     usage = ExecutionUsage(
         wall_seconds=21,
         accelerator_seconds=None,
         peak_accelerator_bytes=101,
         free_disk_bytes=49,
     )
-    violations = resource_limit_violations(_budget(), usage)
+    violations = resource_limit_violations(budget, usage)
 
     assert [violation.resource for violation in violations] == [
         "wall_seconds",
@@ -47,7 +48,7 @@ def test_reports_every_exceeded_or_unverified_limit() -> None:
     assert violations[1].observed is None
     assert violations[-1].relation == "minimum"
     with pytest.raises(ResourceLimitError, match="accelerator_seconds") as error:
-        enforce_resource_limits(_budget(), usage)
+        enforce_resource_limits(budget, usage)
     assert error.value.violations == violations
 
 

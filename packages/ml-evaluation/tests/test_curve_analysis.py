@@ -105,6 +105,7 @@ def test_paired_difference_is_deterministic_and_preserves_cluster_pairing() -> N
         ({}, "at least one replicate"),
         ({"one": []}, "same non-zero step count"),
         ({"one": [{}]}, "at least one cluster"),
+        ({"one": [{"a": (1.0,)}, {}]}, "at least one cluster"),
         ({"one": [{"a": (1.0,)}, {"b": (1.0,)}]}, "identities"),
         ({"one": [{"a": ()}]}, "non-empty finite"),
         ({"one": [{"a": (float("nan"),)}]}, "non-empty finite"),
@@ -118,10 +119,12 @@ def test_rejects_invalid_clustered_curves(curves: object, message: str) -> None:
 
 def test_rejects_invalid_curve_requests_and_non_finite_statistics() -> None:
     curves = _curves([0.5, 0.4, 0.6, 0.7])
+    short_curves = _curves([0.5, 0.4, 0.6])
+    bootstrap = _bootstrap()
     with pytest.raises(IndexError, match="out of range"):
-        clustered_bootstrap_interval(curves, 4, _mean, _bootstrap())
+        clustered_bootstrap_interval(curves, 4, _mean, bootstrap)
     with pytest.raises(IndexError, match="empty or out of range"):
-        paired_clustered_window_difference(curves, range(0), range(1, 2), _mean, _bootstrap())
+        paired_clustered_window_difference(curves, range(0), range(1, 2), _mean, bootstrap)
     with pytest.raises(ValueError, match="finite value"):
         mean_curve(curves, lambda _totals: float("nan"))
     with pytest.raises(ValueError, match="smoothing window"):
@@ -131,7 +134,7 @@ def test_rejects_invalid_curve_requests_and_non_finite_statistics() -> None:
             baseline_horizon_steps=2,
             smoothing_window_steps=0,
             minimum_change=0.1,
-            bootstrap=_bootstrap(),
+            bootstrap=bootstrap,
         )
     with pytest.raises(ValueError, match="baseline horizon"):
         compare_error_curve(
@@ -140,7 +143,7 @@ def test_rejects_invalid_curve_requests_and_non_finite_statistics() -> None:
             baseline_horizon_steps=4,
             smoothing_window_steps=2,
             minimum_change=0.1,
-            bootstrap=_bootstrap(),
+            bootstrap=bootstrap,
         )
     with pytest.raises(ValueError, match="minimum curve change"):
         compare_error_curve(
@@ -149,16 +152,16 @@ def test_rejects_invalid_curve_requests_and_non_finite_statistics() -> None:
             baseline_horizon_steps=2,
             smoothing_window_steps=1,
             minimum_change=0,
-            bootstrap=_bootstrap(),
+            bootstrap=bootstrap,
         )
     with pytest.raises(ValueError, match="windows after"):
         compare_error_curve(
-            _curves([0.5, 0.4, 0.6]),
+            short_curves,
             _mean,
             baseline_horizon_steps=2,
             smoothing_window_steps=1,
             minimum_change=0.1,
-            bootstrap=_bootstrap(),
+            bootstrap=bootstrap,
         )
 
 

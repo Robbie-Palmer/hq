@@ -76,6 +76,7 @@ def test_checkpoint_provenance_rejects_missing_files(tmp_path: Path) -> None:
 def test_checkpoint_contract_rejects_empty_duplicate_or_unordered_series() -> None:
     first = CheckpointArtifact(step=1, path="one.bin", sha256=DIGEST)
     second = CheckpointArtifact(step=2, path="two.bin", sha256="b" * 64)
+    duplicate_path = second.model_copy(update={"path": "one.bin"})
     with pytest.raises(ValidationError, match="at least 1"):
         CheckpointSeries(
             parameters_sha256=DIGEST,
@@ -92,5 +93,5 @@ def test_checkpoint_contract_rejects_empty_duplicate_or_unordered_series() -> No
         CheckpointSeries(
             parameters_sha256=DIGEST,
             source_run_sha256="c" * 64,
-            checkpoints=(first, second.model_copy(update={"path": "one.bin"})),
+            checkpoints=(first, duplicate_path),
         )

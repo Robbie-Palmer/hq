@@ -28,6 +28,28 @@ def _quantile(values: Sequence[float], probability: float) -> float:
     return ordered[lower] * (1 - fraction) + ordered[upper] * fraction
 
 
+def _validate_cluster_totals(step: ClusterTotals, dimensions: set[int]) -> None:
+    for totals in step.values():
+        dimensions.add(len(totals))
+        if not totals or any(not math.isfinite(float(value)) for value in totals):
+            raise ValueError("cluster totals must be non-empty finite vectors")
+
+
+def _validate_replicate_steps(
+    steps: Sequence[ClusterTotals], dimensions: set[int]
+) -> None:
+    expected_clusters = set(steps[0])
+    if not expected_clusters:
+        raise ValueError("every curve step requires at least one cluster")
+    for step in steps:
+        clusters = set(step)
+        if not clusters:
+            raise ValueError("every curve step requires at least one cluster")
+        if clusters != expected_clusters:
+            raise ValueError("cluster identities must remain fixed across curve steps")
+        _validate_cluster_totals(step, dimensions)
+
+
 def _validate_curves(curves: ReplicatedCurve) -> tuple[tuple[str, ...], int, int]:
     if not curves:
         raise ValueError("clustered curve analysis requires at least one replicate")
@@ -37,19 +59,7 @@ def _validate_curves(curves: ReplicatedCurve) -> tuple[tuple[str, ...], int, int
         raise ValueError("replicated curves must have the same non-zero step count")
     dimensions: set[int] = set()
     for replicate in replicate_ids:
-        expected_clusters: set[str] | None = None
-        for step in curves[replicate]:
-            clusters = set(step)
-            if not clusters:
-                raise ValueError("every curve step requires at least one cluster")
-            if expected_clusters is None:
-                expected_clusters = clusters
-            elif clusters != expected_clusters:
-                raise ValueError("cluster identities must remain fixed across curve steps")
-            for totals in step.values():
-                dimensions.add(len(totals))
-                if not totals or any(not math.isfinite(float(value)) for value in totals):
-                    raise ValueError("cluster totals must be non-empty finite vectors")
+        _validate_replicate_steps(curves[replicate], dimensions)
     if len(dimensions) != 1:
         raise ValueError("cluster total vectors must have one shared dimension")
     return replicate_ids, next(iter(step_counts)), next(iter(dimensions))
