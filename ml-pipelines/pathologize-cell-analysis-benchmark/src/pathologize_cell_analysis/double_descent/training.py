@@ -260,18 +260,29 @@ def _validate_resources(config: DoubleDescentConfig, gpu_seconds: float, peak_vr
         raise RuntimeError("peak VRAM ceiling exceeded")
 
 
+def _completed_run(path: Path, parameters_sha256: str) -> dict[str, object] | None:
+    if not path.is_file():
+        return None
+    value = read_json(path)
+    if not isinstance(value, dict):
+        raise TypeError("completed run evidence must be an object")
+    if value.get("parameters_sha256") != parameters_sha256:
+        raise ValueError("completed run evidence was produced with different parameters")
+    return cast(dict[str, object], value)
+
+
 def train(seed: int, params_path: str = str(PARAMS_FILE)) -> dict[str, object]:  # pragma: no cover
-    config = load_config(Path(params_path))
+    parameters_path = Path(params_path)
+    config = load_config(parameters_path)
+    parameters_sha256 = sha256_file(parameters_path)
     if seed not in config.seeds:
         raise ValueError(f"seed {seed} is not predeclared")
     weights, definition = _verify_inputs(config)
     output = seed_output(seed)
     completed = output / "run.json"
-    if completed.is_file():
-        result = read_json(completed)
-        if not isinstance(result, dict):
-            raise TypeError("completed run evidence must be an object")
-        return cast(dict[str, object], result)
+    completed_value = _completed_run(completed, parameters_sha256)
+    if completed_value is not None:
+        return completed_value
     runtime_root = OUTPUT_ROOT / "runtime" / str(seed)
     shutil.rmtree(runtime_root, ignore_errors=True)
     os.environ["YOLO_CONFIG_DIR"] = str(runtime_root)
@@ -325,6 +336,7 @@ def train(seed: int, params_path: str = str(PARAMS_FILE)) -> dict[str, object]: 
         result: dict[str, object] = {
             "schema_version": "1.0.0",
             "experiment_id": config.experiment_id,
+            "parameters_sha256": parameters_sha256,
             "seed": seed,
             "completed_epochs": int(rows[-1]["epoch"]),
             "stop_reason": state.stop_reason or "epoch_ceiling",

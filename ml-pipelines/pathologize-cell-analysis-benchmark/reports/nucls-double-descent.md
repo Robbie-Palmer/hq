@@ -46,7 +46,7 @@ The sealed test split was evaluated only after curve analysis. Each seed used it
 
 ## Resources and provenance
 
-The run used 12788.6 measured GPU-seconds against the 86,400-second cap. Peak allocated VRAM was 1.61 GiB.
+The run used 12790.0 measured GPU-seconds against the 86,400-second cap. Peak allocated VRAM was 1.61 GiB.
 
 The three runs recorded 360 checkpoint digests.
 The package lock digest was

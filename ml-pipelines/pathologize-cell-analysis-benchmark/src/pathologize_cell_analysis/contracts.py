@@ -194,6 +194,8 @@ class DoubleDescentConfig(StrictModel):
             raise ValueError("research-run early stopping must be disabled")
         if self.analysis.baseline_horizon_epochs >= self.training.epochs:
             raise ValueError("extended horizon must exceed the baseline horizon")
+        if self.analysis.baseline_horizon_epochs < self.analysis.sustained_epochs:
+            raise ValueError("baseline horizon must contain at least one smoothing window")
         return self
 
 

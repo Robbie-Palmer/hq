@@ -161,12 +161,14 @@ def _validation_metrics(rows: list[dict[str, float]], epoch: int) -> dict[str, f
     }
 
 
-def _completed_curve(path: Path) -> dict[str, object] | None:
+def _completed_curve(path: Path, run_sha256: str) -> dict[str, object] | None:
     if not path.is_file():
         return None
     value = read_json(path)
     if not isinstance(value, dict):
         raise TypeError("curve evidence must be an object")
+    if value.get("run_sha256") != run_sha256:
+        raise ValueError("completed curve evidence refers to a different training run")
     return cast(dict[str, object], value)
 
 
@@ -193,12 +195,14 @@ def evaluate(  # pragma: no cover
     if seed not in config.seeds:
         raise ValueError(f"seed {seed} is not predeclared")
     training_root = seed_output(seed)
-    run_value = read_json(training_root / "run.json")
+    run_path = training_root / "run.json"
+    run_value = read_json(run_path)
     if not isinstance(run_value, dict):
         raise TypeError("training evidence must be an object")
+    run_sha256 = sha256_file(run_path)
     output = seed_evaluation(seed)
     completed = output / "curve.json"
-    completed_value = _completed_curve(completed)
+    completed_value = _completed_curve(completed, run_sha256)
     if completed_value is not None:
         return completed_value
     output.mkdir(parents=True, exist_ok=True)
@@ -291,6 +295,7 @@ def evaluate(  # pragma: no cover
     result: dict[str, object] = {
         "schema_version": "1.0.0",
         "experiment_id": config.experiment_id,
+        "run_sha256": run_sha256,
         "seed": seed,
         "cluster_unit": "patient_id",
         "epochs": [

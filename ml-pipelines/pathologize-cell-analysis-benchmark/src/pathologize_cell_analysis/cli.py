@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any
 
 import fire
+from pydantic import StrictInt
 
 from .contracts import StrictModel
 from .double_descent.analysis import analyze as analyze_double_descent
@@ -28,6 +29,10 @@ class ReportOptions(RunOptions):
     markdown_output: Path
 
 
+class SeedOptions(StrictModel):
+    seed: StrictInt
+
+
 class LearnedCommands:
     def acquire_artifacts(self) -> dict[str, Any]:
         return acquire_model_artifacts()
@@ -50,10 +55,12 @@ class LearnedCommands:
 
 class DoubleDescentCommands:
     def train(self, seed: int) -> dict[str, Any]:
-        return train_double_descent(seed)
+        options = SeedOptions.model_validate({"seed": seed})
+        return train_double_descent(options.seed)
 
     def curve(self, seed: int) -> dict[str, Any]:
-        return evaluate_double_descent(seed)
+        options = SeedOptions.model_validate({"seed": seed})
+        return evaluate_double_descent(options.seed)
 
     def analyze(self) -> dict[str, Any]:
         return analyze_double_descent()

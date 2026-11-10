@@ -14,6 +14,7 @@ import pathologize_cell_analysis.double_descent.evaluation as evaluation_module
 import pathologize_cell_analysis.double_descent.reporting as reporting_module
 import pathologize_cell_analysis.double_descent.test_evaluation as test_evaluation_module
 import pathologize_cell_analysis.double_descent.training as training_module
+from pathologize_cell_analysis.cli import SeedOptions
 from pathologize_cell_analysis.contracts import DoubleDescentConfig, SpatialPredictionRecord
 from pathologize_cell_analysis.double_descent.analysis import (
     _f1,
@@ -109,6 +110,12 @@ def test_predeclaration_requires_an_object(tmp_path: Path) -> None:
             lambda value: value["training"].update(weight_decay=0.001),
             "more than horizon",
         ),
+        (
+            lambda value: value["analysis"].update(
+                baseline_horizon_epochs=value["analysis"]["sustained_epochs"] - 1
+            ),
+            "at least one smoothing window",
+        ),
     ],
 )
 def test_predeclaration_rejects_changes_beyond_horizon(
@@ -161,22 +168,74 @@ def test_curve_prediction_chunks_the_frozen_split(
 
 
 def test_completed_evidence_helpers_validate_cached_objects(tmp_path: Path) -> None:
+    run_path = tmp_path / "run.json"
     curve_path = tmp_path / "curve.json"
     test_path = tmp_path / "test.json"
-    assert evaluation_module._completed_curve(curve_path) is None
+    assert training_module._completed_run(run_path, "params") is None
+    assert evaluation_module._completed_curve(curve_path, "run") is None
     assert test_evaluation_module._completed_test(test_path) is None
 
-    write_json(curve_path, {"seed": 1})
+    write_json(run_path, {"parameters_sha256": "params", "seed": 1})
+    write_json(curve_path, {"run_sha256": "run", "seed": 1})
     write_json(test_path, {"seeds": {}})
-    assert evaluation_module._completed_curve(curve_path) == {"seed": 1}
+    assert training_module._completed_run(run_path, "params") == {
+        "parameters_sha256": "params",
+        "seed": 1,
+    }
+    assert evaluation_module._completed_curve(curve_path, "run") == {
+        "run_sha256": "run",
+        "seed": 1,
+    }
     assert test_evaluation_module._completed_test(test_path) == {"seeds": {}}
 
+    with pytest.raises(ValueError, match="different parameters"):
+        training_module._completed_run(run_path, "changed")
+    with pytest.raises(ValueError, match="different training run"):
+        evaluation_module._completed_curve(curve_path, "changed")
+
+    write_json(run_path, ["invalid"])
     write_json(curve_path, ["invalid"])
     write_json(test_path, ["invalid"])
+    with pytest.raises(TypeError, match="run evidence"):
+        training_module._completed_run(run_path, "params")
     with pytest.raises(TypeError, match="curve evidence"):
-        evaluation_module._completed_curve(curve_path)
+        evaluation_module._completed_curve(curve_path, "run")
     with pytest.raises(TypeError, match="test evidence"):
         test_evaluation_module._completed_test(test_path)
+
+
+def test_seed_options_require_a_strict_integer() -> None:
+    assert SeedOptions.model_validate({"seed": 20261107}).seed == 20261107
+    with pytest.raises(ValueError):
+        SeedOptions.model_validate({"seed": "20261107"})
+    with pytest.raises(ValueError):
+        SeedOptions.model_validate({"seed": 20261107.0})
+
+
+def test_double_descent_stages_declare_indirect_inputs() -> None:
+    pipeline = read_yaml(PARAMS_FILE.parent.parent / "dvc.yaml")
+    assert isinstance(pipeline, dict)
+    stages = pipeline["stages"]
+    shared_config = {
+        "src/pathologize_cell_analysis/cli.py",
+        "src/pathologize_cell_analysis/contracts.py",
+        "src/pathologize_cell_analysis/learned_baseline/config.py",
+        "params/nucls-learned.yaml",
+    }
+    ontology = "../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json"
+    for seed in (20261107, 20261109, 20261111):
+        dependencies = set(stages[f"evaluate_nucls_double_descent_seed_{seed}"]["deps"])
+        assert shared_config <= dependencies
+        assert ontology in dependencies
+    assert shared_config <= set(stages["analyze_nucls_double_descent"]["deps"])
+    test_dependencies = set(stages["evaluate_nucls_double_descent_test"]["deps"])
+    assert shared_config <= test_dependencies
+    assert ontology in test_dependencies
+    report_dependencies = set(stages["report_nucls_double_descent"]["deps"])
+    assert shared_config <= report_dependencies
+    assert {
+        f"outputs/nucls-double-descent/curves/{seed}" for seed in (20261107, 20261109, 20261111)
+    } <= report_dependencies
 
 
 def test_curve_resource_guards_cover_every_limit() -> None:
