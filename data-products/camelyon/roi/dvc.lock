@@ -1,0 +1,45 @@
+schema: '2.0'
+stages:
+  publish_native_contract:
+    cmd: uv run --locked camelyon-roi-product publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: b54359c722d866aab9b411b3b3a88937.dir
+      size: 237263
+      nfiles: 2
+    - path: pyproject.toml
+      hash: md5
+      md5: ce34e399ef1f9192de46eb2bce9f1b7c
+      size: 1106
+    - path: records
+      hash: md5
+      md5: 6fd29678522e3483c2fedbaa5c447b26.dir
+      size: 485425
+      nfiles: 1
+    - path: src/camelyon_roi_product
+      hash: md5
+      md5: 9ddca503c8470b9dd1ab33cabdc0321b.dir
+      size: 29952
+      nfiles: 6
+    - path: uv.lock
+      hash: md5
+      md5: 90d781ba2eb15320961dfad54255ffc7
+      size: 34616
+    outs:
+    - path: outputs/artifact-references.json
+      hash: md5
+      md5: ab073a5258fd62520c62b2e64043aa0e
+      size: 233486
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 50eee62e0c0e874f9f7480390e24206b
+      size: 227
+    - path: outputs/native-records.jsonl
+      hash: md5
+      md5: a85ca1e5bf07ac6cfebe1755131fe04d
+      size: 377932

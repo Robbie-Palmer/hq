@@ -1,0 +1,72 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked CAMELYON ROI product environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the CAMELYON ROI product lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format CAMELYON ROI product code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint CAMELYON ROI product code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check CAMELYON ROI product code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run CAMELYON ROI product tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run CAMELYON ROI product tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the CAMELYON ROI product"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.publish]
+description = "Publish stable source-native CAMELYON references"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product publish"
+
+[tasks.freeze]
+description = "Refresh committed CAMELYON contracts from a reviewed metadata snapshot"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product freeze"
+
+[tasks."verify-metadata"]
+description = "Verify the pinned official CAMELYON metadata without dataset bytes"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product verify_metadata"
+
+[tasks."acquire-annotations"]
+description = "Acquire and index the pinned CAMELYON XML annotations"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product acquire_annotations"
+
+[tasks.acquire]
+description = "Acquire one pinned CAMELYON slide or patient archive within an explicit byte budget"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product acquire"
+
+[tasks.repro]
+description = "Reproduce the metadata-only CAMELYON source product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic CAMELYON ROI product checks"
+depends = ["lint", "typecheck", "test:coverage"]

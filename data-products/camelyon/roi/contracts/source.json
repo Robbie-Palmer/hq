@@ -1,0 +1,125 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "camelyon-gigadb-100439-roi-v1",
+  "title": "CAMELYON16 and annotated CAMELYON17 whole-slide lesion ROIs",
+  "doi": "10.5524/100439",
+  "paper_doi": "10.1093/gigascience/giy065",
+  "publisher": "GigaScience Database",
+  "publisher_record": "https://gigadb.org/dataset/100439",
+  "publisher_version": "2018-05-21",
+  "release_date": "2018-05-21",
+  "rights": {
+    "spdx_id": "CC0-1.0",
+    "deed_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "evidence_url": "https://camelyon17.grand-challenge.org/Data/"
+  },
+  "metadata_sources": [
+    {
+      "source_id": "camelyon16_checksums.md5",
+      "url": "https://public.grand-challenge-user-content.org/f/challenge/80/e41291d3-63a4-4c72-8c7d-f161187f60fd/camelyon16_checksums.md5",
+      "sha256": "1df845768604d23bb47ad95da8869a04585e55eba7ba5f48c1bf8424f15ba6ea",
+      "role": "checksums"
+    },
+    {
+      "source_id": "camelyon16_readme.md",
+      "url": "https://public.grand-challenge-user-content.org/f/challenge/80/105788c6-176a-4dc3-89cf-62f4f37d1484/camelyon16_readme.md",
+      "sha256": "4528a1829a86ecf147f01bf2d036932197da0f4c403a1041b71f969fd91f4b66",
+      "role": "readme"
+    },
+    {
+      "source_id": "camelyon16_reference.csv",
+      "url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/100001_101000/100439/CAMELYON16/testing/reference.csv",
+      "sha256": "6ee635afcfbf21afdc1f87789db095847ee58ef21c089c2f911d211b05af0590",
+      "role": "slide_labels"
+    },
+    {
+      "source_id": "camelyon17_checksums.md5",
+      "url": "https://public.grand-challenge-user-content.org/f/challenge/80/60548155-6bf8-46d5-ba80-7e089ce4eb35/camelyon17_checksums.md5",
+      "sha256": "5afabc3fd758eacf6d0490dc20b96239d8b7383ae6b71d71189d63740bc2caf2",
+      "role": "checksums"
+    },
+    {
+      "source_id": "camelyon17_readme.md",
+      "url": "https://public.grand-challenge-user-content.org/f/challenge/80/127ab0bb-f909-48aa-a965-6385bc25ed68/camelyon17_readme.md",
+      "sha256": "bc747aa0d4c4ed50d3e657b1df61a687cd50c6cbd71154628ad87f51c26dcda2",
+      "role": "readme"
+    },
+    {
+      "source_id": "camelyon17_stage_labels.csv",
+      "url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/100001_101000/100439/CAMELYON17/training/stage_labels.csv",
+      "sha256": "200223f399f987d112526d6030be419950f17bd2c876b004b20bb3837827fd93",
+      "role": "patient_and_slide_labels"
+    }
+  ],
+  "annotation_archives": [
+    {
+      "artifact_id": "camelyon16-training-lesion-annotations",
+      "challenge": "CAMELYON16",
+      "source_role": "training",
+      "path": "CAMELYON16/training/lesion_annotations.zip",
+      "source_url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/100001_101000/100439/CAMELYON16/training/lesion_annotations.zip",
+      "bytes": 7693371,
+      "md5": "8a80d325a58b835c2da5b46c543767a3",
+      "sha256": "b1f3afc530b9ce7ef729c26babbea5909f93d33130584140e8fe2eb1630fe81e"
+    },
+    {
+      "artifact_id": "camelyon16-testing-lesion-annotations",
+      "challenge": "CAMELYON16",
+      "source_role": "testing",
+      "path": "CAMELYON16/testing/lesion_annotations.zip",
+      "source_url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/100001_101000/100439/CAMELYON16/testing/lesion_annotations.zip",
+      "bytes": 2717614,
+      "md5": "ed03f33283b5c4fdbf76d2a89751efdc",
+      "sha256": "e39b16c135d22f4f845b94d3ff0c40b0d490bcec28661141a5b2bd31d2ec3ecf"
+    },
+    {
+      "artifact_id": "camelyon17-training-lesion-annotations",
+      "challenge": "CAMELYON17",
+      "source_role": "training",
+      "path": "CAMELYON17/training/lesion_annotations.zip",
+      "source_url": "https://s3.ap-northeast-1.wasabisys.com/gigadb-datasets/live/pub/10.5524/100001_101000/100439/CAMELYON17/training/lesion_annotations.zip",
+      "bytes": 337341,
+      "md5": "794508a5f01146a843505d29a4b495b0",
+      "sha256": "6a766fabdbebe7f8f61e73c893e5b96ed3a6135b63b2dc83945cc5bf5c586016"
+    }
+  ],
+  "coordinate_frame": {
+    "axes": "X,Y",
+    "coordinate_space": "whole_slide_level_0",
+    "coordinate_unit": "pixel",
+    "polygon_vertex_order_attribute": "Order",
+    "physical_spacing": "embedded_in_pyramidal_tiff"
+  },
+  "annotation_review": {
+    "distributed_input_stain": "H&E",
+    "review_aid": "additional cytokeratin immunohistochemistry slides",
+    "review_aid_role": "used by the publisher when revising lesion annotations",
+    "review_aid_distributed_by_this_product": false
+  },
+  "centres": {
+    "CAMELYON16": {
+      "published_names": [
+        "Radboud University Medical Center",
+        "University Medical Center Utrecht"
+      ],
+      "per_slide_assignment_published": false
+    },
+    "CAMELYON17": {
+      "published_names": [
+        "Radboud University Medical Center",
+        "Canisius-Wilhelmina Hospital",
+        "University Medical Center Utrecht",
+        "Rijnstate Hospital",
+        "Laboratorium Pathologie Oost-Nederland"
+      ],
+      "native_ids": ["center_0", "center_1", "center_2", "center_3", "center_4"],
+      "name_to_native_id_mapping_published_in_metadata": false
+    }
+  },
+  "scope": {
+    "camelyon16_slides": 399,
+    "camelyon16_training_slides": 270,
+    "camelyon16_testing_slides": 129,
+    "camelyon17_annotated_training_slides": 50
+  }
+}
