@@ -56,6 +56,31 @@ export function chooseMask(
   };
 }
 
+export function chooseProposal(
+  draft: ReviewDraft,
+  proposalId: string,
+): ReviewDraft {
+  return {
+    ...draft,
+    objectDecision: "valid_nucleus",
+    maskDecision:
+      draft.objectDecision === "valid_nucleus" &&
+      draft.maskDecision !== "reject"
+        ? draft.maskDecision
+        : null,
+    selectedProposalId: proposalId,
+  };
+}
+
+export function rejectProposals(draft: ReviewDraft): ReviewDraft {
+  if (draft.objectDecision !== "valid_nucleus") return draft;
+  return {
+    ...draft,
+    maskDecision: "reject",
+    selectedProposalId: null,
+  };
+}
+
 export function canSaveDraft(draft: ReviewDraft): boolean {
   if (!draft.objectDecision || !draft.maskDecision) return false;
   if (draft.objectDecision !== "valid_nucleus") {

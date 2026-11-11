@@ -7,14 +7,16 @@ import {
   canSaveDraft,
   chooseMask,
   chooseObject,
+  chooseProposal,
   type ReviewDraft,
+  rejectProposals,
 } from "../domain/review-draft";
 
 type DecisionPanelProps = Readonly<{
   draft: ReviewDraft;
   proposals: readonly Proposal[];
-  selectedProposal: Proposal;
   saving: boolean;
+  saveLabel: string;
   reviewerIdIsValid: boolean;
   onChange: (draft: ReviewDraft) => void;
   onSave: () => void;
@@ -28,39 +30,44 @@ const objectOptions: readonly {
 }[] = [
   {
     value: "valid_nucleus",
-    label: "Valid nucleus",
+    label: "Yes",
     shortcut: "1",
     icon: CircleCheck,
   },
   {
     value: "non_nucleus",
-    label: "Not a nucleus",
+    label: "No",
     shortcut: "2",
     icon: CircleX,
   },
-  { value: "uncertain", label: "Uncertain", shortcut: "3", icon: CircleHelp },
+  { value: "uncertain", label: "Unsure", shortcut: "3", icon: CircleHelp },
 ];
 
 export function DecisionPanel({
   draft,
   proposals,
-  selectedProposal,
   saving,
+  saveLabel,
   reviewerIdIsValid,
   onChange,
   onSave,
 }: DecisionPanelProps) {
+  const selectedProposal = proposals.find(
+    (proposal) => proposal.id === draft.selectedProposalId,
+  );
+  const reviewingMask = draft.objectDecision === "valid_nucleus";
+
   return (
-    <Card className="gap-4 py-4">
+    <Card className="min-w-0 gap-4 py-4">
       <CardHeader className="px-4">
-        <CardTitle>Review decision</CardTitle>
+        <CardTitle>Make a decision</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-5 px-4">
+      <CardContent className="min-w-0 space-y-5 px-4">
         <fieldset className="space-y-2">
           <legend className="mb-2 text-sm font-medium">
-            1. Does the box contain a nucleus?
+            Does this crop contain a nucleus?
           </legend>
-          <div className="grid gap-2">
+          <div className="grid grid-cols-3 gap-2">
             {objectOptions.map((option) => (
               <Button
                 key={option.value}
@@ -68,15 +75,13 @@ export function DecisionPanel({
                 variant={
                   draft.objectDecision === option.value ? "default" : "outline"
                 }
-                className="justify-between"
+                className="min-w-0 px-2"
                 onClick={() => onChange(chooseObject(draft, option.value))}
                 aria-pressed={draft.objectDecision === option.value}
               >
-                <span className="flex items-center gap-2">
-                  <option.icon aria-hidden className="size-4" />
-                  {option.label}
-                </span>
-                <kbd className="font-mono text-xs opacity-60">
+                <option.icon aria-hidden className="size-4" />
+                {option.label}
+                <kbd className="hidden font-mono text-xs opacity-60 sm:inline">
                   {option.shortcut}
                 </kbd>
               </Button>
@@ -84,87 +89,109 @@ export function DecisionPanel({
           </div>
         </fieldset>
 
-        <fieldset
-          className="space-y-2"
-          disabled={draft.objectDecision !== "valid_nucleus"}
-        >
-          <legend className="mb-2 text-sm font-medium">
-            2. What should happen to the mask?
-          </legend>
-          <div className="grid grid-cols-3 gap-2">
-            <Button
-              type="button"
-              size="sm"
-              variant={draft.maskDecision === "accept" ? "default" : "outline"}
-              onClick={() =>
-                onChange(chooseMask(draft, "accept", selectedProposal.id))
-              }
-            >
-              Accept <kbd className="font-mono text-xs opacity-60">A</kbd>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={draft.maskDecision === "refine" ? "default" : "outline"}
-              onClick={() =>
-                onChange(chooseMask(draft, "refine", selectedProposal.id))
-              }
-            >
-              Refine <kbd className="font-mono text-xs opacity-60">F</kbd>
-            </Button>
-            <Button
-              type="button"
-              size="sm"
-              variant={
-                draft.maskDecision === "reject" ? "destructive" : "outline"
-              }
-              onClick={() =>
-                onChange(chooseMask(draft, "reject", selectedProposal.id))
-              }
-            >
-              Reject <kbd className="font-mono text-xs opacity-60">R</kbd>
-            </Button>
-          </div>
-          {draft.maskDecision === "refine" ? (
-            <p className="text-xs text-muted-foreground">
-              Refinement is queued with the selected proposal. Brush editing is
-              the next iteration.
-            </p>
-          ) : null}
-        </fieldset>
+        {reviewingMask ? (
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium">
+              Which boundary is best?
+            </legend>
+            <div className="grid grid-cols-2 gap-2">
+              {proposals.map((proposal) => (
+                <Button
+                  key={proposal.id}
+                  type="button"
+                  size="sm"
+                  variant={
+                    draft.selectedProposalId === proposal.id
+                      ? "default"
+                      : "outline"
+                  }
+                  className="min-w-0 truncate"
+                  aria-pressed={draft.selectedProposalId === proposal.id}
+                  onClick={() => onChange(chooseProposal(draft, proposal.id))}
+                >
+                  <span className="truncate">{proposal.model_name}</span>
+                </Button>
+              ))}
+              <Button
+                type="button"
+                size="sm"
+                variant={
+                  draft.maskDecision === "reject" ? "destructive" : "outline"
+                }
+                aria-pressed={draft.maskDecision === "reject"}
+                onClick={() => onChange(rejectProposals(draft))}
+              >
+                None usable
+              </Button>
+            </div>
+          </fieldset>
+        ) : null}
 
-        <div className="space-y-2">
-          <label htmlFor="review-notes" className="text-sm font-medium">
-            Notes
-          </label>
+        {selectedProposal && reviewingMask ? (
+          <fieldset className="space-y-2">
+            <legend className="mb-2 text-sm font-medium">
+              How should we use {selectedProposal.model_name}?
+            </legend>
+            <div className="grid grid-cols-2 gap-2">
+              <Button
+                type="button"
+                size="sm"
+                variant={
+                  draft.maskDecision === "accept" ? "default" : "outline"
+                }
+                onClick={() =>
+                  onChange(chooseMask(draft, "accept", selectedProposal.id))
+                }
+              >
+                Use as-is
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                variant={
+                  draft.maskDecision === "refine" ? "default" : "outline"
+                }
+                onClick={() =>
+                  onChange(chooseMask(draft, "refine", selectedProposal.id))
+                }
+              >
+                Needs correction
+              </Button>
+            </div>
+          </fieldset>
+        ) : null}
+
+        <details className="rounded-lg border px-3 py-2">
+          <summary className="cursor-pointer text-sm font-medium">
+            Add note
+            <span className="ml-1 font-normal text-muted-foreground">
+              optional
+            </span>
+          </summary>
           <Textarea
-            id="review-notes"
+            aria-label="Review note"
+            className="mt-3"
             value={draft.notes}
             maxLength={4000}
-            placeholder="Record why the box or boundary needs another pass."
+            placeholder="Why does this need another pass?"
             onChange={(event) =>
               onChange({ ...draft, notes: event.target.value })
             }
           />
-        </div>
+        </details>
 
         <Button
           type="button"
-          className="w-full"
-          disabled={
-            !canSaveDraft(draft) ||
-            !reviewerIdIsValid ||
-            saving ||
-            proposals.length === 0
-          }
+          className="sticky bottom-2 z-20 w-full shadow-lg"
+          disabled={!canSaveDraft(draft) || !reviewerIdIsValid || saving}
           onClick={onSave}
         >
           <Save aria-hidden />
-          {saving ? "Saving…" : "Save and continue"}
+          {saving ? "Saving…" : saveLabel}
         </Button>
         {!reviewerIdIsValid ? (
           <p className="text-xs text-destructive">
-            Reviewer ID may contain letters, numbers, dots, underscores, and
+            Reviewer name may contain letters, numbers, dots, underscores, and
             hyphens.
           </p>
         ) : null}

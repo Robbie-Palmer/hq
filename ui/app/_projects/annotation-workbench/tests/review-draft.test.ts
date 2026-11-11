@@ -3,7 +3,9 @@ import {
   canSaveDraft,
   chooseMask,
   chooseObject,
+  chooseProposal,
   emptyDraft,
+  rejectProposals,
 } from "../domain/review-draft";
 
 describe("annotation review draft", () => {
@@ -25,17 +27,28 @@ describe("annotation review draft", () => {
 
   it("records the accepted proposal for a valid nucleus", () => {
     const objectDraft = chooseObject(emptyDraft, "valid_nucleus");
-    const accepted = chooseMask(objectDraft, "accept", "cellsam");
+    const selected = chooseProposal(objectDraft, "cellsam");
+    const accepted = chooseMask(selected, "accept", "cellsam");
 
     expect(accepted.selectedProposalId).toBe("cellsam");
     expect(canSaveDraft(accepted)).toBe(true);
   });
 
-  it("does not attach a proposal to a rejected mask", () => {
+  it("rejects every proposal without attaching one", () => {
     const objectDraft = chooseObject(emptyDraft, "valid_nucleus");
-    const rejected = chooseMask(objectDraft, "reject", "cellsam");
+    const selected = chooseProposal(objectDraft, "cellsam");
+    const rejected = rejectProposals(selected);
 
     expect(rejected.selectedProposalId).toBeNull();
     expect(canSaveDraft(rejected)).toBe(true);
+  });
+
+  it("confirms the object when a proposal tile is selected", () => {
+    expect(chooseProposal(emptyDraft, "cellsam")).toMatchObject({
+      objectDecision: "valid_nucleus",
+      maskDecision: null,
+      selectedProposalId: "cellsam",
+    });
+    expect(rejectProposals(emptyDraft)).toEqual(emptyDraft);
   });
 });
