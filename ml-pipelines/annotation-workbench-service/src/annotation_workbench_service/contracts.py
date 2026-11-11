@@ -14,6 +14,7 @@ Coordinate = Annotated[
 ]
 Timestamp = Annotated[datetime, Field(json_schema_extra={"maxLength": 35})]
 UuidValue = Annotated[UUID, Field(json_schema_extra={"maxLength": 36})]
+IDENTIFIER_PATTERN = r"^[a-zA-Z0-9][a-zA-Z0-9._:-]*$"
 
 
 class StrictModel(BaseModel):
@@ -41,7 +42,7 @@ class Asset(StrictModel):
     id: str = Field(
         min_length=1,
         max_length=256,
-        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:-]*$",
+        pattern=IDENTIFIER_PATTERN,
     )
     kind: Literal["source", "proposal", "reference"]
     path: str = Field(min_length=1, max_length=4096)
@@ -62,7 +63,7 @@ class Proposal(StrictModel):
     id: str = Field(
         min_length=1,
         max_length=256,
-        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:-]*$",
+        pattern=IDENTIFIER_PATTERN,
     )
     asset_id: Identifier
     role: Literal["primary", "alternative", "baseline"]
@@ -103,7 +104,7 @@ class ReviewItem(StrictModel):
     id: str = Field(
         min_length=1,
         max_length=256,
-        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:-]*$",
+        pattern=IDENTIFIER_PATTERN,
     )
     source_asset_id: Identifier
     reference_asset_id: Identifier | None = None
@@ -116,7 +117,7 @@ class ReviewBundle(StrictModel):
     batch_id: str = Field(
         min_length=1,
         max_length=256,
-        pattern=r"^[a-zA-Z0-9][a-zA-Z0-9._:-]*$",
+        pattern=IDENTIFIER_PATTERN,
     )
     created_at: Timestamp
     provenance: BundleProvenance

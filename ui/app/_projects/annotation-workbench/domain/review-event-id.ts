@@ -4,7 +4,7 @@ export function createReviewEventId(): string {
     return cryptoApi.randomUUID();
   }
   if (typeof cryptoApi?.getRandomValues !== "function") {
-    throw new Error("This browser cannot create a secure review event ID");
+    throw new TypeError("This browser cannot create a secure review event ID");
   }
 
   const bytes = cryptoApi.getRandomValues(new Uint8Array(16));

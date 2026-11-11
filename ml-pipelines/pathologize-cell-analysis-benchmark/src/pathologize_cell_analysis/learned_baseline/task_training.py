@@ -47,6 +47,7 @@ class TaskTrainingResult:
 
 
 SEGMENT_INITIALIZATION_RECORD = "segment-initialization.json"
+BEST_CHECKPOINT_FILENAME = "best.pt"
 
 
 @dataclass(frozen=True)
@@ -66,6 +67,20 @@ class TrainingAttempt:
     deadline_state: DeadlineState
     monitor: TrainingMonitor
     finalized_checkpoint: bool
+
+
+@dataclass(frozen=True)
+class TaskRunContext:
+    experiment: LearnedBaselineConfig
+    root: Path
+    training_root: Path
+    task: Task
+    weights: Path
+    definition: Path
+    task_output: Path
+    state_path: Path
+    initialization_checkpoint: Path | None
+    initialization_record_path: Path | None
 
 
 def _peak_rss_bytes() -> int:
@@ -235,7 +250,7 @@ def _checkpoint_evidence(
     continuation_gpu_seconds: float,
     initialization: dict[str, object] | None,
 ) -> dict[str, object]:
-    best = task_output / "weights" / "best.pt"
+    best = task_output / "weights" / BEST_CHECKPOINT_FILENAME
     last = task_output / "weights" / "last.pt"
     if not best.is_file() or not last.is_file():
         raise FileNotFoundError(f"Ultralytics did not write both checkpoints for {task}")
@@ -472,7 +487,7 @@ def _run_recovered_validation(
         initialization = read_json(initialization_record_path)
         if initialization.get("source_checkpoint_sha256") != sha256_file(initialization_checkpoint):
             raise ValueError("segment initialization checkpoint digest differs for recovery")
-    recovered_model = yolo(str(task_output / "weights" / "best.pt"), task=task)
+    recovered_model = yolo(str(task_output / "weights" / BEST_CHECKPOINT_FILENAME), task=task)
     _run_final_validation(recovered_model, training_arguments(experiment, root, task))
     return _finish_attempt(
         experiment,
@@ -489,56 +504,49 @@ def _run_recovered_validation(
 
 
 def _run_training_attempt(
-    experiment: LearnedBaselineConfig,
-    root: Path,
-    training_root: Path,
-    task: Task,
-    weights: Path,
-    definition: Path,
-    task_output: Path,
-    state_path: Path,
+    context: TaskRunContext,
     attempt: TrainingAttempt,
     torch_module: Any,
     cuda: Any,
     yolo: Any,
-    initialization_checkpoint: Path | None,
-    initialization_record_path: Path | None,
 ) -> TaskTrainingResult:
     model, initialization = _load_training_model(
         yolo,
         torch_module,
-        task,
-        weights,
+        context.task,
+        context.weights,
         attempt.resume,
-        initialization_checkpoint,
-        initialization_record_path,
+        context.initialization_checkpoint,
+        context.initialization_record_path,
     )
     model.add_callback("on_train_epoch_end", lambda trainer: _stop_at_deadline(trainer, attempt))
     model.add_callback(
         "on_fit_epoch_end",
-        lambda trainer: monitor_training(trainer, attempt.monitor, experiment.training.patience),
+        lambda trainer: monitor_training(
+            trainer, attempt.monitor, context.experiment.training.patience
+        ),
     )
     model.add_callback(
         "on_fit_epoch_end",
         lambda _trainer: write_training_task_state(
-            state_path, _current_task_state(attempt, cuda, "running")
+            context.state_path, _current_task_state(attempt, cuda, "running")
         ),
     )
     attempt.start_event.record()
     _fit_training_model(
         model,
         attempt.resume,
-        training_arguments(experiment, root, task),
-        training_root,
-        task,
+        training_arguments(context.experiment, context.root, context.task),
+        context.training_root,
+        context.task,
     )
     return _finish_attempt(
-        experiment,
-        root,
-        task,
-        weights,
-        definition,
-        task_output,
+        context.experiment,
+        context.root,
+        context.task,
+        context.weights,
+        context.definition,
+        context.task_output,
         attempt,
         cuda,
         recovered_final_validation=False,
@@ -570,10 +578,22 @@ def train_task(  # pragma: no cover
     if task == "segment" and experiment.training.segment_initialization == (
         "detect_checkpoint_backbone_neck"
     ):
-        initialization_checkpoint = training_root / "detect" / "weights" / "best.pt"
+        initialization_checkpoint = training_root / "detect" / "weights" / BEST_CHECKPOINT_FILENAME
         if not initialization_checkpoint.is_file():
             raise FileNotFoundError("completed detection checkpoint is required for segmentation")
         initialization_record_path = training_root / SEGMENT_INITIALIZATION_RECORD
+    context = TaskRunContext(
+        experiment=experiment,
+        root=root,
+        training_root=training_root,
+        task=task,
+        weights=weights,
+        definition=definition,
+        task_output=task_output,
+        state_path=state_path,
+        initialization_checkpoint=initialization_checkpoint,
+        initialization_record_path=initialization_record_path,
+    )
     attempt = _prepare_training_attempt(
         experiment, task, task_output, task_state, torch_module, cuda
     )
@@ -596,20 +616,11 @@ def train_task(  # pragma: no cover
             )
         else:
             result = _run_training_attempt(
-                experiment,
-                root,
-                training_root,
-                task,
-                weights,
-                definition,
-                task_output,
-                state_path,
+                context,
                 attempt,
                 torch_module,
                 cuda,
                 yolo,
-                initialization_checkpoint,
-                initialization_record_path,
             )
         complete_state = TrainingTaskState(
             status="complete",

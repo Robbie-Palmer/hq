@@ -44,14 +44,16 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+# The launcher deliberately uses HTTP inside the encrypted tailnet. The API refuses
+# public bind addresses, and the browser connects directly to this node's Tailscale IP.
 mise //ml-pipelines/annotation-workbench-service:serve -- \
   --bundle="$bundle_path" \
   --host="$tailnet_ip" \
-  --allowed-origins="$ui_origin" &
+  --allowed-origins="$ui_origin" & # NOSONAR
 api_pid=$!
 
 for _ in {1..40}; do
-  if curl --fail --silent --output /dev/null "${api_url}/api/v1/health"; then
+  if curl --fail --silent --output /dev/null "${api_url}/api/v1/health"; then # NOSONAR
     break
   fi
   if ! kill -0 "$api_pid" 2>/dev/null; then
@@ -60,12 +62,12 @@ for _ in {1..40}; do
   fi
   sleep 0.25
 done
-if ! curl --fail --silent --output /dev/null "${api_url}/api/v1/health"; then
-  echo "review API did not become ready at $api_url" >&2
+if ! curl --fail --silent --output /dev/null "${api_url}/api/v1/health"; then # NOSONAR
+  echo "review API did not become ready at $api_url" >&2 # NOSONAR
   exit 1
 fi
 
-echo "Annotation Workbench mobile QA: ${ui_origin}/annotation-workbench"
-echo "FastAPI docs: ${api_url}/api/docs"
+echo "Annotation Workbench mobile QA: ${ui_origin}/annotation-workbench" # NOSONAR
+echo "FastAPI docs: ${api_url}/api/docs" # NOSONAR
 NEXT_PUBLIC_ANNOTATION_WORKBENCH_SERVICE_URL="$api_url" \
   mise //ui:dev -- --hostname "$tailnet_ip" --port "$ui_port"

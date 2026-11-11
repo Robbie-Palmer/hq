@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -40,6 +41,9 @@ class BoxMaskProposal:
     @property
     def pixel_count(self) -> int:
         return int(np.count_nonzero(self.mask))
+
+
+AnnotationCandidate = tuple[Any, int, Annotation]
 
 
 def _clip_bbox(
@@ -143,21 +147,22 @@ def _summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _evaluation_records(options: PilotOptions) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    cohort = load_cohort()
-    eligible = [item for item in cohort.items if item.split in {"train", "validation"}]
-    rng = np.random.default_rng(options.random_seed)
-    candidates: list[tuple[Any, int, Annotation]] = []
-    rectangle_candidates: list[tuple[Any, int, Annotation]] = []
+def _annotation_candidates(
+    eligible: list[Any],
+) -> tuple[list[AnnotationCandidate], list[AnnotationCandidate]]:
+    polygon_candidates: list[AnnotationCandidate] = []
+    rectangle_candidates: list[AnnotationCandidate] = []
     for item in eligible:
         annotations = load_annotations(DATASET_ROOT / item.annotation_path)
         for index, annotation in enumerate(annotations):
             if annotation.annotation_type == "polyline":
-                candidates.append((item, index, annotation))
+                polygon_candidates.append((item, index, annotation))
             elif annotation.annotation_type == "rectangle" and item.split == "train":
                 rectangle_candidates.append((item, index, annotation))
-    rng.shuffle(candidates)
-    evaluations: list[dict[str, Any]] = []
+    return polygon_candidates, rectangle_candidates
+
+
+def _image_loader() -> Callable[[Any], NDArray[np.uint8]]:
     image_cache: dict[str, NDArray[np.uint8]] = {}
 
     def cached_image(item: Any) -> NDArray[np.uint8]:
@@ -165,7 +170,16 @@ def _evaluation_records(options: PilotOptions) -> tuple[list[dict[str, Any]], li
             image_cache[item.item_id] = load_rgb(DATASET_ROOT / item.image_path)
         return image_cache[item.item_id]
 
-    for item, index, annotation in candidates[: options.maximum_polygon_evaluations]:
+    return cached_image
+
+
+def _polygon_evaluations(
+    candidates: list[AnnotationCandidate],
+    maximum_evaluations: int,
+    cached_image: Callable[[Any], NDArray[np.uint8]],
+) -> list[dict[str, Any]]:
+    evaluations: list[dict[str, Any]] = []
+    for item, index, annotation in candidates[:maximum_evaluations]:
         image = cached_image(item)
         proposal = propose_box_mask(
             image, (annotation.xmin, annotation.ymin, annotation.xmax, annotation.ymax)
@@ -187,13 +201,17 @@ def _evaluation_records(options: PilotOptions) -> tuple[list[dict[str, Any]], li
                 "candidate_components": proposal.candidate_components,
             }
         )
-    rng.shuffle(rectangle_candidates)
-    rectangle_buckets: dict[tuple[str, str], list[tuple[Any, int, Annotation]]] = defaultdict(list)
+    return evaluations
+
+
+def _balanced_candidates(
+    rectangle_candidates: list[AnnotationCandidate], candidate_limit: int
+) -> list[AnnotationCandidate]:
+    rectangle_buckets: dict[tuple[str, str], list[AnnotationCandidate]] = defaultdict(list)
     for candidate in rectangle_candidates:
         item, _, annotation = candidate
         rectangle_buckets[(item.site_id, annotation.class_name)].append(candidate)
-    bounded_candidates: list[tuple[Any, int, Annotation]] = []
-    candidate_limit = max(120, options.review_items * 20)
+    bounded_candidates: list[AnnotationCandidate] = []
     while rectangle_buckets and len(bounded_candidates) < candidate_limit:
         for key in sorted([*rectangle_buckets]):
             values = rectangle_buckets[key]
@@ -202,8 +220,15 @@ def _evaluation_records(options: PilotOptions) -> tuple[list[dict[str, Any]], li
                 del rectangle_buckets[key]
             if len(bounded_candidates) >= candidate_limit:
                 break
+    return bounded_candidates
+
+
+def _proposal_records(
+    candidates: list[AnnotationCandidate],
+    cached_image: Callable[[Any], NDArray[np.uint8]],
+) -> list[dict[str, Any]]:
     proposals: list[dict[str, Any]] = []
-    for item, index, annotation in bounded_candidates:
+    for item, index, annotation in candidates:
         image = cached_image(item)
         proposal = propose_box_mask(
             image, (annotation.xmin, annotation.ymin, annotation.xmax, annotation.ymax)
@@ -224,6 +249,27 @@ def _evaluation_records(options: PilotOptions) -> tuple[list[dict[str, Any]], li
                 "risk": risk,
             }
         )
+    return proposals
+
+
+def _evaluation_records(options: PilotOptions) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    cohort = load_cohort()
+    eligible = [item for item in cohort.items if item.split in {"train", "validation"}]
+    polygon_candidates, rectangle_candidates = _annotation_candidates(eligible)
+    rng = np.random.default_rng(options.random_seed)
+    rng.shuffle(polygon_candidates)
+    rng.shuffle(rectangle_candidates)
+    cached_image = _image_loader()
+    evaluations = _polygon_evaluations(
+        polygon_candidates,
+        options.maximum_polygon_evaluations,
+        cached_image,
+    )
+    bounded_candidates = _balanced_candidates(
+        rectangle_candidates,
+        max(120, options.review_items * 20),
+    )
+    proposals = _proposal_records(bounded_candidates, cached_image)
     return evaluations, proposals
 
 

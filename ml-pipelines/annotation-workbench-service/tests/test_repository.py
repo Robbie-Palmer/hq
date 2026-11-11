@@ -141,17 +141,17 @@ def test_repository_rejects_stale_and_unknown_reviews(tmp_path: Path) -> None:
     repository = ReviewRepository(_bundle(tmp_path))
     repository.append(_event())
 
+    stale_event = _event(event_id="33333333-3333-4333-8333-333333333333")
     with pytest.raises(ValueError, match="does not supersede"):
-        repository.append(_event(event_id="33333333-3333-4333-8333-333333333333"))
+        repository.append(stale_event)
 
+    unknown_proposal_event = _event(
+        event_id=UUID("44444444-4444-4444-8444-444444444444"),
+        supersedes_event_id=UUID("11111111-1111-4111-8111-111111111111"),
+        selected_proposal_id="item-1:missing",
+    )
     with pytest.raises(ValueError, match="unknown proposal"):
-        repository.append(
-            _event(
-                event_id=UUID("44444444-4444-4444-8444-444444444444"),
-                supersedes_event_id=UUID("11111111-1111-4111-8111-111111111111"),
-                selected_proposal_id="item-1:missing",
-            )
-        )
+        repository.append(unknown_proposal_event)
 
 
 def test_repository_detects_changed_asset(tmp_path: Path) -> None:

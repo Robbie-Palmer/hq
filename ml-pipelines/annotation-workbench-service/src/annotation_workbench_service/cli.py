@@ -10,9 +10,16 @@ import fire
 from .repository import ReviewRepository
 from .server import create_app, serve
 
-TAILNET = ipaddress.ip_network("100.64.0.0/10")
+# These are standard network ranges, not deployment addresses or credentials. The
+# allowlist prevents the review service from binding to public interfaces.
+TAILNET = ipaddress.ip_network("100.64.0.0/10")  # NOSONAR
 PRIVATE_NETWORKS = tuple(
-    ipaddress.ip_network(value) for value in ("10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16")
+    ipaddress.ip_network(value)
+    for value in (
+        "10.0.0.0/8",  # NOSONAR
+        "172.16.0.0/12",  # NOSONAR
+        "192.168.0.0/16",  # NOSONAR
+    )
 )
 
 

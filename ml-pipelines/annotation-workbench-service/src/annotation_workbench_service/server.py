@@ -34,6 +34,31 @@ def _repository(request: Request) -> ReviewRepository:
     return repository
 
 
+async def _protected_response(
+    request: Request,
+    call_next: Callable[[Request], Awaitable[Response]],
+    allowed_origins: frozenset[str],
+) -> Response:
+    origin = request.headers.get("origin")
+    if origin is not None and origin not in allowed_origins:
+        return _error_response(status.HTTP_403_FORBIDDEN, "origin is not allowed")
+    if request.method == "POST":
+        raw_length = request.headers.get("content-length")
+        try:
+            length = int(raw_length or "0")
+        except ValueError:
+            return _error_response(status.HTTP_400_BAD_REQUEST, "invalid content length")
+        if length <= 0 or length > MAXIMUM_EVENT_BYTES:
+            return _error_response(
+                status.HTTP_413_CONTENT_TOO_LARGE,
+                "review event is too large",
+            )
+    response = await call_next(request)
+    response.headers["Cache-Control"] = "no-store"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 def create_app(
     repository: ReviewRepository | None = None,
     allowed_origins: frozenset[str] = DEFAULT_ORIGINS,
@@ -78,24 +103,7 @@ def create_app(
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
-        origin = request.headers.get("origin")
-        if origin is not None and origin not in allowed_origins:
-            return _error_response(status.HTTP_403_FORBIDDEN, "origin is not allowed")
-        if request.method == "POST":
-            raw_length = request.headers.get("content-length")
-            try:
-                length = int(raw_length or "0")
-            except ValueError:
-                return _error_response(status.HTTP_400_BAD_REQUEST, "invalid content length")
-            if length <= 0 or length > MAXIMUM_EVENT_BYTES:
-                return _error_response(
-                    status.HTTP_413_CONTENT_TOO_LARGE,
-                    "review event is too large",
-                )
-        response = await call_next(request)
-        response.headers["Cache-Control"] = "no-store"
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        return response
+        return await _protected_response(request, call_next, allowed_origins)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(_request: Request, error: StarletteHTTPException) -> JSONResponse:

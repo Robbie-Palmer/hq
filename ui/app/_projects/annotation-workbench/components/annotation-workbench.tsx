@@ -324,11 +324,15 @@ function ReviewWorkspace({ workbench }: ActiveWorkbenchProps) {
 
 function ReviewColumns({ workbench }: ActiveWorkbenchProps) {
   const { session, item, draft } = workbench;
-  const saveLabel = workbench.currentReview
-    ? "Save changes"
-    : workbench.completedItems.size === session.bundle.items.length - 1
-      ? "Save and finish"
-      : "Save and next";
+  let saveLabel = "Save and next";
+  if (workbench.currentReview) {
+    saveLabel = "Save changes";
+  } else if (
+    workbench.completedItems.size ===
+    session.bundle.items.length - 1
+  ) {
+    saveLabel = "Save and finish";
+  }
   return (
     <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <ReviewImages

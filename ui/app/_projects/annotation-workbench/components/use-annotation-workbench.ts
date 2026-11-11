@@ -111,10 +111,10 @@ export function useAnnotationWorkbench() {
       const loaded = await loadReviewSession(serviceUrl);
       setSession(loaded);
       setCurrentIndex(0);
-    } catch (caught) {
+    } catch (error_) {
       setError(
-        caught instanceof Error
-          ? caught.message
+        error_ instanceof Error
+          ? error_.message
           : "Could not reach the review service",
       );
       setSession(null);
@@ -220,9 +220,9 @@ export function useAnnotationWorkbench() {
           Math.min(index + 1, session.bundle.items.length - 1),
         );
       }
-    } catch (caught) {
+    } catch (error_) {
       setError(
-        caught instanceof Error ? caught.message : "Review could not be saved",
+        error_ instanceof Error ? error_.message : "Review could not be saved",
       );
     } finally {
       setSaving(false);

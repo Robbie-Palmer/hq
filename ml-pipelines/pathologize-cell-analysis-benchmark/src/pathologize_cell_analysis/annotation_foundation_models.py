@@ -103,6 +103,48 @@ def load_comparison_config(path: Path) -> FoundationComparisonConfig:
     return FoundationComparisonConfig.model_validate(read_yaml(path))
 
 
+def _validate_cellsam_archive(
+    downloaded: Path, pin: CellSamModelPin
+) -> tuple[str, list[dict[str, Any]]]:
+    if downloaded.stat().st_size != pin.weights_bytes:
+        raise RuntimeError("CellSAM archive byte count differs from the pinned model")
+    digest = sha256_file(downloaded)
+    if digest != pin.weights_sha256:
+        raise RuntimeError("CellSAM archive SHA-256 differs from the pinned model")
+    members: list[dict[str, Any]] = []
+    with tarfile.open(downloaded, mode="r:gz") as archive:
+        for member in archive.getmembers():
+            path = Path(member.name)
+            if path.is_absolute() or ".." in path.parts:
+                raise RuntimeError("CellSAM archive contains an unsafe path")
+            if member.isfile():
+                members.append({"path": member.name, "bytes": member.size})
+    matching_members = [member for member in members if member["path"] == pin.archive_member]
+    if matching_members != [{"path": pin.archive_member, "bytes": pin.member_bytes}]:
+        raise RuntimeError("CellSAM archive does not contain the pinned model member")
+    return digest, members
+
+
+def _extract_cellsam_member(downloaded: Path, output: Path, pin: CellSamModelPin) -> None:
+    if output.is_file() and sha256_file(output) == pin.member_sha256:
+        return
+    temporary = output.with_suffix(output.suffix + ".part")
+    with tarfile.open(downloaded, mode="r:gz") as archive:
+        member = archive.getmember(pin.archive_member)
+        source = archive.extractfile(member)
+        if source is None:
+            raise RuntimeError("CellSAM model member could not be read")
+        with source, temporary.open("wb") as target:
+            shutil.copyfileobj(source, target)
+    if temporary.stat().st_size != pin.member_bytes:
+        temporary.unlink(missing_ok=True)
+        raise RuntimeError("extracted CellSAM model byte count differs from the pin")
+    if sha256_file(temporary) != pin.member_sha256:
+        temporary.unlink(missing_ok=True)
+        raise RuntimeError("extracted CellSAM model SHA-256 differs from the pin")
+    temporary.replace(output)
+
+
 def acquire_cellsam_weights(
     params: Path = Path("params/nucls-annotation-pilot.yaml"),
     output: Path = Path("models/annotation/cellsam-v1.2/cellsam_general.pt"),
@@ -120,40 +162,10 @@ def acquire_cellsam_weights(
             token=token,
         )
     )
-    if downloaded.stat().st_size != pin.weights_bytes:
-        raise RuntimeError("CellSAM archive byte count differs from the pinned model")
-    digest = sha256_file(downloaded)
-    if digest != pin.weights_sha256:
-        raise RuntimeError("CellSAM archive SHA-256 differs from the pinned model")
-    members: list[dict[str, Any]] = []
-    with tarfile.open(downloaded, mode="r:gz") as archive:
-        for member in archive.getmembers():
-            path = Path(member.name)
-            if path.is_absolute() or ".." in path.parts:
-                raise RuntimeError("CellSAM archive contains an unsafe path")
-            if member.isfile():
-                members.append({"path": member.name, "bytes": member.size})
-    matching_members = [member for member in members if member["path"] == pin.archive_member]
-    if matching_members != [{"path": pin.archive_member, "bytes": pin.member_bytes}]:
-        raise RuntimeError("CellSAM archive does not contain the pinned model member")
+    digest, members = _validate_cellsam_archive(downloaded, pin)
     output = output.resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    if not output.is_file() or sha256_file(output) != pin.member_sha256:
-        temporary = output.with_suffix(output.suffix + ".part")
-        with tarfile.open(downloaded, mode="r:gz") as archive:
-            member = archive.getmember(pin.archive_member)
-            source = archive.extractfile(member)
-            if source is None:
-                raise RuntimeError("CellSAM model member could not be read")
-            with source, temporary.open("wb") as target:
-                shutil.copyfileobj(source, target)
-        if temporary.stat().st_size != pin.member_bytes:
-            temporary.unlink(missing_ok=True)
-            raise RuntimeError("extracted CellSAM model byte count differs from the pin")
-        if sha256_file(temporary) != pin.member_sha256:
-            temporary.unlink(missing_ok=True)
-            raise RuntimeError("extracted CellSAM model SHA-256 differs from the pin")
-        temporary.replace(output)
+    _extract_cellsam_member(downloaded, output, pin)
     return {
         "repository": pin.repository,
         "revision": pin.revision,

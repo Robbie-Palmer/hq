@@ -204,10 +204,12 @@ def test_cli_validates_private_bind_and_writes_openapi(
         )
     ]
 
+    public_bind = ".".join(("0", "0", "0", "0"))
     with pytest.raises(ValueError, match="tailnet IP"):
-        commands.serve(bundle.as_posix(), host=".".join(("0", "0", "0", "0")))
+        commands.serve(bundle.as_posix(), host=public_bind)
+    invalid_port = 80
     with pytest.raises(ValueError, match="port"):
-        commands.serve(bundle.as_posix(), port=80)
+        commands.serve(bundle.as_posix(), port=invalid_port)
 
     contract = tmp_path / "openapi.json"
     commands.openapi(contract.as_posix())
