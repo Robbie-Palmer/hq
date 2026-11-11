@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "paip2019-liver-cancer-segmentation",
+  "title": "PAIP 2019 Liver Cancer Segmentation Challenge dataset",
+  "source": {
+    "publisher": "PAIP Committee",
+    "landing_page_url": "https://paip2019.grand-challenge.org/",
+    "dataset_page_url": "https://paip2019.grand-challenge.org/Dataset/",
+    "access_page_url": "https://wisepaip.org/",
+    "paper_doi": "10.1016/j.media.2020.101854",
+    "retrieved_at": "2026-11-11"
+  },
+  "access": {
+    "policy": "manual_dua_approval",
+    "authentication_required": true,
+    "automated_access": false,
+    "dataset_bytes_publicly_redistributable": false,
+    "dua": {
+      "url": "https://wisepaip.org/assets/files/PAIP_DUA.docx",
+      "bytes": 26721,
+      "sha256": "2019706cac6800c4dd26d3525f39d5f5d87d4b8d9aaab187be9bd40142f91cad",
+      "approval_authority": "PAIP Committee",
+      "restrictions": [
+        "Use is limited to the specific purpose approved by the PAIP Committee.",
+        "Do not attempt to link the dataset to an individual patient or patient group.",
+        "Do not disclose or share the dataset without prior written PAIP Committee consent.",
+        "Acknowledge the PAIP Committee as the data source in publications and presentations.",
+        "Stop using and destroy or return the dataset when the agreement expires or is terminated, subject to stated legal exceptions."
+      ]
+    }
+  },
+  "rights": {
+    "dataset": {
+      "name": "Creative Commons Attribution-NonCommercial 4.0 International",
+      "spdx_id": "CC-BY-NC-4.0",
+      "url": "https://creativecommons.org/licenses/by-nc/4.0/",
+      "scope": "PAIP challenge datasets",
+      "noncommercial": true
+    },
+    "publication": {
+      "name": "Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International",
+      "spdx_id": "CC-BY-NC-ND-4.0",
+      "url": "https://creativecommons.org/licenses/by-nc-nd/4.0/",
+      "scope": "The Medical Image Analysis challenge paper",
+      "noncommercial": true
+    }
+  },
+  "citation": "Kim, Y. J. et al. PAIP 2019: Liver cancer segmentation challenge. Medical Image Analysis 67, 101854 (2021). https://doi.org/10.1016/j.media.2020.101854",
+  "cohort": {
+    "organ": "liver",
+    "histology": "hepatocellular carcinoma",
+    "case_identifier": "Random case number assigned after removal of the original specimen label.",
+    "patient_case_relation": "One selected slide from one patient per challenge case.",
+    "collection_period": "2005 through June 2018",
+    "case_level_institution_available": false,
+    "source_institutions": [
+      {"id": "snuh", "name": "Seoul National University Hospital"},
+      {"id": "snubh", "name": "Seoul National University Bundang Hospital"},
+      {"id": "smg-snu-bmc", "name": "SMG-SNU Boramae Medical Center"}
+    ],
+    "additional_clinicopathologic_data_provided": false
+  },
+  "imaging": {
+    "stain": "hematoxylin and eosin",
+    "scanner": "Aperio AT2",
+    "format": "svs",
+    "nominal_magnification": 20,
+    "micrometres_per_pixel": null,
+    "physical_scale_policy": "Record per-slide MPP from the SVS metadata when present; do not infer MPP from nominal magnification."
+  },
+  "publisher_roles": [
+    {
+      "role": "training",
+      "case_count": 50,
+      "specimen": "resection",
+      "released_artifacts": ["whole_slide", "xml_annotation", "whole_tumor_mask", "viable_tumor_mask"],
+      "released_measurements": ["whole_tumor_area_mm2", "viable_tumor_area_mm2", "viable_tumor_burden_percent"],
+      "ground_truth_status": "released"
+    },
+    {
+      "role": "validation",
+      "case_count": 10,
+      "specimen": "resection",
+      "released_artifacts": ["whole_slide"],
+      "released_measurements": [],
+      "ground_truth_status": "held_by_challenge_committee"
+    },
+    {
+      "role": "test",
+      "case_count": 40,
+      "specimen": "resection_or_biopsy",
+      "released_artifacts": ["whole_slide"],
+      "released_measurements": [],
+      "ground_truth_status": "held_by_challenge_committee"
+    }
+  ],
+  "annotations": {
+    "xml_status": "reference_annotation",
+    "ground_truth": "publisher_binary_tif_masks",
+    "xml_coordinate_frame": "aperio_imagescope_slide_coordinates",
+    "regions": [
+      {"annotation_id": "1", "negative_roa": false, "name": "whole_tumor_area"},
+      {"annotation_id": "2", "negative_roa": false, "name": "viable_tumor_area"},
+      {"annotation_id": "2", "negative_roa": true, "name": "negative_pen_region"}
+    ],
+    "negative_pen_policy": "Ignore these pathologist-designated regions. The publisher excludes them from binary masks and viable tumour burden.",
+    "mask_generation": {
+      "tissue_background_rgb_threshold": [235, 210, 235],
+      "fills_closed_xml_polygons": true,
+      "fills_tissue_holes": true,
+      "removes_tissue_components_smaller_than_pixels": 10,
+      "multiplies_preliminary_roi_masks_by_tissue_mask": true
+    }
+  },
+  "interfaces": {
+    "record_reference_template": "paip2019:<publisher-case-id>",
+    "artifact_reference_template": "paip2019:<publisher-case-id>:<artifact-kind>",
+    "native_index_path": "outputs/private/native-index.jsonl",
+    "ownership": "This source product owns the original PAIP artifacts and native records. Downstream products reference them without copying bytes."
+  }
+}
