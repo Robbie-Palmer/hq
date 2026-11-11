@@ -21,6 +21,8 @@ Current products:
   TCGA slides for the fixed 24-slide pilot.
 - `camelyon/roi`: source-native CAMELYON16 slides and compatible annotated
   CAMELYON17 slides, XML lesion ROIs, rights, checksums, and challenge roles.
+- `paip2019/liver-roi`: source-native PAIP 2019 liver whole-slide images,
+  tumour masks, XML regions, challenge roles, and gated access contract.
 - `segpath/registered-if-masks`: source-native SegPath H&E patches and
   registered IF-derived binary masks across eight antigen tasks.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
