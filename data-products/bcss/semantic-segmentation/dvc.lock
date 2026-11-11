@@ -23,8 +23,8 @@ stages:
       nfiles: 1
     - path: src/bcss_source_data
       hash: md5
-      md5: 3ce462a0f276cbdff03751f44c186fde.dir
-      size: 21231
+      md5: 3321dd2d9be808906429a0cf898fcf8a.dir
+      size: 21794
       nfiles: 5
     - path: uv.lock
       hash: md5

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from typing import Literal, Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
@@ -7,6 +8,10 @@ from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
+
+
+def _matches_published_float(value: float, expected: float) -> bool:
+    return math.isclose(value, expected, rel_tol=0.0, abs_tol=1e-12)
 
 
 class Digest(StrictModel):
@@ -51,9 +56,15 @@ class PhysicalScale(StrictModel):
 
     @model_validator(mode="after")
     def require_published_scale(self) -> Self:
-        if self.published_microns_per_pixel != 0.25:
+        if not _matches_published_float(self.published_microns_per_pixel, 0.25):
             raise ValueError("BCSS publication scale must remain 0.25 microns per pixel")
-        if self.scan_magnifications != [20.0, 40.0]:
+        expected_magnifications = [20.0, 40.0]
+        if len(self.scan_magnifications) != len(expected_magnifications) or not all(
+            _matches_published_float(actual, expected)
+            for actual, expected in zip(
+                self.scan_magnifications, expected_magnifications, strict=True
+            )
+        ):
             raise ValueError("BCSS scan magnifications must remain 20x and 40x")
         return self
 
@@ -157,7 +168,9 @@ class WsiReference(StrictModel):
 
     @model_validator(mode="after")
     def match_resolution(self) -> Self:
-        if self.scan_magnification not in {20.0, 40.0}:
+        if not any(
+            _matches_published_float(self.scan_magnification, expected) for expected in (20.0, 40.0)
+        ):
             raise ValueError("BCSS scan magnification must be 20x or 40x")
         if (self.gdc_resolution == "resolved") != (self.gdc is not None):
             raise ValueError("GDC resolution and artifact must agree")
@@ -188,7 +201,7 @@ class ImageExtraction(StrictModel):
 
     @model_validator(mode="after")
     def require_published_scale(self) -> Self:
-        if self.microns_per_pixel != 0.25:
+        if not _matches_published_float(self.microns_per_pixel, 0.25):
             raise ValueError("BCSS image extraction must retain the publisher 0.25 MPP")
         return self
 
