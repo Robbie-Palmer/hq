@@ -702,6 +702,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/nci-bpv-v1-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/nci/bpv-v1" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/paip2019-liver-roi-data-product"
     project: "project:pathologize"
     paths: [ "data-products/paip2019/liver-roi" ]

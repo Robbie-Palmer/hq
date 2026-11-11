@@ -1,0 +1,139 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "nci-bpv-phs001304-v1-p1",
+  "public_metadata_files": [
+    {
+      "artifact_id": "dbgap:phs001304.v1.p1:gap-exchange",
+      "file_name": "GapExchange_phs001304.v1.p1.xml",
+      "kind": "study_exchange",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/GapExchange_phs001304.v1.p1.xml",
+      "bytes": 11521,
+      "sha256": "50f5104edf151325fc2ca082c06bb88e1867e7b09dec15d47d4d1f96aa01a587"
+    },
+    {
+      "artifact_id": "dbgap:pht008315.v1:data-dictionary",
+      "file_name": "phs001304.v1.pht008315.v1.BPV_CIT_mRNA_Sample_Attributes.data_dict.xml",
+      "kind": "data_dictionary",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001304.v1.pht008315.v1.BPV_CIT_mRNA_Sample_Attributes.data_dict.xml",
+      "bytes": 22012,
+      "sha256": "e8cb2c0273cf32cadbdb89ec46f5e6e6d382cffe2fbb44496d2ebbc481fd4edf"
+    },
+    {
+      "artifact_id": "dbgap:pht008316.v1:data-dictionary",
+      "file_name": "phs001304.v1.pht008316.v1.BPV_CNV_aCGH_Sample_Attributes.data_dict.xml",
+      "kind": "data_dictionary",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001304.v1.pht008316.v1.BPV_CNV_aCGH_Sample_Attributes.data_dict.xml",
+      "bytes": 29866,
+      "sha256": "5d90c3d96738bd234fee4dda576a21585916f2887e194e0cf8cc0856f3a81a44"
+    },
+    {
+      "artifact_id": "dbgap:pht008317.v1:data-dictionary",
+      "file_name": "phs001304.v1.pht008317.v1.BPV_FixationDelay_Sample_Attributes.data_dict.xml",
+      "kind": "data_dictionary",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001304.v1.pht008317.v1.BPV_FixationDelay_Sample_Attributes.data_dict.xml",
+      "bytes": 20059,
+      "sha256": "7e7b757ea07a1615e47fd84ab07c7b8002c2798f5e8d9513cafaf71253eb1f8a"
+    },
+    {
+      "artifact_id": "dbgap:pht008318.v1:data-dictionary",
+      "file_name": "phs001304.v1.pht008318.v1.BPV_Global_Metabolite_Profiling_Sample_Attributes.data_dict.xml",
+      "kind": "data_dictionary",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001304.v1.pht008318.v1.BPV_Global_Metabolite_Profiling_Sample_Attributes.data_dict.xml",
+      "bytes": 9465,
+      "sha256": "6dae24f1deeb3ddffb2781e94dd4fd2af25fe92326e5dd65c3b930334fef8a2c"
+    },
+    {
+      "artifact_id": "dbgap:pht008319.v1:data-dictionary",
+      "file_name": "phs001304.v1.pht008319.v1.BPV_NGS_Sample_Attributes.data_dict.xml",
+      "kind": "data_dictionary",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001304.v1.pht008319.v1.BPV_NGS_Sample_Attributes.data_dict.xml",
+      "bytes": 22077,
+      "sha256": "81425321f59b810e4879bd73fc9bde30cc5fb569fb2909feb3a91c71dd0d2a54"
+    },
+    {
+      "artifact_id": "dbgap:pht008320.v1:data-dictionary",
+      "file_name": "phs001304.v1.pht008320.v1.BPV_Tumor_Storage_Sample_Attributes.data_dict.xml",
+      "kind": "data_dictionary",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001304.v1.pht008320.v1.BPV_Tumor_Storage_Sample_Attributes.data_dict.xml",
+      "bytes": 28466,
+      "sha256": "f1de0e1807a357207011381133a896806254d747291b35074408cbd04a3272e7"
+    },
+    {
+      "artifact_id": "dbgap:pht008321.v1:data-dictionary",
+      "file_name": "phs001304.v1.pht008321.v1.BPV_mRNA_TaqMan_Sample_Attributes.data_dict.xml",
+      "kind": "data_dictionary",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001304.v1.pht008321.v1.BPV_mRNA_TaqMan_Sample_Attributes.data_dict.xml",
+      "bytes": 21051,
+      "sha256": "e8a7741cc2f2dc5806b16a172ad4cf4a1ebe686e03561ee87e01874308c06f48"
+    },
+    {
+      "artifact_id": "dbgap:phs001634.v1.p1:variable-report",
+      "file_name": "phs001634.v1.pht008315.v1.p1.BPV_CIT_mRNA_Sample_Attributes.var_report.xml",
+      "kind": "variable_report",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001634.v1.pht008315.v1.p1.BPV_CIT_mRNA_Sample_Attributes.var_report.xml",
+      "bytes": 65147,
+      "sha256": "892aab33279b31dda33f0f3d2652ee6fb6e59c9e9d407aed8d72e4ff08a74b7c"
+    },
+    {
+      "artifact_id": "dbgap:phs001635.v1.p1:variable-report",
+      "file_name": "phs001635.v1.pht008316.v1.p1.BPV_CNV_aCGH_Sample_Attributes.var_report.xml",
+      "kind": "variable_report",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001635.v1.pht008316.v1.p1.BPV_CNV_aCGH_Sample_Attributes.var_report.xml",
+      "bytes": 82969,
+      "sha256": "26e112d4f1565e1fb3f2b7ac9eca18706ad7e3c71483a3b0acf49d2e13be1c34"
+    },
+    {
+      "artifact_id": "dbgap:phs001636.v1.p1:variable-report",
+      "file_name": "phs001636.v1.pht008317.v1.p1.BPV_FixationDelay_Sample_Attributes.var_report.xml",
+      "kind": "variable_report",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001636.v1.pht008317.v1.p1.BPV_FixationDelay_Sample_Attributes.var_report.xml",
+      "bytes": 50300,
+      "sha256": "ecf348482a26b00731530f1a3cfef6c5df666f1e3426e9be71201746f35df5d0"
+    },
+    {
+      "artifact_id": "dbgap:phs001637.v1.p1:variable-report",
+      "file_name": "phs001637.v1.pht008318.v1.p1.BPV_Global_Metabolite_Profiling_Sample_Attributes.var_report.xml",
+      "kind": "variable_report",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001637.v1.pht008318.v1.p1.BPV_Global_Metabolite_Profiling_Sample_Attributes.var_report.xml",
+      "bytes": 22865,
+      "sha256": "c744d75823ae583be0b390273f64873bbd7b98f34d716b7380f2d762d9eb04f0"
+    },
+    {
+      "artifact_id": "dbgap:phs001638.v1.p1:variable-report",
+      "file_name": "phs001638.v1.pht008321.v1.p1.BPV_mRNA_TaqMan_Sample_Attributes.var_report.xml",
+      "kind": "variable_report",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001638.v1.pht008321.v1.p1.BPV_mRNA_TaqMan_Sample_Attributes.var_report.xml",
+      "bytes": 57949,
+      "sha256": "ad643222d914aa1a8ca89da23e71283d41574be686b4d66b43a39f53147a030d"
+    },
+    {
+      "artifact_id": "dbgap:phs001639.v1.p1:variable-report",
+      "file_name": "phs001639.v1.pht008319.v1.p1.BPV_NGS_Sample_Attributes.var_report.xml",
+      "kind": "variable_report",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001639.v1.pht008319.v1.p1.BPV_NGS_Sample_Attributes.var_report.xml",
+      "bytes": 68798,
+      "sha256": "101541f83bb6c95e971b9c28db65699d71396f5acdd1e70ddcf48e1e63e0c4e5"
+    },
+    {
+      "artifact_id": "dbgap:phs001640.v1.p1:variable-report",
+      "file_name": "phs001640.v1.pht008320.v1.p1.BPV_Tumor_Storage_Sample_Attributes.var_report.xml",
+      "kind": "variable_report",
+      "url": "https://ftp.ncbi.nlm.nih.gov/dbgap/studies/phs001304/phs001304.v1.p1/pheno_variable_summaries/phs001640.v1.pht008320.v1.p1.BPV_Tumor_Storage_Sample_Attributes.var_report.xml",
+      "bytes": 73626,
+      "sha256": "0c41fc4b4ca53989f1413192bbb5a6af8af459889bf9f24f1a74853efa3bcbad"
+    }
+  ],
+  "controlled_dataset_families": [
+    {"accession": "pht008312.v1", "native_name": "BPV_Subject", "role": "participant identities and consent", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008313.v1", "native_name": "BPV_Sample", "role": "subject, specimen, block, and aliquot links", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008314.v1", "native_name": "BPV_Subject_Phenotypes", "role": "participant diagnoses and collection-site phenotypes", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008315.v1", "native_name": "BPV_CIT_mRNA_Sample_Attributes", "role": "CIT_mRNA specimen, aliquot, preparation, pathology, and QC records", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008316.v1", "native_name": "BPV_CNV_aCGH_Sample_Attributes", "role": "CNV aCGH specimen, preparation, pathology, and QC records", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008317.v1", "native_name": "BPV_FixationDelay_Sample_Attributes", "role": "fixation-delay specimen, preparation, pathology, and QC records", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008318.v1", "native_name": "BPV_Global_Metabolite_Profiling_Sample_Attributes", "role": "plasma aliquot, storage, and metabolomics records", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008319.v1", "native_name": "BPV_NGS_Sample_Attributes", "role": "matched FFPE and fresh-frozen specimen, aliquot, assay, and QC records", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008320.v1", "native_name": "BPV_Tumor_Storage_Sample_Attributes", "role": "tumor and plasma storage specimen, aliquot, assay, and QC records", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "pht008321.v1", "native_name": "BPV_mRNA_TaqMan_Sample_Attributes", "role": "frozen-method, OCT, storage, TaqMan, and QC records", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Visible only after authorization"},
+    {"accession": "phs001304.v1.p1:molecular", "native_name": "BPV molecular assay artifacts", "role": "RNA-seq, miRNA-seq, WES, aCGH, proteomics, phosphoproteomics, metabolomics, TaqMan, and PCR artifacts", "access_tier": "dbGaP authorized", "bytes": null, "checksum": null, "missing_reason": "Repository file manifests, sizes, and checksums require authorization"}
+  ]
+}

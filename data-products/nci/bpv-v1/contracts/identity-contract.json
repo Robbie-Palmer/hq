@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "nci-bpv-phs001304-v1-p1",
+  "native_granularities": ["subject", "specimen", "block", "aliquot", "assay", "artifact"],
+  "required_identity_fields": ["participant_id", "specimen_id", "block_id", "aliquot_id", "assay_id"],
+  "link_fields": ["parent_specimen_id", "matched_specimen_id", "matched_aliquot_id"],
+  "native_preanalytic_fields": ["cold_ischemia_minutes", "fixation_duration_minutes", "material", "freezing_method", "storage_temperature", "storage_duration", "embedding", "collection_site", "pathology_review"],
+  "artifact_fields": ["artifact_id", "native_file_name", "repository_url", "access_tier", "bytes", "checksum_algorithm", "checksum", "missing_reason"],
+  "missingness_rule": "A missing source field remains null and carries a publisher or repository missingness reason. The product does not impute it.",
+  "pairing_rule": "Matched specimen and aliquot identifiers are retained as publisher links. The product does not infer pairs.",
+  "partition_rule": "The publisher declares no machine-learning train, validation, or test roles. This product creates none.",
+  "controlled_data_rule": "Authorized records may be validated in place. The command reports counts only and does not copy records into this repository."
+}

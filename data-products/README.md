@@ -19,6 +19,8 @@ Current products:
   provider-specific masks, rights, checksums, and gated access contract.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `nci/bpv-v1`: source-native NCI BPV public metadata, native preparation
+  variables, aggregate missingness, and authorized-record identity contracts.
 - `paip2019/liver-roi`: source-native PAIP 2019 liver whole-slide images,
   tumour masks, XML regions, challenge roles, and gated access contract.
 - `segpath/registered-if-masks`: source-native SegPath H&E patches and
