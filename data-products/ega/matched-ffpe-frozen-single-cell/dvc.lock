@@ -18,8 +18,8 @@ stages:
       size: 1124
     - path: src/ega_matched_single_cell
       hash: md5
-      md5: ad819e38829c26195726007d21559786.dir
-      size: 23766
+      md5: 2c9237db47991682118e4cfd5156dbfc.dir
+      size: 23885
       nfiles: 4
     - path: tests/fixtures/ega-public-metadata
       hash: md5

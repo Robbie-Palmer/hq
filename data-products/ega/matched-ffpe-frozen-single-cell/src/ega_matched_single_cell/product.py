@@ -77,53 +77,62 @@ def _unique_accessions(records: Sequence[_HasAccession], kind: str) -> None:
         raise ProductError(f"duplicate {kind} accession")
 
 
+def _sample_pair_key(
+    sample: Sample,
+) -> tuple[str, Literal["ffpe", "frozen"], re.Match[str]]:
+    match = SAMPLE_TITLE.fullmatch(sample.title)
+    if match is None:
+        raise ProductError(f"sample title does not preserve the publisher pairing: {sample.title}")
+    if f"sample {match['label']} from patient {match['patient']}" not in sample.description:
+        raise ProductError(
+            f"sample description differs from its publisher title: {sample.accession_id}"
+        )
+    pair_label = f"{match['patient']}-{match['preparation']}-{match['biopsy']}"
+    role: Literal["ffpe", "frozen"] = "ffpe" if match["ffpe"] else "frozen"
+    return pair_label, role, match
+
+
+def _pair_record(
+    pair_label: str,
+    members: dict[str, Sample],
+    match: re.Match[str],
+) -> PairRecord:
+    if set(members) != {"ffpe", "frozen"}:
+        raise ProductError(f"incomplete publisher sample pair: {pair_label}")
+    frozen = members["frozen"]
+    ffpe = members["ffpe"]
+    if frozen.subject_id is None or frozen.subject_id != match["patient"]:
+        raise ProductError(f"subject-id missingness changed for {pair_label}")
+    if ffpe.subject_id is not None:
+        raise ProductError(f"subject-id missingness changed for {pair_label}")
+    if frozen.phenotype != ffpe.phenotype:
+        raise ProductError(f"phenotype differs inside publisher sample pair: {pair_label}")
+    return PairRecord(
+        publisher_pair_label=pair_label,
+        publisher_patient_label=match["patient"],
+        publisher_biopsy_label=match["biopsy"],
+        frozen_preparation_code=cast("Literal['FF', 'OCT']", match["preparation"]),
+        frozen_sample_accession=frozen.accession_id,
+        ffpe_sample_accession=ffpe.accession_id,
+        frozen_subject_id=frozen.subject_id,
+        ffpe_subject_id=ffpe.subject_id,
+        relationship_evidence="EGA sample titles and paper matched-pair design",
+    )
+
+
 def _sample_pairs(samples: list[Sample]) -> list[PairRecord]:
     grouped: dict[str, dict[str, Sample]] = {}
     parsed: dict[str, re.Match[str]] = {}
     for sample in samples:
-        match = SAMPLE_TITLE.fullmatch(sample.title)
-        if match is None:
-            raise ProductError(
-                f"sample title does not preserve the publisher pairing: {sample.title}"
-            )
-        if f"sample {match['label']} from patient {match['patient']}" not in sample.description:
-            raise ProductError(
-                f"sample description differs from its publisher title: {sample.accession_id}"
-            )
-        pair_label = f"{match['patient']}-{match['preparation']}-{match['biopsy']}"
-        role = "ffpe" if match["ffpe"] else "frozen"
+        pair_label, role, match = _sample_pair_key(sample)
         if role in grouped.setdefault(pair_label, {}):
             raise ProductError(f"duplicate {role} sample for {pair_label}")
         grouped[pair_label][role] = sample
         parsed[pair_label] = match
-
-    pairs: list[PairRecord] = []
-    for pair_label, members in sorted(grouped.items()):
-        if set(members) != {"ffpe", "frozen"}:
-            raise ProductError(f"incomplete publisher sample pair: {pair_label}")
-        match = parsed[pair_label]
-        frozen = members["frozen"]
-        ffpe = members["ffpe"]
-        if frozen.subject_id is None or frozen.subject_id != match["patient"]:
-            raise ProductError(f"subject-id missingness changed for {pair_label}")
-        if ffpe.subject_id is not None:
-            raise ProductError(f"subject-id missingness changed for {pair_label}")
-        if frozen.phenotype != ffpe.phenotype:
-            raise ProductError(f"phenotype differs inside publisher sample pair: {pair_label}")
-        pairs.append(
-            PairRecord(
-                publisher_pair_label=pair_label,
-                publisher_patient_label=match["patient"],
-                publisher_biopsy_label=match["biopsy"],
-                frozen_preparation_code=cast("Literal['FF', 'OCT']", match["preparation"]),
-                frozen_sample_accession=frozen.accession_id,
-                ffpe_sample_accession=ffpe.accession_id,
-                frozen_subject_id=frozen.subject_id,
-                ffpe_subject_id=ffpe.subject_id,
-                relationship_evidence="EGA sample titles and paper matched-pair design",
-            )
-        )
-    return pairs
+    return [
+        _pair_record(pair_label, members, parsed[pair_label])
+        for pair_label, members in sorted(grouped.items())
+    ]
 
 
 def _validate_repository_counts(
