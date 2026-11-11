@@ -1,0 +1,20 @@
+{
+  "archive": {
+    "bytes": 2159052394,
+    "content_type": "application/x-zip-compressed",
+    "file_id": "6ab087a7-ca89-47ac-9698-f6546bb50f98",
+    "filename": "SICAPv2.zip",
+    "sha256": "a28aa6a0e3831217bf31575cecfc1846607ace7ff25a4392f07052bbc7355916"
+  },
+  "archive_bytes_downloaded": false,
+  "contributor_profile_id": "f1d364e0-92ba-3975-9ba1-a288ab10c04e",
+  "credentials_required": false,
+  "dataset_id": "sicapv2-mendeley-v2",
+  "doi": "10.17632/9xxm58dvs3.2",
+  "license": "CC-BY-4.0",
+  "publisher_dataset_id": "9xxm58dvs3",
+  "publisher_version": 2,
+  "schema_version": "1.0.0",
+  "verification_scope": "publisher_metadata_only",
+  "verified": true
+}

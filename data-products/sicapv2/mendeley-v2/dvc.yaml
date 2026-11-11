@@ -1,0 +1,38 @@
+stages:
+  verify_publisher_metadata:
+    cmd: uv run --locked sicapv2-source-data verify-metadata
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - records/publisher-metadata.json
+      - src/sicapv2_source_data
+      - uv.lock
+
+  acquire_native:
+    cmd: uv run --locked sicapv2-source-data acquire
+    deps:
+      - .python-version
+      - manifest.json
+      - records/publisher-metadata.json
+      - pyproject.toml
+      - src/sicapv2_source_data
+      - uv.lock
+    outs:
+      - data/raw/SICAPv2.zip
+
+  index_native:
+    cmd: uv run --locked sicapv2-source-data index
+    deps:
+      - data/raw/SICAPv2.zip
+      - manifest.json
+      - pyproject.toml
+      - src/sicapv2_source_data
+      - uv.lock
+    outs:
+      - outputs/catalog.json
+      - outputs/patches.jsonl
+      - outputs/patients.jsonl
+      - outputs/slides.jsonl
+    metrics:
+      - outputs/source-metrics.json

@@ -17,6 +17,8 @@ Current products:
   annotations, ontology, and official fold roles.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `sicapv2/mendeley-v2`: source-native SICAPv2 patients, slides, patches,
+  Gleason-pattern masks, global scores, and publisher partitions.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
