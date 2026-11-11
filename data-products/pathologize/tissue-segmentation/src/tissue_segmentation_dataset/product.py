@@ -538,6 +538,13 @@ def _is_fixture_input(root: Path, path: Path, item: dict[str, Any]) -> bool:
     return path.resolve() in candidates
 
 
+def _default_source_paths(
+    root: Path, spec: ProductSpec, imports: dict[str, Any]
+) -> dict[str, Path]:
+    interface_field = "contract_fixture" if spec.fixture_data_only else "expected_interface"
+    return {item["source_dataset_id"]: root / item[interface_field] for item in imports["imports"]}
+
+
 def build_product(
     root: Path = PROJECT_DIR, *, source_paths: dict[str, Path] | None = None
 ) -> dict[str, object]:
@@ -548,12 +555,7 @@ def build_product(
     adapters = _load_adapters(root)
     _validate_contracts(root, spec, adapters, imports)
     input_paths = (
-        source_paths
-        if source_paths is not None
-        else {
-            item["source_dataset_id"]: root / item["contract_fixture"]
-            for item in imports["imports"]
-        }
+        source_paths if source_paths is not None else _default_source_paths(root, spec, imports)
     )
     model_by_kind: dict[str, type[BaseModel]] = {
         "bcss": BcssRecord,

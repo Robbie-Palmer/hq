@@ -4,8 +4,13 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from tissue_segmentation_dataset.models import Adapter, AnnotationProvenance, AssayProvenance
-from tissue_segmentation_dataset.product import ProductError, build_product
+from tissue_segmentation_dataset.models import (
+    Adapter,
+    AnnotationProvenance,
+    AssayProvenance,
+    ProductSpec,
+)
+from tissue_segmentation_dataset.product import ProductError, _default_source_paths, build_product
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 FIXTURES = PROJECT_DIR / "tests/fixtures"
@@ -170,6 +175,20 @@ def test_product_rejects_duplicate_source_record_id(tmp_path: Path) -> None:
 def test_explicit_empty_source_paths_do_not_fall_back_to_fixtures(tmp_path: Path) -> None:
     with pytest.raises(ProductError, match="cover every configured source exactly once"):
         build_product(_root(tmp_path), source_paths={})
+
+
+def test_published_product_defaults_to_native_source_interfaces(tmp_path: Path) -> None:
+    imports = json.loads((PROJECT_DIR / "imports.json").read_text(encoding="utf-8"))
+    spec = ProductSpec.model_validate_json(
+        (PROJECT_DIR / "products/general-tissue-segmentation-v1.json").read_text(encoding="utf-8")
+    ).model_copy(update={"publication_state": "published", "fixture_data_only": False})
+
+    paths = _default_source_paths(tmp_path, spec, imports)
+
+    assert paths == {
+        item["source_dataset_id"]: tmp_path / item["expected_interface"]
+        for item in imports["imports"]
+    }
 
 
 def test_pinned_import_status_does_not_make_fixtures_production_ready(tmp_path: Path) -> None:

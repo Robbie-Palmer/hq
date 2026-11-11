@@ -53,8 +53,8 @@ stages:
       size: 1359
     - path: src/tissue_segmentation_dataset
       hash: md5
-      md5: 53143f5e7f7b063b155506fa22a799bd.dir
-      size: 35087
+      md5: 8c9dd03c48d36c0a9a789f1356e61ba1.dir
+      size: 35291
       nfiles: 4
     - path: tests/fixtures
       hash: md5
