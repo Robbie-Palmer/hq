@@ -1,0 +1,6 @@
+/metadata/raw
+/outputs
+/.venv
+/.coverage
+/coverage.xml
+**/__pycache__/

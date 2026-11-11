@@ -1,0 +1,171 @@
+{
+  "data": {
+    "hits": [
+      {
+        "id": "42a5d708-12ed-4307-b422-98a46291f89a",
+        "file_id": "42a5d708-12ed-4307-b422-98a46291f89a",
+        "file_name": "TCGA-GN-A267-06A-11-A20N-20_RPPA_data.tsv",
+        "md5sum": "d23cfb4829a67ada70becadfc78a7e99",
+        "file_size": 22212,
+        "access": "open",
+        "data_category": "Proteome Profiling",
+        "data_type": "Protein Expression Quantification",
+        "data_format": "TSV",
+        "experimental_strategy": "Reverse Phase Protein Array",
+        "associated_entities": [
+          {
+            "entity_submitter_id": "TCGA-GN-A267-06A-11",
+            "entity_type": "portion",
+            "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+            "entity_id": "3cec15ac-cab1-4aaa-9675-148daf5ab309"
+          }
+        ],
+        "cases": [
+          {
+            "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+            "submitter_id": "TCGA-GN-A267",
+            "project": {"project_id": "TCGA-SKCM"},
+            "annotations": [
+              {
+                "annotation_id": "196724e8-a415-5d26-b01a-c69e96cad564",
+                "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+                "case_submitter_id": "TCGA-GN-A267",
+                "entity_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+                "entity_submitter_id": "TCGA-GN-A267",
+                "entity_type": "case",
+                "classification": "Notification",
+                "category": "Acceptable treatment for TCGA tumor",
+                "status": "Approved",
+                "state": "released",
+                "submitter_id": "15930",
+                "notes": "Patient received interferon for the specimen submitted to TCGA.",
+                "created_datetime": "2013-04-18T00:00:00",
+                "updated_datetime": "2018-08-23T16:28:11.210272-05:00"
+              }
+            ],
+            "samples": [
+              {
+                "sample_id": "dd221713-e6d5-461f-bfc2-c770d7cd7cb7",
+                "submitter_id": "TCGA-GN-A267-06A",
+                "sample_type": "Metastatic",
+                "specimen_type": "Unknown",
+                "tissue_type": "Tumor",
+                "tumor_descriptor": "Metastatic",
+                "portions": [
+                  {
+                    "portion_id": "3cec15ac-cab1-4aaa-9675-148daf5ab309",
+                    "submitter_id": "TCGA-GN-A267-06A-11"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "5598235e-d2d1-46b9-9ef7-b1cab62fb633",
+        "file_id": "5598235e-d2d1-46b9-9ef7-b1cab62fb633",
+        "file_name": "20a06f04-b457-408f-8c3c-f0032badf064.rna_seq.augmented_star_gene_counts.tsv",
+        "md5sum": "a2814376ad6b3b5d116803bd3300af6d",
+        "file_size": 4216954,
+        "access": "open",
+        "data_category": "Transcriptome Profiling",
+        "data_type": "Gene Expression Quantification",
+        "data_format": "TSV",
+        "experimental_strategy": "RNA-Seq",
+        "analysis": {
+          "analysis_id": "a03ac540-06f7-40d0-ac3e-ac3b7c971305",
+          "workflow_type": "STAR - Counts",
+          "workflow_link": "https://github.com/NCI-GDC/gdc-rnaseq-cwl/blob/5d8c131bbff59fb0c969217fc1d44e6d1503cd1f/rnaseq-star-align/star2pass.rnaseq_harmonization.cwl",
+          "workflow_version": "5d8c131bbff59fb0c969217fc1d44e6d1503cd1f",
+          "submitter_id": "20a06f04-b457-408f-8c3c-f0032badf064_star__counts",
+          "state": "released",
+          "created_datetime": "2021-12-13T21:07:46.954712-06:00",
+          "updated_datetime": "2022-01-19T14:34:49.373359-06:00"
+        },
+        "associated_entities": [
+          {
+            "entity_submitter_id": "TCGA-GN-A267-06A-21R-A18T-07",
+            "entity_type": "aliquot",
+            "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+            "entity_id": "58fd742d-535c-494e-bb28-1bb908bfa294"
+          }
+        ],
+        "cases": [
+          {
+            "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+            "submitter_id": "TCGA-GN-A267",
+            "project": {"project_id": "TCGA-SKCM"},
+            "annotations": [
+              {
+                "annotation_id": "196724e8-a415-5d26-b01a-c69e96cad564",
+                "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+                "case_submitter_id": "TCGA-GN-A267",
+                "entity_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+                "entity_submitter_id": "TCGA-GN-A267",
+                "entity_type": "case",
+                "classification": "Notification",
+                "category": "Acceptable treatment for TCGA tumor",
+                "status": "Approved",
+                "state": "released",
+                "submitter_id": "15930",
+                "notes": "Patient received interferon for the specimen submitted to TCGA.",
+                "created_datetime": "2013-04-18T00:00:00",
+                "updated_datetime": "2018-08-23T16:28:11.210272-05:00"
+              }
+            ],
+            "samples": [
+              {
+                "sample_id": "dd221713-e6d5-461f-bfc2-c770d7cd7cb7",
+                "submitter_id": "TCGA-GN-A267-06A",
+                "sample_type": "Metastatic",
+                "specimen_type": "Unknown",
+                "tissue_type": "Tumor",
+                "tumor_descriptor": "Metastatic",
+                "portions": [
+                  {
+                    "portion_id": "0e90a9c5-77a1-4d21-be75-a023f88c5f22",
+                    "submitter_id": "TCGA-GN-A267-06A-21",
+                    "portion_number": "21",
+                    "is_ffpe": false,
+                    "slides": [
+                      {
+                        "slide_id": "b67e2978-1396-4698-98fd-8105ec036778",
+                        "submitter_id": "TCGA-GN-A267-06A-02-TSB",
+                        "section_location": "TOP"
+                      }
+                    ],
+                    "analytes": [
+                      {
+                        "analyte_id": "dd9e396f-6b09-4264-8ddd-eb61628b3f75",
+                        "submitter_id": "TCGA-GN-A267-06A-21R",
+                        "analyte_type": "RNA",
+                        "experimental_protocol_type": "nRNA - Melanoma Protocol",
+                        "aliquots": [
+                          {
+                            "aliquot_id": "58fd742d-535c-494e-bb28-1bb908bfa294",
+                            "submitter_id": "TCGA-GN-A267-06A-21R-A18T-07"
+                          }
+                        ]
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "pagination": {
+      "count": 2,
+      "total": 2,
+      "size": 2,
+      "from": 0,
+      "sort": "file_id:asc",
+      "page": 1,
+      "pages": 1
+    }
+  },
+  "warnings": {}
+}

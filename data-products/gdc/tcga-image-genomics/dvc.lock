@@ -1,0 +1,69 @@
+schema: '2.0'
+stages:
+  verify_release_46_metadata:
+    cmd: uv run --locked gdc-tcga-image-genomics verify
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: c8f8eaaad03263e693bbf5c1b52dcde5.dir
+      size: 7685
+      nfiles: 3
+    - path: fixtures/release-46.0
+      hash: md5
+      md5: f511702a621c7eb296ade91843413a49.dir
+      size: 10490
+      nfiles: 4
+    - path: pyproject.toml
+      hash: md5
+      md5: 93f5deea2ff1a2d375873711122014ee
+      size: 1105
+    - path: src/gdc_tcga_image_genomics
+      hash: md5
+      md5: a9990d9b04d718551f22e79fe107ae9d.dir
+      size: 33646
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: 97d4a4a73895f6dabd95c49871994f69
+      size: 34619
+    outs:
+    - path: outputs/verification/annotations.jsonl
+      hash: md5
+      md5: 463da067ec439daf36c8bb41905674a4
+      size: 589
+    - path: outputs/verification/artifacts.jsonl
+      hash: md5
+      md5: f0aba4bf56151235f93e218153c67551
+      size: 1838
+    - path: outputs/verification/case-links.jsonl
+      hash: md5
+      md5: a5da7bdd967ca818d37e18716146b450
+      size: 851
+    - path: outputs/verification/leakage-groups.jsonl
+      hash: md5
+      md5: 439b9e93c9a3723e01fe2063f1a01aac
+      size: 455
+    - path: outputs/verification/lineage.json
+      hash: md5
+      md5: d36538f8bfb9c4a8f66e6eed738f02db
+      size: 536
+    - path: outputs/verification/metrics.json
+      hash: md5
+      md5: 523c74ef76e8801a27f38713b4a2348b
+      size: 411
+    - path: outputs/verification/missingness.json
+      hash: md5
+      md5: c1af510156bb96b80561a48b438b59ef
+      size: 8966
+    - path: outputs/verification/native-records.jsonl
+      hash: md5
+      md5: dea21db1242b06ef92a1bb8eec5dcfa7
+      size: 9872
+    - path: outputs/verification/source-semantics.json
+      hash: md5
+      md5: 84ebc20e59b32bc9f6f7304fe41fd758
+      size: 579

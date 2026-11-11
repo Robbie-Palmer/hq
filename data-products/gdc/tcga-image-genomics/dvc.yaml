@@ -1,0 +1,21 @@
+stages:
+  verify_release_46_metadata:
+    cmd: uv run --locked gdc-tcga-image-genomics verify
+    deps:
+      - .python-version
+      - contracts
+      - fixtures/release-46.0
+      - pyproject.toml
+      - src/gdc_tcga_image_genomics
+      - uv.lock
+    outs:
+      - outputs/verification/artifacts.jsonl
+      - outputs/verification/annotations.jsonl
+      - outputs/verification/case-links.jsonl
+      - outputs/verification/leakage-groups.jsonl
+      - outputs/verification/lineage.json
+      - outputs/verification/missingness.json
+      - outputs/verification/native-records.jsonl
+      - outputs/verification/source-semantics.json
+    metrics:
+      - outputs/verification/metrics.json

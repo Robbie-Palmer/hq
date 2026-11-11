@@ -1,0 +1,83 @@
+{
+  "data": {
+    "hits": [
+      {
+        "id": "5f8f126b-d420-431a-b3d0-ddbedd3b9516",
+        "file_id": "5f8f126b-d420-431a-b3d0-ddbedd3b9516",
+        "file_name": "TCGA-GN-A267-01Z-00-DX1.6D5A4B3A-2A45-414A-B69D-D53265203017.svs",
+        "md5sum": "5448c542adfcedace8bb0b6c67908231",
+        "file_size": 2920007589,
+        "access": "open",
+        "data_category": "Biospecimen",
+        "data_type": "Slide Image",
+        "data_format": "SVS",
+        "experimental_strategy": "Diagnostic Slide",
+        "associated_entities": [
+          {
+            "entity_submitter_id": "TCGA-GN-A267-01Z-00-DX1",
+            "entity_type": "slide",
+            "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+            "entity_id": "4dac48b1-19de-4051-a6c6-d309038ffda6"
+          }
+        ],
+        "cases": [
+          {
+            "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+            "submitter_id": "TCGA-GN-A267",
+            "project": {"project_id": "TCGA-SKCM"},
+            "annotations": [
+              {
+                "annotation_id": "196724e8-a415-5d26-b01a-c69e96cad564",
+                "case_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+                "case_submitter_id": "TCGA-GN-A267",
+                "entity_id": "ab74d6ed-880e-4470-bfd5-2974a4c3a0d7",
+                "entity_submitter_id": "TCGA-GN-A267",
+                "entity_type": "case",
+                "classification": "Notification",
+                "category": "Acceptable treatment for TCGA tumor",
+                "status": "Approved",
+                "state": "released",
+                "submitter_id": "15930",
+                "notes": "Patient received interferon for the specimen submitted to TCGA.",
+                "created_datetime": "2013-04-18T00:00:00",
+                "updated_datetime": "2018-08-23T16:28:11.210272-05:00"
+              }
+            ],
+            "samples": [
+              {
+                "sample_id": "289d2c5f-0328-4f0c-81e6-fb2f34b2a427",
+                "submitter_id": "TCGA-GN-A267-01Z",
+                "sample_type": "Primary Tumor",
+                "specimen_type": "Solid Tissue",
+                "tissue_type": "Tumor",
+                "tumor_descriptor": "Primary",
+                "portions": [
+                  {
+                    "portion_id": "ea9f6c44-a939-5062-bac6-98c79a1d0d73",
+                    "slides": [
+                      {
+                        "slide_id": "4dac48b1-19de-4051-a6c6-d309038ffda6",
+                        "submitter_id": "TCGA-GN-A267-01Z-00-DX1",
+                        "section_location": "Not Reported"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    ],
+    "pagination": {
+      "count": 1,
+      "total": 1,
+      "size": 1,
+      "from": 0,
+      "sort": "file_id:asc",
+      "page": 1,
+      "pages": 1
+    }
+  },
+  "warnings": {}
+}
