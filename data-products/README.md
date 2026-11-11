@@ -21,6 +21,8 @@ Current products:
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
   with frozen patient- and slide-disjoint roles.
+- `pathologize/roi-segmentation`: the multi-source slide-coordinate ROI
+  composition contract, adapters, group-safe roles, and reconciliation reports.
 - `pathologize/stain-assay-provenance`: metadata-only contracts for stain,
   assay, pairing, source artifact references, derived artifact lineage, and
   annotation provenance.
