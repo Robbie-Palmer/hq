@@ -1,0 +1,14 @@
+stages:
+  build_source_inventory:
+    cmd: uv run --locked ega-matched-single-cell build
+    deps:
+      - .python-version
+      - contracts
+      - pyproject.toml
+      - src/ega_matched_single_cell
+      - tests/fixtures/ega-public-metadata
+      - uv.lock
+    outs:
+      - outputs/source-inventory.json
+    metrics:
+      - outputs/metrics.json
