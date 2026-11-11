@@ -1,0 +1,46 @@
+schema: '2.0'
+stages:
+  publish_native_contract:
+    cmd: uv run --locked cryonuseg-source-data publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: 82d5a96a56f353fcd465e43891ec5794.dir
+      size: 8478
+      nfiles: 1
+    - path: pyproject.toml
+      hash: md5
+      md5: 2c0e8dd2a090a5921ffc0206863e7f20
+      size: 1099
+    - path: records
+      hash: md5
+      md5: 3bed861aa700053019883286bb4699ba.dir
+      size: 10474
+      nfiles: 1
+    - path: sources
+      hash: md5
+      md5: 1f5fef228dc67650263abf9c3ee09d13.dir
+      size: 11548
+      nfiles: 1
+    - path: src/cryonuseg_source_data
+      hash: md5
+      md5: 83aa0731fe020bd38754e4f6cd5a11a4.dir
+      size: 22448
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: 3d3171fbe0ece68c7606dd63b3765f71
+      size: 34617
+    outs:
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 72fb226feabd2950bdb026edf5ccb24c
+      size: 433
+    - path: outputs/native-corpus.json
+      hash: md5
+      md5: 478f8b415f42cc944273889537df217d
+      size: 231362

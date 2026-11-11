@@ -1,0 +1,15 @@
+stages:
+  publish_native_contract:
+    cmd: uv run --locked cryonuseg-source-data publish
+    deps:
+      - .python-version
+      - contracts
+      - pyproject.toml
+      - records
+      - sources
+      - src/cryonuseg_source_data
+      - uv.lock
+    outs:
+      - outputs/native-corpus.json
+    metrics:
+      - outputs/metrics.json
