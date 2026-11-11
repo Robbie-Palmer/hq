@@ -17,6 +17,8 @@ Current products:
   annotations, ontology, and official fold roles.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `ega/matched-ffpe-frozen-single-cell`: controlled EGA identities and
+  publisher evidence for matched FFPE and frozen single-cell profiling.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product

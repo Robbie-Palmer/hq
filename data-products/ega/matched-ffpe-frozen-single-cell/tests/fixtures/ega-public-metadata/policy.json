@@ -1,0 +1,11 @@
+{
+  "accession_id": "EGAP00001000045",
+  "dac_accession_id": "EGAC00000000011",
+  "duos": [
+    "DUO:0000027",
+    "DUO:0000025"
+  ],
+  "policy_text": "Access to this data is controlled. There are a number of steps that a researcher must take to obtain access to this data, including execution of a Data Access Agreement between the institutions. The process is overseen by the Technology Development Office; please contact our general email address TDOadmin@phsa.ca.\nPlease only click the \"request data\" button on the EGA website after a Data Access Agreement is fully executed.",
+  "policy_url": null,
+  "title": "BC Cancer, part of the Provincial Health Services Authority - Data Access Policy"
+}

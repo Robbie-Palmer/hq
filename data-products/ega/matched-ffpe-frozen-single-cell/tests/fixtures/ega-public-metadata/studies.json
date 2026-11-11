@@ -1,0 +1,14 @@
+[
+  {
+    "abstract": "The BC Cancer Agency's Personalized Onco-Genomics (POG) Project involves molecular and clinical characterization of individual cancer patients to guide their treatment. The project aims to use whole genome and transcriptome data together with patient information to match treatments to cancer driver alterations and support clinical decision-making. Incorporating genomic data into decision-making should enable more rational development of treatment plans, facilitate enrollment into appropriate clinical trials and potentially identify less toxic and more effective therapeutic options.",
+    "accession_id": "EGAS00001001159",
+    "description": "The BC Cancer Agency's Personalized Onco-Genomics (POG) Project involves molecular and clinical characterization of individual cancer patients to guide their treatment. The project aims to use whole genome and transcriptome data together with patient information to match treatments to cancer driver alterations and support clinical decision-making. Incorporating genomic data into decision-making should enable more rational development of treatment plans, facilitate enrollment into appropriate clinical trials and potentially identify less toxic and more effective therapeutic options.",
+    "external_links": null,
+    "is_deprecated": false,
+    "is_released": true,
+    "pubmed_ids": null,
+    "released_date": "2015-02-19T15:19:01+01:00",
+    "study_type": "Cancer Genomics",
+    "title": "The BC Cancer Agency's Personalized Onco-Genomics Project"
+  }
+]
