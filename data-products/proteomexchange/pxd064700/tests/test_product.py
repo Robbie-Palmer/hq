@@ -1,11 +1,16 @@
+from __future__ import annotations
+
 import json
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlsplit
+from urllib.request import Request
 
 import pytest
 from pydantic import ValidationError
 
+from pxd064700_source import acquisition
 from pxd064700_source.acquisition import (
     ANNOUNCEMENT_URL,
     DIRECTORY_URL,
@@ -13,9 +18,10 @@ from pxd064700_source.acquisition import (
     FTP_HOST,
     AcquisitionError,
     _request,
+    refresh_snapshots,
     verify_live_identity,
 )
-from pxd064700_source.models import SourceContract
+from pxd064700_source.models import FtpEntry, SourceContract
 from pxd064700_source.product import ProductError, publish_product
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -266,6 +272,101 @@ def test_contract_forbids_payload_commits() -> None:
 def test_metadata_client_rejects_non_official_hosts() -> None:
     with pytest.raises(AcquisitionError, match="not allowlisted"):
         _request("https://example.test/PXD064700")
+
+
+def test_metadata_client_reads_allowlisted_https(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Response:
+        def __enter__(self) -> Response:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def read(self) -> bytes:
+            return b'{"accession":"PXD064700"}'
+
+    def fake_urlopen(request: Request, timeout: int) -> Response:
+        assert request.full_url == acquisition.PROJECT_API_URL
+        assert timeout == 120
+        return Response()
+
+    monkeypatch.setattr(acquisition, "urlopen", fake_urlopen)
+
+    assert acquisition._json_request(acquisition.PROJECT_API_URL) == {
+        "accession": "PXD064700"
+    }
+
+
+def test_metadata_client_rejects_non_object_json(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(acquisition, "_request", lambda _url: b"[]")
+
+    with pytest.raises(AcquisitionError, match="did not return an object"):
+        acquisition._json_request(acquisition.PROJECT_API_URL)
+
+
+def test_ftp_listing_is_sorted_and_preserves_publisher_locators(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FtpClient:
+        def __init__(self, host: str, timeout: int) -> None:
+            assert host == FTP_HOST
+            assert timeout == 120
+
+        def __enter__(self) -> FtpClient:
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def login(self) -> None:
+            return None
+
+        def cwd(self, directory: str) -> None:
+            assert directory == FTP_DIR
+
+        def retrlines(self, command: str, callback: Callable[[str], object]) -> None:
+            assert command == "LIST"
+            callback("-rw-r--r-- 1 ftp ftp 20 Jan 01 00:00 b.raw")
+            callback("-rw-r--r-- 1 ftp ftp 10 Jan 01 00:00 a.raw")
+
+    monkeypatch.setattr(acquisition.ftplib, "FTP", FtpClient)
+
+    entries = acquisition._ftp_entries()
+
+    assert [(entry.file_name, entry.bytes) for entry in entries] == [
+        ("a.raw", 10),
+        ("b.raw", 20),
+    ]
+    assert all(entry.locator.startswith(f"ftp://{FTP_HOST}{FTP_DIR}/") for entry in entries)
+
+
+def test_refresh_snapshots_writes_normalized_metadata(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    entries = [
+        FtpEntry(
+            file_name="checksum.txt",
+            bytes=12,
+            locator=f"ftp://{FTP_HOST}{FTP_DIR}/checksum.txt",
+        )
+    ]
+    payloads = {
+        ANNOUNCEMENT_URL: b"<DatasetSummary />",
+        acquisition.METADATA_FILES["checksum.txt"]: b"checksum\n",
+        acquisition.METADATA_FILES["community-annotation.sdrf.tsv"]: b"sdrf\n",
+        acquisition.METADATA_FILES["experiment-overview.txt"]: b"overview\r\n",
+        acquisition.METADATA_FILES["donor-name-map.tsv"]: b"donor\r\n",
+    }
+    monkeypatch.setattr(acquisition, "_json_request", lambda _url: {"accession": "PXD064700"})
+    monkeypatch.setattr(acquisition, "_ftp_entries", lambda: entries)
+    monkeypatch.setattr(acquisition, "_request", lambda url: payloads[url])
+
+    manifest = refresh_snapshots(tmp_path)
+
+    assert len(manifest.files) == 7
+    assert (tmp_path / "snapshots/experiment-overview.txt").read_bytes() == b"overview\n"
+    assert (tmp_path / "snapshots/donor-name-map.tsv").read_bytes() == b"donor\n"
+    assert _jsonl(tmp_path / "snapshots/ftp-listing.jsonl")[0]["bytes"] == 12
 
 
 def test_live_verification_uses_pinned_https_identities(

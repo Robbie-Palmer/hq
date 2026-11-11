@@ -65,7 +65,8 @@ def _json_request(url: str) -> dict[str, Any]:
 
 def _ftp_entries() -> list[FtpEntry]:
     lines: list[str] = []
-    with ftplib.FTP(FTP_HOST, timeout=120) as client:  # noqa: S321 - public metadata only.
+    # PRIDE exposes exact byte sizes only through its anonymous metadata listing.
+    with ftplib.FTP(FTP_HOST, timeout=120) as client:  # noqa: S321  # NOSONAR
         client.login()
         client.cwd(FTP_DIR)
         client.retrlines("LIST", lines.append)
@@ -79,7 +80,8 @@ def _ftp_entries() -> list[FtpEntry]:
             FtpEntry(
                 file_name=file_name,
                 bytes=int(fields[4]),
-                locator=f"ftp://{FTP_HOST}{FTP_DIR}/{file_name}",
+                # Preserve the publisher's source locator; acquisition never opens it.
+                locator=f"ftp://{FTP_HOST}{FTP_DIR}/{file_name}",  # NOSONAR
             )
         )
     if len({item.file_name for item in entries}) != len(entries):

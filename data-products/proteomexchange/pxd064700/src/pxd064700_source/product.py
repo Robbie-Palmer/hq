@@ -186,6 +186,16 @@ def _artifact_role(file_name: str) -> str:
         raise ProductError(f"unclassified source artifact: {file_name}") from error
 
 
+def _missing_checksum_reason(
+    file_name: str, checksum: tuple[str, str] | None
+) -> str | None:
+    if checksum is not None:
+        return None
+    if file_name == "checksum.txt":
+        return "The publisher checksum file cannot checksum itself."
+    return "The community SDRF was added after revision 1 and is absent from checksum.txt."
+
+
 def _artifacts(
     ftp_entries: list[FtpEntry],
     announced: dict[str, dict[str, str]],
@@ -200,16 +210,7 @@ def _artifacts(
     for entry in ftp_entries:
         announcement = announced.get(entry.file_name)
         checksum = checksums.get(entry.file_name)
-        if checksum is None:
-            reason = (
-                "The publisher checksum file cannot checksum itself."
-                if entry.file_name == "checksum.txt"
-                else (
-                    "The community SDRF was added after revision 1 and is absent from checksum.txt."
-                )
-            )
-        else:
-            reason = None
+        reason = _missing_checksum_reason(entry.file_name, checksum)
         artifacts.append(
             ArtifactRecord(
                 artifact_ref=_artifact_ref(entry.file_name),
