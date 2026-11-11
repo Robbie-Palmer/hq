@@ -95,10 +95,12 @@ comparison = compare_error_curve(
 ```
 
 `compare_error_curve` finds the lowest smoothed window within the baseline horizon,
-the highest later window, and the lowest window after that peak. It reports paired
-cluster-bootstrap intervals, per-replicate direction checks, and whether the declared
-minimum change and agreement rules support the pattern. The function does not choose
-the horizon, smoothing width, threshold, or cluster unit for the caller.
+the highest eligible later window, and the lowest window after that peak. The final
+smoothed window is not eligible as a peak because the comparison requires a later
+window. It reports paired cluster-bootstrap intervals, per-replicate direction checks,
+and whether the declared minimum change and agreement rules support the pattern. The
+function does not choose the horizon, smoothing width, threshold, or cluster unit for
+the caller.
 
 ## Development
 
