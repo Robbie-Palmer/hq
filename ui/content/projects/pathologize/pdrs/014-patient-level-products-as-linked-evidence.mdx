@@ -1,0 +1,176 @@
+---
+title: "PDR 014: Define patient-level products as linked evidence"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "GDC data model"
+    url: "https://docs.gdc.cancer.gov/Data/Data_Model/GDC_Data_Model/"
+  - title: "GDC data submission walkthrough"
+    url: "https://docs.gdc.cancer.gov/Data_Submission_Portal/Users_Guide/Data_Submission_Walkthrough/"
+  - title: "GDC resources for TCGA users"
+    url: "https://gdc.cancer.gov/about-data/gdc-data-processing/resources-tcga-users"
+  - title: "NCI Clinical Proteomic Tumor Analysis Consortium"
+    url: "https://dctd.cancer.gov/research/networks/cptac"
+  - title: "Proteomic Data Commons sample dictionary"
+    url: "https://proteomic.datacommons.cancer.gov/pdc/data-dictionary/Sample"
+---
+
+## Context
+
+A pathology slide is one observation of material taken from a patient. It is
+not the patient, and it may not represent every specimen, lesion, or timepoint
+in that patient's course. One case can contribute several slides from one
+specimen, several specimens from a primary tumour and metastases, and later
+samples collected after treatment or recurrence. Diagnosis, stage, molecular
+status, treatment, response, and survival all lose meaning when a product
+attaches one value to each image.
+
+The NCI Genomic Data Commons puts a case, which usually represents a patient,
+at the centre of linked clinical and biospecimen evidence. Its model connects
+diagnoses, treatments, follow-ups, molecular tests, samples, portions, slides,
+and molecular data. TCGA uses those relationships across more than 20,000
+primary cancer and matched normal samples from 33 cancer types. CPTAC adds
+linked proteomic evidence and makes genomic, transcriptomic, imaging,
+biospecimen, and clinical data available with it.
+
+These sources are broad enough to support patient-level products, but their
+published cohorts do not define Pathologize's product questions. A source can
+contribute case relationships and observations without donating its study
+split, eligibility rules, exclusions, endpoint construction, or downstream
+labels.
+
+The same patient-level evidence can support aggregate questions about a
+cohort, institution, health system, or population. Those products have a
+different target entity and a weaker relationship to any one person. A cohort
+association or health-system rate can describe a group without establishing
+the diagnosis, biomarker status, treatment response, recurrence, or survival
+outcome of an individual patient.
+
+## Proposed decision
+
+Define a family of patient-level products for evidence whose meaning belongs
+to a patient or case, a diagnosis or specimen episode, a particular specimen,
+or a longitudinal course. Each product will state that target entity and the
+timepoint or interval at which its claim applies. It will keep the contributing
+slides and specimens linked to that entity instead of duplicating a patient
+label across images.
+
+The family may cover:
+
+* diagnosis, grade, stage, disease subtype, primary disease, recurrence, and
+  metastasis;
+* genomic and molecular status, including MSI or MSS, mismatch-repair or MMR
+  status, tumour mutational burden or TMB, mutations, fusions, copy-number
+  changes, gene expression, methylation, homologous-recombination deficiency
+  or HRD, and viral status;
+* proteomic status, protein abundance, post-translational measurements, and
+  receptor or marker results such as HER2, ER, PR, PD-L1, IDH, and MGMT; and
+* treatment, response, progression, recurrence, metastasis, follow-up,
+  survival events, censoring, and the timepoints that relate those observations.
+
+These examples do not close the vocabulary. A product must retain the meaning
+reported by its source, including the assay or assessment basis, applicable
+specimen or patient, observation time, and whether a result is positive,
+negative, indeterminate, not tested, unavailable, or otherwise qualified.
+Microsatellite status, for example, is not a generic binary patient label when
+the source reports MSI or MSS for a particular specimen and assay at a
+particular time.
+
+Patient-level evidence can span more than one slide and more than one specimen.
+Products will retain which slides came from which specimen, which specimens
+belong to the same case, and how each item relates to diagnosis, treatment, or
+follow-up. They will preserve conflicting, partial, and missing observations
+rather than imply agreement because the records share a patient identifier.
+
+Keep observations and predictions distinct. A pathology report, assay result,
+curated clinical event, or other accepted reference can supply patient- or
+specimen-level evidence with stated provenance. A status estimated from one or
+more slides remains a prediction, even when the predicted target is a specimen
+or patient attribute and even when reference evidence exists for comparison.
+The product will link that prediction to the patient-level evidence used to
+assess it. It will not relabel the prediction as ground truth or silently copy
+it onto every slide, specimen, or timepoint.
+
+Time-to-event products will identify the event, time origin, observation
+cutoff, elapsed time, and event or censoring status. Censoring means that the
+event was not observed within the available follow-up for that endpoint. It
+does not mean that the patient had no recurrence or remained alive after the
+last known time. Treatment and response products will likewise preserve the
+course, assessment time, and relationship between a therapy and an observed
+response rather than reducing the record to an unordered list.
+
+Use TCGA and CPTAC as source-native evidence inputs. Import their identifiers,
+relationships, observations, provenance, access conditions, and stated
+limitations. Do not import a paper's analytic cohort, source-defined training
+or test role, endpoint derivation, or exclusion policy as a general
+Pathologize rule. Each downstream patient-level product owns the question it
+answers and the evidence it accepts.
+
+Treat cohort, institution, health-system, and population products as
+first-class aggregate products. They may use eligible patient-level molecular,
+treatment, response, and outcome evidence to measure prevalence, coverage,
+care pathways, test or treatment use, response and outcome rates, variation,
+and change over time. Each aggregate product will state its unit of analysis,
+population and timeframe, inclusion and exclusion rules, denominator,
+institution coverage, missing evidence, and intended operational or research
+question.
+
+Keep the product levels explicit. A patient-level observation or prediction
+can contribute to an aggregate product only under that product's eligibility
+rules. The resulting aggregate describes the group. For an individual patient
+it is lower-signal context than direct patient- and specimen-level evidence.
+It cannot establish or overwrite that person's diagnosis, molecular or
+proteomic status, treatment, response, recurrence, metastasis, or outcome.
+
+The same evidence boundary can support research products for association and
+validation, diagnostic products for disease or biomarker status, prognostic
+products for recurrence and survival, and treatment products for therapy,
+response, or treatment-selection research. Reuse does not transfer validity
+between those intended uses. Each product must state its own claim, population,
+reference evidence, and limitations. Pathologize's existing research-only
+boundary still applies.
+
+This decision defines product meaning and evidence relationships. It does not
+select multiple-instance learning, encoders, aggregation rules, storage
+formats, or model architecture.
+
+## Consequences
+
+Patient-level products can use the full evidence available for a case without
+pretending that one slide is the case. Genomic and proteomic observations can
+remain tied to the assayed material, and longitudinal outcomes can keep their
+event and censoring semantics. Researchers can compare a slide-derived
+prediction with patient-level evidence without erasing the distinction between
+them. Aggregate products can reuse the same qualified evidence for cohort and
+operational analysis without turning group-level patterns into patient facts.
+
+The products require more qualification than a table of slide labels. Source
+records may disagree, omit timepoints, use different assay definitions, or
+cover only part of a patient's course. Some cases will be unusable for a
+particular question even though they remain valid source records. Reusing the
+same evidence across diagnostic, prognostic, and treatment questions also
+creates leakage risks unless each product defines its own eligibility and
+assessment boundary. Aggregate products add denominator, missingness,
+institution-coverage, and case-mix limits. Their results may not transfer to a
+different health system or population.
+
+## Evaluation
+
+Accept the proposal when example TCGA- and CPTAC-derived products show these
+boundaries:
+
+* one patient can have multiple slides from one specimen and multiple
+  specimens or timepoints without becoming several patients;
+* genomic, proteomic, receptor, and wider biomarker observations retain their
+  specimen, assay, provenance, result qualification, and timepoint;
+* a slide-derived patient or specimen status is published as a prediction
+  linked to reference evidence, never as that evidence itself;
+* treatment, response, recurrence or metastasis, survival, and censoring form
+  an ordered clinical course with explicit event definitions and observation
+  times; and
+* cohort, institution, health-system, and population products can trace their
+  measures to eligible patient-level evidence, declare their denominators and
+  coverage, and never present an aggregate result as an individual finding;
+  and
+* research, diagnostic, prognostic, and treatment products can reuse the
+  source evidence while owning separate cohorts, claims, and acceptance rules.
