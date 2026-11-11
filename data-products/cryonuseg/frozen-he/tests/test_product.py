@@ -172,7 +172,7 @@ def test_source_check_validates_publisher_and_gdc_metadata(
     contract = load_contract()
 
     def fetch_json(url: str) -> dict[str, object]:
-        if "kaggle.com" in url:
+        if url == str(contract.kaggle.metadata_api_url):
             return {
                 "ref": contract.kaggle.dataset_ref,
                 "currentVersionNumber": contract.kaggle.version,
@@ -180,6 +180,7 @@ def test_source_check_validates_publisher_and_gdc_metadata(
                 "totalBytes": contract.kaggle.reported_total_bytes,
                 "licenseName": contract.kaggle.license_label,
             }
+        assert url == str(contract.github.commit_api_url)
         return {"sha": contract.github.commit}
 
     class Digest:
