@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "adapter_id": "paip2019-liver-to-pathologize-roi-v1",
+  "source_dataset_id": "paip2019-liver-segmentation",
+  "target_ontology_id": "pathologize-roi-selection-v1",
+  "mappings": [
+    {"source_label": "whole_tumour", "target_role": "lesion_inclusion", "status": "partial"},
+    {"source_label": "viable_tumour", "target_role": "viable_lesion_inclusion", "status": "partial"}
+  ],
+  "notes": [
+    "Whole-tumour and viable-tumour distinctions remain in source_region_label.",
+    "The target roles describe selection extents, not liver tissue compartments."
+  ]
+}
