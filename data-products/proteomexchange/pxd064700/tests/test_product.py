@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 import pytest
 from pydantic import ValidationError
@@ -8,6 +9,8 @@ from pydantic import ValidationError
 from pxd064700_source.acquisition import (
     ANNOUNCEMENT_URL,
     DIRECTORY_URL,
+    FTP_DIR,
+    FTP_HOST,
     AcquisitionError,
     _request,
     verify_live_identity,
@@ -80,7 +83,16 @@ def test_release_inventory_is_exact_and_metadata_only(published_root: Path) -> N
         "total_listed_gib": 662.077367,
     }
     assert {item["availability"] for item in artifacts} == {"metadata_reference_only"}
-    assert all(str(item["locator"]).startswith("ftp://ftp.pride.ebi.ac.uk/") for item in artifacts)
+    locators = [urlsplit(str(item["locator"])) for item in artifacts]
+    assert all(
+        locator.scheme == "ftp"
+        and locator.hostname == FTP_HOST
+        and locator.port is None
+        and locator.username is None
+        and locator.password is None
+        and locator.path.startswith(f"{FTP_DIR}/")
+        for locator in locators
+    )
     assert len({item["artifact_ref"] for item in artifacts}) == 552
 
 
