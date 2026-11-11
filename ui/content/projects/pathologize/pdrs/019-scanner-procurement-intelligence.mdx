@@ -1,0 +1,383 @@
+---
+title: "PDR 019: Build scanner procurement intelligence around institute outcomes"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "FDA technical performance assessment of digital pathology whole-slide imaging devices"
+    url: "https://www.fda.gov/regulatory-information/search-fda-guidance-documents/technical-performance-assessment-digital-pathology-whole-slide-imaging-devices"
+  - title: "DICOM PS3.3 current Whole Slide Microscopy Image Module"
+    url: "https://dicom.nema.org/medical/Dicom/current/output/chtml/part03/sect_C.8.12.4.html"
+  - title: "IHE PaLM Digital Pathology Workflow - Image Acquisition profile"
+    url: "https://www.ihe.net/uploadedFiles/Documents/PaLM/IHE_PaLM_Suppl_DPIA_Rev1-4_TI_2026-03-06.pdf"
+  - title: "DICOM Basic Application Level Confidentiality Profile"
+    url: "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part15/sect_E.2.html"
+  - title: "Leica Aperio GT 450 DX specifications"
+    url: "https://www.leicabiosystems.com/sites/default/files/media_product-download/2024-06/Aperio_GT_450_DX_Specifications_-_English_MAN-0506-Rev-B.pdf"
+  - title: "Hamamatsu NanoZoomer S360MD specifications"
+    url: "https://www.hamamatsu.com/us/en/product/life-science-and-medical-systems/digital-slide-scanner-for-medical/C13220-01MD.html"
+  - title: "CAP guideline for validating whole-slide imaging for diagnostic purposes"
+    url: "https://www.cap.org/protocols-and-guidelines/cap-guidelines/current-cap-guidelines/validating-whole-slide-imaging-for-diagnostic-purposes-in-pathology"
+  - title: "Digital slide scanning at scale: comparison of WSI devices in a clinical setting"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12446970/"
+  - title: "Types and frequency of WSI scan failures in a clinical high-throughput laboratory"
+    url: "https://pubmed.ncbi.nlm.nih.gov/36268081/"
+  - title: "Whole-slide imaging versus microscopy in 1,992 surgical pathology cases"
+    url: "https://pubmed.ncbi.nlm.nih.gov/28961557/"
+  - title: "Scanner differences in optical and computed prostate histology properties"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10365953/"
+  - title: "Impact of scanner variability on lymph-node segmentation"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC9577043/"
+  - title: "Clinical-grade computational pathology across preparation and scanner variation"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC7418463/"
+  - title: "Impact of tissue staining and scanner variation on pathology foundation models"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC12932120/"
+  - title: "Impact of site-specific digital histology signatures on model accuracy and bias"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC8292530/"
+  - title: "Quantification of histochemical stains using whole-slide imaging"
+    url: "https://pubmed.ncbi.nlm.nih.gov/25480984/"
+  - title: "Human and model-observer evaluation of WSI compression"
+    url: "https://pubmed.ncbi.nlm.nih.gov/22616029/"
+  - title: "Digital pathology infrastructure requirements and operational cost"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10550754/"
+---
+
+## Context
+
+Pathology institutes buy a scanning service, not a box with a maximum
+slides-per-hour number. A useful choice depends on the slides the institute handles,
+the images the scanner produces, the work needed to keep it running, and what those
+images allow people and analytical systems to do. Purchase price is only one part of
+the cost. Failed scans, technician attention, service response, storage, network and
+compute demand, validation, delayed cases, and an awkward exit can cost more over the
+life of the system.
+
+Vendor specifications are necessary but answer a narrow question. Leica reports a
+sustained 81 slides per hour for a 15 mm by 15 mm area at native 40x on the Aperio GT
+450 DX. Hamamatsu reports more than 82 slides per hour for the same nominal area on
+the NanoZoomer S360MD when using five focus points. The products use different focus,
+optical, compression, and output arrangements. Those are vendor claims under stated
+conditions, not evidence that either scanner will deliver that rate on an institute's
+slide mix.
+
+A 2025 comparison scanned the same 347-slide set in 16 runs across eight high-volume
+scanner models at one institute. Total run time ranged from about 13.5 to 47 hours,
+and the stringent image review found markedly different rates and types of missing
+tissue, blur, barcode, and other errors. A separate production report observed a
+1.19% rescan rate in its established workflow. These findings do not conflict. The
+study designs, slide mixes, review thresholds, staff experience, scan modes, and
+purposes differ. Procurement intelligence must retain those conditions rather than
+turn the percentages into universal product scores.
+
+Scanner choice can reach beyond image appearance. Paired scans of the same prostate
+slides on three devices produced different colour values and several different
+tissue and cell-density measurements. A four-scanner study found scanner-sensitive
+lymph-node segmentation. Another study rescanned 1,274 prostate slides on a second
+vendor's system and observed a three percentage-point reduction in model AUC. More
+recent controlled work found scanner variation to be an important source of
+foundation-model performance loss. These results establish a risk worth testing.
+They do not establish that every measurement, biomarker, or model will move in the
+same direction on a named scanner.
+
+Diagnostic evidence needs the same care. A vendor-sponsored, blinded, randomized
+crossover study of 1,992 cases found whole-slide imaging noninferior to microscopy
+across its intended case mix. Its disclosed sponsorship, paid participation, scanner
+system, reader design, washout, stains, and diagnostic subgroups are part of the
+claim. The result supports the tested system and use. It neither ranks scanner models
+nor proves local concordance after a different firmware, viewer, workflow, or case
+mix is introduced. Current CAP guidance therefore calls for local validation that
+matches intended clinical use and for reconsideration after material system changes.
+
+Specimen preparation is a separate product dimension owned by PDR 020. Fixation,
+processing, sectioning, stain protocol and intensity, mounting, coverslip quality,
+folds, bubbles, debris, and tissue morphology are not scanner attributes. They can
+change how tissue detection, focus, colour reproduction, compression, or image review
+behaves. PDR 019 records that interaction and imports preparation evidence as context
+or a confounder. It must not relabel preparation-driven morphology, image artifacts,
+or outcome differences as scanner effects.
+
+Institutes therefore need an evidence product that connects a named scanner
+configuration to their intended outcomes without pretending that one device wins for
+all sites and uses.
+
+## Proposed decision
+
+Build an institute-facing scanner and image-quality procurement and partnership
+intelligence product. It will turn vendor material, institute experience, controlled
+comparisons, and bounded inference into decision records for purchase, validation,
+upgrade, replacement, and commercial or research partnership choices.
+
+The product will answer these questions:
+
+* Which scanner configurations fit the institute's intended diagnostic, research,
+  quantitative, and analytical uses, at its expected case, tissue, stain, and volume
+  mix?
+* What does each candidate claim, what has this institute or a comparable institute
+  observed, what has a controlled comparison isolated, and what remains inferred or
+  unknown?
+* What image-quality and operational failures matter for the intended use, who
+  detects them, what gets rescanned or rejected, and what happens to turnaround when
+  the normal path or fallback fails?
+* What local validation is needed before purchase or use, and what firmware,
+  software, optical, format, compression, integration, or service change should
+  trigger review or revalidation?
+* Does an upgrade solve a measured constraint without creating a storage, compute,
+  interoperability, validation, or supplier-exit cost that outweighs the benefit?
+* Is a vendor or institute partnership filling a real evidence gap under acceptable
+  data rights, publication, conflict, support, and exit terms, or merely funding a
+  favourable demonstration?
+
+### Describe the scanner that produced the evidence
+
+Every decision record will identify the vendor, model, individual unit where known,
+firmware and acquisition software version, scan mode, and evidence date. It will
+describe the objective and numerical aperture or equivalent optical configuration,
+native pixel spacing, illumination and sensor path, colour handling, focus method,
+focus-point behaviour, tissue detection, z-plane options, automatic or manual
+rescan, and the handling of failed or skipped slides.
+
+The same record will state the container and image format, codec and compression
+setting, pyramid and focal-plane behaviour, metadata and physical-scale support, and
+any conversion before use. A claim of DICOM output is not enough. The relevant DICOM
+conformance statement, supported transfer and workflow behaviour, and tested exchange
+with the institute's systems matter. The current DICOM whole-slide microscopy model
+and IHE image-acquisition profile provide standards-based comparison points, but a
+standard named in a brochure is not proof of working interoperability.
+
+Operational fit will cover slide and rack capacity, throughput under stated tissue
+area and focus conditions, first-pass success, rescan and rejection behaviour,
+operator hands-on time, scheduled and unscheduled downtime, recovery, consumables,
+preventive maintenance, service hours, response and resolution commitments, parts
+availability, remote-access terms, training, product life, and upgrade policy. It
+will distinguish a contractual support promise from response and repair times that
+an institute observed.
+
+Interoperability will include patient and slide identity, barcode handling, order and
+case association, laboratory and image-management integration, viewer compatibility,
+standards-based import and export, access to original images and metadata, bulk
+export, audit needs, cybersecurity responsibility, and migration at contract end.
+Proprietary formats are not an automatic rejection, and a standards-based format is
+not an automatic pass. The decision is whether the tested workflow preserves
+identity, pixels, physical scale, metadata, performance, and a credible exit.
+
+Storage and compute effects will be tied to the institute's slides. The record will
+cover image size distributions rather than a single average, ingest and retrieval
+bandwidth, codec support and decode cost, cache and viewer behaviour, analysis time,
+retention, backup, replication, archive retrieval, conversion, and duplicate storage
+during migration or validation. A smaller lossy image is not free capacity if its
+compression changes a diagnostic feature or analytical result. Human-observer work
+has found task performance stable at some JPEG 2000 compression levels and worse at
+higher ratios in one bounded breast-biopsy experiment. Its scope is too narrow to
+establish a universal safe threshold.
+
+Total cost will include acquisition or lease, software and interface licences,
+servers, network and storage, compute, backup, facility work, racks and accessories,
+installation, validation, training, scanning and quality-control labour, service,
+planned maintenance, downtime, rescans, glass fallback, cybersecurity work,
+upgrades, migration, and disposal or exit. It will show both the cost over the chosen
+term and the operational assumptions behind it. An institute cost study found that
+scanner acquisition was 21% of its annualized digital-pathology costs while IT
+hardware and software accounted for 33%. That observation is useful for finding
+omitted costs, not for importing the same percentages into another institute.
+
+### Follow image evidence to institute outcomes
+
+The product will keep the chain from source condition to outcome visible:
+
+* At acquisition, it will connect optics, focus, tissue detection, scan mode,
+  compression, and format to coverage, colour, contrast, resolution, blur, stitching,
+  dropout, barcode failure, file integrity, artifact burden, rescan, and slide
+  rejection.
+* At diagnostic use, it will connect accepted and failed images to glass fallback,
+  review time, diagnostic concordance and disagreement, ancillary work, case
+  turnaround, delayed or redistributed work, and the uncertainty pathologists report.
+* At quantitative use, it will connect image properties to cell detection and counts,
+  nuclear or cellular measurements, tissue segmentation, compartment areas and
+  densities, spatial measurements, and repeatability across units and time.
+* At slide and patient level, it will keep slide findings separate from case and
+  patient aggregation. It will report whether scanner-related disagreement changes a
+  biomarker, model output, confidence, abstention, referral, or other downstream
+  finding, and whether that change survives patient-level analysis.
+* At institute level, it will connect first-pass yield, technician and pathologist
+  time, capacity, downtime, service, storage, compute, rework, fallback, and delayed
+  cases to throughput, turnaround, continuity, staffing, cost, and the ability to
+  serve intended clinical or research partnerships.
+
+Preparation and stain quality will enter this chain as separate inputs. The product
+may state that folds or a thick, pale, dark, dirty, wet, or poorly coverslipped slide
+interacted with one scanner's focus or tissue detection. It may compare how scanners
+handled the same prepared slide. It will assign the source of an observed difference
+to preparation, scanner, their interaction, or unresolved origin. It will not claim
+that the scanner caused the underlying fold, staining variation, section thickness,
+cell morphology, or patient outcome.
+
+### Keep four evidence classes separate
+
+Every material statement will carry one of four evidence classes:
+
+* A **vendor claim** comes from a dated specification, conformance statement,
+  regulatory submission, contract, service term, or documented demonstration. The
+  record preserves its test conditions, version, jurisdiction, intended use, and
+  sponsor.
+* An **institute observation** describes production or evaluation experience at a
+  named site and period. It preserves workload, staffing, preparation and stain mix,
+  quality threshold, denominator, device unit, firmware, failures, missing data, and
+  relevant workflow changes.
+* A **controlled comparison** holds important conditions constant. Strong scanner
+  evidence uses the same glass slide across devices, repeat scans across units or
+  days, or a prespecified paired design. Diagnostic comparisons use an appropriate
+  reader crossover, randomized order where possible, washout, adjudication, and the
+  same case information in each condition.
+* An **inferred effect** projects an observation to another site, workload, outcome,
+  or cost. It states the linking assumptions, uncertainty, and evidence gaps. It
+  never inherits the confidence of its source observation.
+
+The product will not average these classes into one score. A vendor claim does not
+become independent evidence because several brochures repeat it. A large production
+dataset can describe one institute precisely while remaining confounded. A small
+paired comparison can isolate a scanner effect while representing too little case
+mix to predict routine operations.
+
+### Judge local fit and causal reach
+
+Each conclusion will name the case, tissue, stain, specimen, preparation, and intended
+use mix it covers. It will preserve variation by relevant diagnostic group, tissue,
+stain, specimen size, slide density, site, scanner unit, time period, and patient
+subgroup rather than hiding weak performance in an overall mean. Small subgroup
+results will carry their uncertainty and will not create a winner by chance.
+
+Time is part of the evidence. Firmware, acquisition software, calibration, service,
+optical components, device age, operator experience, volume, preparation process,
+viewer, network, codec, model, and downstream workflow can change. Evidence will
+identify the period and configuration it describes. Repeated observations can reveal
+drift, but a before-and-after change cannot assign cause when several components
+changed together. One histochemical quantification study found less than 0.5%
+within-batch variation on one scanner but 7% variation between scanners or over time,
+which shows why a dated scanner identity belongs with the measurement.
+
+Site and scanner effects are often entangled with preparation, case mix, staffing,
+viewer, and clinical practice. Models can also learn site signatures that correlate
+with outcomes or patient groups. A multisite study found that such signatures biased
+predictions of clinical and genomic features and could expose ethnicity-associated
+site information. The product will therefore treat an association between a scanner
+and a slide or patient finding as confounded until the design separates the scanner
+from site, preparation, tissue and stain mix, and outcome prevalence.
+
+Paired scans of the same slide are preferred for scanner effects on image properties
+and analytical output. Replicate units and repeat dates help separate model,
+individual-device, and temporal effects. Reader crossover evidence is preferred for
+diagnostic concordance. Even these designs have limits. Repeated scans do not prove a
+change in patient outcome, one slide cannot represent a service, and reader washout
+does not remove all memory or learning. Unpaired vendor cohorts, simple pre-post
+deployments, and cross-institute comparisons support description or hypotheses, not
+causal scanner claims.
+
+### Protect institutes and patients in partnerships
+
+The product will prefer aggregate operational evidence when patient- or slide-level
+data is unnecessary. When linkage is needed to assess case or patient outcomes, the
+record will state the approved purpose, lawful or ethical basis, minimum fields,
+retention, access, de-identification or pseudonymisation limits, and whether a vendor
+can use the data or derived results. DICOM confidentiality profiles can guide
+de-identification, but applying a profile does not by itself settle re-identification,
+free-text, label-image, genomic, rare-disease, or cross-dataset linkage risk.
+
+Funding, donated equipment, paid readers, vendor employees, consultancy, publication
+control, data access, intellectual property, and a partner's right to reuse images or
+results will appear beside the evidence they affect. A commercial conflict does not
+invalidate a study. Hiding it prevents an institute from judging the study's design,
+reporting freedom, and incentive to favour one interpretation.
+
+Recommendations will be conditional statements such as "fits this H\&E workload if
+the observed first-pass yield holds and the DICOM exchange passes local validation."
+They may support a purchase, a bounded validation, an upgrade, a mixed fleet, a
+partnership with safeguards, further evidence, or no action. They will not produce an
+unqualified vendor league table or a single rank that lets a fast scanner compensate
+for missing tissue, weak service, poor interoperability, or unsupported analytical
+use.
+
+## Consequences
+
+Institutes can trace a recommendation to their use, workload, evidence quality, and
+unresolved risks. Vendors still get credit for strong specifications, service, and
+evidence, but their claims remain distinct from local performance. Procurement can
+consider diagnostic and analytical quality alongside capacity and cost without
+pretending that these outcomes share one unit or trade against each other cleanly.
+
+The product may conclude that the available evidence cannot distinguish two options.
+That is useful when a confident rank would rest on unmatched slides, different stains,
+old firmware, sponsored reporting, or another institute's workflow. It also makes
+evidence gaps concrete enough to shape validation terms or a partnership agreement.
+
+Maintaining configuration, time, intended-use, conflict, and causal context costs more
+than copying specification sheets. Some service and price terms will be confidential,
+some institutes will lack reliable downtime or rescan records, and some vendor formats
+will make independent inspection difficult. A recommendation will expire as products,
+contracts, workflows, and evidence change.
+
+The separation from specimen preparation prevents a common attribution error, but it
+also means one decision may need evidence from both product dimensions. PDR 019 can
+show that a scanner is less tolerant of a preparation condition. It cannot decide how
+the institute should change fixation, sectioning, staining, mounting, or other
+preparation work.
+
+## Alternatives considered
+
+### Publish a vendor specification catalogue
+
+This would make models, formats, and headline throughput easier to find, but it would
+not answer whether a scanner works on the institute's slides, systems, staffing, or
+downstream analyses. It would also give vendor claims and controlled observations an
+unhelpfully similar appearance.
+
+### Rank vendors with one weighted score
+
+This was rejected because weights hide the intended use and let unrelated strengths
+cancel serious failures. It would also collapse different firmware, service regions,
+commercial terms, case mixes, and evidence quality into a false universal order.
+
+### Compare image quality without operational or downstream outcomes
+
+Optical test objects and same-slide comparisons are useful, but a scanner that
+reproduces colour or resolution well may still fail the institute on tissue capture,
+workflow, service, cost, interoperability, diagnostic use, or a named analytical task.
+
+### Build the evaluation and analytics platform now
+
+Running studies and choosing data, statistical, or model architecture would turn this
+product decision into an implementation programme. PDR 019 defines what evidence a
+decision needs and how far it can support a claim. Separate work can decide how to
+produce that evidence.
+
+## Non-goals
+
+This proposal does not define study execution, a dashboard, a data warehouse,
+statistical implementation, model architecture, scanner-control software, a universal
+image-quality threshold, or preparation workflow. It does not certify a scanner for
+clinical use, replace institute validation, negotiate a procurement, or claim that a
+digital finding improves patient outcomes without direct evidence.
+
+## Evaluation
+
+Accept the proposal when one real purchase, validation, upgrade, or partnership
+decision can be reviewed from the product and an institute can answer all of the
+following:
+
+* The candidate scanner, unit or model, firmware, optics, focus and rescan behaviour,
+  compression, format, throughput conditions, downtime, service, interoperability,
+  storage, compute, and total-cost assumptions are identifiable.
+* Vendor claims, institute observations, controlled comparisons, and inferred effects
+  remain separate and retain source, date, intended use, conflicts, and uncertainty.
+* Evidence connects preparation and stain quality, image artifacts, rejection,
+  concordance, turnaround, measurements, slide and patient findings, biomarker or
+  model performance, subgroups, and operations without treating them as one score.
+* Preparation-driven morphology and outcomes remain owned by the separate preparation
+  dimension. Scanner interactions are visible, and unsupported scanner attribution is
+  rejected.
+* The recommendation reflects local case, tissue, stain, workload, and service needs,
+  states causal limits, and can support a conditional choice without publishing a
+  simplistic vendor league table.
+
+Reject the proposal if the product mainly republishes brochures, ranks vendors from
+unmatched evidence, treats association as scanner causation, hides commercial or
+privacy terms, or requires a dashboard, warehouse, study runner, statistical method,
+or model design before it can explain a decision.
