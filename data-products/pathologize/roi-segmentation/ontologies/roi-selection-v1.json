@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0.0",
+  "ontology_id": "pathologize-roi-selection-v1",
+  "semantic_scope": "roi_selection",
+  "roles": {
+    "lesion_inclusion": "Publisher-marked lesion extent selected for analysis.",
+    "viable_lesion_inclusion": "Publisher-marked viable lesion extent selected for analysis.",
+    "analysis_exclusion": "Publisher-marked region excluded from ROI analysis."
+  },
+  "excluded_semantics": {
+    "tissue_compartment": "A tissue class is not an ROI-selection role.",
+    "artifact_quality": "An artifact or quality class is not an ROI-selection role."
+  }
+}
