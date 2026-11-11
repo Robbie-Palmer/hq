@@ -5,7 +5,6 @@
 #include <cmath>
 #include <limits>
 #include <optional>
-#include <utility>
 
 namespace satellite_swarm::simulation {
 namespace {
