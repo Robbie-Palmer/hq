@@ -1,0 +1,97 @@
+---
+title: "PDR 012: Make tissue structure reusable evidence"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "BCSS breast cancer semantic segmentation dataset"
+    url: "https://github.com/PathologyDataScience/BCSS"
+  - title: "CAMELYON annotated lymph-node whole-slide dataset"
+    url: "https://doi.org/10.1093/gigascience/giy065"
+  - title: "PAIP 2019 liver cancer segmentation challenge"
+    url: "https://doi.org/10.1016/j.media.2020.101854"
+  - title: "SegPath H&E cell and tissue segmentation dataset"
+    url: "https://doi.org/10.1016/j.patter.2023.100688"
+  - title: "Colorectal cancer multistain epithelium segmentation dataset"
+    url: "https://doi.org/10.18710/DIGQGQ"
+---
+
+## Context
+
+Cell findings do not describe the structures those cells form. A slide may contain tumour cells, for example,
+without revealing the tumour boundary, its contact with stroma, the architecture of nearby glands, or its distance
+from a specimen margin. Those structures are the evidence a user needs before reusing cell findings in a slide or
+patient result.
+
+Public sources broaden different parts of this evidence. BCSS supplies labelled regions for breast tumour,
+stroma, inflammatory areas, necrosis, and other tissue classes. CAMELYON supplies expert-reviewed metastasis
+outlines in lymph-node slides. PAIP 2019 distinguishes whole and viable liver tumour regions and reports their
+areas. SegPath uses matched immunofluorescence to mark epithelial, immune, endothelial, and other cell-rich
+regions on H\&E images. The colorectal multistain source supplies pathologist-validated epithelial masks across
+normal and cancer tissue, H\&E, immunohistochemistry, and in situ hybridisation. Cell-level products add the
+locations, types, shapes, and uncertainty of individual cells.
+
+These sources answer related but different questions. A publisher label, an expert-drawn region, a measurement,
+and a prediction carry different authority. A useful tissue-structure product must preserve those differences while
+making the resulting evidence easier to inspect and reuse.
+
+## Proposed decision
+
+Publish tissue-structure products for findings above the cell level and below the whole slide. They will make the
+following evidence accessible when the source material supports it:
+
+* regions for tumour, stroma, normal epithelium, glands, necrosis, immune aggregates, vessels, specimen margins,
+  and regions of interest;
+* each region's shape, physical extent, coverage, and relationship to the tissue available for assessment;
+* gland number, shape, spacing, and arrangement where gland annotations or reviewed measurements support them;
+* tumour extent, viable tumour extent, tumour-stroma ratio, immune context, and the shortest supported distance
+  between tumour and a margin; and
+* containment, contact, adjacency, distance, and distribution relationships among regions and cells.
+
+Every finding will say whether it came from an observed source label, an expert annotation, a measurement derived
+from those observations, or a prediction. It will preserve the source meaning, tissue and stain scope, physical
+scale when known, and the evidence used to create it. Coverage will separate assessed tissue from excluded or
+obscured tissue and regions outside the source's annotation scope. Uncertainty will cover disputed boundaries,
+incomplete annotations,
+measurement intervals where appropriate, prediction confidence, and cases where no defensible result is
+available.
+
+Users must be able to inspect the regions and cells behind a reported structure, including preparation artifacts
+or scanner-associated defects that reduce its usable area. Expert review records will identify the review scope,
+outcome, and unresolved disagreement. A prediction remains a prediction after review unless an expert creates a
+separate annotation or accepted finding. Reviewers must confirm any diagnostic, grade, margin, or
+molecular-screening claim before a product presents it as confirmed.
+
+Slide products can reuse these outputs for adequacy, tumour presence and extent, morphology, burden, margins, and
+quality. Diagnostic and grading products can reuse reviewed region and architecture findings. Molecular-screening
+products can use them to define eligible tissue and explain the morphology behind a screening result. Patient
+products can reuse confirmed findings while retaining the contributing slide and region evidence.
+
+Cohort, institution, health-system, and population products are first-class aggregate products. They can summarise
+tissue composition, preparation artifacts, scanner-associated variation, usable coverage, adequacy, rescan
+outcomes, and missing structure evidence. Those summaries can expose sampling bias, data-quality differences, and
+operational patterns. An aggregate finding must connect its summary to the slides, regions, and evidence categories
+that produced it. Scanner effects require comparative evidence; otherwise the product will report an association
+rather than a cause.
+
+## Consequences
+
+Users can move from a reported ratio, distance, or architecture finding to the morphology that supports it. Later
+products can reuse the same reviewed evidence instead of recreating an unexplained slide summary. Aggregate
+products can reveal where evidence is sparse or systematically poor without hiding the affected material.
+
+The contract is broader than a tissue mask. It must represent absent findings, partial coverage, overlapping
+regions, disagreement, and source concepts that do not share a target meaning. Some useful measurements will be unavailable
+because a source lacks physical scale, a complete boundary, or the tissue needed for comparison. Cross-source
+summaries may remain source-specific when their annotations answer different questions.
+
+## Evaluation
+
+Accept the proposal when a tissue-structure product can present tumour, stroma, epithelium, glands, necrosis,
+immune aggregates, vessels, margins, and regions of interest without claiming unsupported coverage. A user must be
+able to inspect shape, extent, tumour-stroma ratio, immune context, margin distance, and region relationships where
+the evidence permits them, and see why a missing result is unavailable.
+
+The same evidence must feed at least one slide product and one later diagnostic, grading, molecular-screening, or
+patient product without losing its category, provenance, uncertainty, review state, or supporting regions. A
+cohort, institution, health-system, or population summary must also connect a quality or sampling pattern to the
+affected slides and tissue evidence.

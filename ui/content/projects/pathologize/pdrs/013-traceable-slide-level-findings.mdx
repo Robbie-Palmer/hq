@@ -1,0 +1,97 @@
+---
+title: "PDR 013: Make slide findings traceable to their evidence"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "CAMELYON annotated lymph-node whole-slide dataset"
+    url: "https://doi.org/10.1093/gigascience/giy065"
+  - title: "PAIP 2019 liver cancer segmentation challenge"
+    url: "https://doi.org/10.1016/j.media.2020.101854"
+  - title: "GrandQC whole-slide tissue and artifact quality study"
+    url: "https://doi.org/10.1038/s41467-024-54769-y"
+  - title: "College of American Pathologists whole-slide imaging validation guideline"
+    url: "https://www.cap.org/cap-guidelines/validating-whole-slide-imaging-for-diagnostic-purposes-in-pathology/"
+  - title: "Pathologist-centred comparison of whole-slide scanners"
+    url: "https://doi.org/10.1111/his.70136"
+---
+
+## Context
+
+A slide-level label can say that tumour or metastasis is present without showing the lesion, the tissue assessed,
+or the artifact that made part of the slide unusable. It can also blur distinct kinds of evidence. A publisher's
+label, an expert annotation, a measured tumour area, and a model prediction should not become the same field merely
+because each describes one slide.
+
+Cell and tissue-structure products make slide findings inspectable. Cells can support counts, composition, and
+local morphology. Tissue regions can support tumour extent, gland architecture, immune context, necrosis, margins,
+and spatial burden. CAMELYON demonstrates the value of connecting slide and patient labels to expert-reviewed
+metastasis regions. PAIP 2019 connects whole-slide tumour findings to whole and viable tumour areas. Quality
+evidence also matters: GrandQC reports tissue and artifact regions across institutions and scanners, while current
+whole-slide validation guidance treats diagnostic adequacy and system changes as explicit review concerns.
+
+## Proposed decision
+
+Publish one traceable account of the observations and targets available across each whole slide. A slide product
+will expose the following findings when supported:
+
+* adequacy and quality, including assessable tissue, missing tissue, blur, folds, bubbles, pen, debris, glass or
+  coverslip problems, stitching or focus defects, and whether review calls for a rescan or new preparation;
+* tissue and tumour presence, tumour extent, viable tumour extent, histologic type and subtype;
+* grade components and the evidence available for each component;
+* metastasis presence, class, location, and burden;
+* margin status, nearest supported distance, and the tissue assessed at the margin; and
+* aggregate morphology such as gland architecture, necrosis, tumour-stroma balance, immune context, vessel
+  relationships, cell composition, and spatial heterogeneity.
+
+Each finding will identify its evidence category: observed source label, expert annotation or review, measurement,
+or prediction. A measurement must name the observations it measures. A prediction must point to the supporting
+slide regions, tissue structures, or cells a user can inspect, while making clear that those supports do not turn
+the prediction into an expert finding. This extends the inspectable evidence promised by
+[PDR 004](/projects/pathologize/pdrs/004-inspectable-spatial-evidence) to the result a user sees for one slide.
+
+The slide account will state coverage, provenance, uncertainty, review status, and failure state. Coverage will
+distinguish present, absent after adequate assessment, not assessed, outside scope, obscured, and unavailable.
+Uncertainty will include disagreement, ambiguous morphology, incomplete boundaries, measurement intervals where
+appropriate, and prediction confidence. Failure states will name inadequate material, incomplete scanning,
+unsupported stain or tissue, missing upstream evidence, and an analysis that did not produce a result. No failed
+or unavailable slide will silently become a negative finding.
+
+Users can start from a slide conclusion and inspect the relevant regions and cells, including contradictory
+evidence and areas excluded for quality. Expert review can confirm, amend, or reject a finding without overwriting
+the original label, annotation, measurement, or prediction. Diagnostic and grading products can reuse confirmed
+findings and their support. Molecular-screening products can reuse adequacy, tumour content, and morphology to
+explain eligibility or triage, not to present a molecular result as observed. Quality-control products can reuse
+artifact regions, adequacy decisions, and rescan outcomes. Patient summaries can cite the contributing slides and
+preserve disagreement or missing evidence across them.
+
+Cohort, institution, health-system, and population products are first-class aggregate products. They can reuse
+slide adequacy, rescan, preparation-artifact, scanner-associated, and quality patterns. They can show which material
+is missing from analysis, where quality differs, and whether operational patterns may bias later results. Aggregate
+findings must connect their summaries to the affected slides, quality regions, review decisions, and source
+evidence. A product may call a scanner effect causal only when the comparison supports that claim; otherwise the
+result remains scanner-associated.
+
+## Consequences
+
+A user can judge a slide result from its evidence instead of receiving an unexplained score or label. Later
+diagnostic, grading, molecular-screening, quality-control, patient, and aggregate products can reuse the same slide
+account while preserving the distinction among observations, reviews, measurements, predictions, and missing
+results.
+
+Some slides will remain inconclusive. Exposing that state may reduce reported coverage, but it prevents inadequate
+material and analysis failures from becoming false negatives. The product must also carry disagreements and each
+source of uncertainty, which makes a slide record more demanding than a single class label. Aggregate
+comparisons need careful interpretation when institutions, scanners, stains, tissue types, and review practices
+differ.
+
+## Evaluation
+
+Accept the proposal when a user can inspect slide adequacy, quality, tissue and tumour presence, extent, histologic
+type or subtype, grade components, metastasis, margins, burden, and aggregate morphology wherever the slide has
+supporting evidence. The user must be able to distinguish an observed label, expert annotation, measurement, and
+prediction, then trace each one to its provenance, uncertainty, review state, supporting regions, and failure or
+coverage state.
+
+At least one downstream diagnostic, grading, molecular-screening, quality-control, or patient product must reuse a
+slide finding without losing that distinction. A cohort, institution, health-system, or population quality pattern
+must connect users to the slides and evidence behind its adequacy, rescan, artifact, or scanner-associated result.
