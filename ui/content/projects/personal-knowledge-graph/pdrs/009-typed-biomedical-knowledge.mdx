@@ -1,0 +1,124 @@
+---
+title: "PDR 009: Publish typed biomedical knowledge pages"
+date: "2026-11-11"
+status: "Accepted"
+decision_date: "2026-11-11"
+informed_by_adrs:
+  - "personal-knowledge-graph:033-content-graph-indexes"
+  - "personal-knowledge-graph:038-content-graph"
+  - "personal-knowledge-graph:060-typed-financial-and-business-subjects"
+---
+
+## Context
+
+Projects such as Pathologize use terms whose meaning cannot be recovered from
+the project name or a dataset summary. A reader may need to understand
+pathology, genomics, FFPE, H\&E staining, immunohistochemistry, fluorescence,
+Gleason grading, MSI, or PD-L1 before the work makes sense.
+
+These terms do not all describe the same kind of thing. Pathology and genomics
+are scientific fields. FFPE is a specimen preparation method. H\&E staining is
+an assay method. Genomic data is a data type. MSI and PD-L1 can be biomarkers.
+Gleason grading is a grading system. Multiple-instance learning is a data
+science technique, even when a pathology project uses it.
+
+Treating every term as a pathology topic would make genomics and other
+molecular evidence subordinate to one field. Treating every term as an idea
+would hide distinctions that readers need and that projects should state
+plainly.
+
+## Decision
+
+Publish biomedical knowledge as typed pages in the existing connected graph.
+The first vocabulary will distinguish:
+
+| Class                       | Examples                           |
+| --------------------------- | ---------------------------------- |
+| Biomedical field            | Pathology, genomics, proteomics    |
+| Specimen preparation method | FFPE, fresh frozen                 |
+| Assay method                | H\&E staining, IHC, sequencing     |
+| Biomedical data type        | Histology images, genomic data     |
+| Biomarker                   | MSI, PD-L1                         |
+| Grading system              | Gleason grading, ISUP grade groups |
+
+Image and spatial concepts may gain concrete classes when published content
+needs them. The graph will not add a generic biomedical subject or reference
+page as a fallback.
+
+Biomedical fields explain the disciplines themselves. Pathology,
+histopathology, molecular pathology, computational pathology, genomics,
+transcriptomics, proteomics, and bioinformatics can therefore have their own
+pages. A field page must not absorb the evidence or techniques that the field
+uses. Genomics and genomic data remain separate, just as pathology and a
+pathology assay remain separate.
+
+General analysis techniques stay in the existing idea vocabulary.
+Multiple-instance learning and spatial analysis are ideas that biomedical
+projects may use. Multi-omics is also an idea when it describes an integration
+approach. Their pages should explain the technique without assuming a medical
+use case. Biomedical pages and projects can link to them for context.
+
+Each biomedical entity has one stable local identity and one canonical page
+under `/biomedicine/<slug>`, with a plain Markdown twin at the same URL plus
+`.md`. The page states its class. Changing a title or adding an external
+ontology mapping does not change its local identity.
+
+Every page records the sources used for its claims and the date on which the
+content was last reviewed. External ontology identifiers may map the local
+entity to established vocabularies, but they do not replace the site's
+editorial identity or prose.
+
+Projects may link to the fields, preparations, assays, data types, biomarkers,
+grading systems, and general ideas they use. Blog posts may explain or discuss
+the same canonical entities. Dataset and data-product pages may link to them
+later without becoming the source of their definitions.
+
+Medical images and whole-slide viewers should appear where they help a reader
+understand visual evidence. Each example must use a real, licensed source and
+show its attribution. A viewer also needs a useful non-interactive fallback.
+Generated imagery must not stand in for clinical or research evidence.
+
+## Consequences
+
+Readers can learn the domain before following a project into datasets,
+benchmarks, or implementation details. The same explanation can support more
+than one project and more than one kind of evidence.
+
+Authors must decide what a term is before publishing it. That adds work, but it
+prevents field names, laboratory methods, measurements, and analysis
+techniques from collapsing into one list of tags.
+
+Biomedical claims can age or vary by authority. Pages need named sources and a
+visible review date. Interactive evidence also brings licensing, attribution,
+accessibility, storage, and maintenance work.
+
+The initial vocabulary will not cover every biomedical entity. A new concrete
+class requires a small ontology decision. It must not enter through a generic
+subject type.
+
+## Alternatives considered
+
+### Make pathology the top-level domain
+
+This would fit the first Pathologize pages. It was rejected because genomics,
+transcriptomics, proteomics, and molecular biomarkers are not subtypes of
+pathology. Pathology remains a field within the broader biomedical section.
+
+### Publish every term as an idea
+
+This would reuse an existing route and schema. It was rejected because a
+scientific field, specimen preparation, assay, data type, biomarker, and
+grading system have different meanings and relationships. Ideas remain the
+right home for domain-independent analysis techniques.
+
+### Add one biomedical subject type
+
+This would shorten the schema and loader work. It was rejected because the
+type would only say where a page appears on the site. It would not say what
+the entity is or constrain the relationships that can point to it.
+
+### Let datasets define the terminology
+
+This would keep explanations close to their first use. It was rejected because
+the same concept recurs across datasets, projects, and posts. Dataset metadata
+should link to a canonical definition rather than duplicate one.
