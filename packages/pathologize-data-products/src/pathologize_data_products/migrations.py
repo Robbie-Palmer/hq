@@ -27,6 +27,13 @@ class MigrationError(RuntimeError):
     pass
 
 
+_MANIFEST_FILENAME = "manifest.json"
+_GRANDQC_PRODUCT = "grandqc/mpp20"
+_NUCLS_PRODUCT = "nucls/corrected-single-rater"
+_AIRAQC_PRODUCT = "airaqc/tcga-public-pilot"
+_SOURCE_PRODUCT_CONTRACT = "contracts/source-product.json"
+
+
 def _object(path: Path) -> dict[str, Any]:
     value = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(value, dict):
@@ -43,11 +50,11 @@ def _rights(license_record: dict[str, Any]) -> Rights:
 
 
 def migrate_grandqc_source(project: Path) -> SourceProduct:
-    manifest = _object(project / "manifest.json")
+    manifest = _object(project / _MANIFEST_FILENAME)
     archive = cast(dict[str, Any], manifest["archive"])
     license_record = cast(dict[str, Any], manifest["license"])
     rights = _rights(license_record)
-    identity = ProductVersion(product="grandqc/mpp20", version=str(manifest["source_version"]))
+    identity = ProductVersion(product=_GRANDQC_PRODUCT, version=str(manifest["source_version"]))
     checksum = Checksum(value=str(archive["sha256"]))
     native_labels = cast(list[dict[str, Any]], manifest["native_labels"])
     artifact = ArtifactReference(
@@ -80,10 +87,10 @@ def migrate_grandqc_source(project: Path) -> SourceProduct:
 
 
 def migrate_nucls_source(project: Path) -> SourceProduct:
-    manifest = _object(project / "manifest.json")
+    manifest = _object(project / _MANIFEST_FILENAME)
     license_record = cast(dict[str, Any], manifest["license"])
     rights = _rights(license_record)
-    identity = ProductVersion(product="nucls/corrected-single-rater", version="20220301")
+    identity = ProductVersion(product=_NUCLS_PRODUCT, version="20220301")
     archives = cast(list[dict[str, Any]], manifest["archives"])
     role_by_name = {
         "rgb": ArtifactRole.SOURCE_IMAGE,
@@ -145,7 +152,7 @@ def migrate_airaqc_source(project: Path) -> SourceProduct:
     corpus = _object(project / "records/native-corpus.json")
     license_record = cast(dict[str, Any], collection["license"])
     rights = _rights(license_record)
-    identity = ProductVersion(product="airaqc/tcga-public-pilot", version="v1")
+    identity = ProductVersion(product=_AIRAQC_PRODUCT, version="v1")
     slides = cast(list[dict[str, Any]], corpus["slides"])
     artifact_records: dict[str, tuple[str, float]] = {}
     for slide in slides:
@@ -226,9 +233,9 @@ def migrate_existing_sources(repository: Path) -> tuple[SourceProduct, ...]:
 def existing_product_migration_plans(repository: Path) -> tuple[MigrationPlan, ...]:
     products = repository / "data-products"
     expected = {
-        "grandqc/mpp20": products / "grandqc/mpp20/manifest.json",
-        "nucls/corrected-single-rater": products / "nucls/corrected-single-rater/manifest.json",
-        "airaqc/tcga-public-pilot": products / "airaqc/tcga-public-pilot/contracts/subset.json",
+        _GRANDQC_PRODUCT: products / _GRANDQC_PRODUCT / _MANIFEST_FILENAME,
+        _NUCLS_PRODUCT: products / _NUCLS_PRODUCT / _MANIFEST_FILENAME,
+        _AIRAQC_PRODUCT: products / _AIRAQC_PRODUCT / "contracts/subset.json",
         "pathologize/slide-quality": products / "pathologize/slide-quality/imports.json",
         "pathologize/nucleus-analysis": products / "pathologize/nucleus-analysis/imports.json",
     }
@@ -246,23 +253,23 @@ def existing_product_migration_plans(repository: Path) -> tuple[MigrationPlan, .
     )
     return (
         MigrationPlan(
-            product=ProductVersion(product="grandqc/mpp20", version="source contract v1"),
-            current_contract="manifest.json",
-            target_contract="contracts/source-product.json",
+            product=ProductVersion(product=_GRANDQC_PRODUCT, version="source contract v1"),
+            current_contract=_MANIFEST_FILENAME,
+            target_contract=_SOURCE_PRODUCT_CONTRACT,
             bounded_changes=source_changes,
             preserved_paths=("data/raw", "data/native", "outputs/native-index.jsonl"),
         ),
         MigrationPlan(
-            product=ProductVersion(product="nucls/corrected-single-rater", version="20220301"),
-            current_contract="manifest.json",
-            target_contract="contracts/source-product.json",
+            product=ProductVersion(product=_NUCLS_PRODUCT, version="20220301"),
+            current_contract=_MANIFEST_FILENAME,
+            target_contract=_SOURCE_PRODUCT_CONTRACT,
             bounded_changes=source_changes,
             preserved_paths=("data/native", "outputs/native-index.jsonl"),
         ),
         MigrationPlan(
-            product=ProductVersion(product="airaqc/tcga-public-pilot", version="v1"),
+            product=ProductVersion(product=_AIRAQC_PRODUCT, version="v1"),
             current_contract="contracts/subset.json",
-            target_contract="contracts/source-product.json",
+            target_contract=_SOURCE_PRODUCT_CONTRACT,
             bounded_changes=source_changes,
             preserved_paths=("data/raw", "outputs/native-corpus.json"),
         ),
