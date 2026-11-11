@@ -1,0 +1,44 @@
+schema: '2.0'
+stages:
+  index_preview_metadata:
+    cmd: uv run --locked skin-frozen-ffpe-preview index
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: 9da8cab7f4f48c8648e48180fc986f86.dir
+      size: 24693
+      nfiles: 2
+    - path: manifest.json
+      hash: md5
+      md5: 8f6e83d53db24d2674bb6566217faf42
+      size: 11982
+    - path: pyproject.toml
+      hash: md5
+      md5: d8a10ef92ce2c55b1a82e069ec25bf27
+      size: 1254
+    - path: src/skin_frozen_ffpe_preview
+      hash: md5
+      md5: b473ed689878a367a94472d6029fe04b.dir
+      size: 24808
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 5256c98518e285cfc25a4ef2156d647a
+      size: 59860
+    outs:
+    - path: outputs/native-index.jsonl
+      hash: md5
+      md5: 4652ef6e89e65a1750129aeea1f842f8
+      size: 16179
+    - path: outputs/source-contract.json
+      hash: md5
+      md5: 4e2cd33404c928d0a72c454f43a0df7f
+      size: 13644
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: fa989c1074e3b0cfa78be2730b11c061
+      size: 407

@@ -12,6 +12,8 @@ retains source lineage.
 
 Current products:
 
+- `skin-cancer/frozen-ffpe-preview`: metadata-only source registry for the five
+  Zenodo frozen and FFPE skin resection-margin preview pairs.
 - `grandqc/mpp20`: source-native GrandQC MPP20 patch pairs and masks.
 - `nucls/corrected-single-rater`: source-native NuCLS fields of view,
   annotations, ontology, and official fold roles.
