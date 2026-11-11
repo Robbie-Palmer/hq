@@ -15,6 +15,9 @@ Current products:
 - `grandqc/mpp20`: source-native GrandQC MPP20 patch pairs and masks.
 - `nucls/corrected-single-rater`: source-native NuCLS fields of view,
   annotations, ontology, and official fold roles.
+- `monusac/challenge-2020`: source-native MoNuSAC organs, challenge image
+  records, instance annotations, cell classes, annotator roles, and publisher
+  split roles.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
