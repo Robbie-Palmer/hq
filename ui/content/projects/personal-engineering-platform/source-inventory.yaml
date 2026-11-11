@@ -726,6 +726,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/stain-assay-provenance-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/pathologize/stain-assay-provenance" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/slide-quality-benchmark"
     project: "project:pathologize"
     paths: [ "ml-pipelines/pathologize-slide-quality-benchmark" ]

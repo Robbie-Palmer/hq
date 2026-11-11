@@ -23,6 +23,9 @@ Current products:
   with frozen patient- and slide-disjoint roles.
 - `pathologize/roi-segmentation`: the multi-source slide-coordinate ROI
   composition contract, adapters, group-safe roles, and reconciliation reports.
+- `pathologize/stain-assay-provenance`: metadata-only contracts for stain,
+  assay, pairing, source artifact references, derived artifact lineage, and
+  annotation provenance.
 
 Projects under `ml-pipelines/` consume these products for training and
 evaluation. Shared packages and orchestration do not own product semantics.
