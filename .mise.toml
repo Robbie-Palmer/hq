@@ -30,6 +30,7 @@ config_roots = [
     "data-products/airaqc/tcga-public-pilot",
     "data-products/pathologize/slide-quality",
     "data-products/pathologize/nucleus-analysis",
+    "data-products/pathologize/roi-segmentation",
     "data-products/pathologize/tissue-segmentation",
     "ml-pipelines/recipe-dataset",
     "ml-pipelines/recipe-parsing",

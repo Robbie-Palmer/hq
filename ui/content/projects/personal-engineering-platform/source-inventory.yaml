@@ -718,6 +718,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/roi-segmentation-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/pathologize/roi-segmentation" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/tissue-segmentation-data-product"
     project: "project:pathologize"
     paths: [ "data-products/pathologize/tissue-segmentation" ]
