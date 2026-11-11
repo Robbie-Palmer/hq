@@ -107,22 +107,16 @@ def check_sources(root: Path = PROJECT_DIR) -> dict[str, int]:
     expected_slides = load_gdc_slides(root)
 
     kaggle = _fetch_json(str(contract.kaggle.metadata_api_url))
-    observed_kaggle = {
-        "ref": kaggle.get("ref"),
-        "version": kaggle.get("currentVersionNumber"),
-        "updated_at": kaggle.get("lastUpdated"),
-        "total_bytes": kaggle.get("totalBytes"),
-        "license": kaggle.get("licenseName"),
-    }
-    expected_kaggle = {
-        "ref": contract.kaggle.dataset_ref,
-        "version": contract.kaggle.version,
-        "updated_at": contract.kaggle.updated_at,
-        "total_bytes": contract.kaggle.reported_total_bytes,
-        "license": contract.kaggle.license_label,
-    }
-    if observed_kaggle != expected_kaggle:
-        raise ProductError("Kaggle metadata differs from the pinned v7 contract")
+    kaggle_fields = (
+        ("ref", contract.kaggle.dataset_ref),
+        ("currentVersionNumber", contract.kaggle.version),
+        ("lastUpdated", contract.kaggle.updated_at),
+        ("totalBytes", contract.kaggle.reported_total_bytes),
+        ("licenseName", contract.kaggle.license_label),
+    )
+    for field, expected in kaggle_fields:
+        if kaggle.get(field) != expected:
+            raise ProductError("Kaggle metadata differs from the pinned v7 contract")
 
     commit = _fetch_json(str(contract.github.commit_api_url))
     if commit.get("sha") != contract.github.commit:
