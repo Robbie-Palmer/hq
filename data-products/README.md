@@ -15,6 +15,8 @@ Current products:
 - `grandqc/mpp20`: source-native GrandQC MPP20 patch pairs and masks.
 - `nucls/corrected-single-rater`: source-native NuCLS fields of view,
   annotations, ontology, and official fold roles.
+- `panda/challenge-2020`: source-native PANDA prostate-biopsy slides, grades,
+  provider-specific masks, rights, checksums, and gated access contract.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
 - `camelyon/roi`: source-native CAMELYON16 slides and compatible annotated
