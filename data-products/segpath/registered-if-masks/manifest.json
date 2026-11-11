@@ -1,0 +1,331 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "segpath-2022-registered-if-masks",
+  "title": "SegPath registered IF-derived masks for H&E images",
+  "publisher": "The University of Tokyo",
+  "official_site": "https://dakomura.github.io/SegPath/",
+  "paper": {
+    "doi": "10.1016/j.patter.2023.100688",
+    "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC9982301"
+  },
+  "license": {
+    "spdx_id": "CC-BY-NC-SA-4.0",
+    "name": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International",
+    "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "evidence_url": "https://dakomura.github.io/SegPath/",
+    "commercial_use_contact": "ishum-prm@m.u-tokyo.ac.jp"
+  },
+  "image": {
+    "width_pixels": 984,
+    "height_pixels": 984,
+    "micrometers_per_pixel": 0.220818,
+    "magnification": "40x",
+    "wsi_coordinate_origin": "top_left",
+    "filename_coordinates": "leftmost WSI position"
+  },
+  "annotation_provenance": {
+    "input_stain": "H&E",
+    "same_section_restaining": true,
+    "restaining": "H&E destaining followed by target-specific immunofluorescence and DAPI nuclear staining",
+    "registration": [
+      "multiresolution WSI-level rigid registration",
+      "multiresolution patch-level rigid registration",
+      "patch-level non-rigid registration"
+    ],
+    "registration_signals": {
+      "fixed": "H&E hematoxylin component",
+      "moving": "IF DAPI nuclear channel"
+    },
+    "published_artifacts": ["H&E image", "binary IF-derived segmentation mask"],
+    "unpublished_intermediate_artifacts": ["IF image", "DAPI image"]
+  },
+  "supplementary_table_s2": {
+    "title": "Histopathological specimen in SegPath",
+    "url": "https://ars.els-cdn.com/content/image/1-s2.0-S2666389923000193-mmc2.xlsx",
+    "filename": "table-s2.xlsx",
+    "bytes": 14494,
+    "sha256": "9abe2e3e08ad14ea53e851b7573d97825f73e6a4b3dee79640f8c7ca9ddd8e4e",
+    "slide_identity_field": "TMA number",
+    "tissue_identity_field": "tumour type"
+  },
+  "expected": {
+    "record_count": 158687,
+    "artifact_count": 317374,
+    "archive_bytes": 305525589629,
+    "metadata_bytes": 22351340
+  },
+  "tasks": [
+    {
+      "task_id": "panCK_Epithelium",
+      "zenodo_record_id": 7412731,
+      "doi": "10.5281/zenodo.7412731",
+      "antibody": "panCK",
+      "paper_antigen": "Pan-cytokeratin (pan-CK)",
+      "paper_target": "epithelium",
+      "table_s2_antibody_target": "pan-CK",
+      "mask_derivation": "if_positive_signal",
+      "uses_dapi_nucleus_transfer": false,
+      "archive": {
+        "filename": "panCK_Epithelium.tar.gz",
+        "url": "https://zenodo.org/api/records/7412731/files/panCK_Epithelium.tar.gz/content",
+        "bytes": 50949978669,
+        "md5": "48fc1166a5750b290a545dac5cc38295"
+      },
+      "metadata": {
+        "filename": "panCK_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412731/files/panCK_fileinfo.csv/content",
+        "bytes": 3803617,
+        "md5": "6fbc57adbf3144b6382d831d37a603a8"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412731/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 26509,
+        "slides": 20,
+        "source_roles": {"train": 21912, "val": 2259, "test": 2338}
+      }
+    },
+    {
+      "task_id": "aSMA_SmoothMuscle",
+      "zenodo_record_id": 7412732,
+      "doi": "10.5281/zenodo.7412732",
+      "antibody": "aSMA",
+      "paper_antigen": "αSMA",
+      "paper_target": "smooth muscle/myofibroblast",
+      "table_s2_antibody_target": "α-SMA",
+      "mask_derivation": "if_positive_signal",
+      "uses_dapi_nucleus_transfer": false,
+      "archive": {
+        "filename": "aSMA_SmoothMuscle.tar.gz",
+        "url": "https://zenodo.org/api/records/7412732/files/aSMA_SmoothMuscle.tar.gz/content",
+        "bytes": 61090362315,
+        "md5": "ac4480796d04ab9eac8fb9cf2a1833d0"
+      },
+      "metadata": {
+        "filename": "aSMA_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412732/files/aSMA_fileinfo.csv/content",
+        "bytes": 4536183,
+        "md5": "3bca3522bae3d18d602722da82c3bd2b"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412732/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 31178,
+        "slides": 27,
+        "source_roles": {"train": 25748, "val": 2489, "test": 2941}
+      }
+    },
+    {
+      "task_id": "CD235a_RBC",
+      "zenodo_record_id": 7412580,
+      "doi": "10.5281/zenodo.7412580",
+      "antibody": "CD235a",
+      "paper_antigen": "Glycophorin A (CD235a)",
+      "paper_target": "red blood cell",
+      "table_s2_antibody_target": "CD235a",
+      "mask_derivation": "if_positive_and_he_red_signal",
+      "uses_dapi_nucleus_transfer": false,
+      "archive": {
+        "filename": "CD235a_RBC.tar.gz",
+        "url": "https://zenodo.org/api/records/7412580/files/CD235a_RBC.tar.gz/content",
+        "bytes": 48562564543,
+        "md5": "4237f99d53b62d726f501a6e70b626cf"
+      },
+      "metadata": {
+        "filename": "CD235a_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412580/files/CD235a_fileinfo.csv/content",
+        "bytes": 3147855,
+        "md5": "eb71479d8cb2f62c0f39966a739d9911"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412580/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 25909,
+        "slides": 17,
+        "source_roles": {"train": 21595, "val": 2224, "test": 2090}
+      }
+    },
+    {
+      "task_id": "CD45RB_Leukocyte",
+      "zenodo_record_id": 7412739,
+      "doi": "10.5281/zenodo.7412739",
+      "antibody": "CD45RB",
+      "paper_antigen": "CD45RB",
+      "paper_target": "leukocyte",
+      "table_s2_antibody_target": "CD45RB",
+      "mask_derivation": "if_positive_transferred_to_dapi_nucleus",
+      "uses_dapi_nucleus_transfer": true,
+      "archive": {
+        "filename": "CD45RB_Leukocyte.tar.gz",
+        "url": "https://zenodo.org/api/records/7412739/files/CD45RB_Leukocyte.tar.gz/content",
+        "bytes": 48038556007,
+        "md5": "a228f4312d81dc80c112f195b9ad4029"
+      },
+      "metadata": {
+        "filename": "CD45RB_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412739/files/CD45RB_fileinfo.csv/content",
+        "bytes": 3609013,
+        "md5": "08b4196f1e41018968938d9e0e80c53b"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412739/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 24805,
+        "slides": 30,
+        "source_roles": {"train": 20518, "val": 1988, "test": 2299}
+      }
+    },
+    {
+      "task_id": "CD3CD20_Lymphocyte",
+      "zenodo_record_id": 7412529,
+      "doi": "10.5281/zenodo.7412529",
+      "antibody": "CD3CD20",
+      "paper_antigen": "CD3/CD20",
+      "paper_target": "lymphocyte",
+      "table_s2_antibody_target": "CD3/CD20",
+      "mask_derivation": "if_positive_transferred_to_dapi_nucleus",
+      "uses_dapi_nucleus_transfer": true,
+      "archive": {
+        "filename": "CD3CD20_Lymphocyte.tar.gz",
+        "url": "https://zenodo.org/api/records/7412529/files/CD3CD20_Lymphocyte.tar.gz/content",
+        "bytes": 23694062772,
+        "md5": "91dc9d637eb034535dc9bbae3739078d"
+      },
+      "metadata": {
+        "filename": "CD3CD20_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412529/files/CD3CD20_fileinfo.csv/content",
+        "bytes": 1908817,
+        "md5": "68089ce00cfaff1284e5b2357b619191"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412529/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 12273,
+        "slides": 28,
+        "source_roles": {"train": 10453, "val": 1082, "test": 738}
+      }
+    },
+    {
+      "task_id": "ERG_Endothelium",
+      "zenodo_record_id": 7412512,
+      "doi": "10.5281/zenodo.7412512",
+      "antibody": "ERG",
+      "paper_antigen": "ERG",
+      "paper_target": "blood vessel, lymphatic vessel",
+      "table_s2_antibody_target": "ERG",
+      "mask_derivation": "if_positive_transferred_to_dapi_nucleus",
+      "uses_dapi_nucleus_transfer": true,
+      "archive": {
+        "filename": "ERG_Endothelium.tar.gz",
+        "url": "https://zenodo.org/api/records/7412512/files/ERG_Endothelium.tar.gz/content",
+        "bytes": 20956731834,
+        "md5": "836d87856cacb857ac37d1fe1a76b509"
+      },
+      "metadata": {
+        "filename": "ERG_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412512/files/ERG_fileinfo.csv/content",
+        "bytes": 1444499,
+        "md5": "8d6e0f4ec88f068553cb30d8f8f24840"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412512/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 10647,
+        "slides": 24,
+        "source_roles": {"train": 9497, "val": 613, "test": 537}
+      }
+    },
+    {
+      "task_id": "MIST1_PlasmaCell",
+      "zenodo_record_id": 7412500,
+      "doi": "10.5281/zenodo.7412500",
+      "antibody": "MIST1",
+      "paper_antigen": "MIST1",
+      "paper_target": "plasma cell",
+      "table_s2_antibody_target": "MIST1",
+      "mask_derivation": "if_positive_transferred_to_dapi_nucleus",
+      "uses_dapi_nucleus_transfer": true,
+      "archive": {
+        "filename": "MIST1_PlasmaCell.tar.gz",
+        "url": "https://zenodo.org/api/records/7412500/files/MIST1_PlasmaCell.tar.gz/content",
+        "bytes": 24891504922,
+        "md5": "46b5aa5eb06d61fd8157e357cea58ba8"
+      },
+      "metadata": {
+        "filename": "MIST1_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412500/files/MIST1_fileinfo.csv/content",
+        "bytes": 1899581,
+        "md5": "e783bff4dabff3aee1ddccae86d4c837"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412500/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 13231,
+        "slides": 38,
+        "source_roles": {"train": 11320, "val": 947, "test": 964}
+      }
+    },
+    {
+      "task_id": "MNDA_MyeloidCell",
+      "zenodo_record_id": 7412690,
+      "doi": "10.5281/zenodo.7412690",
+      "antibody": "MNDA",
+      "paper_antigen": "MNDA",
+      "paper_target": "myeloid cell",
+      "table_s2_antibody_target": "MNDA",
+      "mask_derivation": "if_positive_transferred_to_dapi_nucleus",
+      "uses_dapi_nucleus_transfer": true,
+      "archive": {
+        "filename": "MNDA_MyeloidCell.tar.gz",
+        "url": "https://zenodo.org/api/records/7412690/files/MNDA_MyeloidCell.tar.gz/content",
+        "bytes": 27341828567,
+        "md5": "49e9ffcf13d012a220cbe5c06ff24169"
+      },
+      "metadata": {
+        "filename": "MNDA_fileinfo.csv",
+        "url": "https://zenodo.org/api/records/7412690/files/MNDA_fileinfo.csv/content",
+        "bytes": 2001775,
+        "md5": "30bd7b0ee60c96b2628724cdcfb622bb"
+      },
+      "license_file": {
+        "filename": "LICENSE",
+        "url": "https://zenodo.org/api/records/7412690/files/LICENSE/content",
+        "bytes": 314,
+        "md5": "704cb8559a5b5ac27cd19011dc39662f"
+      },
+      "expected": {
+        "records": 14135,
+        "slides": 29,
+        "source_roles": {"train": 12315, "val": 894, "test": 926}
+      }
+    }
+  ]
+}
