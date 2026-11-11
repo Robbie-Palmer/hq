@@ -200,8 +200,10 @@ def test_empty_nonclass_group_is_preserved_without_inventing_a_class() -> None:
 
 
 def test_unknown_class_with_regions_is_rejected() -> None:
+    payload = _xml("Stromal")
+
     with pytest.raises(SourceDataError, match="unknown class"):
-        load_annotations(_xml("Stromal"))
+        load_annotations(payload)
 
 
 def test_safe_members_rejects_traversal(tmp_path: Path) -> None:

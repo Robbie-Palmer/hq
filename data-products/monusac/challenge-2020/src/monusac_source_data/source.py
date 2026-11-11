@@ -15,6 +15,7 @@ from http.client import HTTPMessage
 from pathlib import Path, PurePosixPath
 from typing import IO, Literal, Protocol, TypedDict, cast, override
 from urllib.parse import urlsplit
+from xml.etree.ElementTree import Element
 
 from defusedxml import ElementTree
 
@@ -280,72 +281,82 @@ def _publisher_role(
     return "challenge_excluded_region" if cell_class == "Ambiguous" else "challenge_scored_nucleus"
 
 
+def _parse_annotation_group(
+    annotation: Element,
+) -> tuple[NativeAnnotationGroup, CellClassName | None, list[Element]]:
+    group_id = int(annotation.attrib["Id"])
+    group_name = annotation.attrib.get("Name", "")
+    attribute = annotation.find("./Attributes/Attribute")
+    source_attribute_name = attribute.attrib["Name"] if attribute is not None else ""
+    regions = annotation.findall("./Regions/Region")
+    cell_class: CellClassName | None = (
+        source_attribute_name if source_attribute_name in _CELL_CLASSES else None
+    )
+    if regions and cell_class is None:
+        raise SourceDataError(
+            f"annotation group {group_id} has regions under unknown class "
+            f"{source_attribute_name!r}"
+        )
+    role: PublisherRole = (
+        _publisher_role(cell_class) if cell_class is not None else "empty_annotation_group"
+    )
+    group = NativeAnnotationGroup(
+        annotation_group_id=group_id,
+        annotation_group_name=group_name,
+        source_attribute_name=source_attribute_name,
+        cell_class=cell_class,
+        publisher_role=role,
+        line_color=int(annotation.attrib["LineColor"]),
+        instance_count=len(regions),
+    )
+    return group, cell_class, regions
+
+
+def _parse_instance_annotation(
+    group: NativeAnnotationGroup,
+    cell_class: CellClassName,
+    region: Element,
+) -> NativeInstanceAnnotation:
+    vertices = [
+        Vertex(
+            x=float(item.attrib["X"]),
+            y=float(item.attrib["Y"]),
+            z=float(item.attrib["Z"]),
+        )
+        for item in region.findall("./Vertices/Vertex")
+    ]
+    if not vertices:
+        raise SourceDataError(f"annotation region {region.attrib['Id']} has no vertices")
+    return NativeInstanceAnnotation(
+        annotation_group_id=group.annotation_group_id,
+        annotation_group_name=group.annotation_group_name,
+        source_attribute_name=group.source_attribute_name,
+        cell_class=cell_class,
+        publisher_role=_publisher_role(cell_class),
+        region_id=int(region.attrib["Id"]),
+        region_type=int(region.attrib["Type"]),
+        negative_roa=region.attrib.get("NegativeROA") == "1",
+        length=_optional_float(region.attrib.get("Length")),
+        area=_optional_float(region.attrib.get("Area")),
+        length_microns=_optional_float(region.attrib.get("LengthMicrons")),
+        area_microns=_optional_float(region.attrib.get("AreaMicrons")),
+        vertices=vertices,
+    )
+
+
 def _parse_annotation_document(payload: bytes, *, include_instances: bool) -> AnnotationDocument:
     root = ElementTree.fromstring(payload)
     microns_per_pixel = float(root.attrib["MicronsPerPixel"])
     groups: list[NativeAnnotationGroup] = []
     annotations: list[NativeInstanceAnnotation] = []
     for annotation in root.findall("Annotation"):
-        group_id = int(annotation.attrib["Id"])
-        group_name = annotation.attrib.get("Name", "")
-        line_color = int(annotation.attrib["LineColor"])
-        attribute = annotation.find("./Attributes/Attribute")
-        source_attribute_name = attribute.attrib["Name"] if attribute is not None else ""
-        regions = annotation.findall("./Regions/Region")
-        cell_class: CellClassName | None = (
-            cast(CellClassName, source_attribute_name)
-            if source_attribute_name in _CELL_CLASSES
-            else None
-        )
-        if regions and cell_class is None:
-            raise SourceDataError(
-                f"annotation group {group_id} has regions under unknown class "
-                f"{source_attribute_name!r}"
-            )
-        role: PublisherRole = (
-            _publisher_role(cell_class) if cell_class is not None else "empty_annotation_group"
-        )
-        groups.append(
-            NativeAnnotationGroup(
-                annotation_group_id=group_id,
-                annotation_group_name=group_name,
-                source_attribute_name=source_attribute_name,
-                cell_class=cell_class,
-                publisher_role=role,
-                line_color=line_color,
-                instance_count=len(regions),
-            )
-        )
+        group, cell_class, regions = _parse_annotation_group(annotation)
+        groups.append(group)
         if not include_instances or cell_class is None:
             continue
-        for region in regions:
-            vertices = [
-                Vertex(
-                    x=float(item.attrib["X"]),
-                    y=float(item.attrib["Y"]),
-                    z=float(item.attrib["Z"]),
-                )
-                for item in region.findall("./Vertices/Vertex")
-            ]
-            if not vertices:
-                raise SourceDataError(f"annotation region {region.attrib['Id']} has no vertices")
-            annotations.append(
-                NativeInstanceAnnotation(
-                    annotation_group_id=group_id,
-                    annotation_group_name=group_name,
-                    source_attribute_name=source_attribute_name,
-                    cell_class=cell_class,
-                    publisher_role=_publisher_role(cell_class),
-                    region_id=int(region.attrib["Id"]),
-                    region_type=int(region.attrib["Type"]),
-                    negative_roa=region.attrib.get("NegativeROA") == "1",
-                    length=_optional_float(region.attrib.get("Length")),
-                    area=_optional_float(region.attrib.get("Area")),
-                    length_microns=_optional_float(region.attrib.get("LengthMicrons")),
-                    area_microns=_optional_float(region.attrib.get("AreaMicrons")),
-                    vertices=vertices,
-                )
-            )
+        annotations.extend(
+            _parse_instance_annotation(group, cell_class, region) for region in regions
+        )
     return AnnotationDocument(
         microns_per_pixel=microns_per_pixel,
         groups=tuple(groups),
@@ -376,6 +387,77 @@ def _member_kind(path: str) -> str:
     return PurePosixPath(path).suffix.lower().removeprefix(".")
 
 
+def _archive_members_by_stem(archive: zipfile.ZipFile) -> dict[tuple[str, str], dict[str, str]]:
+    members_by_stem: dict[tuple[str, str], dict[str, str]] = {}
+    for member in _safe_members(archive):
+        if member.is_dir():
+            continue
+        suffix = _member_kind(member.filename)
+        if suffix not in {"svs", "tif", "xml"}:
+            continue
+        member_path = PurePosixPath(member.filename)
+        key = (member_path.parent.as_posix(), member_path.stem)
+        members_by_stem.setdefault(key, {})[suffix] = member.filename
+    return members_by_stem
+
+
+def _image_record(
+    archive: zipfile.ZipFile,
+    artifact: SourceArtifact,
+    split: PublisherSplit,
+    roles: dict[tuple[PublisherSplit, str], PatientRole],
+    parent: str,
+    image_id: str,
+    image_members: dict[str, str],
+) -> NativeImageRecord:
+    if "xml" not in image_members:
+        raise SourceDataError(f"image has no annotation XML: {parent}/{image_id}")
+    if "svs" not in image_members:
+        raise SourceDataError(f"annotation has no native SVS image: {parent}/{image_id}")
+    slide_id = PurePosixPath(parent).name
+    patient_id = _patient_id(slide_id)
+    role = roles.get((split, patient_id))
+    if role is None:
+        raise SourceDataError(f"no publisher organ role for {split} patient {patient_id}")
+    document = _parse_annotation_document(
+        archive.read(image_members["xml"]), include_instances=False
+    )
+    class_counts: Counter[str] = Counter()
+    publisher_role_counts: Counter[str] = Counter()
+    for group in document.groups:
+        if group.cell_class is not None:
+            class_counts[group.cell_class] += group.instance_count
+        publisher_role_counts[group.publisher_role] += group.instance_count
+    native_images = [
+        NativeImageMember(
+            format=image_format,
+            artifact_ref=_artifact_ref(artifact),
+            member_path=image_members[image_format],
+        )
+        for image_format in ("svs", "tif")
+        if image_format in image_members
+    ]
+    return NativeImageRecord(
+        dataset_id="monusac2020-challenge-distribution-20210608",
+        record_ref=_record_ref(split, image_id),
+        image_id=image_id,
+        slide_id=slide_id,
+        patient_id=patient_id,
+        publisher_split=split,
+        organ=role.organ,
+        tissue_source_site_code=role.tissue_source_site_code,
+        hospital=role.hospital,
+        image_members=native_images,
+        annotation_artifact_ref=_artifact_ref(artifact),
+        annotation_member_path=image_members["xml"],
+        microns_per_pixel=document.microns_per_pixel,
+        annotation_groups=list(document.groups),
+        instance_count=sum(class_counts.values()),
+        cell_class_counts=dict(sorted(class_counts.items())),
+        publisher_role_counts=dict(sorted(publisher_role_counts.items())),
+    )
+
+
 def _index_archive(
     path: Path,
     artifact: SourceArtifact,
@@ -389,67 +471,15 @@ def _index_archive(
     patients: set[str] = set()
     slides: set[str] = set()
     with zipfile.ZipFile(path) as archive:
-        files = [member.filename for member in _safe_members(archive) if not member.is_dir()]
-        members_by_stem: dict[tuple[str, str], dict[str, str]] = {}
-        for member in files:
-            suffix = _member_kind(member)
-            if suffix not in {"svs", "tif", "xml"}:
-                continue
-            member_path = PurePosixPath(member)
-            key = (member_path.parent.as_posix(), member_path.stem)
-            members_by_stem.setdefault(key, {})[suffix] = member
+        members_by_stem = _archive_members_by_stem(archive)
         for (parent, image_id), image_members in sorted(members_by_stem.items()):
-            if "xml" not in image_members:
-                raise SourceDataError(f"image has no annotation XML: {parent}/{image_id}")
-            if "svs" not in image_members:
-                raise SourceDataError(f"annotation has no native SVS image: {parent}/{image_id}")
-            slide_id = PurePosixPath(parent).name
-            patient_id = _patient_id(slide_id)
-            role = roles.get((split, patient_id))
-            if role is None:
-                raise SourceDataError(f"no publisher organ role for {split} patient {patient_id}")
-            document = _parse_annotation_document(
-                archive.read(image_members["xml"]), include_instances=False
+            record = _image_record(
+                archive, artifact, split, roles, parent, image_id, image_members
             )
-            class_counts: Counter[str] = Counter()
-            publisher_role_counts: Counter[str] = Counter()
-            for group in document.groups:
-                if group.cell_class is not None:
-                    class_counts[group.cell_class] += group.instance_count
-                publisher_role_counts[group.publisher_role] += group.instance_count
-            native_images = [
-                NativeImageMember(
-                    format=image_format,
-                    artifact_ref=_artifact_ref(artifact),
-                    member_path=image_members[image_format],
-                )
-                for image_format in ("svs", "tif")
-                if image_format in image_members
-            ]
             format_counts.update((*image_members,))
-            patients.add(patient_id)
-            slides.add(slide_id)
-            records.append(
-                NativeImageRecord(
-                    dataset_id="monusac2020-challenge-distribution-20210608",
-                    record_ref=_record_ref(split, image_id),
-                    image_id=image_id,
-                    slide_id=slide_id,
-                    patient_id=patient_id,
-                    publisher_split=split,
-                    organ=role.organ,
-                    tissue_source_site_code=role.tissue_source_site_code,
-                    hospital=role.hospital,
-                    image_members=native_images,
-                    annotation_artifact_ref=_artifact_ref(artifact),
-                    annotation_member_path=image_members["xml"],
-                    microns_per_pixel=document.microns_per_pixel,
-                    annotation_groups=list(document.groups),
-                    instance_count=sum(class_counts.values()),
-                    cell_class_counts=dict(sorted(class_counts.items())),
-                    publisher_role_counts=dict(sorted(publisher_role_counts.items())),
-                )
-            )
+            patients.add(record.patient_id)
+            slides.add(record.slide_id)
+            records.append(record)
     return records, format_counts, patients, slides
 
 
