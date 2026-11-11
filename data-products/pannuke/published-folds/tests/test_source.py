@@ -131,6 +131,14 @@ def test_manifest_rejects_changed_fold_identity() -> None:
         SourceManifest.model_validate(payload)
 
 
+def test_manifest_rejects_non_https_urls() -> None:
+    payload = json.loads((PROJECT_DIR / "manifest.json").read_text(encoding="utf-8"))
+    payload["archives"][0]["url"] = "http://example.test/fold_1.zip"
+
+    with pytest.raises(ValueError, match="URL scheme should be 'https'"):
+        SourceManifest.model_validate(payload)
+
+
 def test_index_keeps_source_coordinates_and_artifact_references(tmp_path: Path) -> None:
     root, _ = _fixture_root(tmp_path)
 
@@ -204,6 +212,27 @@ def test_acquire_streams_and_verifies_all_archives(
 
     assert [path.name for path in acquired] == ["fold_1.zip", "fold_2.zip", "fold_3.zip"]
     assert (root / "data/raw/acquisition.json").is_file()
+    assert not list((root / "data/raw").glob("*.part"))
+
+
+def test_acquire_rejects_oversized_response(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root, contents = _fixture_root(tmp_path)
+    for path in (root / "data/raw").glob("*.zip"):
+        path.unlink()
+    contents["fold_1.zip"] += b"unexpected trailing bytes"
+
+    class FakeOpener:
+        def open(self, request: urllib.request.Request, timeout: int) -> _FakeResponse:
+            assert timeout == 60
+            return _FakeResponse(contents[Path(request.full_url).name])
+
+    monkeypatch.setattr(urllib.request, "build_opener", lambda *_: FakeOpener())
+
+    with pytest.raises(SourceDataError, match="exceeds pinned byte count"):
+        acquire_dataset(root)
+
     assert not list((root / "data/raw").glob("*.part"))
 
 

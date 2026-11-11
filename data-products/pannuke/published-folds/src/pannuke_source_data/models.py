@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
-from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, UrlConstraints, model_validator
+
+HttpsUrl = Annotated[AnyUrl, UrlConstraints(allowed_schemes=["https"])]
 
 
 class StrictModel(BaseModel):
@@ -12,13 +14,13 @@ class StrictModel(BaseModel):
 class Paper(StrictModel):
     title: str = Field(min_length=1)
     identifier: Literal["arXiv:2003.10778"]
-    url: AnyHttpUrl
+    url: HttpsUrl
 
 
 class License(StrictModel):
     spdx_id: Literal["CC-BY-NC-SA-4.0"]
-    url: AnyHttpUrl
-    evidence_url: AnyHttpUrl
+    url: HttpsUrl
+    evidence_url: HttpsUrl
     use_limitation: str = Field(min_length=1)
     redistribution: str = Field(min_length=1)
 
@@ -26,7 +28,7 @@ class License(StrictModel):
 class SourceArchive(StrictModel):
     fold: int = Field(ge=1, le=3)
     filename: str = Field(pattern=r"^fold_[123]\.zip$")
-    url: AnyHttpUrl
+    url: HttpsUrl
     bytes: int = Field(gt=0)
     sha1: str = Field(pattern=r"^[0-9a-f]{40}$")
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -90,7 +92,7 @@ class SourceManifest(StrictModel):
     description: str = Field(min_length=1)
     source_version: str = Field(min_length=1)
     publisher: str = Field(min_length=1)
-    publisher_record: AnyHttpUrl
+    publisher_record: HttpsUrl
     paper: Paper
     license: License
     checksum_provenance: str = Field(min_length=1)

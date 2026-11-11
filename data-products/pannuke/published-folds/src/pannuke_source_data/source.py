@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 import stat
 import urllib.request
 import zipfile
@@ -137,6 +136,17 @@ def verify_archive(path: Path, archive: SourceArchive) -> None:
         raise SourceDataError(f"archive SHA-256 differs: {path}")
 
 
+def _copy_archive(response: Response, target: IO[bytes], archive: SourceArchive) -> None:
+    copied = 0
+    while chunk := response.read(min(1024 * 1024, archive.bytes - copied + 1)):
+        copied += len(chunk)
+        if copied > archive.bytes:
+            raise SourceDataError(
+                f"source archive exceeds pinned byte count for fold {archive.fold}"
+            )
+        target.write(chunk)
+
+
 def _download(archive: SourceArchive, destination: Path) -> None:
     temporary = destination.with_suffix(".zip.part")
     temporary.unlink(missing_ok=True)
@@ -149,7 +159,7 @@ def _download(archive: SourceArchive, destination: Path) -> None:
             cast(Response, opener.open(request, timeout=60)) as response,
             temporary.open("wb") as target,
         ):
-            shutil.copyfileobj(response, target, length=1024 * 1024)
+            _copy_archive(response, target, archive)
             target.flush()
             os.fsync(target.fileno())
         verify_archive(temporary, archive)
