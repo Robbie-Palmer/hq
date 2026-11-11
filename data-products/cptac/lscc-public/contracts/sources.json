@@ -1,0 +1,52 @@
+{
+  "schema_version": "1.0.0",
+  "product_id": "cptac-lscc-public-v1",
+  "cohort": {
+    "publisher": "Clinical Proteomic Tumor Analysis Consortium",
+    "collection_id": "CPTAC-LSCC",
+    "disease_type": "Lung Squamous Cell Carcinoma",
+    "participant_identity_statement_url": "https://www.cancerimagingarchive.net/collection/cptac-lscc/"
+  },
+  "repositories": [
+    {
+      "repository": "TCIA",
+      "release": "CPTAC-LSCC version 15",
+      "access_tier": "public",
+      "license": "CC BY 4.0",
+      "license_url": "https://www.cancerimagingarchive.net/collection/cptac-lscc/",
+      "policy_url": "https://www.cancerimagingarchive.net/tcia-api-guides/",
+      "metadata_url": "https://pathdb.cancerimagingarchive.net/system/files/collectionmetadata/202407/cptac_metadata_07-09-2024.csv"
+    },
+    {
+      "repository": "PDC",
+      "release": "PDC study UUID versions pinned in snapshot-manifest.json",
+      "access_tier": "public",
+      "license": "PDC Data Licensing Policy",
+      "license_url": "https://pdc.cancer.gov/pdc-docs/usage",
+      "policy_url": "https://pdc.cancer.gov/pdc/data-use-guidelines",
+      "metadata_url": "https://pdc.cancer.gov/graphql/"
+    },
+    {
+      "repository": "GDC",
+      "release": "Data Release 46.0 - August 10, 2026",
+      "access_tier": "mixed",
+      "license": "GDC data access and analysis policies",
+      "license_url": "https://gdc.cancer.gov/analyze-data/data-analysis-policies",
+      "policy_url": "https://docs.gdc.cancer.gov/Encyclopedia/pages/Controlled_Access/",
+      "metadata_url": "https://api.gdc.cancer.gov/"
+    }
+  ],
+  "pdc_study_ids": [
+    "PDC000232",
+    "PDC000233",
+    "PDC000234",
+    "PDC000237"
+  ],
+  "artifact_policy": {
+    "mode": "metadata_only",
+    "commit_artifact_bytes": false,
+    "controlled_downloads": false,
+    "tcia_slide_stain": "H&E",
+    "tcia_slide_stain_evidence_url": "https://pdc.cancer.gov/pdc/cptac-pancancer"
+  }
+}

@@ -1,0 +1,53 @@
+schema: '2.0'
+stages:
+  publish_native_linkage:
+    cmd: uv run --locked cptac-lscc-source publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: bf2c149987711c44b757294b286010b6.dir
+      size: 1933
+      nfiles: 1
+    - path: pyproject.toml
+      hash: md5
+      md5: 7bfa39b3300539623baae8161f34950f
+      size: 1177
+    - path: snapshots
+      hash: md5
+      md5: 6fb484331b3f8c390fde21a8a6aab55f.dir
+      size: 26806618
+      nfiles: 10
+    - path: src/cptac_lscc_source
+      hash: md5
+      md5: ed54fb62a47a4db25da69e6f8c59baca.dir
+      size: 39195
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: a0a073aa0d2a31f7dc4b2aeb7bd51862
+      size: 34618
+    outs:
+    - path: outputs/artifact-index.jsonl
+      hash: md5
+      md5: 7dff632182fab2c0ccc010f134f5c8ed
+      size: 8057757
+    - path: outputs/lineage.json
+      hash: md5
+      md5: ba32eb9b5e7ccc1863fa94afa4a021ac
+      size: 1737
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 483b8933f1d370daed8899a036bb09dd
+      size: 665
+    - path: outputs/missingness.json
+      hash: md5
+      md5: bb57e273e5c2f4ac2a1e9552b91b6a7d
+      size: 327
+    - path: outputs/native-index.jsonl
+      hash: md5
+      md5: c72a2ffbee1326aa2f8272a0a1cbbee6
+      size: 705909

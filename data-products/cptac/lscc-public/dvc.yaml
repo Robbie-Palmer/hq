@@ -1,0 +1,17 @@
+stages:
+  publish_native_linkage:
+    cmd: uv run --locked cptac-lscc-source publish
+    deps:
+      - .python-version
+      - contracts
+      - pyproject.toml
+      - snapshots
+      - src/cptac_lscc_source
+      - uv.lock
+    outs:
+      - outputs/native-index.jsonl
+      - outputs/artifact-index.jsonl
+      - outputs/lineage.json
+      - outputs/missingness.json
+    metrics:
+      - outputs/metrics.json

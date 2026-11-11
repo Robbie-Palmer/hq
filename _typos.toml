@@ -28,6 +28,9 @@ extend-exclude = [
     "data-products/airaqc/tcga-public-pilot/contracts/assets.json",
     "data-products/airaqc/tcga-public-pilot/contracts/source-index.json",
     "data-products/airaqc/tcga-public-pilot/records/native-corpus.json",
+    # Publisher-native metadata retains biomedical names, workflow identifiers,
+    # file names, and opaque UUIDs from TCIA, PDC, and GDC.
+    "data-products/cptac/lscc-public/snapshots/",
     # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
     # comments so local changes remain auditable against the pinned source.
     "cpp/autonomic-satellite-swarm/third_party/sgp4/",
