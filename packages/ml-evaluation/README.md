@@ -1,32 +1,111 @@
 # ML evaluation
 
-`ml-evaluation` contains Python contracts and decision rules shared by
-evaluation projects. It has no dataset, clinical domain, model provider, or
-task-specific metric vocabulary.
+`ml-evaluation` provides shared contracts and analysis helpers for machine-learning
+evaluation projects in this repository. It is deliberately independent of datasets,
+model providers, and task-specific metrics.
 
-The package owns:
+Use it to:
 
-- strict Pydantic base types for adapters, objectives, resource budgets, run
-  records, artifact references, failure reports, and gates;
-- pinned Python entrypoint loading with module digests, adapter identity, and
-  version checks;
-- metric and resource promotion gates.
+- define adapters, metric objectives, run records, artifact references, and promotion
+  gates with strict Pydantic models;
+- load pinned Python entrypoints and verify their module digests, adapter identities,
+  and versions;
+- bind a checkpoint series to parameter and source-run digests, then verify every
+  checkpoint before evaluation;
+- declare execution limits and reject missing or over-budget resource measurements;
+- calculate cluster-aware bootstrap intervals and compare replicated learning curves.
 
-`packages/data-artifacts` owns canonical JSON and JSON Lines, hashing,
-root-confined paths, source fingerprints, and schema artifact writing.
-Evaluation projects compose the two packages without making file mechanics
-part of the ML contract.
+Evaluation projects still define their own data contract, cluster unit, prediction
+format, metrics, and release policy. `packages/data-artifacts` provides canonical JSON
+and JSON Lines handling, hashing, root-confined paths, source fingerprints, and schema
+artifact writing.
 
-Evaluation projects own their data contracts, leakage units, prediction types,
-metrics, safety policy, and scorecard envelope. Importing this package does not
-make two projects share those domain decisions.
+## Checkpoint provenance
 
-For a Python entrypoint, `artifact_sha256` hashes the module file that defines
-the entrypoint attribute. The loader resolves and hashes that file before it
-imports the module or invokes the attribute.
+`index_checkpoints` records project-relative paths and SHA-256 digests in step order.
+It rejects missing files and paths outside the supplied root. Call
+`verify_checkpoint_series` before consuming the files to detect missing or changed
+checkpoints.
 
-Run the package checks through mise:
+```python
+from pathlib import Path
+
+from ml_evaluation.provenance import index_checkpoints, verify_checkpoint_series
+
+root = Path("artifacts/run-42")
+series = index_checkpoints(
+    root,
+    {1: "checkpoints/step-1.pt", 2: "checkpoints/step-2.pt"},
+    parameters_sha256="a" * 64,
+    source_run_sha256="b" * 64,
+)
+paths = verify_checkpoint_series(root, series)
+```
+
+## Execution limits
+
+`enforce_resource_limits` compares observed usage with declared maximums and minimums.
+An enabled limit also requires a corresponding measurement. The function raises
+`ResourceLimitError` with one structured violation per failed or unverified limit.
+
+```python
+from ml_evaluation.contracts import ExecutionBudget, ExecutionUsage
+from ml_evaluation.resources import enforce_resource_limits
+
+budget = ExecutionBudget(
+    max_wall_seconds=3_600,
+    max_accelerator_seconds=3_600,
+    max_peak_accelerator_bytes=16 * 1024**3,
+)
+usage = ExecutionUsage(
+    wall_seconds=2_200,
+    accelerator_seconds=2_050,
+    peak_accelerator_bytes=11 * 1024**3,
+)
+enforce_resource_limits(budget, usage)
+```
+
+## Cluster-aware curve analysis
+
+Curve helpers accept one curve per replicate. Each step maps stable cluster identifiers
+to additive numeric totals. The caller supplies a function that converts the summed
+totals into the statistic being analysed. This keeps resampling at the independent
+sampling unit instead of treating individual observations as independent.
+
+```python
+from collections.abc import Sequence
+
+from ml_evaluation.contracts import BootstrapConfig
+from ml_evaluation.curve_analysis import compare_error_curve
+
+
+def error_rate(totals: Sequence[float]) -> float:
+    errors, observations = totals
+    return errors / observations
+
+
+comparison = compare_error_curve(
+    curves,
+    error_rate,
+    baseline_horizon_steps=40,
+    smoothing_window_steps=3,
+    minimum_change=0.01,
+    bootstrap=BootstrapConfig(replicates=2_000, seed=17, confidence_level=0.95),
+)
+```
+
+`compare_error_curve` finds the lowest smoothed window within the baseline horizon,
+the highest eligible later window, and the lowest window after that peak. The final
+smoothed window is not eligible as a peak because the comparison requires a later
+window. It reports paired cluster-bootstrap intervals, per-replicate direction checks,
+and whether the declared minimum change and agreement rules support the pattern. The
+function does not choose the horizon, smoothing width, threshold, or cluster unit for
+the caller.
+
+## Development
+
+Run formatting, linting, type checks, tests, and coverage through mise:
 
 ```bash
-mise run //packages/ml-evaluation:check
+mise //packages/ml-evaluation:check
 ```
