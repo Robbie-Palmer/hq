@@ -1,0 +1,60 @@
+schema: '2.0'
+stages:
+  verify_metadata:
+    cmd: uv run --locked colorectal-multistain-source verify-metadata
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: eb84fc25468447f925947077b77e43fa
+      size: 12110
+    - path: pyproject.toml
+      hash: md5
+      md5: 84c89aea72f1472b1f249753bc8c01ba
+      size: 1178
+    - path: src/colorectal_multistain_source
+      hash: md5
+      md5: b92b7dc0702cdc47ba8306c47700af56.dir
+      size: 24627
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 8a62db815387f900b7aa95760f4f5b88
+      size: 49872
+    outs:
+    - path: outputs/metadata-verification.json
+      hash: md5
+      md5: fca99087f8802298e4447a4c5826c687
+      size: 731
+  index_native_references:
+    cmd: uv run --locked colorectal-multistain-source index
+    deps:
+    - path: manifest.json
+      hash: md5
+      md5: eb84fc25468447f925947077b77e43fa
+      size: 12110
+    - path: pyproject.toml
+      hash: md5
+      md5: 84c89aea72f1472b1f249753bc8c01ba
+      size: 1178
+    - path: src/colorectal_multistain_source
+      hash: md5
+      md5: b92b7dc0702cdc47ba8306c47700af56.dir
+      size: 24627
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 8a62db815387f900b7aa95760f4f5b88
+      size: 49872
+    outs:
+    - path: outputs/native-index.jsonl
+      hash: md5
+      md5: d1313d90f9093b7dd82414c0227744fa
+      size: 11715787
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: 2e026902e18f9437820f4057ab6b7310
+      size: 881

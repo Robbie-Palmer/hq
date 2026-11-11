@@ -17,6 +17,8 @@ Current products:
   annotations, ontology, and official fold roles.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `colorectal/multistain-epithelium`: source-native colorectal TMA core images,
+  epithelium masks, H&E, IHC markers, and ISH probes and controls.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
