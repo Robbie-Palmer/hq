@@ -1,0 +1,45 @@
+schema: '2.0'
+stages:
+  publish_native_contract:
+    cmd: uv run --locked bcss-source-data publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: 863bab3e9d67d17fb544d8f45c25c1cd.dir
+      size: 6274
+      nfiles: 2
+    - path: pyproject.toml
+      hash: md5
+      md5: d384742f82662b89efc7b515b560a9aa
+      size: 1077
+    - path: records
+      hash: md5
+      md5: b2796284506d6de868b9c8bcbf99d3ae.dir
+      size: 281033
+      nfiles: 1
+    - path: src/bcss_source_data
+      hash: md5
+      md5: 1833104873f98b01367308a8acbd0b39.dir
+      size: 16782
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: 4602ec52cfec954262d349e860d1adb1
+      size: 34612
+    outs:
+    - path: outputs/native-corpus.json
+      hash: md5
+      md5: 31bbc2b827070627f29f115e2f316540
+      size: 281033
+    - path: outputs/native-ontology.json
+      hash: md5
+      md5: d5ac73229dfe0c00878716a323e9af6c
+      size: 2380
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: c4ef3aa15fba1e2cf4c892ae537617c1
+      size: 452

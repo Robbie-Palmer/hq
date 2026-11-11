@@ -1,0 +1,6 @@
+/.venv/
+/.coverage
+/coverage.xml
+/data/
+/outputs/
+**/__pycache__/

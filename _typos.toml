@@ -28,6 +28,8 @@ extend-exclude = [
     "data-products/airaqc/tcga-public-pilot/contracts/assets.json",
     "data-products/airaqc/tcga-public-pilot/contracts/source-index.json",
     "data-products/airaqc/tcga-public-pilot/records/native-corpus.json",
+    # Generated BCSS records preserve publisher filenames and opaque IDs.
+    "data-products/bcss/semantic-segmentation/records/native-corpus.json",
     # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
     # comments so local changes remain auditable against the pinned source.
     "cpp/autonomic-satellite-swarm/third_party/sgp4/",

@@ -1,0 +1,93 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "bcss-figshare-7193138-v2",
+  "title": "Breast Cancer Semantic Segmentation dataset",
+  "repository_url": "https://github.com/PathologyDataScience/BCSS",
+  "repository_revision": "3c49d554497dd896cd02ffe382503ef4ce28b1c1",
+  "paper_doi": "10.1093/bioinformatics/btz083",
+  "paper_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6748796/",
+  "figshare_article_id": 7193138,
+  "figshare_doi": "10.6084/m9.figshare.7193138.v2",
+  "figshare_api_url": "https://api.figshare.com/v2/articles/7193138",
+  "source_files": [
+    {
+      "name": "README.md",
+      "url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/README.md",
+      "sha256": "16f2ee5c66f84bf274c594a51720fc3f9a358a309030ff15f062ed998caab05c"
+    },
+    {
+      "name": "LICENSE",
+      "url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/LICENSE",
+      "sha256": "75489b3d10d5be1bb6d3d1a33df9c00a70e4069d4c23ce0701e9d353df554aac"
+    },
+    {
+      "name": "configs.py",
+      "url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/configs.py",
+      "sha256": "ace098fe584a2cda2f1400d3d40e6411f5f40a5598d0e15da2618ffc5fb3c9fc"
+    },
+    {
+      "name": "download_crowdsource_dataset.py",
+      "url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/download_crowdsource_dataset.py",
+      "sha256": "04a0cd2ed3286f1606c8f4ff169f635ff39877c370afe819cc49a7e7f643d548"
+    },
+    {
+      "name": "meta/gtruth_codes.tsv",
+      "url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/meta/gtruth_codes.tsv",
+      "sha256": "78b9ffda84febf95a454d49c83d29031af7be1032aa2413e7e535126d1d9a55f"
+    },
+    {
+      "name": "meta/roiBounds.csv",
+      "url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/meta/roiBounds.csv",
+      "sha256": "564bc31fdd5808e5d57de40cc65541aad2c1dbc9415e2e0448f25c00ed144d28"
+    },
+    {
+      "name": "meta/slide_magnifications.csv",
+      "url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/meta/slide_magnifications.csv",
+      "sha256": "d4abc1c7d8e172606f93cb82a7cbd3a26e796d20277251793600df8cdb547e2c"
+    }
+  ],
+  "rights": {
+    "dataset_spdx_id": "CC0-1.0",
+    "dataset_evidence_url": "https://github.com/PathologyDataScience/BCSS/blob/3c49d554497dd896cd02ffe382503ef4ce28b1c1/README.md#dataset-licensing",
+    "figshare_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "code_spdx_id": "MIT",
+    "code_license_url": "https://github.com/PathologyDataScience/BCSS/blob/3c49d554497dd896cd02ffe382503ef4ce28b1c1/LICENSE",
+    "tcga_policy_url": "https://gdc.cancer.gov/analyze-data/data-analysis-policies",
+    "redistribution_note": "BCSS declares the dataset CC0. The referenced TCGA slides remain subject to GDC policy, including the prohibition on reidentification. This repository commits identifiers, metadata, and checksums, not image or mask bytes."
+  },
+  "source_image_semantics": {
+    "stain": "hematoxylin_and_eosin",
+    "source_project": "TCGA-BRCA",
+    "roi_media_type": "image/png",
+    "mask_media_type": "image/png",
+    "evidence_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6748796/"
+  },
+  "physical_scale": {
+    "published_microns_per_pixel": 0.25,
+    "roi_coordinate_space": "wsi_base_pixels",
+    "annotation_coordinate_space": "wsi_base_pixels",
+    "scan_magnifications": [20.0, 40.0]
+  },
+  "published_role_evidence": [
+    {
+      "role": "core_train",
+      "record_count": 82,
+      "evidence_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6748796/#sec2.7",
+      "assignments": "not_published_with_source_metadata"
+    },
+    {
+      "role": "core_test",
+      "record_count": 43,
+      "evidence_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6748796/#sec2.7",
+      "assignments": "not_published_with_source_metadata"
+    },
+    {
+      "role": "evaluation",
+      "record_count": 26,
+      "evidence_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6748796/#sec2.7",
+      "assignments": "not_published_with_source_metadata"
+    }
+  ],
+  "record_count": 151,
+  "mask_count": 151
+}
