@@ -1,0 +1,127 @@
+---
+title: "PDR 015: Build diagnostic and grading products from inspectable evidence"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "2014 ISUP consensus on Gleason grading and Grade Groups"
+    url: "https://pubmed.ncbi.nlm.nih.gov/26492179/"
+  - title: "Nottingham histologic grading in breast cancer"
+    url: "https://pubmed.ncbi.nlm.nih.gov/1757079/"
+  - title: "ISUP grading of renal cell carcinoma"
+    url: "https://pubmed.ncbi.nlm.nih.gov/24025520/"
+  - title: "International TILs Working Group recommendations"
+    url: "https://pubmed.ncbi.nlm.nih.gov/25214542/"
+  - title: "Standardized tumor-stroma ratio scoring in colon cancer"
+    url: "https://pubmed.ncbi.nlm.nih.gov/30030621/"
+  - title: "CAMELYON16 lymph-node metastasis assessment"
+    url: "https://pubmed.ncbi.nlm.nih.gov/29234806/"
+  - title: "Histology-based tissue-of-origin prediction"
+    url: "https://pubmed.ncbi.nlm.nih.gov/33953404/"
+  - title: "Histology-based microsatellite-instability prediction"
+    url: "https://pubmed.ncbi.nlm.nih.gov/31160815/"
+---
+
+## Context
+
+A diagnostic or grading result rarely belongs to one image scale. Prostate Gleason grading depends on glandular
+patterns and their extent, breast grading combines tubule formation, nuclear pleomorphism, and mitotic activity,
+and lymph-node assessment connects tumor foci to a slide and then to a patient. A single label hides the cells,
+tissue structures, slide findings, and patient facts that support the result.
+
+The same result can also mean different things. A source dataset may carry a publisher's label, a
+pathologist may record an assessment, a defined procedure may produce a measurement, a grading rule may convert
+components into a category, or a model may predict that category. Treating these as interchangeable would turn a
+prediction into a clinical observation or make a rule-derived grade look independently observed.
+
+[PDR 004](/projects/pathologize/pdrs/004-inspectable-spatial-evidence) requires inspectable spatial support for
+aggregate scores. [PDR 006](/projects/pathologize/pdrs/006-task-native-pathology-model-development) keeps native
+prediction types intact. Pathologize now needs a product contract that joins those lower-level outputs into useful
+diagnostic, grading, quantification, and screening results without erasing their authority or uncertainty.
+
+## Proposed decision
+
+Publish diagnostic and grading products as evidence-backed result records. Each result will answer a named user
+question, identify its subject and timepoint, preserve its components, and link those components to cell,
+tissue-structure, slide, and patient evidence. The product will distinguish five kinds of content:
+
+* **Source-recorded labels** keep the publisher's wording, subject, and annotation origin. They are evidence
+  about the source record, not automatically a Pathologize expert conclusion.
+* **Expert assessments** identify the assessor, protocol, review state, and material available for review.
+* **Measurements** state the counted or measured feature, unit, denominator, eligible region, and missing or
+  excluded material.
+* **Rule-derived results** identify the named grading or reporting rule and keep the component assessments and
+  measurements used by that rule.
+* **Predictions** remain predictions even when they use the same vocabulary as an expert assessment or
+  patient-level assay result. They keep confidence, calibration scope, and abstention or failure state.
+
+One result may contain more than one kind. For example, a product can show an expert Gleason pattern assessment,
+measured pattern proportions, the resulting Grade Group under a named rule, and a separate model prediction. It
+must not collapse them into one supposedly observed grade.
+
+### Product families and supporting evidence
+
+The first product families will expose the following evidence paths. The examples define useful targets, not a
+closed list of diseases or reporting systems.
+
+| Product                                               | Cell and tissue-structure evidence                                                                                                                       | Slide and patient evidence                                                                                                      | Products it can enrich later                                                                                             |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| Prostate Gleason score and ISUP Grade Group           | Nuclear and gland observations; annotated or predicted Gleason patterns; cribriform, intraductal, and other relevant structures; measured pattern extent | Material type, cancer extent, slide adequacy, expert component grades, specimen or case diagnosis, and prior or later specimens | Grading audit, prognosis, treatment-response analysis, sampling studies, and research into pattern disagreement          |
+| Breast histologic grade                               | Mitotic figures and nuclear features; tubule formation and invasive tumor regions; component measurements and expert scores                              | Representative invasive tumor, slide quality, component completeness, specimen diagnosis, and patient biomarker context         | Prognostic and treatment-response products, grade concordance, workflow review, and research on component-specific error |
+| Renal or other nuclear grade                          | Nuclear and nucleolar features; sarcomatoid or rhabdoid differentiation and tumor necrosis where relevant                                                | Histologic subtype, sampled tumor extent, assessable material, specimen diagnosis, and patient disease context                  | Prognosis, subtype review, treatment-response research, and audit of grading or necrosis disagreement                    |
+| Mitotic activity                                      | Candidate and confirmed mitotic figures, tumor-cell identity, counted region, area, and local artifact                                                   | Slide adequacy, invasive tumor region, counting protocol, specimen and diagnosis                                                | Breast grading and other tumor-specific grades, proliferation research, quality review, and outcome analysis             |
+| Lymph-node tumor burden                               | Tumor cells and foci; focus boundaries, sizes, counts, and nodal tissue context                                                                          | Node and slide identity, total examined tissue, expert metastasis assessment, involved-node count, and patient episode          | Nodal staging support, audit, prognosis, treatment-response analysis, and sampling-quality products                      |
+| Tumor-infiltrating lymphocytes and tumor-stroma ratio | Immune-cell evidence, tumor and stroma regions, eligible assessment area, exclusions, and spatial relationships                                          | Slide-level distribution and adequacy, expert assessment or measurement, disease and specimen context                           | Immune-context and prognosis products, treatment-response research, sampling analysis, and inter-reader concordance      |
+| Margin and necrosis assessment                        | Tumor, normal tissue, necrosis, inked or otherwise identified boundary, distances, and involved regions                                                  | Specimen orientation and margin identity, slide coverage, expert status, and patient procedure context                          | Re-excision or recurrence research, audit, preparation-quality review, and outcome analysis                              |
+| Histologic type, subtype, and tissue of origin        | Cell phenotype and morphology; tissue architecture, differentiation, and candidate primary-site features                                                 | Slide diagnosis and differential, specimen site, known primary sites, other specimens, assays, and clinical context             | Diagnostic review, case finding, research stratification, prognosis, and treatment-selection research                    |
+| Molecular-screening result                            | Morphologic regions and cell populations associated with the target; measured or predicted spatial support                                               | Slide adequacy, specimen-level assay result when available, patient molecular status, timepoint, and test provenance            | Confirmatory-testing workflows, biomarker interpretation, trial or research selection, prognosis, and response analysis  |
+
+A molecular-screening result inferred from morphology remains a prediction of molecular status. A slide-derived
+tissue-of-origin result provides a ranked prediction. User-facing products will show the question they can answer
+and the evidence still needed to resolve the primary site or answer another stronger question.
+
+### Uncertainty, failure, and review
+
+Every result will preserve uncertainty at the component and final-result levels. It will show unavailable tissue,
+unassessable regions, poor preparation, missing components, conflicting slides or assays, unsupported categories,
+out-of-scope material, low confidence, and explicit abstention. Missing evidence will not become a negative finding.
+
+Expert review will record whether the expert supplied the reference assessment, adjudicated disagreement, or
+reviewed a prediction. A reviewed prediction does not rewrite its origin. A changed assessment retains both the
+earlier result and the reason for the change so audit products can study disagreement instead of hiding it.
+
+### Aggregate products and trace-back
+
+Cohort, institution, health-system, and population products are first-class consumers of diagnostic and grading
+results. They can analyze sampling and representation, adequacy and data quality, reader or site concordance,
+workflow volume and review burden, and associations with treatment response, recurrence, survival, or other
+outcomes. Each aggregate must keep the result definition, eligible denominator, missingness, uncertainty, and
+known confounding. It must not imply that a site difference is biological when preparation, sampling, referral,
+or review practice could explain it.
+
+Aggregate findings must support authorized tracing to the contributing patients, slides, tissue structures,
+cells, assessments, and predictions. A rise in grade discordance can lead back to the affected grade components;
+an outcome difference can lead back to sampling, assay availability, or failure patterns. Privacy and access
+limits may restrict who can follow that path, but the product must preserve it.
+
+This decision defines product meaning and user-visible evidence. It does not choose data storage, learning or
+aggregation methods, or the mechanics used to assemble study groups.
+
+## Consequences
+
+Diagnostic and grading products become reusable without pretending that every input has the same authority. A
+cell or tissue product can enrich a later grade, and that grade can enrich patient, audit, prognostic,
+treatment-response, research, and aggregate products. Conversely, an aggregate signal can identify the exact
+lower-level evidence that needs review.
+
+The richer record costs more to curate than a flat label. Some public sources will lack component assessments,
+review provenance, denominators, or patient context and support only a weaker product. Some results
+will remain research predictions or screening prompts rather than expert assessments. Disagreement and missingness
+will be visible, which may reduce apparently clean coverage while making the product more honest.
+
+## Evaluation
+
+Accept the proposal when one grading product and one diagnostic, quantification, or screening product each trace a
+user-visible result through all available evidence levels without changing the authority of any input. At least one
+must include a source label, expert assessment, measurement, rule-derived result, and prediction as separately
+inspectable records. Both must preserve failure and uncertainty, feed a first-class aggregate analysis, and allow
+an authorized user to trace an aggregate discrepancy back to the lower-level evidence that produced it.
