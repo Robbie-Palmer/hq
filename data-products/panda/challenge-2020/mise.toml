@@ -1,0 +1,62 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked PANDA source-data environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the PANDA source-data lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format PANDA source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint PANDA source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check PANDA source-data code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run PANDA source-data tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run PANDA source-data tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the PANDA source-data project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.publish]
+description = "Publish the metadata-only PANDA source contract"
+depends = ["sync"]
+run = "uv run --locked panda-source-data publish"
+
+[tasks."verify-metadata"]
+description = "Verify pinned PANDA records without credentials or dataset bytes"
+depends = ["sync"]
+run = "uv run --locked panda-source-data publish"
+
+[tasks.index]
+description = "Index an authorized complete PANDA development release"
+depends = ["sync"]
+run = "uv run --locked panda-source-data index"
+
+[tasks.repro]
+description = "Reproduce the metadata-only PANDA source contract through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic metadata-only PANDA source-data checks"
+depends = ["lint", "typecheck", "test:coverage", "verify-metadata"]
