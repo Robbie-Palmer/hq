@@ -452,6 +452,24 @@ def _metrics(records: list[HarmonizedRecord]) -> dict[str, object]:
     }
 
 
+def _missing_json_fields(path: Path, required_fields: list[str]) -> list[str]:
+    try:
+        payload = read_json(path)
+    except (OSError, ValueError):
+        return required_fields
+    missing: list[str] = []
+    for field in required_fields:
+        value: object = payload
+        for component in field.split("."):
+            if not isinstance(value, dict) or component not in value:
+                value = None
+                break
+            value = value[component]
+        if value in (None, "", [], {}):
+            missing.append(field)
+    return missing
+
+
 def _production_blockers(
     root: Path, records: list[HarmonizedRecord], imports: dict[str, Any]
 ) -> list[str]:
@@ -468,10 +486,16 @@ def _production_blockers(
             for field in required_paths
             if not (root / item[field]).is_file()
         )
-        for evidence_name, evidence_path in item["evidence"].items():
-            if not (root / evidence_path).is_file():
+        for evidence_name, evidence in item["evidence"].items():
+            evidence_path = root / evidence["path"]
+            if not evidence_path.is_file():
                 blockers.append(
-                    f"source {source} is missing {evidence_name} evidence: {evidence_path}"
+                    f"source {source} is missing {evidence_name} evidence: {evidence['path']}"
+                )
+                continue
+            if missing := _missing_json_fields(evidence_path, evidence["required_json_fields"]):
+                blockers.append(
+                    f"source {source} {evidence_name} evidence is missing JSON fields: {missing}"
                 )
     return blockers
 

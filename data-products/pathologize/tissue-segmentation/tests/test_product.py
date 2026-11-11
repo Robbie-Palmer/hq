@@ -10,7 +10,12 @@ from tissue_segmentation_dataset.models import (
     AssayProvenance,
     ProductSpec,
 )
-from tissue_segmentation_dataset.product import ProductError, _default_source_paths, build_product
+from tissue_segmentation_dataset.product import (
+    ProductError,
+    _default_source_paths,
+    _production_blockers,
+    build_product,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 FIXTURES = PROJECT_DIR / "tests/fixtures"
@@ -203,6 +208,39 @@ def test_pinned_import_status_does_not_make_fixtures_production_ready(tmp_path: 
     reconciliation = json.loads((root / "outputs/reconciliation.json").read_text())
     assert reconciliation["production_ready"] is False
     assert "product contains synthetic contract records" in reconciliation["production_blockers"]
+
+
+def test_production_readiness_requires_declared_evidence_fields(tmp_path: Path) -> None:
+    for name in ("dvc.lock", "manifest.json", "native-index.jsonl"):
+        (tmp_path / name).write_text("{}\n", encoding="utf-8")
+    imports = {
+        "imports": [
+            {
+                "source_dataset_id": "source-v1",
+                "status": "pinned_source_product",
+                "expected_dvc_lock": "dvc.lock",
+                "expected_manifest": "manifest.json",
+                "expected_interface": "native-index.jsonl",
+                "evidence": {
+                    "rights": {
+                        "path": "manifest.json",
+                        "required_json_fields": ["license.spdx_id"],
+                    }
+                },
+            }
+        ]
+    }
+
+    blockers = _production_blockers(tmp_path, [], imports)
+
+    assert blockers == [
+        "source source-v1 rights evidence is missing JSON fields: ['license.spdx_id']"
+    ]
+
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"license": {"spdx_id": "CC-BY-4.0"}}), encoding="utf-8"
+    )
+    assert _production_blockers(tmp_path, [], imports) == []
 
 
 def test_assay_provenance_rejects_missing_targets_and_registration() -> None:

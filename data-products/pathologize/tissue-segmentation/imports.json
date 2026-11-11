@@ -11,11 +11,26 @@
       "status": "pending_source_product",
       "contract_fixture": "tests/fixtures/bcss.jsonl",
       "evidence": {
-        "rights": "../../bcss/amgad-2019/manifest.json",
-        "retrieval": "../../bcss/amgad-2019/manifest.json",
-        "checksums": "../../bcss/amgad-2019/manifest.json",
-        "physical_scale": "../../bcss/amgad-2019/manifest.json",
-        "native_ontology": "../../bcss/amgad-2019/manifest.json"
+        "rights": {
+          "path": "../../bcss/amgad-2019/manifest.json",
+          "required_json_fields": ["license"]
+        },
+        "retrieval": {
+          "path": "../../bcss/amgad-2019/manifest.json",
+          "required_json_fields": ["retrieval"]
+        },
+        "checksums": {
+          "path": "../../bcss/amgad-2019/manifest.json",
+          "required_json_fields": ["checksums"]
+        },
+        "physical_scale": {
+          "path": "../../bcss/amgad-2019/manifest.json",
+          "required_json_fields": ["image.micrometers_per_pixel"]
+        },
+        "native_ontology": {
+          "path": "../../bcss/amgad-2019/manifest.json",
+          "required_json_fields": ["ontology"]
+        }
       }
     },
     {
@@ -27,11 +42,26 @@
       "status": "pending_source_product",
       "contract_fixture": "tests/fixtures/segpath.jsonl",
       "evidence": {
-        "rights": "../../segpath/registered-if-masks/manifest.json",
-        "retrieval": "../../segpath/registered-if-masks/manifest.json",
-        "checksums": "../../segpath/registered-if-masks/manifest.json",
-        "physical_scale": "../../segpath/registered-if-masks/manifest.json",
-        "native_ontology": "../../segpath/registered-if-masks/manifest.json"
+        "rights": {
+          "path": "../../segpath/registered-if-masks/manifest.json",
+          "required_json_fields": ["license.spdx_id"]
+        },
+        "retrieval": {
+          "path": "../../segpath/registered-if-masks/manifest.json",
+          "required_json_fields": ["tasks"]
+        },
+        "checksums": {
+          "path": "../../segpath/registered-if-masks/manifest.json",
+          "required_json_fields": ["supplementary_table_s2.sha256", "tasks"]
+        },
+        "physical_scale": {
+          "path": "../../segpath/registered-if-masks/manifest.json",
+          "required_json_fields": ["image.micrometers_per_pixel"]
+        },
+        "native_ontology": {
+          "path": "../../segpath/registered-if-masks/manifest.json",
+          "required_json_fields": ["tasks"]
+        }
       }
     },
     {
@@ -43,11 +73,26 @@
       "status": "pending_source_product",
       "contract_fixture": "tests/fixtures/crc-epithelium.jsonl",
       "evidence": {
-        "rights": "../../crc-epithelium/ihc-cish-he/manifest.json",
-        "retrieval": "../../crc-epithelium/ihc-cish-he/manifest.json",
-        "checksums": "../../crc-epithelium/ihc-cish-he/manifest.json",
-        "physical_scale": "../../crc-epithelium/ihc-cish-he/manifest.json",
-        "native_ontology": "../../crc-epithelium/ihc-cish-he/manifest.json"
+        "rights": {
+          "path": "../../crc-epithelium/ihc-cish-he/manifest.json",
+          "required_json_fields": ["license"]
+        },
+        "retrieval": {
+          "path": "../../crc-epithelium/ihc-cish-he/manifest.json",
+          "required_json_fields": ["retrieval"]
+        },
+        "checksums": {
+          "path": "../../crc-epithelium/ihc-cish-he/manifest.json",
+          "required_json_fields": ["checksums"]
+        },
+        "physical_scale": {
+          "path": "../../crc-epithelium/ihc-cish-he/manifest.json",
+          "required_json_fields": ["image.micrometers_per_pixel"]
+        },
+        "native_ontology": {
+          "path": "../../crc-epithelium/ihc-cish-he/manifest.json",
+          "required_json_fields": ["ontology"]
+        }
       }
     }
   ]
