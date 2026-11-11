@@ -32,7 +32,7 @@ addopts = "--strict-config --strict-markers --cov=cptac_lscc_source --cov-report
 testpaths = ["tests"]
 
 [tool.coverage.run]
-omit = ["*/acquisition.py", "*/cli.py"]
+omit = ["*/cli.py"]
 
 [tool.ruff]
 line-length = 100
