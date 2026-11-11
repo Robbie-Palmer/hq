@@ -17,6 +17,8 @@ Current products:
   annotations, ontology, and official fold roles.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `camelyon/roi`: source-native CAMELYON16 slides and compatible annotated
+  CAMELYON17 slides, XML lesion ROIs, rights, checksums, and challenge roles.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product

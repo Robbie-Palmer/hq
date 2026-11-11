@@ -1,0 +1,15 @@
+stages:
+  publish_native_contract:
+    cmd: uv run --locked camelyon-roi-product publish
+    deps:
+      - .python-version
+      - contracts
+      - pyproject.toml
+      - records
+      - src/camelyon_roi_product
+      - uv.lock
+    outs:
+      - outputs/native-records.jsonl
+      - outputs/artifact-references.json
+    metrics:
+      - outputs/metrics.json
