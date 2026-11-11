@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<GaPExchange xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="./dbGaPEx2.1.5.xsd">
+
+<MetaVariables>
+	<Submitter/>
+	<Method/>
+</MetaVariables>
+<MetaLinks/>
+
+<Projects>
+	<Project/>
+</Projects>
+
+<Studies>
+
+<Study source="dbGaP" accession="phs001304.v1.p1" parentStudy="phs001304.v1.p1" createDate="2017-02-22" modDate="2018-09-18">
+
+<Configuration>
+	<Data_Provider><![CDATA[
+		<table border="1">
+		<tr><th>Title</th><th>Name</th><th>Institute</th></tr>
+		<tr><td>Principal Investigator</td><td>Ping Guan</td><td>National Institutes of Health, Bethesda, MD, USA</td></tr>
+		<tr><td>National Institutes of Health, Bethesda, MD, USA</td><td>Wendell Jones</td><td>Expression Analysis-Quintiles, Morrisville, NC, USA</td></tr>
+		<tr><td>National Institutes of Health, Bethesda, MD, USA</td><td>Habtom W. Ressom</td><td>Georgetown University, Washington DC, USA</td></tr>
+		<tr><td>National Institutes of Health, Bethesda, MD, USA</td><td>Daniel Chelsky</td><td>Caprion Biosciences, Montreal, Canada</td></tr>
+		<tr><td>National Institutes of Health, Bethesda, MD, USA</td><td>Edward Karoly</td><td>Metabolon, Inc. Morrisville, NC, USA</td></tr>
+		</table>
+	]]></Data_Provider>
+	<StudyNameEntrez>NCI Biospecimen Pre-analytical Variables (BPV) Analysis</StudyNameEntrez>
+	<StudyNameReportPage>National Cancer Institute (NCI) Biospecimen Pre-analytical Variables (BPV) Analysis</StudyNameReportPage>
+	<StudyTypes>
+		<StudyType>Case Set</StudyType>
+	</StudyTypes>
+	<Description><![CDATA[
+<p>The Biospecimen Pre-analytical Variables (BPV) Program is a National Cancer Institute-sponsored study to systematically assess the effects of pre-analytical factors on the molecular profile of biospecimens. A robust biospecimen collection infrastructure was established to prospectively collect biospecimens using rigorous standard operating procedures to control for most variables while introducing experimental conditions to study specific biospecimen handling issues, including the cold ischemic time (delay to formalin fixation), time in formalin, freezing methods, and storage temperatures and durations. RNA and DNA from biospecimens collected under these conditions was analyzed on multiple molecular platforms. The potential effects of these pre-analytical conditions on protein integrity and detection of metabolites were also examined. Data from this study will be used to develop evidence-based biospecimen standard operating procedures and best practices for fit-for-purpose collection, processing, and storage of biospecimens.</p> <p>The BPV Cohort is utilized in the following dbGaP substudies. To view genotypes, analysis, expression data, other molecular data, and derived variables collected in these substudies, please click on the following sub-studies below or in the &#34;Substudies&#34; box located on the right hand side of this top-level study page phs001304 BPV Cohort. The substudy links will be active once they are released by dbGaP.</p> <p> <ol> <li>Preanalytical Impacts on Global Metabolite Profiling - plasma (MassSpec by Metabolon) This study was to evaluate the impact of the storage temperature (s) (-80&#176;C and LN2 vapor) and the length of storage on human plasma quality using LC-MS/MS (liquid-chromatography-mass spectrometry/mass spectrometry) based global metabolite profiling. The study includes 240 plasma samples collected from 40 donors.</li> <li>Investigate the effect of the delay to fixation on the proteome and phosphoproteome -FFPE (MassSpec by Caprion). The study is to do proteome and phosphoproteome analysis on Delay to fixation was carried out using FFPE tumor samples from colon and ovarian cancer patients comparing 2, 3, and 12hr delay to fixation to the 1hr time point. The study includes 100 samples 20 donors.</li> <li>Investigate the effect of storage conditions of tumor specimens on the proteome and phosphoproteome profiling- Frozen tissue and plasma (MassSpec by Caprion). The study was to evaluate the effects of storage conditions on tumor specimens. Plasma samples from 40 cancer patients stored at two different temperatures (-80&#176;C and LN2) for a given period (0-2, 6-8, and 12-14 months) were evaluated. Frozen kidney tumor samples from 20 patients were compared for effects of different snap frozen (dry ice vs. LN2) and storage temperatures (-80&#176;C and LN2). The study includes 100 tissue and 240 plasma samples from 60 donors.</li> <li>Preanalytical Impacts on Genomic Sequencing by Next Generation Sequencing (NGS) technology (mRNA/miRNA and WES by Expression Analysis). The goal of the study is to determine the effects of cold ischemic delay-to-fixation (4 time points) and formalin preservation (FFPE) on the nature and quality of genomic profiles using the matched freshly frozen sample as the gold standard, which including WES, RNAseq. The study includes 395 samples from 37 donors.</li> <li>Preanalytical Impacts on Copy Number Variation (CNV) Detection by aCGH technology (aCGH by Georgetown University). This study was to use aCGH to evaluate the effect of variation in cold ischemia time and time in formalin fixation on CNV in DNA extracted from kidney cancer specimens. The study includes 235 samples from 40 donors.</li> <li>Evaluation of frozen conditions on mRNA profiling by TaqMan assay (mRNA expression by Georgetown University). This study was to utilize gene expression profiling, using custom TaqMan arrays, to compare the molecular profiles of RNA from frozen tumor samples collected using two freezing methods (dry ice or LN2), two storage temperatures (-80&#176;C or LN2 vapor), as well as Optimal Cutting Temperature (OCT) compound and non-OCT embedded. The study includes 100 samples from 20 donors.</li> <li>mRNA signature for stratification by cold ischemia time (mRNA expression by IBBL). The study was to determine the effects of cold ischemic time (delay-to-fixation) and formalin preservation (FFPE) on mRNA detection by Taqman assay using tumor tissue specimens from kidney, colon and ovarian cancer patients. There are160 samples from 40 donors.</li> </ol> </p> <p><b>The Biospecimen PV cohort is utilized in the following dbGaP individual studies.</b> To view molecular data, and derived variables collected in these individual studies, please click on the following individual studies below or in the "Sub-studies" box located on the right hand side of this top-level study page <a href="study.cgi?study_id=phs001304">phs001304</a> Biospecimen PV cohort. <ul> <li><a href="study.cgi?study_id=phs001634">phs001634</a> CIT mRNA</li> <li><a href="study.cgi?study_id=phs001635">phs001635</a> CNV aCGH</li> <li><a href="study.cgi?study_id=phs001636">phs001636</a> Fixation Delay</li> <li><a href="study.cgi?study_id=phs001637">phs001637</a> Global Metabolite Profiling</li> <li><a href="study.cgi?study_id=phs001638">phs001638</a> mRNA TaqMan</li> <li><a href="study.cgi?study_id=phs001639">phs001639</a> NGS</li> <li><a href="study.cgi?study_id=phs001640">phs001640</a> Tumor Storage</li> </ul> </p>]]>
+	</Description>
+	<StudyInEx><![CDATA[
+<p> <ul style="list-style-type:none"> <li>1. Patients undergoing surgical treatment for one of the following cancer types (primary tumors):</li> </ul> </p> <p> <ul style="list-style-type:none"> <li>- Renal cell carcinoma</li> <li>- Ovarian, fallopian tube and peritoneal carcinoma</li> <li>- Lung adenocarcinoma and squamous cell carcinoma</li> <li>- Colorectal adenocarcinoma</li> </ul> </p> <p> <ul style="list-style-type:none"> <li>2. Provided informed consent for donating pre-anesthesia blood, surgical tissue, and all associated data</li> <li>3. Participants on chemotherapy, radiation therapy and/or immunotherapy for any previous or current cancer diagnosis excluded from BPV enrollment.</li> </ul> </p>]]>
+	</StudyInEx>
+	<StudyProjects>
+		<Project/>
+	</StudyProjects>
+	<Diseases>
+		<Disease vocab_source="MESH" vocab_term="Carcinoma, Renal Cell"/>
+		<Disease vocab_source="MESH" vocab_term="Ovarian Neoplasms"/>
+		<Disease vocab_source="MESH" vocab_term="Fallopian Tube Neoplasms"/>
+		<Disease vocab_source="MESH" vocab_term="Adenocarcinoma of lung"/>
+		<Disease vocab_source="MESH" vocab_term="Carcinoma, Squamous Cell"/>
+		<Disease vocab_source="MESH" vocab_term="Colorectal Neoplasms"/>
+	</Diseases>
+	<Attributions>
+		<Header title="Principal Investigator">
+			<AttName>Ping Guan</AttName>
+			<Institution>National Institutes of Health, Bethesda, MD, USA</Institution>
+		</Header>
+		<Header title="National Institutes of Health, Bethesda, MD, USA">
+			<AttName>Wendell Jones</AttName>
+			<Institution>Expression Analysis-Quintiles, Morrisville, NC, USA</Institution>
+		</Header>
+		<Header title="National Institutes of Health, Bethesda, MD, USA">
+			<AttName>Habtom W. Ressom</AttName>
+			<Institution>Georgetown University, Washington DC, USA</Institution>
+		</Header>
+		<Header title="National Institutes of Health, Bethesda, MD, USA">
+			<AttName>Daniel Chelsky</AttName>
+			<Institution>Caprion Biosciences, Montreal, Canada</Institution>
+		</Header>
+		<Header title="National Institutes of Health, Bethesda, MD, USA">
+			<AttName>Edward Karoly</AttName>
+			<Institution>Metabolon, Inc. Morrisville, NC, USA</Institution>
+		</Header>
+		<Header title="National Institutes of Health, Bethesda, MD, USA">
+			<AttName>Fay Betsou</AttName>
+			<Institution>Integrated BioBank of Luxembourg, Luxembourg, Germany</Institution>
+		</Header>
+		<Header title="Funding Source">
+			<AttName>National Cancer Institute (BPV)</AttName>
+			<Institution>National Institutes of Health, Bethesda, MD, USA</Institution>
+		</Header>
+	</Attributions>
+	<DisplayPublicSummary>yes</DisplayPublicSummary>
+	<StudyURLs>
+		<Url name="Biospecimen Pre-analytical Variables (BPV) Program" url="https://biospecimens.cancer.gov/programs/bpv/default.asp"/>
+	</StudyURLs>
+	<ConsentGroups>
+		<ConsentGroup groupNum="1" shortName="GRU-PUB" longName="General Research Use (PUB)"/>
+	</ConsentGroups>
+</Configuration>
+
+  <AuthorizedAccess>
+    <DacInfo ssDacId="0">
+      <DacName>NCI</DacName>
+      <DacFullName>NCI</DacFullName>
+      <DacEmail>0</DacEmail>
+      <DacPhone/>
+      <DacUrl/>
+    </DacInfo>
+    <Policy Policy_ID="phs001304.v1.p1_policy" ref_ssDacId="0">
+      <DisplayResearchStatement>yes</DisplayResearchStatement>
+      <DisplayPublicSummary>yes</DisplayPublicSummary>
+      <EmbargoLength>0</EmbargoLength>
+      <YearsUntilRenewal>1</YearsUntilRenewal>
+      <WeeksCancelRequest>8</WeeksCancelRequest>
+      <PdfSupplementReqired>no</PdfSupplementReqired>
+      <AcknowledgementText>
+        <para>
+          http://dbgap.ncbi.nlm.nih.gov/aa/wga.cgi?page=DUC&amp;view_pdf&amp;stacc=phs001304.v1.p1
+        </para>
+      </AcknowledgementText>
+      <DocumentSet>
+        <DataUseCertificate Label="Data Use Certificate" FilePath="https://dbgap.ncbi.nlm.nih.gov/aa/wga.cgi?page=DUC&amp;view_pdf&amp;stacc=phs001304.v1.p1" FileName=""/>
+      </DocumentSet>
+    </Policy>
+    <ConsentGroups>
+      <ParticipantSet groupNum-REF="1">
+        <ConsentName>General Research Use (PUB)</ConsentName>
+        <ConsentAbbrev>GRU-PUB</ConsentAbbrev>
+        <UseLimitation>Use of the data is limited only by the terms of the model Data Use Certification.
+Requestor agrees to make results of studies using the data available to the larger scientific community.</UseLimitation>
+        <IrbRequired>No</IrbRequired>
+      </ParticipantSet>
+    </ConsentGroups>
+  </AuthorizedAccess>
+
+
+</Study>
+
+</Studies>
+
+</GaPExchange>

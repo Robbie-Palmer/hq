@@ -1,0 +1,21 @@
+stages:
+  build_public_metadata:
+    cmd: uv run --locked nci-bpv-source build
+    deps:
+      - .python-version
+      - contracts
+      - fixtures/public-metadata
+      - pyproject.toml
+      - src/nci_bpv_source
+      - uv.lock
+    outs:
+      - outputs/access-and-rights.json
+      - outputs/identity-contract.json
+      - outputs/missingness.jsonl
+      - outputs/source-inventory.json
+      - outputs/study.json
+      - outputs/substudies.jsonl
+      - outputs/summary-statistics.jsonl
+      - outputs/variables.jsonl
+    metrics:
+      - outputs/metrics.json

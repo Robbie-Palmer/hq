@@ -1,0 +1,69 @@
+schema: '2.0'
+stages:
+  build_public_metadata:
+    cmd: uv run --locked nci-bpv-source build
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: bf3e6b9e9ab9f6edbe8acde70b17db40.dir
+      size: 24197
+      nfiles: 4
+    - path: fixtures/public-metadata
+      hash: md5
+      md5: d93d009875ad58cb9985306bd859610a.dir
+      size: 586171
+      nfiles: 15
+    - path: pyproject.toml
+      hash: md5
+      md5: 6e449676154e7c54a1ede0c307650885
+      size: 1087
+    - path: src/nci_bpv_source
+      hash: md5
+      md5: 6f6b491a4ec22f6c490facbeaf20c876.dir
+      size: 24796
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: c86dbf5ffac39e45bcc41f2243548548
+      size: 35396
+    outs:
+    - path: outputs/access-and-rights.json
+      hash: md5
+      md5: 268cbda9d80ffcda8dfa8f307dcc4dd9
+      size: 2095
+    - path: outputs/identity-contract.json
+      hash: md5
+      md5: 9bb40fd274c5dd349e5ccc9a1607a117
+      size: 1427
+    - path: outputs/metrics.json
+      hash: md5
+      md5: be61fa7d31d1debcd86b9b85de16f2c0
+      size: 324
+    - path: outputs/missingness.jsonl
+      hash: md5
+      md5: e9d013eade0d2c7dd15307dd6c139c66
+      size: 233839
+    - path: outputs/source-inventory.json
+      hash: md5
+      md5: f88c023a7ea8410c5e933f383ace5fc5
+      size: 11093
+    - path: outputs/study.json
+      hash: md5
+      md5: c56340c1ebd9c00e6eae081b03f2c6e7
+      size: 12174
+    - path: outputs/substudies.jsonl
+      hash: md5
+      md5: 149c34915c41206d0c2a39c4e9d39e27
+      size: 4646
+    - path: outputs/summary-statistics.jsonl
+      hash: md5
+      md5: 945f58b289c5c75860ac0322927f3e23
+      size: 568228
+    - path: outputs/variables.jsonl
+      hash: md5
+      md5: 286deedd9177ee3be5901f839a3ceac3
+      size: 243303

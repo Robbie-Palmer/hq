@@ -1,0 +1,67 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked NCI BPV source environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the NCI BPV source lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format NCI BPV source code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint NCI BPV source code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check NCI BPV source code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run NCI BPV source tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run NCI BPV source tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the NCI BPV source project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.build]
+description = "Build the pinned public NCI BPV metadata product"
+depends = ["sync"]
+run = "uv run --locked nci-bpv-source build"
+
+[tasks.acquire]
+description = "Refresh allowlisted public NCI BPV metadata fixtures"
+depends = ["sync"]
+run = "uv run --locked nci-bpv-source acquire"
+
+[tasks."live:check"]
+description = "Check pinned NCI BPV metadata against public official endpoints"
+depends = ["sync"]
+run = "uv run --locked nci-bpv-source live-check"
+
+[tasks."authorized:validate"]
+description = "Validate a local authorized NCI BPV JSONL export without copying it"
+depends = ["sync"]
+run = "uv run --locked nci-bpv-source validate-authorized"
+
+[tasks.repro]
+description = "Reproduce the metadata-only NCI BPV product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic NCI BPV source checks"
+depends = ["repro", "lint", "typecheck", "test:coverage"]

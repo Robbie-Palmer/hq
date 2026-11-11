@@ -10,6 +10,7 @@ symetry = "symetry" # SymetryML, streaming ML product
 vertica = "vertica" # Vertica analytics database
 sie = "sie" # split from the SIEM(s) acronym
 ome = "ome" # Open Microscopy Environment
+rin = "rin" # RNA integrity number in NCI BPV source fields
 
 [default.extend-identifiers]
 CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
@@ -28,6 +29,9 @@ extend-exclude = [
     "data-products/airaqc/tcga-public-pilot/contracts/assets.json",
     "data-products/airaqc/tcga-public-pilot/contracts/source-index.json",
     "data-products/airaqc/tcga-public-pilot/records/native-corpus.json",
+    # Public dbGaP XML remains byte-identical to its pinned source, including
+    # publisher misspellings and pathology abbreviations.
+    "data-products/nci/bpv-v1/fixtures/public-metadata/",
     # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
     # comments so local changes remain auditable against the pinned source.
     "cpp/autonomic-satellite-swarm/third_party/sgp4/",

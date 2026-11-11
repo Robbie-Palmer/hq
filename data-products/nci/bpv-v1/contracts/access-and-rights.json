@@ -1,0 +1,27 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "nci-bpv-phs001304-v1-p1",
+  "public_access": "Study descriptions, data dictionaries, aggregate variable reports, release notes, repository manifests, SOPs, and linked public repository records are public metadata.",
+  "controlled_access": "Participant-level phenotype, subject-sample mapping, specimen, aliquot, and molecular data require dbGaP Authorized Access and an approved Data Use Certification.",
+  "redistribution": "No general redistribution license is stated. This product does not redistribute controlled files, molecular file bytes, images, or whole-slide images.",
+  "checksum_policy": "Public metadata fixture checksums are pinned. Controlled artifact checksums and sizes remain missing until visible in an authorized repository manifest.",
+  "roles": [
+    "dbGaP applicant and institutional signing official for authorized access",
+    "NCI as study sponsor",
+    "Biospecimen Source Sites as collection sites",
+    "Comprehensive Biospecimen Resource as centralized processing and storage site",
+    "publisher-declared assay and protocol roles retained without Pathologize reinterpretation"
+  ],
+  "duties": [
+    "Use controlled data only under the approved research use and Data Use Certification.",
+    "Protect participant confidentiality and do not attempt re-identification.",
+    "Follow dbGaP acknowledgement and publication requirements.",
+    "Obtain separate permission before redistributing source files when the repository terms require it."
+  ],
+  "authoritative_sources": [
+    {"title": "dbGaP authorized access", "url": "https://dbgap.ncbi.nlm.nih.gov/aa/wga.cgi?page=login"},
+    {"title": "dbGaP Data Use Certification", "url": "https://dbgap.ncbi.nlm.nih.gov/aa/wga.cgi?view_pdf=&stacc=phs001304.v1.p1"},
+    {"title": "dbGaP study submission and public release guide", "url": "https://www.ncbi.nlm.nih.gov/gap/docs/submissionguide/"},
+    {"title": "NCI reuse guidance", "url": "https://www.cancer.gov/policies/copyright-reuse"}
+  ]
+}
