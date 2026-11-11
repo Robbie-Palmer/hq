@@ -90,6 +90,7 @@ export type BlogPost = z.infer<typeof BlogPostSchema>;
 
 export type { Initiative } from "./initiative/initiative";
 export {
+  deriveInitiativeStatus,
   InitiativeSchema,
   InitiativeStatusSchema,
 } from "./initiative/initiative";

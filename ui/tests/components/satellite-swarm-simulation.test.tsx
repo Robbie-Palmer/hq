@@ -78,7 +78,7 @@ vi.mock("@/lib/browser/satellite-swarm-worker-client", () => ({
 }));
 
 const data = parseSatelliteSwarmSimulation({
-  schemaVersion: 7,
+  schemaVersion: 8,
   traceVersion: 6,
   scenario: "test",
   source: "portable C++ SimulationTrace",
@@ -88,6 +88,79 @@ const data = parseSatelliteSwarmSimulation({
   renderingFrame: "test Earth-fixed frame",
   scenarioEpochUnixMilliseconds: 962650219734,
   objective: { longitudeDegrees: 0, latitudeDegrees: -90 },
+  missionOrbit: {
+    authorizationEpochUnixMilliseconds: 962650219834,
+    current: {
+      epochScale: "UTC",
+      frame: "GCRF",
+      positionUnit: "metre",
+      role: "current-orbit",
+      samples: [
+        {
+          epochUnixMilliseconds: 962650219734,
+          positionMetres: { x: 6_750_000, y: 0, z: 0 },
+          velocityMillimetresPerSecond: { x: 0, y: 7_500_000, z: 0 },
+        },
+      ],
+      velocityUnit: "millimetre-per-second",
+    },
+    maneuvers: [
+      {
+        deltaVelocityMillimetresPerSecond: { x: 1, y: 2, z: 3 },
+        deltaVelocityUnit: "millimetre-per-second",
+        epochScale: "UTC",
+        epochUnixMilliseconds: 962650819734,
+        frame: "GCRF",
+        positionMetres: { x: 6_750_000, y: 0, z: 0 },
+        positionUnit: "metre",
+        role: "departure-burn",
+      },
+      {
+        deltaVelocityMillimetresPerSecond: { x: 4, y: 5, z: 6 },
+        deltaVelocityUnit: "millimetre-per-second",
+        epochScale: "UTC",
+        epochUnixMilliseconds: 962654419734,
+        frame: "GCRF",
+        positionMetres: { x: 0, y: 0, z: -6_900_000 },
+        positionUnit: "metre",
+        role: "arrival-burn",
+      },
+    ],
+    quantization: {
+      positionMetres: 1,
+      velocityMillimetresPerSecond: 1,
+    },
+    selectedNodeId: 1,
+    status: "executed",
+    target: {
+      epochScale: "UTC",
+      frame: "GCRF",
+      positionUnit: "metre",
+      role: "target-orbit",
+      samples: [
+        {
+          epochUnixMilliseconds: 962654419734,
+          positionMetres: { x: 0, y: 0, z: -6_900_000 },
+          velocityMillimetresPerSecond: { x: 7_500_000, y: 0, z: 0 },
+        },
+      ],
+      velocityUnit: "millimetre-per-second",
+    },
+    transfer: {
+      epochScale: "UTC",
+      frame: "GCRF",
+      positionUnit: "metre",
+      role: "transfer-trajectory",
+      samples: [
+        {
+          epochUnixMilliseconds: 962650819734,
+          positionMetres: { x: 6_750_000, y: 0, z: 0 },
+          velocityMillimetresPerSecond: { x: 0, y: 7_500_000, z: 0 },
+        },
+      ],
+      velocityUnit: "millimetre-per-second",
+    },
+  },
   frames: [
     {
       playbackMultiplier: 0.1,
@@ -438,7 +511,9 @@ describe("SatelliteSwarmSimulation", () => {
 
     expect(screen.getByText("active")).toBeVisible();
     expect(
-      screen.getByText(/Node 1 accepted the assignment.*orbit is unchanged/i),
+      screen.getByText(
+        /Node 1 accepted the assignment.*departure burn.*target orbit/i,
+      ),
     ).toBeVisible();
     expect(
       screen.getAllByText(/assigned mission 0:1:1 to node 1/i),

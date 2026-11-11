@@ -3,6 +3,7 @@ import {
   ADRSchema,
   ADRStatusSchema,
   BlogPostSchema,
+  deriveInitiativeStatus,
   IdeaSchema,
   InitiativeSchema,
   InitiativeStatusSchema,
@@ -475,6 +476,19 @@ describe("Domain Model Schemas", () => {
     it("rejects completed as an initiative lifecycle state", () => {
       expect(InitiativeStatusSchema.safeParse("completed").success).toBe(false);
     });
+
+    it.each([
+      [["in_progress"], "active"],
+      [["live", "idea"], "active"],
+      [["idea", "completed"], "idea"],
+      [["completed", "archived"], "inactive"],
+      [[], "idea"],
+    ] as const)(
+      "derives %s project states as %s",
+      (projectStatuses, expectedStatus) => {
+        expect(deriveInitiativeStatus(projectStatuses)).toBe(expectedStatus);
+      },
+    );
   });
 
   describe("JobRoleSchema", () => {

@@ -68,6 +68,30 @@ TEST_CASE("an invalid satellite snapshot does not replace the last valid observa
   CHECK(controller.satelliteSnapshot().coordinate.latitude_degrees == 40.0F);
 }
 
+TEST_CASE("satellite snapshot validation rejects each resource boundary") {
+  const SatelliteSnapshot reference;
+
+  SatelliteSnapshot invalid = reference;
+  invalid.mass_kilograms = std::numeric_limits<float>::quiet_NaN();
+  CHECK_FALSE(isValid(invalid));
+
+  invalid = reference;
+  invalid.orbital_radius_metres = 0.0F;
+  CHECK_FALSE(isValid(invalid));
+
+  invalid = reference;
+  invalid.mass_kilograms = 0.0F;
+  CHECK_FALSE(isValid(invalid));
+
+  invalid = reference;
+  invalid.available_propulsion_energy_joules = 0.0F;
+  CHECK_FALSE(isValid(invalid));
+
+  invalid = reference;
+  invalid.travel_direction = static_cast<TravelDirection>(255);
+  CHECK_FALSE(isValid(invalid));
+}
+
 TEST_CASE("a leader collects scores and deterministically assigns the strongest candidate") {
   FakeTransport transport;
   FakeHealthMonitor health;

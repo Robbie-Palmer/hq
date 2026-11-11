@@ -1,15 +1,19 @@
 import { describe, expect, it } from "vitest";
 import {
+  AccountOwnershipStateSchema,
   ASSET_TRACKER_BACKUP_FORMAT,
   AssetTrackerDataSchema,
   accountOwnershipAt,
   buildRepository,
+  CompanyEquityValuationSchema,
   consolidateHouseholdWealth,
   createAssetTrackerBackup,
+  EntityTransferSchema,
   legacyPersonEntityId,
   parseAssetTrackerBackup,
   previewAssetTrackerBackup,
   shareOwnershipAt,
+  validateBusinessWealth,
 } from "@/app/_projects/personal-finance-app/domain";
 import { businessWealthFixture } from "@/app/_projects/personal-finance-app/tests/fixtures/businessWealth";
 
@@ -515,6 +519,428 @@ describe("business wealth entity and ownership contracts", () => {
     obligation.obligationId = "northstar-working-capital-debt";
     expect(() => buildRepository(duplicatedLiability)).toThrow(
       /cannot be both an account and an obligation/,
+    );
+
+    const overlappingObligations = businessWealthFixture();
+    const overlappingObligation = overlappingObligations.entityObligations[0];
+    if (overlappingObligation == null)
+      throw new Error("fixture has no tax obligation");
+    overlappingObligations.entityObligations.push({
+      ...structuredClone(overlappingObligation),
+      recordId: "northstar-corporation-tax-2026-overlap",
+      acceptedAt: "2026-10-02T00:00:00.000Z",
+    });
+    expect(() => buildRepository(overlappingObligations)).toThrow(
+      /Entity obligation records .* overlap/,
+    );
+  });
+
+  it("rejects ambiguous account ownership before it reaches persistence", () => {
+    expect(
+      AccountOwnershipStateSchema.safeParse({
+        state: "known",
+        allocations: [
+          { entityId: "person:alex", fraction: 0.6 },
+          { entityId: "person:alex", fraction: 0.4 },
+        ],
+      }).error?.issues.map(({ message }) => message),
+    ).toContain("Account ownership must name each entity once");
+
+    expect(
+      AccountOwnershipStateSchema.safeParse({
+        state: "known",
+        allocations: [
+          { entityId: "person:alex", fraction: 0.6 },
+          { entityId: "person:sam", fraction: 0.3 },
+        ],
+      }).error?.issues.map(({ message }) => message),
+    ).toContain("Known account ownership allocations must total 100%");
+
+    expect(
+      AccountOwnershipStateSchema.safeParse({
+        state: "candidate-owners",
+        candidateEntityIds: ["person:alex", "person:alex"],
+      }).error?.issues.map(({ message }) => message),
+    ).toContain("Candidate account owners must be unique");
+  });
+
+  it("rejects valuations whose evidence cannot reproduce the recorded amount", () => {
+    const valuation = businessWealthFixture().companyEquityValuations[0];
+    if (valuation == null) throw new Error("fixture has no company valuation");
+
+    expect(
+      CompanyEquityValuationSchema.safeParse({
+        ...valuation,
+        evidenceKind: "observation",
+      }).error?.issues.map(({ message }) => message),
+    ).toContain(
+      "adjusted-net-assets valuations must record calculation evidence",
+    );
+    expect(
+      CompanyEquityValuationSchema.safeParse({
+        ...valuation,
+        inputs: undefined,
+      }).error?.issues.map(({ message }) => message),
+    ).toContain(
+      "Adjusted-net-assets valuations must retain their account, liability, obligation, exchange-rate, assumption, and calculation inputs",
+    );
+    expect(
+      CompanyEquityValuationSchema.safeParse({
+        ...valuation,
+        range: { currency: "USD", lowerBound: 190_000, upperBound: 210_000 },
+      }).error?.issues.map(({ message }) => message),
+    ).toContain("Valuation amount and range must use the same currency");
+    expect(
+      CompanyEquityValuationSchema.safeParse({
+        ...valuation,
+        range: { currency: "GBP", lowerBound: 210_000, upperBound: 220_000 },
+      }).error?.issues.map(({ message }) => message),
+    ).toContain("Known valuation amount must fall within its range");
+    expect(
+      CompanyEquityValuationSchema.safeParse({
+        ...valuation,
+        operatingReserve: {
+          amount: { state: "known", currency: "GBP", amount: 30_000 },
+          unavailableForExtraction: true,
+          assumptionId: "missing-reserve-assumption",
+        },
+      }).error?.issues.map(({ message }) => message),
+    ).toContain(
+      "An operating reserve must be retained in the valuation assumption lineage",
+    );
+  });
+
+  it("requires transfers to preserve distinct source and destination evidence", () => {
+    const transfer = businessWealthFixture().entityTransfers[0];
+    if (transfer == null) throw new Error("fixture has no entity transfer");
+    const source = transfer.legs[0];
+    const destination = transfer.legs[1];
+    if (source == null || destination == null)
+      throw new Error("fixture transfer has no endpoints");
+
+    expect(
+      EntityTransferSchema.safeParse({
+        ...transfer,
+        legs: [source, { ...destination, role: "source" }],
+      }).error?.issues.map(({ message }) => message),
+    ).toContain("An entity transfer must have exactly one destination leg");
+    expect(
+      EntityTransferSchema.safeParse({
+        ...transfer,
+        legs: [source, { ...destination, endpoint: source.endpoint }],
+      }).error?.issues.map(({ message }) => message),
+    ).toContain("Entity transfer endpoints must differ");
+  });
+
+  it("rejects invalid correction histories and effective periods", () => {
+    const invalidPeriod = businessWealthFixture();
+    const ownership = invalidPeriod.accountOwnerships[0];
+    if (ownership == null) throw new Error("fixture has no account ownership");
+    ownership.effectiveTo = ownership.effectiveFrom;
+    expect(() => buildRepository(invalidPeriod)).toThrow(
+      /must end after its effective start/,
+    );
+
+    const unknownCorrection = businessWealthFixture();
+    const valuation = unknownCorrection.companyEquityValuations[1];
+    if (valuation == null) throw new Error("fixture has no correction");
+    valuation.correctsId = "missing-valuation";
+    expect(() => buildRepository(unknownCorrection)).toThrow(
+      /corrects unknown record "missing-valuation"/,
+    );
+
+    const crossSeriesCorrection = businessWealthFixture();
+    const crossSeriesValuation =
+      crossSeriesCorrection.companyEquityValuations[1];
+    if (crossSeriesValuation == null)
+      throw new Error("fixture has no correction");
+    crossSeriesValuation.companyEntityId = "person:alex";
+    expect(() => buildRepository(crossSeriesCorrection)).toThrow(
+      /must correct the same series/,
+    );
+
+    const earlyCorrection = businessWealthFixture();
+    const earlyValuation = earlyCorrection.companyEquityValuations[1];
+    if (earlyValuation == null) throw new Error("fixture has no correction");
+    earlyValuation.acceptedAt = "2026-09-01T00:00:00.000Z";
+    expect(() => buildRepository(earlyCorrection)).toThrow(
+      /must be accepted after/,
+    );
+  });
+
+  it("rejects duplicate records and competing corrections", () => {
+    const duplicateRecord = businessWealthFixture();
+    const entity = duplicateRecord.financialEntities[0];
+    if (entity == null) throw new Error("fixture has no financial entity");
+    duplicateRecord.financialEntities.push(structuredClone(entity));
+    expect(() => buildRepository(duplicateRecord)).toThrow(
+      /Duplicate Financial entity record ID "entity-alex-v1"/,
+    );
+
+    const competingCorrections = businessWealthFixture();
+    const correction = competingCorrections.companyEquityValuations[1];
+    if (correction == null) throw new Error("fixture has no correction");
+    competingCorrections.companyEquityValuations.push({
+      ...structuredClone(correction),
+      recordId: "northstar-valuation-second-correction",
+      acceptedAt: "2026-11-02T00:00:00.000Z",
+    });
+    expect(() => buildRepository(competingCorrections)).toThrow(
+      /Company valuation record "northstar-valuation-original" has more than one correction/,
+    );
+  });
+
+  it("keeps corrections within their original business series", () => {
+    const entityCorrection = businessWealthFixture();
+    const entity = entityCorrection.financialEntities[0];
+    if (entity == null) throw new Error("fixture has no financial entity");
+    entityCorrection.financialEntities.push({
+      ...structuredClone(entity),
+      recordId: "entity-alex-cross-series-correction",
+      entityId: "person:sam",
+      acceptedAt: "2026-11-02T00:00:00.000Z",
+      correctsId: entity.recordId,
+    });
+    expect(() => buildRepository(entityCorrection)).toThrow(
+      /Financial entity correction .* must correct the same series/,
+    );
+
+    const ownershipCorrection = businessWealthFixture();
+    const ownership = ownershipCorrection.accountOwnerships[0];
+    if (ownership == null) throw new Error("fixture has no account ownership");
+    ownershipCorrection.accountOwnerships.push({
+      ...structuredClone(ownership),
+      recordId: "owner-alex-cash-cross-series-correction",
+      accountId: "shared-cash",
+      acceptedAt: "2026-11-02T00:00:00.000Z",
+      correctsId: ownership.recordId,
+    });
+    expect(() => buildRepository(ownershipCorrection)).toThrow(
+      /Account ownership correction .* must correct the same series/,
+    );
+
+    const shareCorrection = businessWealthFixture();
+    const interest = shareCorrection.shareOwnershipInterests[1];
+    if (interest == null) throw new Error("fixture has no share interest");
+    shareCorrection.shareOwnershipInterests.push({
+      ...structuredClone(interest),
+      recordId: "interest-alex-cross-series-correction",
+      ownerEntityId: "person:sam",
+      acceptedAt: "2026-11-02T00:00:00.000Z",
+      correctsId: interest.recordId,
+    });
+    expect(() => buildRepository(shareCorrection)).toThrow(
+      /Share ownership correction .* must correct the same series/,
+    );
+
+    const obligationCorrection = businessWealthFixture();
+    const obligation = obligationCorrection.entityObligations[0];
+    if (obligation == null) throw new Error("fixture has no obligation");
+    obligationCorrection.entityObligations.push({
+      ...structuredClone(obligation),
+      recordId: "northstar-tax-cross-series-correction",
+      obligationId: "northstar-corporation-tax-2027",
+      acceptedAt: "2026-11-02T00:00:00.000Z",
+      correctsId: obligation.recordId,
+    });
+    expect(() => buildRepository(obligationCorrection)).toThrow(
+      /Entity obligation correction .* must correct the same series/,
+    );
+
+    const transferCorrection = businessWealthFixture();
+    const transfer = transferCorrection.entityTransfers[0];
+    if (transfer == null) throw new Error("fixture has no entity transfer");
+    transferCorrection.entityTransfers.push({
+      ...structuredClone(transfer),
+      recordId: "transfer-dividend-cross-series-correction",
+      transferId: "transfer-salary",
+      acceptedAt: "2026-11-02T00:00:00.000Z",
+      correctsId: transfer.recordId,
+    });
+    expect(() => buildRepository(transferCorrection)).toThrow(
+      /Entity transfer correction .* must correct the same series/,
+    );
+  });
+
+  it("uses acceptance time to break equal ownership-date ties", () => {
+    const ownership = businessWealthFixture().accountOwnerships[0];
+    if (ownership == null) throw new Error("fixture has no account ownership");
+    const earlier = structuredClone(ownership);
+    earlier.recordId = "owner-alex-cash-earlier-acceptance";
+    earlier.acceptedAt = "2026-01-01T00:00:00.000Z";
+    const later = structuredClone(ownership);
+    later.recordId = "owner-alex-cash-later-acceptance";
+    later.acceptedAt = "2026-02-01T00:00:00.000Z";
+    later.ownership = {
+      state: "known",
+      allocations: [{ entityId: "person:sam", fraction: 1 }],
+    };
+
+    expect(
+      accountOwnershipAt(
+        [later, earlier],
+        "alex-cash",
+        "2026-09-30",
+        "2026-03-01T00:00:00.000Z",
+      ),
+    ).toMatchObject({
+      recordId: "owner-alex-cash-later-acceptance",
+      ownership: {
+        allocations: [{ entityId: "person:sam", fraction: 1 }],
+      },
+    });
+  });
+
+  it("rejects company valuation and transfer references outside their owners", () => {
+    const unknownValuationAccount = businessWealthFixture();
+    const valuation = unknownValuationAccount.companyEquityValuations[1];
+    if (valuation?.inputs == null)
+      throw new Error("fixture has no valuation inputs");
+    valuation.inputs.accountIds = ["missing-account"];
+    expect(() => buildRepository(unknownValuationAccount)).toThrow(
+      /references unknown account "missing-account"/,
+    );
+
+    const personalValuationAccount = businessWealthFixture();
+    const personalValuation =
+      personalValuationAccount.companyEquityValuations[1];
+    if (personalValuation?.inputs == null)
+      throw new Error("fixture has no valuation inputs");
+    personalValuation.inputs.accountIds = ["alex-cash"];
+    expect(() => buildRepository(personalValuationAccount)).toThrow(
+      /can only cite accounts owned by company/,
+    );
+
+    const externalAccountLeg = businessWealthFixture();
+    const transfer = externalAccountLeg.entityTransfers[0];
+    const source = transfer?.legs[0];
+    if (source == null) throw new Error("fixture has no transfer source");
+    source.endpoint = { kind: "external", counterpartyId: "outside-bank" };
+    expect(() => buildRepository(externalAccountLeg)).toThrow(
+      /cannot attach an internal account to an external endpoint/,
+    );
+
+    const wrongOwner = businessWealthFixture();
+    const wrongOwnerTransfer = wrongOwner.entityTransfers[0];
+    const wrongOwnerSource = wrongOwnerTransfer?.legs[0];
+    if (wrongOwnerSource == null)
+      throw new Error("fixture has no transfer source");
+    wrongOwnerSource.accountId = "alex-cash";
+    expect(() => buildRepository(wrongOwner)).toThrow(
+      /account is not owned by endpoint entity/,
+    );
+
+    const unknownTransferAccount = businessWealthFixture();
+    const unknownAccountTransfer = unknownTransferAccount.entityTransfers[0];
+    const unknownAccountSource = unknownAccountTransfer?.legs[0];
+    if (unknownAccountSource == null)
+      throw new Error("fixture has no transfer source");
+    unknownAccountSource.accountId = "missing-account";
+    expect(() => buildRepository(unknownTransferAccount)).toThrow(
+      /references unknown account "missing-account"/,
+    );
+  });
+
+  it("requires each account to have one valid dated ownership state", () => {
+    const unknownAccount = businessWealthFixture();
+    const ownership = unknownAccount.accountOwnerships[0];
+    if (ownership == null) throw new Error("fixture has no account ownership");
+    ownership.accountId = "missing-account";
+    expect(() => buildRepository(unknownAccount)).toThrow(
+      /references unknown account "missing-account"/,
+    );
+
+    const missingOwnership = businessWealthFixture();
+    missingOwnership.accountOwnerships =
+      missingOwnership.accountOwnerships.filter(
+        ({ accountId }) => accountId !== "company-cash",
+      );
+    expect(() => validateBusinessWealth(missingOwnership)).toThrow(
+      /Account "company-cash" has no dated ownership record/,
+    );
+
+    const sharedCompanyAccount = businessWealthFixture();
+    const companyOwnership = sharedCompanyAccount.accountOwnerships.find(
+      ({ accountId }) => accountId === "company-cash",
+    );
+    if (companyOwnership == null)
+      throw new Error("fixture has no company ownership");
+    companyOwnership.ownership = {
+      state: "known",
+      allocations: [
+        { entityId: "company:northstar", fraction: 0.5 },
+        { entityId: "person:alex", fraction: 0.5 },
+      ],
+    };
+    expect(() => buildRepository(sharedCompanyAccount)).toThrow(
+      /must have one company owner at 100%/,
+    );
+
+    const candidateOwnership = businessWealthFixture();
+    const sharedOwnership = candidateOwnership.accountOwnerships.find(
+      ({ accountId }) => accountId === "shared-cash",
+    );
+    if (sharedOwnership == null)
+      throw new Error("fixture has no shared account ownership");
+    sharedOwnership.ownership = {
+      state: "candidate-owners",
+      candidateEntityIds: ["person:alex", "person:sam"],
+    };
+    const repository = buildRepository(candidateOwnership);
+    expect(
+      accountOwnershipAt(
+        repository.accountOwnerships,
+        "shared-cash",
+        "2026-09-30",
+      )?.ownership,
+    ).toEqual({
+      state: "candidate-owners",
+      candidateEntityIds: ["person:alex", "person:sam"],
+    });
+  });
+
+  it("rejects impossible company, obligation, and valuation relationships", () => {
+    const selfOwnedCompany = businessWealthFixture();
+    const interest = selfOwnedCompany.shareOwnershipInterests[0];
+    if (interest == null) throw new Error("fixture has no share interest");
+    interest.ownerEntityId = interest.companyEntityId;
+    expect(() => buildRepository(selfOwnedCompany)).toThrow(
+      /cannot make a company own itself/,
+    );
+
+    const personalShareTarget = businessWealthFixture();
+    const personalInterest = personalShareTarget.shareOwnershipInterests[0];
+    if (personalInterest == null)
+      throw new Error("fixture has no share interest");
+    personalInterest.companyEntityId = "person:sam";
+    expect(() => buildRepository(personalShareTarget)).toThrow(
+      /must target a company/,
+    );
+
+    const invalidObligation = businessWealthFixture();
+    const obligation = invalidObligation.entityObligations[0];
+    if (obligation == null) throw new Error("fixture has no obligation");
+    obligation.periodStart = "2026-10-01";
+    expect(() => buildRepository(invalidObligation)).toThrow(
+      /has an invalid period/,
+    );
+
+    const duplicateLiability = businessWealthFixture();
+    const companyCash = duplicateLiability.accounts.find(
+      ({ id }) => id === "company-cash",
+    );
+    if (companyCash == null) throw new Error("fixture has no company cash");
+    companyCash.liabilityId = "northstar-working-capital-debt";
+    expect(() => buildRepository(duplicateLiability)).toThrow(
+      /Duplicate liability account ID/,
+    );
+
+    const personalValuation = businessWealthFixture();
+    for (const valuation of personalValuation.companyEquityValuations) {
+      valuation.companyEntityId = "person:alex";
+    }
+    expect(() => buildRepository(personalValuation)).toThrow(
+      /must target a company/,
     );
   });
 

@@ -110,3 +110,18 @@ run = "uv run --locked pathologize-cell-analysis annotation compare"
 description = "Download and verify the pinned gated CellSAM archive"
 depends = ["sync"]
 run = "uv run --locked pathologize-cell-analysis annotation acquire-cellsam"
+
+[tasks."learned:calibration:validation"]
+description = "Run validation-only NuCLS detection operating-point calibration"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro calibrate_nucls_detection_validation"
+
+[tasks."learned:calibration:lock"]
+description = "Lock the validation-selected NuCLS detection operating point"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro lock_nucls_detection_calibration"
+
+[tasks."learned:calibration:test"]
+description = "Run one locked frozen-test NuCLS detection evaluation"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro report_nucls_detection_calibration"

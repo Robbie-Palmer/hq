@@ -123,6 +123,117 @@ class ArtifactReference(StrictModel):
         return self
 
 
+class CheckpointArtifact(ArtifactReference):
+    step: int = Field(ge=0)
+
+
+class CheckpointSeries(StrictModel):
+    schema_version: Literal["1.0.0"] = "1.0.0"
+    parameters_sha256: str = Field(pattern=SHA256_PATTERN)
+    source_run_sha256: str = Field(pattern=SHA256_PATTERN)
+    checkpoints: tuple[CheckpointArtifact, ...] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def require_ordered_unique_checkpoints(self) -> Self:
+        steps = [checkpoint.step for checkpoint in self.checkpoints]
+        paths = [checkpoint.path for checkpoint in self.checkpoints]
+        if steps != sorted(steps) or len(steps) != len(set(steps)):
+            raise ValueError("checkpoints must have unique ascending steps")
+        if len(paths) != len(set(paths)):
+            raise ValueError("checkpoint paths must be unique")
+        return self
+
+
+class ExecutionBudget(StrictModel):
+    max_wall_seconds: float | None = Field(default=None, gt=0)
+    max_accelerator_seconds: float | None = Field(default=None, gt=0)
+    max_peak_accelerator_bytes: int | None = Field(default=None, gt=0)
+    minimum_free_disk_bytes: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def require_at_least_one_limit(self) -> Self:
+        if all(
+            value is None
+            for value in (
+                self.max_wall_seconds,
+                self.max_accelerator_seconds,
+                self.max_peak_accelerator_bytes,
+                self.minimum_free_disk_bytes,
+            )
+        ):
+            raise ValueError("execution budget must declare at least one limit")
+        return self
+
+
+class ExecutionUsage(StrictModel):
+    wall_seconds: float | None = Field(default=None, ge=0)
+    accelerator_seconds: float | None = Field(default=None, ge=0)
+    peak_accelerator_bytes: int | None = Field(default=None, ge=0)
+    free_disk_bytes: int | None = Field(default=None, ge=0)
+
+
+class ResourceLimitViolation(StrictModel):
+    resource: Literal[
+        "wall_seconds",
+        "accelerator_seconds",
+        "peak_accelerator_bytes",
+        "free_disk_bytes",
+    ]
+    relation: Literal["maximum", "minimum"]
+    observed: float | None
+    limit: float
+
+
+class BootstrapConfig(StrictModel):
+    replicates: int = Field(ge=100)
+    seed: int = Field(ge=0)
+    confidence_level: float = Field(gt=0, lt=1)
+
+
+class ConfidenceInterval(StrictModel):
+    lower: float = Field(allow_inf_nan=False)
+    upper: float = Field(allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def require_ordered_bounds(self) -> Self:
+        if self.lower > self.upper:
+            raise ValueError("confidence interval bounds must be ordered")
+        return self
+
+
+class CurveWindow(StrictModel):
+    start_step: int = Field(ge=1)
+    end_step: int = Field(ge=1)
+    mean: float = Field(allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def require_ordered_steps(self) -> Self:
+        if self.end_step < self.start_step:
+            raise ValueError("curve window steps must be ordered")
+        return self
+
+
+class CurveDirectionAgreement(StrictModel):
+    peak_worse_than_first: bool
+    later_better_than_peak: bool
+
+
+class CurveComparison(StrictModel):
+    first_minimum: CurveWindow
+    later_peak: CurveWindow
+    later_minimum: CurveWindow
+    peak_increase: float = Field(allow_inf_nan=False)
+    peak_difference_interval: ConfidenceInterval
+    second_descent: float = Field(allow_inf_nan=False)
+    descent_difference_interval: ConfidenceInterval
+    later_minus_first: float = Field(allow_inf_nan=False)
+    later_beats_first: bool
+    peak_supported: bool
+    second_descent_supported: bool
+    replicate_agreement: dict[str, CurveDirectionAgreement]
+    pattern_observed: bool
+
+
 class FailureReport(StrictModel):
     schema_version: Literal["1.0.0"]
     failures: list[RunFailure]

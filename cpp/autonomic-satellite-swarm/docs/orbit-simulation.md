@@ -49,6 +49,31 @@ The native and WebAssembly serializers round Earth-fixed position to metres and 
 millimetres per second. Scorer inputs are rounded to `0.0001` degree and one metre. These explicit
 boundaries preserve byte-for-byte output across the two targets.
 
+## Maneuver propagation
+
+The host and WebAssembly simulation converts the selected node's TEME coast through ITRF into GCRF
+with fixed UTC, TAI minus UTC, UT1 minus UTC, polar-motion, precession, and nutation inputs. The
+demonstration reads none of those values from the host. Its departure burn occurs 600 seconds after
+the TLE epoch. The arrival burn occurs 4,200 seconds after the epoch.
+
+The objective maps to a point 550 kilometres above the WGS84 ellipsoid at the arrival epoch. The
+target orbit is circular and uses the plane closest to the pre-burn angular-momentum direction. A
+zero-revolution Lambert solve evaluates both direction branches and chooses the lower total
+delta-velocity result. A universal-variable two-body propagator samples the transfer and target
+orbit. The model omits drag, oblateness, third bodies, finite thrust, mass, attitude, navigation
+error, and control error. It is a research visualization model, not flight dynamics software.
+
+The serializer emits current, transfer, and target samples in GCRF with UTC Unix millisecond
+epochs. It rounds positions to whole metres and velocities and impulse changes to millimetres per
+second. Native fixtures, WebAssembly output, and the production worker compare after that exact
+boundary. The solver keeps full double precision internally.
+
+The recorded coordination result controls execution. A local self-assignment or receipt of the
+matching assignment authorizes planning. A remote assignment that is dropped never creates burn,
+transfer, or target records. A node that becomes unavailable before departure also has no recorded
+burn. The portable controller and both firmware targets do not include the transform, Lambert, or
+two-body code.
+
 ## Sampling and playback
 
 The trace retains the 10-millisecond controller frames through 120 milliseconds, then samples every
@@ -84,3 +109,6 @@ The production browser audit passed without external requests or page errors in 
 with 4x mobile CPU throttling. Each profile loaded one 274,931-byte simulation WebAssembly resource.
 These measurements describe this CI host and serve only as a regression baseline. User-device
 performance will vary.
+
+The schema version 8 fixture is 232,202 bytes and includes maneuver evidence for the fixed South
+Pole scenario. That size is tracked separately from the earlier SGP4-only baseline above.
