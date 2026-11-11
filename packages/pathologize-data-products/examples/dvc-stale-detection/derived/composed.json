@@ -1,0 +1,15 @@
+{
+  "kind": "derived",
+  "product": "example/derived-measurements",
+  "records": [
+    {
+      "artifact": "slides/example.svs",
+      "checksum": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "record": "slide-1"
+    }
+  ],
+  "upstream": {
+    "product": "example/source-wsi",
+    "version": "v1"
+  }
+}

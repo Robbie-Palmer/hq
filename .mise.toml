@@ -52,6 +52,7 @@ config_roots = [
     "packages/mdx-rendering",
     "packages/ml-evaluation",
     "packages/pathologize-tiler",
+    "packages/pathologize-data-products",
     "packages/ultralytics-extensions",
     "packages/node-base",
     "packages/object-storage",
