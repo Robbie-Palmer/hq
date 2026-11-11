@@ -5,6 +5,7 @@ from http.client import HTTPMessage
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from urllib.parse import urlsplit
 from urllib.request import Request
 
 import pytest
@@ -501,18 +502,19 @@ def test_live_identity_check_reads_counts_without_downloading_images(  # noqa: C
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fake_json(url: str, _payload: object = None) -> dict[str, object]:
+        parsed = urlsplit(url)
         if "histology/image" in url:
             return {"paging_info": {"totalNumberOfItems": 25713}}
         if url.endswith("/version"):
             return {"idc_version": "v25", "idc_index_data_version": "25.0.5"}
         if url.endswith("/collections/gtex"):
             return {"series": 25503, "instances": 128708}
-        if "explore.anvilproject.org" in url:
+        if parsed.hostname == "service.explore.anvilproject.org":
             return {
                 "pagination": {"total": 25708},
                 "hits": [{"sources": [{"source_spec": "snapshot"}]}],
             }
-        if "zenodo.org" in url:
+        if parsed.hostname == "zenodo.org":
             return {"id": 11099100, "conceptdoi": "10.5281/zenodo.11099099"}
         raise AssertionError(url)
 
