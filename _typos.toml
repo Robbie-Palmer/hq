@@ -10,6 +10,7 @@ symetry = "symetry" # SymetryML, streaming ML product
 vertica = "vertica" # Vertica analytics database
 sie = "sie" # split from the SIEM(s) acronym
 ome = "ome" # Open Microscopy Environment
+rin = "rin" # RNA integrity number used by GTEx molecular metadata
 
 [default.extend-identifiers]
 CelesTrak = "CelesTrak" # orbital-data and reference-software publisher

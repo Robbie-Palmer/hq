@@ -686,6 +686,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/gtex-histology-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/gtex/histology" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/nucls-corrected-single-rater-data-product"
     project: "project:pathologize"
     paths: [ "data-products/nucls/corrected-single-rater" ]

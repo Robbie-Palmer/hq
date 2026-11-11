@@ -12,6 +12,8 @@ retains source lineage.
 
 Current products:
 
+- `gtex/histology`: source-native GTEx histology, preanalytic metadata, original
+  AnVIL SVS inventory, and IDC-harmonized DICOM inventory.
 - `grandqc/mpp20`: source-native GrandQC MPP20 patch pairs and masks.
 - `nucls/corrected-single-rater`: source-native NuCLS fields of view,
   annotations, ontology, and official fold roles.

@@ -1,0 +1,212 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "gtex-histology-source-idc-v25-2026-11-11",
+  "snapshot_date": "2026-11-11",
+  "title": "GTEx histology and linked preanalytic source metadata",
+  "collection_context": {
+    "tissue_samples": 26468,
+    "donors": 956,
+    "tissue_types": "50+ tissue types",
+    "diagnostic_scope": "non-diseased reference collection, not a diagnostic cancer cohort"
+  },
+  "preparation": {
+    "procurement_relationship": "GTEx divided each procured tissue into a histology block and a molecular-analysis block. They share a procurement event but are not the same section.",
+    "histology_block": "PAXgene fixed and stabilized, paraffin embedded, H&E stained, scanned, and reviewed for histology",
+    "molecular_block": "separate PAXgene fixed and stabilized tissue block used for molecular analysis",
+    "fixative": "PAXgene Tissue Fixative (Qiagen)",
+    "published_fixation_hours_min": 6,
+    "published_fixation_hours_max": 24,
+    "stabilizer": "PAXgene Tissue Stabilizer (Qiagen)",
+    "embedding": "paraffin",
+    "stain": "hematoxylin and eosin",
+    "scanner": "Aperio ScanScope (Leica Biosystems)",
+    "pathology_reviewers": 4
+  },
+  "identities": [
+    {
+      "name": "GTEx Portal",
+      "record_url": "https://gtexportal.org/home/histologyPage",
+      "release": "histology API v2 snapshot 2026-11-11; linked molecular annotations use GTEx Analysis V8",
+      "role": "publisher metadata for histology images, pathology review, donors, specimens, and molecular aliquots",
+      "access": "open metadata; the API does not serve image bytes",
+      "counts": {
+        "histology_api_records": 25713,
+        "v8_sample_attribute_rows": 22951,
+        "v8_subject_rows": 980
+      },
+      "rights": {
+        "license_name": "GTEx Portal Data License",
+        "license_url": "https://gtexportal.org/home/license",
+        "attribution": "Acknowledge the GTEx Portal and the GTEx Project with the access date or dbGaP accession."
+      }
+    },
+    {
+      "name": "Imaging Data Commons",
+      "record_url": "https://portal.imaging.datacommons.cancer.gov/collections/gtex/",
+      "release": "IDC v25, idc-index-data 25.0.5; GTEx series first introduced in IDC v19",
+      "role": "IDC-harmonized DICOM studies, series, and instances derived from original GTEx Aperio SVS files",
+      "access": "public AWS and GCS objects without cloud credentials",
+      "counts": {
+        "subjects": 971,
+        "studies": 971,
+        "series": 25503,
+        "instances": 128708,
+        "size_gigabytes_decimal": 8555
+      },
+      "rights": {
+        "license_name": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Retain per-series license and source DOI 10.5281/zenodo.11099099."
+      }
+    },
+    {
+      "name": "AnVIL Data Explorer",
+      "record_url": "https://explore.anvilproject.org/datasets/e5aee011-bdb3-4caa-954c-a46678656270",
+      "release": "catalog anvil15, source snapshot ANVIL_GTEx_public_data_20260821_ANV6_202608211401",
+      "role": "inventory and stable DRS identifiers for original Aperio SVS histology files",
+      "access": "inventory is public; Terra workspace object transfer is requester pays and requires a billing project; the SVS corpus is about 8 TB",
+      "counts": {
+        "svs_files": 25708
+      },
+      "rights": {
+        "license_name": "GTEx Portal Data License; AnVIL consent group NRES",
+        "license_url": "https://gtexportal.org/home/license",
+        "attribution": "Acknowledge the GTEx Portal and GTEx Project."
+      }
+    },
+    {
+      "name": "NCI Biospecimen Research Database",
+      "record_url": "https://brd.nci.nih.gov/brd/image-search/search_specimen",
+      "release": "legacy GTEx Histological Images viewer; the legacy host redirected to https://brd.cancer.gov on 2026-11-11 and the viewer path was no longer published there",
+      "role": "historical specimen viewer for fixative, autolysis, pathology comments, and acceptability",
+      "access": "the historical viewer was open; current NCI access routes point users to IDC and Terra",
+      "counts": {},
+      "rights": {
+        "license_name": null,
+        "license_url": "https://dctd.cancer.gov/data-tools-biospecimens/biospecimens-biobanks/finding/gtex",
+        "attribution": "Credit the NCI Division of Cancer Treatment and Diagnosis when using BRD records."
+      }
+    },
+    {
+      "name": "Zenodo",
+      "record_url": "https://zenodo.org/records/11099100",
+      "release": "version record 11099100, concept DOI 10.5281/zenodo.11099099, published 2024-08-26",
+      "role": "source DOI and IDC v19 AWS, GCS, and DRS acquisition manifests",
+      "access": "open metadata and manifests; manifests point to public IDC DICOM objects",
+      "counts": {
+        "aws_series_manifest_entries": 25503,
+        "drs_instance_manifest_entries": 128708
+      },
+      "rights": {
+        "license_name": "CC BY 4.0",
+        "license_url": "https://creativecommons.org/licenses/by/4.0/",
+        "attribution": "Acknowledge the GTEx Consortium and IDC as specified in the Zenodo record."
+      }
+    }
+  ],
+  "snapshots": [
+    {
+      "name": "gtex_histology_api",
+      "endpoint": "https://gtexportal.org/api/v2/histology/image",
+      "expected_records": 25713,
+      "canonical_sha256": "c56f38f686dcd762be8a06855aec46d89dac53c4fac11a2c8681bb355ba3b36a"
+    },
+    {
+      "name": "anvil_svs",
+      "endpoint": "https://service.explore.anvilproject.org/index/files",
+      "expected_records": 25708,
+      "canonical_sha256": "1fdc01e9564ea5e9a408dc97757c21e78f9b8b1f85d84e2e706f4a7367de6150"
+    },
+    {
+      "name": "idc_series",
+      "endpoint": "https://api.imaging.datacommons.cancer.gov/v3/sql",
+      "expected_records": 25503,
+      "canonical_sha256": "603d88a3670c3498380f3d4561503571b5b3b69fbf272211feb172751135ddac"
+    },
+    {
+      "name": "idc_instances",
+      "endpoint": "https://api.imaging.datacommons.cancer.gov/v3/sql",
+      "expected_records": 128708,
+      "canonical_sha256": "8d5c181d4c9adad817010c021da7f23590d8c9063e9a4222664afd271f3c0086"
+    }
+  ],
+  "static_artifacts": [
+    {
+      "name": "GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt",
+      "url": "https://storage.googleapis.com/adult-gtex/annotations/v8/metadata-files/GTEx_Analysis_v8_Annotations_SampleAttributesDS.txt",
+      "bytes": 11512258,
+      "md5": "3a863b00db00a0a08a5c7900d44ea119",
+      "sha256": "74f6ab4c34ed2648d708a0ae6e6dff324f6c86ea723ae7d1c37d76f5221148f0",
+      "media_type": "text/tab-separated-values"
+    },
+    {
+      "name": "GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt",
+      "url": "https://storage.googleapis.com/adult-gtex/annotations/v8/metadata-files/GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt",
+      "bytes": 20271,
+      "md5": "90297fc31512902f4459c757180fe575",
+      "sha256": "821bdaff39e7a9a1d166919b3c786724c2b79c2861aeb936a2537a0f59b066f7",
+      "media_type": "text/tab-separated-values"
+    },
+    {
+      "name": "GTEx_Analysis_v8_Annotations_SampleAttributesDD.xlsx",
+      "url": "https://storage.googleapis.com/adult-gtex/annotations/v8/metadata-files/GTEx_Analysis_v8_Annotations_SampleAttributesDD.xlsx",
+      "bytes": 15760,
+      "md5": "b395f830f464dcda6d8fbbf95e33ffa9",
+      "sha256": "f58e1cb659ec066db085d6972eac8da613c4797c1b1e7f72d49b3b5d04dcffba",
+      "media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    },
+    {
+      "name": "GTEx_Analysis_v8_Annotations_SubjectPhenotypesDD.xlsx",
+      "url": "https://storage.googleapis.com/adult-gtex/annotations/v8/metadata-files/GTEx_Analysis_v8_Annotations_SubjectPhenotypesDD.xlsx",
+      "bytes": 10605,
+      "md5": "65d455f949dcdb86f9711b028dfd45c8",
+      "sha256": "4d019b73e7b6c1d4b7ae0c5a56a0eb2fe72dcf51a1e9d2a8e21380d898f53c61",
+      "media_type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    },
+    {
+      "name": "gtex-idc_v19-aws.s5cmd",
+      "url": "https://zenodo.org/api/records/11099100/files/gtex-idc_v19-aws.s5cmd/content",
+      "bytes": 1632485,
+      "md5": "542434f2fd076e33bb099f5c083e0e7c",
+      "sha256": "4693af98c7e4fdbae5aeba2ef45ee8ac5e806111f94a8140159862fd26d31bdb",
+      "media_type": "text/plain"
+    },
+    {
+      "name": "gtex-idc_v19-gcs.s5cmd",
+      "url": "https://zenodo.org/api/records/11099100/files/gtex-idc_v19-gcs.s5cmd/content",
+      "bytes": 1785503,
+      "md5": "290aef79c71614f18923f9b635b06b8d",
+      "sha256": "b539d1fc03f788058e0fb19c67ad068b1f04a6db4858a8b3e00fba08dcfde71d",
+      "media_type": "text/plain"
+    },
+    {
+      "name": "gtex-idc_v19-dcf.dcf",
+      "url": "https://zenodo.org/api/records/11099100/files/gtex-idc_v19-dcf.dcf/content",
+      "bytes": 5792265,
+      "md5": "66313000e6099076705a216be5bd961f",
+      "sha256": "3afb8a5f024158edb082750c044c37e51f65629f15d035e5351ee92c586c5589",
+      "media_type": "text/plain"
+    }
+  ],
+  "scope": {
+    "supports": [
+      "fixation studies",
+      "ischemia studies",
+      "autolysis studies",
+      "histology artifact studies",
+      "assay-suitability studies",
+      "source evidence for downstream SOP studies"
+    ],
+    "excludes": [
+      "FFPE-versus-frozen comparison claims",
+      "diagnostic cancer cohort claims",
+      "Pathologize cohorts",
+      "harmonized labels or ontologies",
+      "exclusions",
+      "train, validation, or test splits",
+      "derived outcomes",
+      "cost models",
+      "downstream SOP decisions"
+    ]
+  }
+}

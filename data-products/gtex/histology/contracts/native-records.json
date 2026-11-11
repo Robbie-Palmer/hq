@@ -1,0 +1,71 @@
+{
+  "schema_version": "1.0.0",
+  "namespaces": {
+    "gtex_histology": {
+      "primary_key": "histology_image_id",
+      "publisher": "GTEx Portal API v2",
+      "preserved_fields": [
+        "subject_id",
+        "tissue_sample_id",
+        "molecular_sample_id",
+        "tissue_site_detail",
+        "sex",
+        "age_bracket",
+        "hardy_scale",
+        "pathology_notes",
+        "pathology_categories",
+        "hidden"
+      ]
+    },
+    "gtex_molecular": {
+      "primary_key": "sample_id",
+      "publisher": "GTEx Analysis V8 public annotations",
+      "field_codes": {
+        "autolysis_score": "SMATSSCR",
+        "collection_site": "SMCENTER",
+        "pathology_notes": "SMPTHNTS",
+        "rin": "SMRIN",
+        "tissue_type": "SMTS",
+        "tissue_site_detail": "SMTSD",
+        "uberon_id": "SMUBRID",
+        "total_ischemic_time_minutes": "SMTSISCH",
+        "paxgene_fixative_time_minutes": "SMTSPAX",
+        "nucleic_acid_isolation_batch_id": "SMNABTCH",
+        "nucleic_acid_isolation_batch_type": "SMNABTCHT",
+        "nucleic_acid_isolation_batch_date": "SMNABTCHD",
+        "genotype_expression_batch_id": "SMGEBTCH",
+        "genotype_expression_batch_date": "SMGEBTCHD",
+        "genotype_expression_batch_type": "SMGEBTCHT",
+        "analysis_freeze": "SMAFRZE"
+      },
+      "subject_fields": {
+        "age_bracket": "AGE",
+        "sex_code": "SEX",
+        "hardy_scale_code": "DTHHRDY"
+      }
+    },
+    "idc_dicom": {
+      "series_key": "SeriesInstanceUID",
+      "instance_key": "SOPInstanceUID",
+      "publisher_keys": [
+        "PatientID",
+        "StudyInstanceUID",
+        "SeriesInstanceUID",
+        "SOPInstanceUID",
+        "crdc_series_uuid",
+        "crdc_instance_uuid",
+        "ContainerIdentifier"
+      ],
+      "source_format": "IDC-harmonized DICOM",
+      "original_format": "Aperio SVS"
+    },
+    "anvil_svs": {
+      "primary_key": "file_id",
+      "publisher_keys": ["file_name", "file_path", "drs_uri", "document_id"],
+      "integrity_fields": ["file_size", "file_md5sum"],
+      "format": "original Aperio SVS"
+    }
+  },
+  "null_policy": "Empty publisher values become JSON null. Records also list missing fields; no value is imputed.",
+  "roles": "All records keep publisher source roles. This contract defines no cohort, split, exclusion, diagnosis label, derived outcome, or harmonized ontology."
+}
