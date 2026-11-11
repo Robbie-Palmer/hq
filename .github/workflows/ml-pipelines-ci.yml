@@ -5,6 +5,7 @@ on:
     paths:
       - "ml-pipelines/**"
       - "data-products/nucls/**"
+      - "data-products/panda/**"
       - "data-products/pathologize/nucleus-analysis/**"
       - "packages/recipe-parsing/**"
       - "packages/recipe-domain/**"
@@ -89,6 +90,7 @@ jobs:
       matrix:
         project:
           - nucls/corrected-single-rater
+          - panda/challenge-2020
           - pathologize/nucleus-analysis
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

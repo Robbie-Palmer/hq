@@ -1,0 +1,18 @@
+{
+  "schema_version": "1.0.0",
+  "product_id": "pathologize-roi-segmentation-portfolio-v1",
+  "description": "Multi-organ slide-coordinate ROI-selection product",
+  "contract_id": "pathologize-roi-segmentation-v1",
+  "ontology_id": "pathologize-roi-selection-v1",
+  "split_policy": {
+    "method": "sha256_threshold",
+    "group_key": "source_dataset_id:source_group_id",
+    "seed": "pathologize-roi-segmentation-portfolio-v1",
+    "validation_fraction": 0.33,
+    "official_test_roles": ["test"]
+  },
+  "leakage_units": ["source_group_id", "slide_id"],
+  "coordinate_policy": "preserve_source_frame",
+  "stain_policy": "preserve_source_provenance",
+  "molecular_status_policy": "preserve_linked_status_without_inference"
+}
