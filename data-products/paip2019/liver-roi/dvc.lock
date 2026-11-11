@@ -1,0 +1,35 @@
+schema: '2.0'
+stages:
+  publish_source_contract:
+    cmd: uv run --locked paip2019-source-data publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: b654c810b4cb0012589e36b9fc7d260f
+      size: 5292
+    - path: pyproject.toml
+      hash: md5
+      md5: 4224fb2b7d4491b19e7f9d38006d787d
+      size: 1140
+    - path: src/paip2019_source_data
+      hash: md5
+      md5: 52dbb31353b9332128a35957bd719e4b.dir
+      size: 22589
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 3f8fce7e4317b4a3b60cd4bedd7dfb78
+      size: 40085
+    outs:
+    - path: outputs/source-contract.json
+      hash: md5
+      md5: 8fadbec82b093012a5d027bc6a0d75e8
+      size: 5596
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: fd3d1fdd4fd7a44d8f7178ddf0716f86
+      size: 292

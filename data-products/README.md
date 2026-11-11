@@ -17,6 +17,8 @@ Current products:
   annotations, ontology, and official fold roles.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `paip2019/liver-roi`: source-native PAIP 2019 liver whole-slide images,
+  tumour masks, XML regions, challenge roles, and gated access contract.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
