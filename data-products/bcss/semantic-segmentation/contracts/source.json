@@ -53,13 +53,14 @@
     "code_spdx_id": "MIT",
     "code_license_url": "https://github.com/PathologyDataScience/BCSS/blob/3c49d554497dd896cd02ffe382503ef4ce28b1c1/LICENSE",
     "tcga_policy_url": "https://gdc.cancer.gov/analyze-data/data-analysis-policies",
-    "redistribution_note": "BCSS declares the dataset CC0. The referenced TCGA slides remain subject to GDC policy, including the prohibition on reidentification. This repository commits identifiers, metadata, and checksums, not image or mask bytes."
+    "redistribution_note": "BCSS declares the dataset CC0. The referenced TCGA slides remain subject to GDC policy, including the prohibition on reidentification. This repository commits identifiers, metadata, and checksums, not image, mask, or annotation bytes."
   },
   "source_image_semantics": {
     "stain": "hematoxylin_and_eosin",
     "source_project": "TCGA-BRCA",
     "roi_media_type": "image/png",
     "mask_media_type": "image/png",
+    "annotation_media_type": "application/json",
     "evidence_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6748796/"
   },
   "physical_scale": {
@@ -89,5 +90,6 @@
     }
   ],
   "record_count": 151,
-  "mask_count": 151
+  "mask_count": 151,
+  "annotation_artifact_count": 151
 }

@@ -3,9 +3,9 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import shutil
 from contextlib import closing
 from pathlib import Path
+from typing import BinaryIO, Protocol
 from urllib.parse import urlsplit
 from urllib.request import Request, urlopen
 
@@ -13,6 +13,11 @@ from bcss_source_data.models import NativeCorpus
 from bcss_source_data.product import PROJECT_DIR, ProductError, _read_object
 
 FIGSHARE_MASK_PREFIX = "https://ndownloader.figshare.com/files/"
+HISTOMICSTK_ANNOTATION_PREFIX = "https://demo.kitware.com/histomicstk/api/v1/annotation/item/"
+
+
+class ReadableStream(Protocol):
+    def read(self, size: int = -1) -> bytes: ...
 
 
 def _digest(path: Path, algorithm: str) -> str:
@@ -23,9 +28,9 @@ def _digest(path: Path, algorithm: str) -> str:
     return digest.hexdigest()
 
 
-def _source_allowed(source_url: str) -> bool:
+def _source_allowed(source_url: str, allowed_prefix: str = FIGSHARE_MASK_PREFIX) -> bool:
     source = urlsplit(source_url)
-    allowed = urlsplit(FIGSHARE_MASK_PREFIX)
+    allowed = urlsplit(allowed_prefix)
     return (
         source.scheme == allowed.scheme == "https"
         and source.hostname == allowed.hostname
@@ -36,13 +41,88 @@ def _source_allowed(source_url: str) -> bool:
     )
 
 
-def _verify_mask(path: Path, *, size: int, md5: str, sha256: str) -> None:
+def _verify_artifact(path: Path, *, size: int, md5: str, sha256: str, artifact_kind: str) -> None:
     if (
         path.stat().st_size != size
         or _digest(path, "md5") != md5
         or _digest(path, "sha256") != sha256
     ):
-        raise ProductError(f"downloaded mask differs: {path.name}")
+        raise ProductError(f"downloaded {artifact_kind} differs: {path.name}")
+
+
+def _copy_bounded(
+    response: ReadableStream,
+    target: BinaryIO,
+    *,
+    size: int,
+    artifact_kind: str,
+    destination_name: str,
+) -> None:
+    downloaded = 0
+    for chunk in iter(lambda: response.read(1024 * 1024), b""):
+        downloaded += len(chunk)
+        if downloaded > size:
+            raise ProductError(
+                f"downloaded {artifact_kind} exceeds pinned byte count: {destination_name}"
+            )
+        target.write(chunk)
+
+
+def _install_artifact(
+    *,
+    source_url: str,
+    destination: Path,
+    size: int,
+    md5: str,
+    sha256: str,
+    allowed_prefix: str,
+    artifact_kind: str,
+) -> bool:
+    if destination.is_file() and not destination.is_symlink():
+        try:
+            _verify_artifact(
+                destination,
+                size=size,
+                md5=md5,
+                sha256=sha256,
+                artifact_kind=artifact_kind,
+            )
+        except ProductError:
+            pass
+        else:
+            return False
+    if not _source_allowed(source_url, allowed_prefix):
+        raise ProductError(f"source URL is not allowlisted: {source_url}")
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.part")
+    temporary.unlink(missing_ok=True)
+    request = Request(  # noqa: S310 - the exact publisher HTTPS path is allowlisted.
+        source_url,
+        headers={"User-Agent": "bcss-source-data/0.1 (+data-product)"},
+    )
+    try:
+        with closing(urlopen(request, timeout=60)) as response, temporary.open("wb") as target:  # noqa: S310
+            _copy_bounded(
+                response,
+                target,
+                size=size,
+                artifact_kind=artifact_kind,
+                destination_name=destination.name,
+            )
+            target.flush()
+            os.fsync(target.fileno())
+        _verify_artifact(
+            temporary,
+            size=size,
+            md5=md5,
+            sha256=sha256,
+            artifact_kind=artifact_kind,
+        )
+        temporary.replace(destination)
+    except BaseException:
+        temporary.unlink(missing_ok=True)
+        raise
+    return True
 
 
 def acquire_masks(root: Path = PROJECT_DIR, max_bytes: int = 40_000_000) -> int:
@@ -59,37 +139,62 @@ def acquire_masks(root: Path = PROJECT_DIR, max_bytes: int = 40_000_000) -> int:
         sha256 = artifact.digests.sha256
         if md5 is None or sha256 is None:
             raise ProductError(f"mask lacks both required digests: {artifact.name}")
-        if destination.is_file() and not destination.is_symlink():
-            try:
-                _verify_mask(destination, size=artifact.bytes, md5=md5, sha256=sha256)
-                continue
-            except ProductError:
-                pass
         source_url = str(artifact.url)
-        if not _source_allowed(source_url):
-            raise ProductError(f"source URL is not allowlisted: {source_url}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        temporary = destination.with_name(f".{destination.name}.part")
-        temporary.unlink(missing_ok=True)
-        request = Request(  # noqa: S310 - the exact HTTPS Figshare path is allowlisted.
-            source_url,
-            headers={"User-Agent": "bcss-source-data/0.1 (+data-product)"},
-        )
-        try:
-            with closing(urlopen(request, timeout=60)) as response, temporary.open("wb") as target:  # noqa: S310
-                shutil.copyfileobj(response, target, length=1024 * 1024)
-                target.flush()
-                os.fsync(target.fileno())
-            _verify_mask(temporary, size=artifact.bytes, md5=md5, sha256=sha256)
-            temporary.replace(destination)
+        if source_url != f"{FIGSHARE_MASK_PREFIX}{artifact.file_id}":
+            raise ProductError(f"mask source does not match its Figshare identity: {artifact.name}")
+        if _install_artifact(
+            source_url=source_url,
+            destination=destination,
+            size=artifact.bytes,
+            md5=md5,
+            sha256=sha256,
+            allowed_prefix=FIGSHARE_MASK_PREFIX,
+            artifact_kind="mask",
+        ):
             installed += 1
-        except BaseException:
-            temporary.unlink(missing_ok=True)
-            raise
     evidence = {
         "dataset_id": corpus.dataset_id,
         "mask_count": len(corpus.records),
         "mask_bytes": total_bytes,
+    }
+    (output / "acquisition.json").write_text(
+        json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    return installed
+
+
+def acquire_annotations(root: Path = PROJECT_DIR, max_bytes: int = 4_000_000_000) -> int:
+    corpus = NativeCorpus.model_validate(_read_object(root / "records/native-corpus.json"))
+    total_bytes = sum(record.annotations.bytes for record in corpus.records)
+    if total_bytes > max_bytes:
+        raise ProductError(f"BCSS annotations require {total_bytes} bytes, limit is {max_bytes}")
+    output = root / "data/raw/annotations"
+    installed = 0
+    for record in corpus.records:
+        artifact = record.annotations
+        md5 = artifact.digests.md5
+        sha256 = artifact.digests.sha256
+        if md5 is None or sha256 is None:
+            raise ProductError(f"annotation lacks both required digests: {artifact.name}")
+        source_url = str(artifact.url)
+        if source_url != f"{HISTOMICSTK_ANNOTATION_PREFIX}{record.wsi.dsa_item_id}":
+            raise ProductError(
+                f"annotation source does not match its DSA identity: {artifact.name}"
+            )
+        if _install_artifact(
+            source_url=source_url,
+            destination=output / artifact.name,
+            size=artifact.bytes,
+            md5=md5,
+            sha256=sha256,
+            allowed_prefix=HISTOMICSTK_ANNOTATION_PREFIX,
+            artifact_kind="annotation",
+        ):
+            installed += 1
+    evidence = {
+        "annotation_artifact_count": len(corpus.records),
+        "annotation_bytes": total_bytes,
+        "dataset_id": corpus.dataset_id,
     }
     (output / "acquisition.json").write_text(
         json.dumps(evidence, indent=2, sort_keys=True) + "\n", encoding="utf-8"

@@ -6,9 +6,12 @@ the publisher repository at commit
 `3c49d554497dd896cd02ffe382503ef4ce28b1c1`, the 151 TCGA patient and slide
 identities, WSI-base ROI coordinates, scan magnification, the 0.25 microns per
 pixel publication scale, all 22 mask codes, and the original mask artifacts.
+It also pins the 3,287,512,044-byte publisher-native Digital Slide Archive
+annotation snapshot as 151 JSON artifacts without interpreting or remapping
+their elements.
 
 The native corpus exposes stable references for each ROI, Figshare mask,
-Digital Slide Archive annotation endpoint, and TCGA WSI. GDC resolves 150 of
+Digital Slide Archive annotation artifact, and TCGA WSI. GDC resolves 150 of
 the 151 publisher WSI filenames in its 2026-11-11 release. The record for
 `TCGA-A2-A0D2-01Z-00-DX1.ECD890F5-BA01-4998-B472-7B683BD6D7B1.svs`
 retains the publisher filename and DSA item because GDC no longer returns that
@@ -36,14 +39,20 @@ mise //data-products/bcss/semantic-segmentation:repro
 mise //data-products/bcss/semantic-segmentation:check
 ```
 
-Acquire the 151 native masks explicitly when pixel inspection is required:
+Acquire the 151 native masks or 151 native annotation artifacts explicitly
+when source-artifact inspection is required:
 
 ```bash
 mise //data-products/bcss/semantic-segmentation:acquire:masks
+mise //data-products/bcss/semantic-segmentation:acquire:annotations
 ```
 
 The acquisition command accepts only the public Figshare file path and checks
-the byte count, publisher MD5, and pinned SHA-256 before installing a mask.
+the byte count, publisher MD5, and pinned SHA-256 before installing a mask. The
+annotation command accepts only the publisher's HistomicsTK annotation-item
+path and checks the byte count and snapshot MD5 and SHA-256 before installing
+the original JSON response. Both commands are opt-in; normal DVC reproduction
+remains deterministic and metadata-only.
 H&E ROI pixels remain referenced by the publisher WSI identity, ROI bounds,
 and extraction scale. Downstream products must use these references rather
 than copying images.

@@ -48,6 +48,11 @@ description = "Explicitly acquire and verify the 28.4 MB native BCSS masks"
 depends = ["sync"]
 run = "uv run --locked bcss-source-data acquire-masks"
 
+[tasks."acquire:annotations"]
+description = "Explicitly acquire and verify the 3.29 GB native BCSS DSA annotations"
+depends = ["sync"]
+run = "uv run --locked bcss-source-data acquire-annotations"
+
 [tasks.repro]
 description = "Reproduce the metadata-only BCSS source product through DVC"
 run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"

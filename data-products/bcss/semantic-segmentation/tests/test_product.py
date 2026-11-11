@@ -7,7 +7,12 @@ from typing import Any
 import pytest
 
 from bcss_source_data import acquisition
-from bcss_source_data.acquisition import _source_allowed, acquire_masks
+from bcss_source_data.acquisition import (
+    HISTOMICSTK_ANNOTATION_PREFIX,
+    _source_allowed,
+    acquire_annotations,
+    acquire_masks,
+)
 from bcss_source_data.product import ProductError, publish_product
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
@@ -35,6 +40,7 @@ def _write_single_mask_corpus(root: Path, payload: bytes) -> Path:
     record = corpus["records"][0]
     record["mask"].update(
         {
+            "file_id": 1,
             "name": "fixture.png",
             "url": "https://ndownloader.figshare.com/files/1",
             "bytes": len(payload),
@@ -51,6 +57,30 @@ def _write_single_mask_corpus(root: Path, payload: bytes) -> Path:
     return root / "data/raw/masks/fixture.png"
 
 
+def _write_single_annotation_corpus(root: Path, payload: bytes) -> Path:
+    corpus = json.loads((PROJECT_DIR / "records/native-corpus.json").read_text(encoding="utf-8"))
+    record = corpus["records"][0]
+    item_id = record["wsi"]["dsa_item_id"]
+    record["annotations"].update(
+        {
+            "name": f"{item_id}.json",
+            "url": f"{HISTOMICSTK_ANNOTATION_PREFIX}{item_id}",
+            "bytes": len(payload),
+            "digests": {
+                "md5": hashlib.md5(payload).hexdigest(),  # noqa: S324 - source checksum.
+                "sha256": hashlib.sha256(payload).hexdigest(),
+            },
+            "media_type": "application/json",
+            "coordinate_space": "wsi_base_pixels",
+        }
+    )
+    corpus["records"] = [record]
+    records = root / "records"
+    records.mkdir()
+    (records / "native-corpus.json").write_text(json.dumps(corpus), encoding="utf-8")
+    return root / f"data/raw/annotations/{item_id}.json"
+
+
 def test_publish_preserves_native_records_ontology_and_lineage(tmp_path: Path) -> None:
     (tmp_path / "contracts").symlink_to(PROJECT_DIR / "contracts", target_is_directory=True)
     (tmp_path / "records").symlink_to(PROJECT_DIR / "records", target_is_directory=True)
@@ -58,6 +88,8 @@ def test_publish_preserves_native_records_ontology_and_lineage(tmp_path: Path) -
     metrics = publish_product(tmp_path)
 
     assert metrics == {
+        "annotation_artifact_count": 151,
+        "annotation_bytes": 3_287_512_044,
         "dataset_id": "bcss-figshare-7193138-v2",
         "gdc_resolved_wsi_count": 150,
         "gdc_unresolved_wsi_count": 1,
@@ -84,8 +116,21 @@ def test_publish_preserves_native_records_ontology_and_lineage(tmp_path: Path) -
     }
     assert first["image_extraction"]["microns_per_pixel"] == 0.25
     assert first["publisher_roles"] == []
+    assert first["annotations"] == {
+        "bytes": 3_585_731,
+        "coordinate_space": "wsi_base_pixels",
+        "digests": {
+            "md5": "01ef1a068cdea76a2a0c8303e9dd704e",
+            "sha256": "f93b1dbd4f98d055a18a6691ee2a97c297d980d7fa7d57485a3a368d8aecc281",
+        },
+        "media_type": "application/json",
+        "name": "5bbdeed1e629140048d01bcb.json",
+        "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed1e629140048d01bcb",
+    }
+    assert published["provenance"]["dsa_snapshot_date"] == "2026-11-11"
     source = json.loads((PROJECT_DIR / "contracts/source.json").read_text(encoding="utf-8"))
     assert source["source_image_semantics"] == {
+        "annotation_media_type": "application/json",
         "evidence_url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC6748796/",
         "mask_media_type": "image/png",
         "roi_media_type": "image/png",
@@ -143,11 +188,21 @@ def test_source_allowlist_requires_exact_figshare_https_path() -> None:
     assert not _source_allowed("http://ndownloader.figshare.com/files/13243676")
     assert not _source_allowed("https://ndownloader.figshare.com/other/13243676")
     assert not _source_allowed("https://attacker.example/files/13243676")
+    assert _source_allowed(
+        f"{HISTOMICSTK_ANNOTATION_PREFIX}5bbdeed1e629140048d01bcb",
+        HISTOMICSTK_ANNOTATION_PREFIX,
+    )
+    assert not _source_allowed(
+        "https://demo.kitware.com/api/v1/annotation/item/5bbdeed1e629140048d01bcb",
+        HISTOMICSTK_ANNOTATION_PREFIX,
+    )
 
 
 def test_acquisition_refuses_smaller_byte_budget() -> None:
     with pytest.raises(ProductError, match="limit"):
         acquire_masks(PROJECT_DIR, max_bytes=1)
+    with pytest.raises(ProductError, match="limit"):
+        acquire_annotations(PROJECT_DIR, max_bytes=1)
 
 
 def test_acquisition_downloads_verifies_and_reuses_mask(
@@ -182,6 +237,22 @@ def test_acquisition_removes_corrupt_partial(
     assert not destination.with_name(f".{destination.name}.part").exists()
 
 
+def test_acquisition_stops_at_pinned_byte_count(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    expected = b"expected"
+    destination = _write_single_mask_corpus(tmp_path, expected)
+    monkeypatch.setattr(
+        acquisition, "urlopen", lambda _request, **_kwargs: io.BytesIO(b"too many bytes")
+    )
+
+    with pytest.raises(ProductError, match="exceeds pinned byte count"):
+        acquire_masks(tmp_path, max_bytes=len(expected))
+
+    assert not destination.exists()
+    assert not destination.with_name(f".{destination.name}.part").exists()
+
+
 def test_acquisition_rejects_non_allowlisted_record(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -197,5 +268,42 @@ def test_acquisition_rejects_non_allowlisted_record(
         lambda _request, **_kwargs: pytest.fail("non-allowlisted URL must not be opened"),
     )
 
-    with pytest.raises(ProductError, match="not allowlisted"):
+    with pytest.raises(ProductError, match="does not match its Figshare identity"):
         acquire_masks(tmp_path, max_bytes=len(payload))
+
+
+def test_acquisition_downloads_verifies_and_reuses_annotation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b'[{"annotation":{"name":"native fixture"}}]'
+    destination = _write_single_annotation_corpus(tmp_path, payload)
+    monkeypatch.setattr(acquisition, "urlopen", lambda _request, **_kwargs: io.BytesIO(payload))
+
+    assert acquire_annotations(tmp_path, max_bytes=len(payload)) == 1
+    assert destination.read_bytes() == payload
+
+    monkeypatch.setattr(
+        acquisition,
+        "urlopen",
+        lambda _request, **_kwargs: pytest.fail("verified annotation should be reused"),
+    )
+    assert acquire_annotations(tmp_path, max_bytes=len(payload)) == 0
+
+
+def test_acquisition_rejects_non_allowlisted_annotation(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    payload = b"[]"
+    _write_single_annotation_corpus(tmp_path, payload)
+    path = tmp_path / "records/native-corpus.json"
+    corpus = json.loads(path.read_text(encoding="utf-8"))
+    corpus["records"][0]["annotations"]["url"] = "https://attacker.example/annotations/1"
+    path.write_text(json.dumps(corpus), encoding="utf-8")
+    monkeypatch.setattr(
+        acquisition,
+        "urlopen",
+        lambda _request, **_kwargs: pytest.fail("non-allowlisted URL must not be opened"),
+    )
+
+    with pytest.raises(ProductError, match="does not match its DSA identity"):
+        acquire_annotations(tmp_path, max_bytes=len(payload))

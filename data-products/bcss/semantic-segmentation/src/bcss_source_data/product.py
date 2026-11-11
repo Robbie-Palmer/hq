@@ -69,12 +69,20 @@ def _validate_corpus(contract: SourceContract, corpus: NativeCorpus) -> dict[str
         "patient": [record.patient_id for record in records],
         "slide": [record.slide_barcode for record in records],
         "mask": [record.mask.file_id for record in records],
+        "annotation": [record.annotations.name for record in records],
     }
     for name, values in unique_fields.items():
         if len(values) != len(set(values)):
             raise ProductError(f"native {name} identities must be unique")
     if any(record.publisher_roles for record in records):
         raise ProductError("publisher role assignments were not released with the source metadata")
+    if any(
+        record.annotations.name != f"{record.wsi.dsa_item_id}.json"
+        or str(record.annotations.url).rstrip("/").rsplit("/", maxsplit=1)[-1]
+        != record.wsi.dsa_item_id
+        for record in records
+    ):
+        raise ProductError("annotation artifacts must retain their DSA item identities")
 
     unresolved = [
         record.wsi.publisher_file_name
@@ -84,6 +92,7 @@ def _validate_corpus(contract: SourceContract, corpus: NativeCorpus) -> dict[str
     if sorted(unresolved) != sorted(corpus.provenance.unresolved_gdc_wsi_names):
         raise ProductError("unresolved GDC identities differ from provenance")
     mask_bytes = sum(record.mask.bytes for record in records)
+    annotation_bytes = sum(record.annotations.bytes for record in records)
     magnifications = Counter(str(record.wsi.scan_magnification) for record in records)
     return {
         "dataset_id": contract.dataset_id,
@@ -92,6 +101,8 @@ def _validate_corpus(contract: SourceContract, corpus: NativeCorpus) -> dict[str
         "slide_count": len({record.slide_barcode for record in records}),
         "mask_count": len({record.mask.file_id for record in records}),
         "mask_bytes": mask_bytes,
+        "annotation_artifact_count": len({record.annotations.name for record in records}),
+        "annotation_bytes": annotation_bytes,
         "native_code_count": 22,
         "native_ignore_codes": [0, 7],
         "gdc_resolved_wsi_count": len(records) - len(unresolved),

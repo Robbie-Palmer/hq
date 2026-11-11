@@ -6,7 +6,7 @@ from pathlib import Path
 import fire
 from pydantic import ValidationError
 
-from bcss_source_data.acquisition import acquire_masks
+from bcss_source_data.acquisition import acquire_annotations, acquire_masks
 from bcss_source_data.product import PROJECT_DIR, ProductError, publish_product
 
 
@@ -24,6 +24,10 @@ class Application:
     def acquire_masks(self, max_bytes: int = 40_000_000) -> None:
         installed = acquire_masks(self.root, max_bytes=max_bytes)
         print(f"Installed {installed} verified BCSS masks.")
+
+    def acquire_annotations(self, max_bytes: int = 4_000_000_000) -> None:
+        installed = acquire_annotations(self.root, max_bytes=max_bytes)
+        print(f"Installed {installed} verified BCSS annotation artifacts.")
 
 
 def main(command: Sequence[str] | None = None) -> int:

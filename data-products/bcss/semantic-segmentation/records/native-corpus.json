@@ -8,7 +8,9 @@
     "gdc_snapshot_date": "2026-11-11",
     "unresolved_gdc_wsi_names": [
       "TCGA-A2-A0D2-01Z-00-DX1.ECD890F5-BA01-4998-B472-7B683BD6D7B1.svs"
-    ]
+    ],
+    "dsa_api_url": "https://demo.kitware.com/histomicstk/api/v1/",
+    "dsa_snapshot_date": "2026-11-11"
   },
   "records": [
     {
@@ -56,9 +58,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed1e629140048d01bcb.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed1e629140048d01bcb",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 3585731,
+        "digests": {
+          "md5": "01ef1a068cdea76a2a0c8303e9dd704e",
+          "sha256": "f93b1dbd4f98d055a18a6691ee2a97c297d980d7fa7d57485a3a368d8aecc281"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -106,9 +114,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee5be629140048d01afd.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee5be629140048d01afd",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2039882127,
+        "digests": {
+          "md5": "226f393a10238c466d8d2fbe1abce113",
+          "sha256": "3ad24095f3a01c008134d5d7970cdcd96d060e9b381138c7279d57664ef72848"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -156,9 +170,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee95e629140048d01b63.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee95e629140048d01b63",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 684837,
+        "digests": {
+          "md5": "ac11f656277a49e56dcf296912123ab1",
+          "sha256": "9f6bf9406132a9476f3f16a51e4064efa5f5203773e032e948b3c96e1dffaf5f"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -206,9 +226,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed2e629140048d01bcd.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed2e629140048d01bcd",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 387072,
+        "digests": {
+          "md5": "2dc42753f9883e6fbd1672ab6ea1bfeb",
+          "sha256": "03d0ecc32efc1b43cc8bae81a4596a271c5bb3cd87eefc2e5268bb0adcb7ce8c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -256,9 +282,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee0e629140048d01be5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee0e629140048d01be5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 781257,
+        "digests": {
+          "md5": "e7bdaea336d49ef061eb518958d98080",
+          "sha256": "8b4a7080549dc5e6ffc41debdfe9e8a5367c7522d44a413b85a302b785c77c2b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -306,9 +338,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec6e629140048d01bb9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec6e629140048d01bb9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 456247,
+        "digests": {
+          "md5": "cc28277709a6847f61dfa6dc4a2e1b9e",
+          "sha256": "c81f6006a1239976acb7def5e37f1ccabdee962034b667b7f384f0c2afcba03e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -356,9 +394,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeedde629140048d01bdf.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeedde629140048d01bdf",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 209608701,
+        "digests": {
+          "md5": "c1bf01aee7d7d0c1217cf98916089c78",
+          "sha256": "46dfa77c0468249c08f135184b4c4b848d8e799bf3a85e18a8e739784796c4bb"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -397,9 +441,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee2ee629140048d01aa1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee2ee629140048d01aa1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1047157,
+        "digests": {
+          "md5": "f3d20b3ad90505453b69b837544f0c7e",
+          "sha256": "a271eba6325d804114474daef8a32d45f1ce62554acec62c8efa4ed2ba45c265"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -447,9 +497,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee4ee629140048d01add.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee4ee629140048d01add",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1488045,
+        "digests": {
+          "md5": "6f7dfa6cc6eccd697f3d17e9f902165b",
+          "sha256": "f71763d07502066b24efd76b2b1e58a30a9ee75e4083d89f090181e2a13f0261"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -497,9 +553,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee9fe629140048d01b75.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee9fe629140048d01b75",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 955183,
+        "digests": {
+          "md5": "2d9099d92305d2fd672fc830e32121ae",
+          "sha256": "392ce1273124a89304dc507d8fe2e51f376a53148637c305c2ba8e58378de63b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -547,9 +609,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee89e629140048d01b4f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee89e629140048d01b4f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 855371,
+        "digests": {
+          "md5": "bbf1784951cf44d2ce9a066ed52258f4",
+          "sha256": "8e9034f7fc7bcccc5554bed143c6379d95b8159df96b4e9889be24d254d35609"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -597,9 +665,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee2de629140048d01a9f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee2de629140048d01a9f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1763735,
+        "digests": {
+          "md5": "993cff872c0dc02f6114c391787ee0ea",
+          "sha256": "906e059a94060439138dba5d60d13103c7ce1541f186495f477b22b0c168a5b9"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -647,9 +721,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee92e629140048d01b5d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee92e629140048d01b5d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 440940,
+        "digests": {
+          "md5": "8ffd9883b828be939ae1585055a6c7ab",
+          "sha256": "8cadff7c2e8dd1d89fc4ea1635afbcd33cde915c5ef13fec0ca90d3e7b7d6e14"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -697,9 +777,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee62e629140048d01b0d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee62e629140048d01b0d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 7494441,
+        "digests": {
+          "md5": "b5764cfe052b11850365f734f0f67520",
+          "sha256": "f248e27dc1baa6734c3675c2cbc5e6374aeb79b6fc06a40bf6c1cc01caf532a8"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -747,9 +833,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea7e629140048d01b83.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea7e629140048d01b83",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 527930,
+        "digests": {
+          "md5": "0d14ae23030cb632aeb576221011e220",
+          "sha256": "f9298c34896f0a4b958fcecf08916ae65dab191faebfdea4081c0e851a46ff46"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -797,9 +889,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb6e629140048d01b9d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb6e629140048d01b9d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 110417064,
+        "digests": {
+          "md5": "ae8b88e369ad3547af1025ca8c6bc6e4",
+          "sha256": "b227362db435f462c265ad9fcdb178ece9a61df61b6c5ed11b5290dbaa471eb2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -847,9 +945,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee71e629140048d01b25.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee71e629140048d01b25",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1505787,
+        "digests": {
+          "md5": "60bc6552630a4ba2bfdd42f0d7e43807",
+          "sha256": "f53f5ba307b27d480c622d03741550e0990880876f05a17758f82af97f74bd5c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -897,9 +1001,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee8ce629140048d01b53.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee8ce629140048d01b53",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 934457,
+        "digests": {
+          "md5": "b1f28187dd34fe0e2845f4706ae100a9",
+          "sha256": "a5205a289e8072e9dc372ca4c10b106ded847e7eb879b63c070d8f7ec24e0315"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -947,9 +1057,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee85e629140048d01b47.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee85e629140048d01b47",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 491434,
+        "digests": {
+          "md5": "41d876d9717342824238f253e5102e59",
+          "sha256": "de070e03b55a5a6d6aa1526c5550009ff5368b3b471dcd03bec9459383c80d67"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -997,9 +1113,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee78e629140048d01b31.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee78e629140048d01b31",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 393385490,
+        "digests": {
+          "md5": "8172985cb1b7f7f1f6c92a552bc7ee1b",
+          "sha256": "5d2f5f6bbf91d1c3bed4847941b7b73e707e4a6c7fe995a722315de2e23cfddf"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1047,9 +1169,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee39e629140048d01ab1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee39e629140048d01ab1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1381165,
+        "digests": {
+          "md5": "1b45e1bbdec473befb0acb83c9433e49",
+          "sha256": "d4239558d036fd9acb78142b5b32ba471c413339554e031fbfb7249009205895"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1097,9 +1225,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee59e629140048d01af5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee59e629140048d01af5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1040275,
+        "digests": {
+          "md5": "9169888c35e7919b14f37ad7b9d94c29",
+          "sha256": "e453d8d132ed720ea0e87b975c7b1d430581551b5ee33ee51225f2631bf4789b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1147,9 +1281,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee77e629140048d01b2f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee77e629140048d01b2f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 954953,
+        "digests": {
+          "md5": "9fd562e8d7681f68d33210e497ebddbc",
+          "sha256": "11357d1556ec9dba7a56671225f6a9f491bd0c59514f570c070f12c23bf75dda"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1197,9 +1337,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb9e629140048d01ba3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb9e629140048d01ba3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1014547,
+        "digests": {
+          "md5": "b4789e48f0f3ab751a727723892abc8a",
+          "sha256": "77d8c51cd52ede11ab3ecc8a61c6247982f01daa7e7b7c658cbe3e180f58da3d"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1247,9 +1393,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee9e629140048d01bf5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee9e629140048d01bf5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 272183,
+        "digests": {
+          "md5": "ff8c1439ae9cc1bd022f10cce296bfcd",
+          "sha256": "e06d283e046d6a1abc3c6ae53fa6aaa0af3c39a1379915657c2b77dfd7c56da8"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1297,9 +1449,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee7ce629140048d01b37.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee7ce629140048d01b37",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 349901,
+        "digests": {
+          "md5": "0b66ef8d32c75407becaadc541964050",
+          "sha256": "e71a02c4cf423b9539b59246854b8adb60feec556995c5bae836a3c675886449"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1347,9 +1505,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee46e629140048d01ad1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee46e629140048d01ad1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 158285,
+        "digests": {
+          "md5": "6bd365d66c35e56c143839a879a79c5f",
+          "sha256": "0d2a098b6fc53cbd916e1ab1550c55540a1f15ae509d42bf3d38ca85c934732b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1397,9 +1561,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee33e629140048d01aa7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee33e629140048d01aa7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1197010,
+        "digests": {
+          "md5": "aba4e3e6072b113b7874a461ae41d5b3",
+          "sha256": "e8f9ec307354f54aa3ee4198fb71acd807d1480c2aa4875af5dc7c0eca70913d"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1447,9 +1617,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee4e629140048d01bed.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee4e629140048d01bed",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 633736,
+        "digests": {
+          "md5": "410da4f8a1a345238507db3bc692311a",
+          "sha256": "c39b7f12f2bcc5545e6448b0f477971070ad5748d19d02c76b4d52b96c1174d2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1497,9 +1673,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee42e629140048d01acb.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee42e629140048d01acb",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 497222,
+        "digests": {
+          "md5": "c5b73ea101fba53637c5d3e2c6330685",
+          "sha256": "80a7b635e9d12632d96c1580346161ef2a1304fa56a5ff30dc89cd0d5e89f4ff"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1547,9 +1729,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee99e629140048d01b6b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee99e629140048d01b6b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 381264,
+        "digests": {
+          "md5": "ac0093121ae667e0f3577922588dfb93",
+          "sha256": "1cab3ae59930c7106172cd5404b7732e7cc133a77d2d345febb3a78337541f42"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1597,9 +1785,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb8e629140048d01ba1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb8e629140048d01ba1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1102237,
+        "digests": {
+          "md5": "1f88698b4a23788a4a59474f868328de",
+          "sha256": "62e9556e83b1e7ba5e287c07270b771a1bf169a069acb4cd023861fda8383fd5"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1647,9 +1841,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec0e629140048d01baf.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec0e629140048d01baf",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1969431,
+        "digests": {
+          "md5": "4f424b39d262f1c091069d8f7fc5ae08",
+          "sha256": "acc6677d11cd6a98baf9eef7f076d624fe5294d1ecd189e08c113177787403ad"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1697,9 +1897,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeebe629140048d01bf9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeebe629140048d01bf9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 465238,
+        "digests": {
+          "md5": "d5cefc96589516c1638fc8492b280296",
+          "sha256": "8c8efd26ac8470255fca3b176c9a7998dd8b3f363bd9956ada1d096274b4deff"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1747,9 +1953,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee86e629140048d01b49.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee86e629140048d01b49",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1137950,
+        "digests": {
+          "md5": "397ba91f2480185a787570c8e41150ef",
+          "sha256": "2cf2e6b93b202227c25c2da080938df25b1e5e097a7de475d5da14db97d636be"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1797,9 +2009,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed9e629140048d01bd9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed9e629140048d01bd9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 652443,
+        "digests": {
+          "md5": "7746ba3ea57f85337568a7550928ffc2",
+          "sha256": "a1bf5e4535affedab4b2f146d814a83cd17227353bf3e9a4a9a6152652eb8ee9"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1847,9 +2065,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee30e629140048d01aa3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee30e629140048d01aa3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2606894,
+        "digests": {
+          "md5": "11953cbcf5c07cc986c05067a997026e",
+          "sha256": "c90631045879f98edff2b0835e0829340a14a17a460c539d238ea474f0b7b5e5"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1897,9 +2121,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb4e629140048d01b99.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb4e629140048d01b99",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 127097,
+        "digests": {
+          "md5": "59d1f3200dd3a31dd6c525829cbada64",
+          "sha256": "757d73ef3108450b7d26692cafe4d9da6f7f40151409c5166761a658052006f0"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1947,9 +2177,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee4ce629140048d01adb.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee4ce629140048d01adb",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 686554,
+        "digests": {
+          "md5": "71ea0dd12fd07f1397af37977255299a",
+          "sha256": "5dce415b317cc4c2085ee189e6e4ab73347755dcd25d3ed8f94c649b9e84152c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -1997,9 +2233,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee9ce629140048d01b6f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee9ce629140048d01b6f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 139001,
+        "digests": {
+          "md5": "86465906747e2eb2f69dece20dd77905",
+          "sha256": "a187a9dc7fc60726ea799e8d443cce427ee85ec5f5dc7f96628fc611b24c5085"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2047,9 +2289,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee94e629140048d01b61.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee94e629140048d01b61",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 714173,
+        "digests": {
+          "md5": "c545adb24e1b288d9b11693765635180",
+          "sha256": "668a94846f519fd79d81ca9d0d3c5bbbfb53de45719388155ce83d3684328cc0"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2097,9 +2345,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee76e629140048d01b2d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee76e629140048d01b2d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1148305,
+        "digests": {
+          "md5": "c141637475f9bb8dc885656b5855cc62",
+          "sha256": "aab371efd269bdd04ad5d6df55d8aa3aa6f83caf79307acd34c17ae09b87c6b6"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2147,9 +2401,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeaee629140048d01b8f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeaee629140048d01b8f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 748201,
+        "digests": {
+          "md5": "27cf743a995b7ce7bad357b81d6277fc",
+          "sha256": "c70788175f9f29028604be512e149731ab33fabf8ba8010d1871c7e1bcdfa3f1"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2197,9 +2457,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee55e629140048d01aef.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee55e629140048d01aef",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 606882,
+        "digests": {
+          "md5": "0a7797a1ac7daa102760cb7f43656371",
+          "sha256": "84137eba7b4ec4ed38ddd5a0826bc6444004c617ba084c3b882a9cb868dde4d6"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2247,9 +2513,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee1e629140048d01be7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee1e629140048d01be7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1684066,
+        "digests": {
+          "md5": "4943605d55b9d87cc465893b8e15f0e9",
+          "sha256": "764428659760850214c83e75a0b951dcffa79383c29d5be3d62c071255e1ce2e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2297,9 +2569,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeedde629140048d01be1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeedde629140048d01be1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1023561,
+        "digests": {
+          "md5": "b807b147712b1e74f1b8fcd0cc590aaa",
+          "sha256": "6ef4285bfae4c417c60e1d9d7efeb0406446b4d3953eed69a02b9227d765bed1"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2347,9 +2625,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee6de629140048d01b1f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee6de629140048d01b1f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 467936,
+        "digests": {
+          "md5": "4aede0a1b1d7ca551005932704d4f55d",
+          "sha256": "7474c60f0cb7fdce6ef574f9018bfa1adfc4e18144b993ef14324a2dfa98cc2a"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2397,9 +2681,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee87e629140048d01b4b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee87e629140048d01b4b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1225506,
+        "digests": {
+          "md5": "d78d9d29febfd62efecabf8bc0d20761",
+          "sha256": "9e567d21073ec842ac72d7e62e753eb6f34bcbfe34999daf9c06b8be253df67d"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2447,9 +2737,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee75e629140048d01b2b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee75e629140048d01b2b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 600465,
+        "digests": {
+          "md5": "1980cdf611ca31b3138ee29fd197cf99",
+          "sha256": "4f84d579fc6f121881cd8f5a1fbf7a95263f48106f78648fb0ac372ef8d4943a"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2497,9 +2793,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee97e629140048d01b67.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee97e629140048d01b67",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 297454,
+        "digests": {
+          "md5": "80075e99a26fe7e4d03009d605634a3f",
+          "sha256": "2cc4ef91ac5901a6a5bc7b1ca3dec0ce87b63906ee762354f4721336e279957a"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2547,9 +2849,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeace629140048d01b8d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeace629140048d01b8d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 253338,
+        "digests": {
+          "md5": "6f63b8385462353b0a140a2c5fe22a49",
+          "sha256": "3856e687cd541d19a21eba3a3b4666d8cfec9ebf9b6971c576562f7287f20148"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2597,9 +2905,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeedce629140048d01bdd.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeedce629140048d01bdd",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1523685,
+        "digests": {
+          "md5": "a90e4018e1c0c45e2f46118e8e204f4b",
+          "sha256": "a0676958ad6d0637d11a68ca73688eeb93b80cdc2f9b09a6a8b7753c76a97533"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2647,9 +2961,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeebce629140048d01ba9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeebce629140048d01ba9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 119535,
+        "digests": {
+          "md5": "d776bf64baae4011b7ed2e2315f31899",
+          "sha256": "a9095cb898d5ce5e80f3ae7a506f28ebacd703af63b9cba5d5f43add491e64af"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2697,9 +3017,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeecfe629140048d01bc7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeecfe629140048d01bc7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 694490,
+        "digests": {
+          "md5": "7d2fcde2becabfe383d206ee184a52cc",
+          "sha256": "fb454299635a01c97a59353aa2b7a8a0c742726c4f8bc50f1fa712414b8b226e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2747,9 +3073,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee5e629140048d01bef.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee5e629140048d01bef",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 611127,
+        "digests": {
+          "md5": "28a120298ff3f08b0885c2b26ddb66e0",
+          "sha256": "7990d25fb36bf9cdfb159f1507f1f2b4f0c22113c3c574e051e003e4c2ce06ba"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2797,9 +3129,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee72e629140048d01b27.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee72e629140048d01b27",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 689627,
+        "digests": {
+          "md5": "1000953ca9f6f8427894a82088bcfe94",
+          "sha256": "b85e792016def72aa0a1cb2675849601324f3bb46130cf2ac476fdd583f4a51e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2847,9 +3185,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee6ee629140048d01b21.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee6ee629140048d01b21",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 723075,
+        "digests": {
+          "md5": "aa0d0a1ffc7d13b47a240c29bee93bf5",
+          "sha256": "747bef9face951cec173014949a46d1e75ee6cb6d03277a9ad2cf9493eea7321"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2897,9 +3241,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeebbe629140048d01ba7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeebbe629140048d01ba7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 622576,
+        "digests": {
+          "md5": "90a4b006dcede78aefce22de8cd277b5",
+          "sha256": "b1cb1489cbc73280b604797018340d22214eefd55a566b723a876e9e9d1594df"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2947,9 +3297,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee53e629140048d01ae9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee53e629140048d01ae9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 881727,
+        "digests": {
+          "md5": "4baa9bd282e14e1601280375589134f5",
+          "sha256": "e9088f1eb545be43b6ba68dcd32d7371a41c7f821f7c96af1be49e4d0c7ebb02"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -2997,9 +3353,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee84e629140048d01b45.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee84e629140048d01b45",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 616321,
+        "digests": {
+          "md5": "9d31a5fa141fcb185423ca5f039343fa",
+          "sha256": "3c21ce458891948baa82b4052606e85cd93777fb7066fdca8b3d5c56c33b8487"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3047,9 +3409,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee8de629140048d01b55.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee8de629140048d01b55",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 602188,
+        "digests": {
+          "md5": "a81d2e7c3ba9132b5b07867df51bfef0",
+          "sha256": "e9154e41c5b1e2f79afbc1d30f78d4f670826a15faa6cb9c441be901521767e2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3097,9 +3465,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee31e629140048d01aa5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee31e629140048d01aa5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 770740,
+        "digests": {
+          "md5": "b31080085c1685d1744f333aea3e8af7",
+          "sha256": "1836cc53067034448341775a1d885b82f41b84a8d64d748a5cb1fa1aa47754ea"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3147,9 +3521,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee65e629140048d01b13.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee65e629140048d01b13",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 796888,
+        "digests": {
+          "md5": "217545783b384ed2ce3627e11705e83e",
+          "sha256": "105bc2ae46823ef7fa71a082012562319d842e94a4fd8e626e6a0a02b1d2496e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3197,9 +3577,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed5e629140048d01bd1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed5e629140048d01bd1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 4734486,
+        "digests": {
+          "md5": "eb75d81c4f84c0e0fabca0c158744451",
+          "sha256": "6ec232eaab9070d44f31f6afd6326f18c4e19b54deed567fe4dd6905c3a97ebe"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3247,9 +3633,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea9e629140048d01b87.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea9e629140048d01b87",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 717281,
+        "digests": {
+          "md5": "cb49abb5fa94edac1f2879c27251fd63",
+          "sha256": "09547609dba01d791023a4a9bf2ef8b393a9980899a8bd517d87832498850480"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3297,9 +3689,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee8fe629140048d01b57.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee8fe629140048d01b57",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 897014,
+        "digests": {
+          "md5": "22686cbee3ba397319702a5d8b1452d8",
+          "sha256": "648bd13760cd11de7e46ade69c26e265dd49c5104f701096f88265ac11701e56"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3347,9 +3745,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee90e629140048d01b59.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee90e629140048d01b59",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 548908,
+        "digests": {
+          "md5": "ff03f415cea0325b1c720018e0ac6447",
+          "sha256": "672e003b83c0b0157e6407795c9908470fc0960958886276abaf667dfe5ee5d5"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3397,9 +3801,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeeae629140048d01bf7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeeae629140048d01bf7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 986996,
+        "digests": {
+          "md5": "10bf8e777cdabb5b2d1343cd7eb8a894",
+          "sha256": "b51d75422a9bda20fcd9a1a12f1a7bc73342f4955db86362c62f622e02f7aa90"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3447,9 +3857,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee7be629140048d01b35.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee7be629140048d01b35",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 881357,
+        "digests": {
+          "md5": "3073e3fbc380fcee17099f2018a71e50",
+          "sha256": "5ec215a99007afff4f3782064924f5a84b223c20bae9939233719bc9fdf90b0a"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3497,9 +3913,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee34e629140048d01aa9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee34e629140048d01aa9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 434975,
+        "digests": {
+          "md5": "f1c5fef36de8b455c5bb29e736f251b8",
+          "sha256": "302b0e9e89ed0d77c563132ea614b95e39f2b928a2f3bca012bbf0be93e4bb69"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3547,9 +3969,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb0e629140048d01b93.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb0e629140048d01b93",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1116665,
+        "digests": {
+          "md5": "569c4f8c69d4676e636165d796b48b02",
+          "sha256": "6acbb884f8ea30a96d10b8d67de45af59869bae909dfd3094d43d1d94d9651e2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3597,9 +4025,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee9ae629140048d01b6d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee9ae629140048d01b6d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1123986,
+        "digests": {
+          "md5": "8c3c85b6ddacf26fe0280a46199db22b",
+          "sha256": "7c4264a0a6046c67493164e21c0d256656d4ec658d5d3879d4aeeed55ea82a5b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3647,9 +4081,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee7fe629140048d01b3b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee7fe629140048d01b3b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1023898,
+        "digests": {
+          "md5": "4844a9598ba4e751420e3f52e6f034d3",
+          "sha256": "d89b51a1e5486c9a1a653b4e04fd8c26d6159e3d422e1569b2917ed32a2991a0"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3697,9 +4137,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee74e629140048d01b29.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee74e629140048d01b29",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 838242,
+        "digests": {
+          "md5": "ea5994e903cafcc7eb85f24011a9b54c",
+          "sha256": "797866a840517660307d63c082df5b9e54a16f23419c50b5a2fef7b9f6ed8690"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3747,9 +4193,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee68e629140048d01b17.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee68e629140048d01b17",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 618873,
+        "digests": {
+          "md5": "68d5d4faa883747a02b8edee9cebd845",
+          "sha256": "d2958cff46b681e5b2cc22bbc161cc43bcc3f0d937408ae088a79154a96f232b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3797,9 +4249,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea1e629140048d01b77.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea1e629140048d01b77",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1233774,
+        "digests": {
+          "md5": "3dd2c997ef6b7a3d9d1c1848dee4971a",
+          "sha256": "96d82464aab93e0ef2b20faac5158ef3c5ea9532b4b15ac2013b332a95cb9aac"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3847,9 +4305,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeedbe629140048d01bdb.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeedbe629140048d01bdb",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 795475,
+        "digests": {
+          "md5": "956c95768dc167a92b78bebd4e4bff42",
+          "sha256": "fb0dd8d207949e32e844ee0542027de7f82c5c0775571e80c880637054bed5c9"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3897,9 +4361,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb2e629140048d01b97.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb2e629140048d01b97",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2092616,
+        "digests": {
+          "md5": "1e302eb451cb23accde4e18457aabdab",
+          "sha256": "4cc7080e76f9481c53f951f6b907428d94f3cb701f0d2f215a05cfe826cb887e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3947,9 +4417,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee63e629140048d01b11.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee63e629140048d01b11",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 760232,
+        "digests": {
+          "md5": "7017748f0377d11157a453b4181178e5",
+          "sha256": "99221d0575e3e687e88da8fdaacc1bf4e5cc35f3163da1a5599f50209dca7521"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -3997,9 +4473,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb5e629140048d01b9b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb5e629140048d01b9b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 923528,
+        "digests": {
+          "md5": "5f1223b185be48b44f14be2ce3f3a07d",
+          "sha256": "d9243c5fa03a82a33aa3d50966fe52872d164eedafc671c6ce97a78d16c0b06c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4047,9 +4529,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb7e629140048d01b9f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb7e629140048d01b9f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1372884,
+        "digests": {
+          "md5": "776a341429751e6a4dea0e07fd0cc9fc",
+          "sha256": "3de68aee5e741e6fc6376129f1c19f3f9cd9440de811d229f7eb17968da158b2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4097,9 +4585,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeebae629140048d01ba5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeebae629140048d01ba5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1452163,
+        "digests": {
+          "md5": "cf4618000a7ebd6c5e300594c9a44daf",
+          "sha256": "90dc5c375c5ee6bfb45aa5449ab9c3a8c81b788470c59f1c9c3cbeade7dc6be7"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4147,9 +4641,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee9ee629140048d01b73.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee9ee629140048d01b73",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2054131,
+        "digests": {
+          "md5": "13fff409c24ed232bb1ee5ad64cc1d5e",
+          "sha256": "749bb0952033d8896d000b2f86de2f093eab9eefedbdcfdc5f5336f95b717c9f"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4197,9 +4697,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea3e629140048d01b7b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea3e629140048d01b7b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 327778,
+        "digests": {
+          "md5": "aafaf078bbd1ce4c12414f4f1536e6cc",
+          "sha256": "fbe333dfd42c6c974a207b12d17e8136bcfb8e72162ef0c5d7644e979951d0d8"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4247,9 +4753,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed7e629140048d01bd5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed7e629140048d01bd5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2687849,
+        "digests": {
+          "md5": "afa470f71c5b35c85a1fecd41cb3b782",
+          "sha256": "71e8ad6d7fffcf648e0d59dc2a87d1d438d7e8f42ee56ba7434cc6df15966ea2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4297,9 +4809,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec3e629140048d01bb5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec3e629140048d01bb5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 228906,
+        "digests": {
+          "md5": "e42976cfc6734bc69b75dba100c82bf6",
+          "sha256": "c2be624a0cfd3d152c4444219641d03cc835dfd7f380da8354a18e4be975456e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4347,9 +4865,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec5e629140048d01bb7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec5e629140048d01bb7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 630248,
+        "digests": {
+          "md5": "bf049100ade6187564f45743ac0af817",
+          "sha256": "c5b319e3071537ffdc8f6b4e510eafd2c1be41cc86eaae7e6f87cf73384ed075"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4397,9 +4921,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee7e629140048d01bf3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee7e629140048d01bf3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1098005,
+        "digests": {
+          "md5": "e1c9f33acee7da0afa1542bf74ee36a9",
+          "sha256": "e2d0785a5a7a1e0d7e545de9a8d2153d5d5828cae0df275b9f39a02dca1dcc76"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4447,9 +4977,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee3e629140048d01beb.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee3e629140048d01beb",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 987393,
+        "digests": {
+          "md5": "10d3dc61cb31880170b30c0c2ca56e21",
+          "sha256": "ba30eaee48e63a8ce958b8419d466c768b942d0b52d13bc6360c74c82b637aa7"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4497,9 +5033,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea4e629140048d01b7d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea4e629140048d01b7d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 368923,
+        "digests": {
+          "md5": "7b69a1f0e589f02ab5df38c3b2bef89a",
+          "sha256": "18f99e902440d453cb31be9a9bd9a131e075005a5ab140e9b78ef699ff4942a9"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4547,9 +5089,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee91e629140048d01b5b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee91e629140048d01b5b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1043863,
+        "digests": {
+          "md5": "14dca8ab6555326b94ac2031584a167f",
+          "sha256": "daf3705f8f99feebb775250eb8aae8aa7d75c0ef403ffb6de66b5e25748cc87d"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4597,9 +5145,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeecbe629140048d01bc1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeecbe629140048d01bc1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1313166,
+        "digests": {
+          "md5": "f7681a6802249938e38721d495dd42eb",
+          "sha256": "2ec24e8f6f635d703710f67c3e0c034344bf2d17db427226671eea4ec9c1fcf6"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4647,9 +5201,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee83e629140048d01b43.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee83e629140048d01b43",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2340124,
+        "digests": {
+          "md5": "dc1ab3b5ebc9e0cbe95013cee23db2de",
+          "sha256": "5acf6dc4e689107b8abd0a8a3fa159e90729707234dadb53951e681aad4cf4a7"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4697,9 +5257,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee3fe629140048d01ac1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee3fe629140048d01ac1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2408464,
+        "digests": {
+          "md5": "1f64f7e9f67994251a6bac61c3239637",
+          "sha256": "fb79058af5c76ccab8ba1f3d2c7409ae4818c1bb078be97b4cf5539156a137ed"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4747,9 +5313,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee98e629140048d01b69.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee98e629140048d01b69",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 766844,
+        "digests": {
+          "md5": "9a8ae17fb9e82c083ca8e67973c89f79",
+          "sha256": "e3f134b88bea0d2138b9aa91dab4cae243bd6172877291fb49c29807f19db403"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4797,9 +5369,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeecee629140048d01bc5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeecee629140048d01bc5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 809787,
+        "digests": {
+          "md5": "108234418f943f60b58901b103f6275e",
+          "sha256": "1895a42923f35c8ec276a2fc49745c24cae5bbc367d8a122d7dafd6b0c821293"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4847,9 +5425,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee44e629140048d01acd.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee44e629140048d01acd",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 988811,
+        "digests": {
+          "md5": "e6ae3a46f796ee9b5dcd4ce92504616c",
+          "sha256": "ba17d26fce42d441703da838ac0bd2a7968e8c98430d73910446a51008d17900"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4897,9 +5481,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee51e629140048d01ae5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee51e629140048d01ae5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1067577,
+        "digests": {
+          "md5": "37fb04857e81d0baa56c4ac4d97aba09",
+          "sha256": "8c271258a5e438b5482718e995dd78f1551dc4af3974a279228e0c37d1e01c73"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4947,9 +5537,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeedee629140048d01be3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeedee629140048d01be3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 406705,
+        "digests": {
+          "md5": "1f214e6443bba6de26edde8596c8acfe",
+          "sha256": "b2da53970085b0b264b0c2dc6548855a206688ffba4fc62ec07fd953596fc87b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -4997,9 +5593,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeecae629140048d01bbf.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeecae629140048d01bbf",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 608894,
+        "digests": {
+          "md5": "3b2006607fb8fc44127e47d2559ce940",
+          "sha256": "9c643d67087793b741afc7a75091f1d8e045a01c7d9a40c62223fd3f774cf2d0"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5047,9 +5649,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee88e629140048d01b4d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee88e629140048d01b4d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 866422,
+        "digests": {
+          "md5": "876fc4069bccef33c879f6233ed55a60",
+          "sha256": "1fadecb2bebf4b03b9d086516851f7d9f2cbfbf635e66f9bd4ab6d8afc529de0"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5097,9 +5705,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeebee629140048d01bab.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeebee629140048d01bab",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 761927,
+        "digests": {
+          "md5": "bd89eea99e0ae75fc5ebd7c6473abe1f",
+          "sha256": "a3cc5af9a9a9630918e94ea261bd84ccf8d3fab038c1aade3c7f6ed2b0283110"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5147,9 +5761,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeecce629140048d01bc3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeecce629140048d01bc3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 861094,
+        "digests": {
+          "md5": "6ed05a6c1b3db6c3ee2b7ca70eb6394e",
+          "sha256": "f355007e75a8bc2f674d105e7a0b39d0c339b1c94a314c50f67a20b28271f710"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5197,9 +5817,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee8be629140048d01b51.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee8be629140048d01b51",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 983849,
+        "digests": {
+          "md5": "eb87e24a8cbefc735f47d744de719c60",
+          "sha256": "9382137c6247e3d44474b9b56d0e2db43cce2cea4019bb4949fc713a32171df8"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5247,9 +5873,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee41e629140048d01ac5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee41e629140048d01ac5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 366357,
+        "digests": {
+          "md5": "6a0e3565c0caffa43babeaea1c795f1b",
+          "sha256": "d2e67d682adf91715a21d85a5fa24e3f92349b91255fd7445036316aa9b6e6d2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5297,9 +5929,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec8e629140048d01bbb.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec8e629140048d01bbb",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 977669,
+        "digests": {
+          "md5": "36a3a0a3cd9e32a5e90226a6d74f3609",
+          "sha256": "3a60c06b301d99e6b4b1297f0ac44653e1a07bc2f12ed330345352c0fd3fe325"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5347,9 +5985,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee48e629140048d01ad5.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee48e629140048d01ad5",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 733219,
+        "digests": {
+          "md5": "a4eb2e0b454d433b533a2ed2a49ecede",
+          "sha256": "9009a702118161a91180bb8105200212237ff20c18a84a0db507c5ceaaf30d93"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5397,9 +6041,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeabe629140048d01b89.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeabe629140048d01b89",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 853703,
+        "digests": {
+          "md5": "38d0ec0f130409508882e42c8b929b05",
+          "sha256": "d199c9357b3b1bf9867985b9002b55622ab84693733c34d89bae10e5309214e9"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5447,9 +6097,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee82e629140048d01b41.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee82e629140048d01b41",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1315299,
+        "digests": {
+          "md5": "9a9ecefec607c18fa788b6a166ce7253",
+          "sha256": "ad54b2e7a4196fea9bfb1a8e8b34c852707cc468d50962fcd498dd3f8121206b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5497,9 +6153,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee45e629140048d01acf.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee45e629140048d01acf",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 329425,
+        "digests": {
+          "md5": "0c8e63497f61b92de96d12c13724d804",
+          "sha256": "979b949a2aba88d38dafff47ef8da85b9470e685b039f4532776e545e0f6d6ce"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5547,9 +6209,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec9e629140048d01bbd.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec9e629140048d01bbd",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 846543,
+        "digests": {
+          "md5": "ee0b178e8ae273c9c590c961fae0a968",
+          "sha256": "0df69da2fa03a627eb8298efa3f06c1ff9f6d66acdfbcb67b5f678e42a9fb9ea"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5597,9 +6265,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea8e629140048d01b85.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea8e629140048d01b85",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 943636,
+        "digests": {
+          "md5": "1374fa2d932d36d75ddac6470bf896f6",
+          "sha256": "47cba3dcc20004ad354437983a8cb626291f7d0fcebd4aef3eedcea3d2b7e19a"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5647,9 +6321,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec2e629140048d01bb3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec2e629140048d01bb3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 724309,
+        "digests": {
+          "md5": "d18b529fe56f74178a10ff6331f00094",
+          "sha256": "9c1bcf6acb01883b081bbeef4adeff8787fe47ae7938b639faddca664628ba70"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5697,9 +6377,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeafe629140048d01b91.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeafe629140048d01b91",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1548418,
+        "digests": {
+          "md5": "315094102163318016c704ead1ed5b1b",
+          "sha256": "0a235f766129f054789bcca417b64bc8ba665234f7678bea83386267dc4c50f6"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5747,9 +6433,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee6e629140048d01bf1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee6e629140048d01bf1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 539625,
+        "digests": {
+          "md5": "573cf23c3e7b30c9740d779d78d14b17",
+          "sha256": "159febc1bc8e5c2c38be82a74f08dd3d847fd63665986bf5e4858f2d73222b8c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5797,9 +6489,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed8e629140048d01bd7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed8e629140048d01bd7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 844269,
+        "digests": {
+          "md5": "df412eabed0d6fe8bb9fdf83051994b2",
+          "sha256": "b84461365f7879c066b504764c2024ae1395b668529cc01a0bb00ede7bbafb48"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5847,9 +6545,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee36e629140048d01aad.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee36e629140048d01aad",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 369062,
+        "digests": {
+          "md5": "39f9d5aa12e508d5514fde5221adeb56",
+          "sha256": "fe6f8e0cbd17c037134157a26f14b07f17e234153ec0728f1f928cae7eca2bc7"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5897,9 +6601,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee35e629140048d01aab.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee35e629140048d01aab",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 609979,
+        "digests": {
+          "md5": "e5e08fe698ca449f14042e1d5a6ec09b",
+          "sha256": "b69d2931487b1f20206e5bc71bfd6330916bdf94f46e8ea064c3277bdce65541"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5947,9 +6657,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee3ce629140048d01ab7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee3ce629140048d01ab7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1186422,
+        "digests": {
+          "md5": "870b80c1766b7e37fb2d17fa898c8280",
+          "sha256": "b29ead0a1a8657b70fc584543917d849009275f5303f4c49b15708b54ab9cdc3"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -5997,9 +6713,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee5de629140048d01b01.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee5de629140048d01b01",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 803586,
+        "digests": {
+          "md5": "e57dd1ac744a076993ae418bb9226ef4",
+          "sha256": "17aa09a94e66498af8e1f0a10e379144fe2ae9eba3c41c11cf1fedf013d8857b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6047,9 +6769,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea5e629140048d01b7f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea5e629140048d01b7f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2008798,
+        "digests": {
+          "md5": "aa8c38deb94baaae48414ec97e72e425",
+          "sha256": "350e82d8e4dfc1770f1d314ef3917fd3a164addb89cf04f2e0fc7c50b73fbb2b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6097,9 +6825,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee93e629140048d01b5f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee93e629140048d01b5f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 889334,
+        "digests": {
+          "md5": "693c11ab726ba0a4e7bbd0005266c30e",
+          "sha256": "4a526f7effd73a203adc57fae729abc9958d41bed930db09a5420d7555a01c98"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6147,9 +6881,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee57e629140048d01af3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee57e629140048d01af3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1249917,
+        "digests": {
+          "md5": "2c74a864cc3a8e836729dcf0ee5e464c",
+          "sha256": "47afdaf725d8f3b4af5ae078777e39cfbd1349f58eb2710f1cc87fcfe53bac7c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6197,9 +6937,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee96e629140048d01b65.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee96e629140048d01b65",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1268552,
+        "digests": {
+          "md5": "21b3014045fe75ef437430019465747b",
+          "sha256": "a12be6217b32783ec3298f58d9fa87a995f79f201b4aaf61f0cd37eb086c4a9c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6247,9 +6993,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeec1e629140048d01bb1.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeec1e629140048d01bb1",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 467250,
+        "digests": {
+          "md5": "3dac2ef1f2795128cfee0b83dd978d80",
+          "sha256": "71ddb5a14d2ac21d5d73f5f800617629fcb18cc8d09ca14e46a5df7f86c3ee1b"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6297,9 +7049,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee66e629140048d01b15.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee66e629140048d01b15",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 556091,
+        "digests": {
+          "md5": "0e431f91e18618d9fb1441a9fe9bf22e",
+          "sha256": "c897a48b5b0e228afed6f1ce0adfcb090a06151e6e86d5618702649fc08839b2"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6347,9 +7105,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed0e629140048d01bc9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed0e629140048d01bc9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1899454,
+        "digests": {
+          "md5": "5ca729c11c4b0bac5ba0d9ed42515484",
+          "sha256": "872ad893501a5c42685f92083c3c439c30d86a61c63de7164e6ed3469fc4a7f4"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6397,9 +7161,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee7de629140048d01b39.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee7de629140048d01b39",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 705439,
+        "digests": {
+          "md5": "edbab5b210e35d4fa78314ec2bacbb6c",
+          "sha256": "08e17cfc1c6956e5b9a223e3052e2133f30c72628931380b1e67a96b9cae50a8"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6447,9 +7217,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeee2e629140048d01be9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeee2e629140048d01be9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 302158,
+        "digests": {
+          "md5": "2a1ea905f28cf1e325efe504968ad70b",
+          "sha256": "05e98d6932ed4fabbd9a2db9e6d319be9d9762d7069ea0eeaaff99d20f4ebe90"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6497,9 +7273,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeebfe629140048d01bad.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeebfe629140048d01bad",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1525893,
+        "digests": {
+          "md5": "1551b6c5d094a754838b03815a0e1bd3",
+          "sha256": "a0c5416245439f4a2c219b44734b43644a117d571d9292e190c264cd8afabacc"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6547,9 +7329,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee3ee629140048d01abb.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee3ee629140048d01abb",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 302491,
+        "digests": {
+          "md5": "bf882a91444f132f61e9fa959dc110bd",
+          "sha256": "76522408b1ea273df69bcef2f3e82020c0ebfdd315e6ff8968d843f69ae93196"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6597,9 +7385,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee69e629140048d01b19.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee69e629140048d01b19",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 2363042,
+        "digests": {
+          "md5": "b6269b7ef827b313aedc16498a9d660d",
+          "sha256": "305f5a9b9a9221901d72ba9877fa82ec21ae5f9fa8013195725dadbec5ca579e"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6647,9 +7441,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee70e629140048d01b23.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee70e629140048d01b23",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 195523325,
+        "digests": {
+          "md5": "3d0bc3338410ba73982e90354fe0ad5d",
+          "sha256": "c7de216a9c385ed63fbe77ec027fa68e154c7b7e49f4c308f60847499a6d6b86"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6697,9 +7497,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed3e629140048d01bcf.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed3e629140048d01bcf",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1992156,
+        "digests": {
+          "md5": "f5e40a550be4cd4879399f79f7c5293a",
+          "sha256": "154d0942151d82b70d30275b522d78553081a9b46b0391fd80fa78e8ba09fb94"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6747,9 +7553,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea6e629140048d01b81.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea6e629140048d01b81",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1215955,
+        "digests": {
+          "md5": "2d3ee206fb592185930e5745f1c0c327",
+          "sha256": "c33f7c4e0447ae6cf80af9dcf3253f4905ac2ad184f90dbdea996826bf8432ac"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6797,9 +7609,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeb1e629140048d01b95.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeb1e629140048d01b95",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 351610,
+        "digests": {
+          "md5": "d184cd865b1b289b014eff63a5e8cf77",
+          "sha256": "9bc49efb620b254df57713497a401839ef9862185260c29618717d01f9be50a7"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6847,9 +7665,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee81e629140048d01b3f.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee81e629140048d01b3f",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 905126,
+        "digests": {
+          "md5": "b944692e8b67b405a420c5544a7d54cc",
+          "sha256": "980bd40ba3491dd6a8e25ee891e125953782819fcaf1fed82254f8c2385bb82d"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6897,9 +7721,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeeace629140048d01b8b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeeace629140048d01b8b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 114030,
+        "digests": {
+          "md5": "28c528e50f29267fe8f431ce3a504e45",
+          "sha256": "0f663d97f9aeb80db5a60fb7c716b48a093d04885d0c9be659c3fde0ba37c4d1"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6947,9 +7777,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee6ae629140048d01b1b.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee6ae629140048d01b1b",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 432334,
+        "digests": {
+          "md5": "c63b42e4a3f6f74302116debed6a7d52",
+          "sha256": "375be341538e7a790c6c8eaf35c942c222de372ee261e2b1a6c0ac7fd7ecb407"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -6997,9 +7833,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee47e629140048d01ad3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee47e629140048d01ad3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 811999,
+        "digests": {
+          "md5": "f0437c3baaa48c42d6404aeb0130502c",
+          "sha256": "dc97658b61fa72af97c758b8d4195a39ab87a2a3b2839f5b0aaa0af4f3cd46b3"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7047,9 +7889,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeed6e629140048d01bd3.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeed6e629140048d01bd3",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 353621,
+        "digests": {
+          "md5": "b162300bd84c9794c84a7b4f12c591a3",
+          "sha256": "42a9f93c49ab3bf2850da0b1cfee4530b5b885d03ec6c41b6948adfe856b921a"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7097,9 +7945,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee60e629140048d01b09.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee60e629140048d01b09",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 371798,
+        "digests": {
+          "md5": "abd0759318f76ce5ee43a366887c98f6",
+          "sha256": "f1c2511f2cc5f1f89aef37f806efcae4d593889e5fb7a3ee17698d862cb9b1ef"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7147,9 +8001,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee49e629140048d01ad7.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee49e629140048d01ad7",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 642302,
+        "digests": {
+          "md5": "bc1666e334ceb3b5bc018e2b37706059",
+          "sha256": "7ee4a3fe2925c59f61289f87acd8ca705c4f6904e74ee55aea99fb55956ed6c1"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7197,9 +8057,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee7ae629140048d01b33.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee7ae629140048d01b33",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 580871,
+        "digests": {
+          "md5": "2562a8f7c5df0712921996b93eff1241",
+          "sha256": "2648d8a199a3644ab29515a5d580254ccb2069f37991db35ae1aad188cb461ef"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7247,9 +8113,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee80e629140048d01b3d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee80e629140048d01b3d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 110963,
+        "digests": {
+          "md5": "d0cd8d9437ce7b249257ab82446b231d",
+          "sha256": "e56296a8a68ad483f1f8ecb54ab5f10b3d2f2e7075f3241404947680a0bb0bb8"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7297,9 +8169,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee38e629140048d01aaf.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee38e629140048d01aaf",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 708837,
+        "digests": {
+          "md5": "ddc658491cff19e6ab6b864750690445",
+          "sha256": "3c0dc0401304e0b8b0fb6c3c28b20dd4580527ceaf0d5c5dee32567b004752e6"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7347,9 +8225,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee4fe629140048d01adf.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee4fe629140048d01adf",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 197182671,
+        "digests": {
+          "md5": "4d3b043c4140f01e1bb2761be0a05c24",
+          "sha256": "2a089eaf78911280b661d029d3e5ed7c3f87aed64372929a2e83b0129a329633"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7397,9 +8281,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee9de629140048d01b71.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee9de629140048d01b71",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 848715,
+        "digests": {
+          "md5": "9ff4dda9174e6eb1dab0aa7d4676743c",
+          "sha256": "90c12f9860d2aa83c718b345845ad995aa48fee3f62607c7e41cbc4d6ba7f480"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7447,9 +8337,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee6be629140048d01b1d.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee6be629140048d01b1d",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 242486,
+        "digests": {
+          "md5": "e5cde6cf02f63f44253767d47cfc1cbb",
+          "sha256": "75cf3c362b45f42bf4c55e39a5fac3254952671201b5f7ebcf1341b7a44d8490"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7497,9 +8393,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdeea1e629140048d01b79.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdeea1e629140048d01b79",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 1040937,
+        "digests": {
+          "md5": "8c883ff41c5e41e0d4187a081b6f3fb5",
+          "sha256": "c0c578cf81936e515e565e0e7413cc25ab07a5b4f214263baa81dee3eb8ed18c"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     },
     {
@@ -7547,9 +8449,15 @@
         "media_type": "image/png"
       },
       "annotations": {
+        "name": "5bbdee4be629140048d01ad9.json",
         "url": "https://demo.kitware.com/histomicstk/api/v1/annotation/item/5bbdee4be629140048d01ad9",
-        "coordinate_space": "wsi_base_pixels",
-        "integrity": "publisher_endpoint_no_digest"
+        "bytes": 505997,
+        "digests": {
+          "md5": "84f6cf49f362594ee7a13b2b0dcd0cc5",
+          "sha256": "a117ce4ee5ac926047ff04227e47a0e2275f3b86a8cae5ec841925c4ef52b411"
+        },
+        "media_type": "application/json",
+        "coordinate_space": "wsi_base_pixels"
       }
     }
   ]

@@ -63,6 +63,7 @@ class SourceImageSemantics(StrictModel):
     source_project: Literal["TCGA-BRCA"]
     roi_media_type: Literal["image/png"]
     mask_media_type: Literal["image/png"]
+    annotation_media_type: Literal["application/json"]
     evidence_url: AnyHttpUrl
 
 
@@ -84,6 +85,7 @@ class SourceContract(StrictModel):
     published_role_evidence: list[PublishedRoleEvidence]
     record_count: Literal[151]
     mask_count: Literal[151]
+    annotation_artifact_count: Literal[151]
 
     @model_validator(mode="after")
     def require_complete_contract(self) -> Self:
@@ -171,10 +173,13 @@ class MaskArtifact(StrictModel):
     media_type: Literal["image/png"]
 
 
-class AnnotationReference(StrictModel):
+class AnnotationArtifact(StrictModel):
+    name: str = Field(pattern=r"^[a-f0-9]{24}\.json$")
     url: AnyHttpUrl
+    bytes: int = Field(gt=0)
+    digests: Digest
+    media_type: Literal["application/json"]
     coordinate_space: Literal["wsi_base_pixels"]
-    integrity: Literal["publisher_endpoint_no_digest"]
 
 
 class ImageExtraction(StrictModel):
@@ -198,7 +203,7 @@ class NativeRecord(StrictModel):
     roi: RoiBounds
     image_extraction: ImageExtraction
     mask: MaskArtifact
-    annotations: AnnotationReference
+    annotations: AnnotationArtifact
 
 
 class Provenance(StrictModel):
@@ -206,6 +211,8 @@ class Provenance(StrictModel):
     figshare_doi: Literal["10.6084/m9.figshare.7193138.v2"]
     gdc_api_url: AnyHttpUrl
     gdc_snapshot_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
+    dsa_api_url: AnyHttpUrl
+    dsa_snapshot_date: str = Field(pattern=r"^\d{4}-\d{2}-\d{2}$")
     unresolved_gdc_wsi_names: list[str]
 
 
