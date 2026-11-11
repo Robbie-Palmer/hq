@@ -20,6 +20,8 @@ Current products:
 - `proteomexchange/pxd064700`: source-native PRIDE and ProteomeXchange metadata,
   run identities, pairings, checksums, and remote artifact references for the
   PXD064700 brain fixation proteomics study.
+- `segpath/registered-if-masks`: source-native SegPath H&E patches and
+  registered IF-derived binary masks across eight antigen tasks.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
