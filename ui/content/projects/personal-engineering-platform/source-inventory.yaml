@@ -702,6 +702,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/panda-challenge-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/panda/challenge-2020" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/segpath-registered-if-masks-data-product"
     project: "project:pathologize"
     paths: [ "data-products/segpath/registered-if-masks" ]
