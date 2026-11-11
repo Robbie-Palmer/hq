@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -19,6 +20,7 @@ from gdc_tcga_image_genomics.models import (
 )
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
+_SLIDE_IMAGE_DATA_TYPE = "Slide Image"
 
 
 class ProductError(RuntimeError):
@@ -32,13 +34,24 @@ def _read_object(path: Path) -> dict[str, Any]:
     return cast(dict[str, Any], payload)
 
 
-def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _output_path(output_root: Path, filename: str) -> Path:
+    if Path(filename).name != filename:
+        raise ProductError(f"output filename must not contain directories: {filename}")
+    output_root.mkdir(parents=True, exist_ok=True)
+    resolved_root = output_root.resolve()
+    path = (resolved_root / filename).resolve()
+    if not path.is_relative_to(resolved_root):
+        raise ProductError(f"output path escapes its root: {filename}")
+    return path
+
+
+def _write_json(output_root: Path, filename: str, value: object) -> None:
+    path = _output_path(output_root, filename)
     path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def _write_jsonl(path: Path, values: list[dict[str, Any]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def _write_jsonl(output_root: Path, filename: str, values: list[dict[str, Any]]) -> None:
+    path = _output_path(output_root, filename)
     path.write_text(
         "".join(json.dumps(value, sort_keys=True) + "\n" for value in values),
         encoding="utf-8",
@@ -94,55 +107,73 @@ def _case_for(file: GdcFile, case_id: str) -> dict[str, Any]:
     return case
 
 
-def _locate_chain(file: GdcFile, entity: AssociatedEntity) -> BiospecimenChain:  # noqa: C901
+@dataclass(frozen=True)
+class _LocatedBiospecimen:
+    sample: dict[str, Any] | None = None
+    portion: dict[str, Any] | None = None
+    slide: dict[str, Any] | None = None
+    analyte: dict[str, Any] | None = None
+    aliquot: dict[str, Any] | None = None
+
+
+def _locate_in_analytes(
+    sample: dict[str, Any],
+    portion: dict[str, Any],
+    entity: AssociatedEntity,
+) -> _LocatedBiospecimen | None:
+    for analyte in _items(portion.get("analytes")):
+        if entity.entity_type == "analyte" and analyte.get("analyte_id") == entity.entity_id:
+            return _LocatedBiospecimen(sample=sample, portion=portion, analyte=analyte)
+        aliquot = _find(_items(analyte.get("aliquots")), "aliquot_id", entity.entity_id)
+        if entity.entity_type == "aliquot" and aliquot is not None:
+            return _LocatedBiospecimen(
+                sample=sample,
+                portion=portion,
+                analyte=analyte,
+                aliquot=aliquot,
+            )
+    return None
+
+
+def _locate_in_portion(
+    sample: dict[str, Any],
+    portion: dict[str, Any],
+    entity: AssociatedEntity,
+) -> _LocatedBiospecimen | None:
+    if entity.entity_type == "portion" and portion.get("portion_id") == entity.entity_id:
+        return _LocatedBiospecimen(sample=sample, portion=portion)
+    slide = _find(_items(portion.get("slides")), "slide_id", entity.entity_id)
+    if entity.entity_type == "slide" and slide is not None:
+        return _LocatedBiospecimen(sample=sample, portion=portion, slide=slide)
+    return _locate_in_analytes(sample, portion, entity)
+
+
+def _locate_biospecimen(case: dict[str, Any], entity: AssociatedEntity) -> _LocatedBiospecimen:
+    if entity.entity_type == "case":
+        return _LocatedBiospecimen()
+    for sample in _items(case.get("samples")):
+        if entity.entity_type == "sample" and sample.get("sample_id") == entity.entity_id:
+            return _LocatedBiospecimen(sample=sample)
+        for portion in _items(sample.get("portions")):
+            located = _locate_in_portion(sample, portion, entity)
+            if located is not None:
+                return located
+    raise ProductError(
+        f"associated {entity.entity_type} {entity.entity_id} "
+        "is absent from the expanded biospecimen tree"
+    )
+
+
+def _locate_chain(file: GdcFile, entity: AssociatedEntity) -> BiospecimenChain:
     case = _case_for(file, entity.case_id)
     case_submitter_id = _value(case.get("submitter_id"))
     project_id = _value(_as_dict(case.get("project"), "case project").get("project_id"))
     if case_submitter_id is None or project_id is None:
         raise ProductError(f"{file.file_id}: case identity is incomplete")
-
-    found_sample: dict[str, Any] | None = None
-    found_portion: dict[str, Any] | None = None
-    found_slide: dict[str, Any] | None = None
-    found_analyte: dict[str, Any] | None = None
-    found_aliquot: dict[str, Any] | None = None
-    if entity.entity_type != "case":
-        for sample in _items(case.get("samples")):
-            if entity.entity_type == "sample" and sample.get("sample_id") == entity.entity_id:
-                found_sample = sample
-                break
-            for portion in _items(sample.get("portions")):
-                if (
-                    entity.entity_type == "portion"
-                    and portion.get("portion_id") == entity.entity_id
-                ):
-                    found_sample, found_portion = sample, portion
-                    break
-                slide = _find(_items(portion.get("slides")), "slide_id", entity.entity_id)
-                if entity.entity_type == "slide" and slide is not None:
-                    found_sample, found_portion, found_slide = sample, portion, slide
-                    break
-                for analyte in _items(portion.get("analytes")):
-                    if (
-                        entity.entity_type == "analyte"
-                        and analyte.get("analyte_id") == entity.entity_id
-                    ):
-                        found_sample, found_portion, found_analyte = sample, portion, analyte
-                        break
-                    aliquot = _find(_items(analyte.get("aliquots")), "aliquot_id", entity.entity_id)
-                    if entity.entity_type == "aliquot" and aliquot is not None:
-                        found_sample, found_portion = sample, portion
-                        found_analyte, found_aliquot = analyte, aliquot
-                        break
-                if found_sample is not None:
-                    break
-            if found_sample is not None:
-                break
-        if found_sample is None:
-            raise ProductError(
-                f"{file.file_id}: associated {entity.entity_type} {entity.entity_id} "
-                "is absent from the expanded biospecimen tree"
-            )
+    try:
+        located = _locate_biospecimen(case, entity)
+    except ProductError as error:
+        raise ProductError(f"{file.file_id}: {error}") from error
 
     return BiospecimenChain(
         case_id=entity.case_id,
@@ -152,27 +183,27 @@ def _locate_chain(file: GdcFile, entity: AssociatedEntity) -> BiospecimenChain: 
         associated_entity_type=entity.entity_type,
         associated_entity_id=entity.entity_id,
         associated_entity_submitter_id=entity.entity_submitter_id,
-        sample_id=_value((found_sample or {}).get("sample_id")),
-        sample_submitter_id=_value((found_sample or {}).get("submitter_id")),
-        sample_type=_value((found_sample or {}).get("sample_type")),
-        specimen_type=_value((found_sample or {}).get("specimen_type")),
-        tissue_type=_value((found_sample or {}).get("tissue_type")),
-        tumor_descriptor=_value((found_sample or {}).get("tumor_descriptor")),
-        portion_id=_value((found_portion or {}).get("portion_id")),
-        portion_submitter_id=_value((found_portion or {}).get("submitter_id")),
-        portion_number=_value((found_portion or {}).get("portion_number")),
-        portion_is_ffpe=(found_portion or {}).get("is_ffpe"),
-        slide_id=_value((found_slide or {}).get("slide_id")),
-        slide_submitter_id=_value((found_slide or {}).get("submitter_id")),
-        slide_section_location=_value((found_slide or {}).get("section_location")),
-        analyte_id=_value((found_analyte or {}).get("analyte_id")),
-        analyte_submitter_id=_value((found_analyte or {}).get("submitter_id")),
-        analyte_type=_value((found_analyte or {}).get("analyte_type")),
+        sample_id=_value((located.sample or {}).get("sample_id")),
+        sample_submitter_id=_value((located.sample or {}).get("submitter_id")),
+        sample_type=_value((located.sample or {}).get("sample_type")),
+        specimen_type=_value((located.sample or {}).get("specimen_type")),
+        tissue_type=_value((located.sample or {}).get("tissue_type")),
+        tumor_descriptor=_value((located.sample or {}).get("tumor_descriptor")),
+        portion_id=_value((located.portion or {}).get("portion_id")),
+        portion_submitter_id=_value((located.portion or {}).get("submitter_id")),
+        portion_number=_value((located.portion or {}).get("portion_number")),
+        portion_is_ffpe=(located.portion or {}).get("is_ffpe"),
+        slide_id=_value((located.slide or {}).get("slide_id")),
+        slide_submitter_id=_value((located.slide or {}).get("submitter_id")),
+        slide_section_location=_value((located.slide or {}).get("section_location")),
+        analyte_id=_value((located.analyte or {}).get("analyte_id")),
+        analyte_submitter_id=_value((located.analyte or {}).get("submitter_id")),
+        analyte_type=_value((located.analyte or {}).get("analyte_type")),
         analyte_experimental_protocol_type=_value(
-            (found_analyte or {}).get("experimental_protocol_type")
+            (located.analyte or {}).get("experimental_protocol_type")
         ),
-        aliquot_id=_value((found_aliquot or {}).get("aliquot_id")),
-        aliquot_submitter_id=_value((found_aliquot or {}).get("submitter_id")),
+        aliquot_id=_value((located.aliquot or {}).get("aliquot_id")),
+        aliquot_submitter_id=_value((located.aliquot or {}).get("submitter_id")),
     )
 
 
@@ -205,9 +236,12 @@ def _validate_source_file(file: GdcFile, query: QuerySpec) -> None:
     if file.access != "open":
         raise ProductError(f"{file.file_id}: controlled file entered the open product")
     if query.record_kind == "diagnostic_slide":
-        if file.data_type != "Slide Image" or file.experimental_strategy != "Diagnostic Slide":
+        if (
+            file.data_type != _SLIDE_IMAGE_DATA_TYPE
+            or file.experimental_strategy != "Diagnostic Slide"
+        ):
             raise ProductError(f"{file.file_id}: record is not a GDC diagnostic slide")
-    elif file.data_type == "Slide Image":
+    elif file.data_type == _SLIDE_IMAGE_DATA_TYPE:
         raise ProductError(f"{file.file_id}: slide entered the molecular record set")
 
 
@@ -230,60 +264,67 @@ def _artifact(file: GdcFile, release: ReleaseContract) -> ArtifactReference:
     )
 
 
+def _add_annotation(annotation: dict[str, Any], found: dict[str, dict[str, Any]]) -> None:
+    annotation_id = _value(annotation.get("annotation_id"))
+    if annotation_id is None:
+        raise ProductError("GDC annotation has no annotation_id")
+    previous = found.setdefault(annotation_id, annotation)
+    if previous != annotation:
+        raise ProductError(f"GDC annotation {annotation_id} differs between records")
+
+
 def _annotations(value: object, found: dict[str, dict[str, Any]]) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
             if key == "annotations":
                 for annotation in _items(child):
-                    annotation_id = _value(annotation.get("annotation_id"))
-                    if annotation_id is None:
-                        raise ProductError("GDC annotation has no annotation_id")
-                    previous = found.setdefault(annotation_id, annotation)
-                    if previous != annotation:
-                        raise ProductError(
-                            f"GDC annotation {annotation_id} differs between records"
-                        )
+                    _add_annotation(annotation, found)
             _annotations(child, found)
-    elif isinstance(value, list):
+        return
+    if isinstance(value, list):
         for child in value:
             _annotations(child, found)
 
 
-def _case_outputs(records: list[NativeRecord]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
-    case_records: dict[str, dict[str, Any]] = {}
-    for record in records:
-        for chain in record.biospecimen_chains:
-            entry = case_records.setdefault(
-                chain.case_id,
-                {
-                    "schema_version": "1.0.0",
-                    "dataset_id": record.dataset_id,
-                    "case_id": chain.case_id,
-                    "case_submitter_id": chain.case_submitter_id,
-                    "participant_submitter_id": chain.participant_submitter_id,
-                    "project_ids": set(),
-                    "diagnostic_slide_record_ids": set(),
-                    "molecular_evidence_record_ids": set(),
-                    "sample_ids": set(),
-                    "portion_ids": set(),
-                    "slide_ids": set(),
-                    "analyte_ids": set(),
-                    "aliquot_ids": set(),
-                },
-            )
-            if entry["case_submitter_id"] != chain.case_submitter_id:
-                raise ProductError(f"case {chain.case_id} has inconsistent submitter IDs")
-            entry["project_ids"].add(chain.project_id)
-            entry[f"{record.record_kind}_record_ids"].add(record.record_id)
-            for key, value in (
-                ("sample_ids", chain.sample_id),
-                ("portion_ids", chain.portion_id),
-                ("slide_ids", chain.slide_id),
-                ("analyte_ids", chain.analyte_id),
-                ("aliquot_ids", chain.aliquot_id),
-            ):
-                if value is not None:
-                    entry[key].add(value)
+def _new_case_entry(record: NativeRecord, chain: BiospecimenChain) -> dict[str, Any]:
+    return {
+        "schema_version": "1.0.0",
+        "dataset_id": record.dataset_id,
+        "case_id": chain.case_id,
+        "case_submitter_id": chain.case_submitter_id,
+        "participant_submitter_id": chain.participant_submitter_id,
+        "project_ids": set(),
+        "diagnostic_slide_record_ids": set(),
+        "molecular_evidence_record_ids": set(),
+        "sample_ids": set(),
+        "portion_ids": set(),
+        "slide_ids": set(),
+        "analyte_ids": set(),
+        "aliquot_ids": set(),
+    }
+
+
+def _update_case_entry(
+    entry: dict[str, Any], record: NativeRecord, chain: BiospecimenChain
+) -> None:
+    if entry["case_submitter_id"] != chain.case_submitter_id:
+        raise ProductError(f"case {chain.case_id} has inconsistent submitter IDs")
+    entry["project_ids"].add(chain.project_id)
+    entry[f"{record.record_kind}_record_ids"].add(record.record_id)
+    for key, value in (
+        ("sample_ids", chain.sample_id),
+        ("portion_ids", chain.portion_id),
+        ("slide_ids", chain.slide_id),
+        ("analyte_ids", chain.analyte_id),
+        ("aliquot_ids", chain.aliquot_id),
+    ):
+        if value is not None:
+            entry[key].add(value)
+
+
+def _case_output_records(
+    case_records: dict[str, dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     links = []
     groups = []
     for case_id, entry in sorted(case_records.items()):
@@ -310,54 +351,75 @@ def _case_outputs(records: list[NativeRecord]) -> tuple[list[dict[str, Any]], li
     return links, groups
 
 
-def _missingness(records: list[NativeRecord]) -> list[dict[str, Any]]:  # noqa: C901
+def _case_outputs(records: list[NativeRecord]) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    case_records: dict[str, dict[str, Any]] = {}
+    for record in records:
+        for chain in record.biospecimen_chains:
+            entry = case_records.setdefault(
+                chain.case_id,
+                _new_case_entry(record, chain),
+            )
+            _update_case_entry(entry, record, chain)
+    return _case_output_records(case_records)
+
+
+def _observe_source_fields(
+    record: NativeRecord, observed: dict[tuple[str, str], list[bool]]
+) -> None:
+    source = record.source
+    if record.record_kind == "diagnostic_slide":
+        observed[(record.record_kind, "file.stain_type")].append(
+            _value(source.get("stain_type")) is not None
+        )
+        return
+    analysis = source.get("analysis")
+    analysis_dict = analysis if isinstance(analysis, dict) else {}
+    for field in ("workflow_type", "workflow_link", "workflow_version"):
+        observed[(record.record_kind, f"analysis.{field}")].append(
+            _value(analysis_dict.get(field)) is not None
+        )
+
+
+def _chain_field_names(chain: BiospecimenChain) -> list[str]:
+    field_names = ["case_id", "case_submitter_id", "participant_submitter_id", "project_id"]
+    if chain.associated_entity_type != "case":
+        field_names.extend(["sample_id", "sample_submitter_id", "sample_type", "specimen_type"])
+    if chain.associated_entity_type in {"portion", "slide", "analyte", "aliquot"}:
+        field_names.extend(
+            ["portion_id", "portion_submitter_id", "portion_number", "portion_is_ffpe"]
+        )
+    if chain.associated_entity_type == "slide":
+        field_names.extend(["slide_id", "slide_submitter_id", "slide_section_location"])
+    if chain.associated_entity_type in {"analyte", "aliquot"}:
+        field_names.extend(
+            [
+                "analyte_id",
+                "analyte_submitter_id",
+                "analyte_type",
+                "analyte_experimental_protocol_type",
+            ]
+        )
+    if chain.associated_entity_type == "aliquot":
+        field_names.extend(["aliquot_id", "aliquot_submitter_id"])
+    return field_names
+
+
+def _observe_chain_fields(
+    record: NativeRecord, observed: dict[tuple[str, str], list[bool]]
+) -> None:
+    for chain in record.biospecimen_chains:
+        values = chain.model_dump(mode="python")
+        for field in _chain_field_names(chain):
+            observed[(record.record_kind, f"biospecimen_chain.{field}")].append(
+                values[field] is not None
+            )
+
+
+def _missingness(records: list[NativeRecord]) -> list[dict[str, Any]]:
     observed: dict[tuple[str, str], list[bool]] = defaultdict(list)
     for record in records:
-        source = record.source
-        if record.record_kind == "diagnostic_slide":
-            observed[(record.record_kind, "file.stain_type")].append(
-                _value(source.get("stain_type")) is not None
-            )
-        else:
-            analysis = source.get("analysis")
-            analysis_dict = analysis if isinstance(analysis, dict) else {}
-            for field in ("workflow_type", "workflow_link", "workflow_version"):
-                observed[(record.record_kind, f"analysis.{field}")].append(
-                    _value(analysis_dict.get(field)) is not None
-                )
-        for chain in record.biospecimen_chains:
-            values = chain.model_dump(mode="python")
-            field_names = [
-                "case_id",
-                "case_submitter_id",
-                "participant_submitter_id",
-                "project_id",
-            ]
-            if chain.associated_entity_type != "case":
-                field_names.extend(
-                    ["sample_id", "sample_submitter_id", "sample_type", "specimen_type"]
-                )
-            if chain.associated_entity_type in {"portion", "slide", "analyte", "aliquot"}:
-                field_names.extend(
-                    ["portion_id", "portion_submitter_id", "portion_number", "portion_is_ffpe"]
-                )
-            if chain.associated_entity_type == "slide":
-                field_names.extend(["slide_id", "slide_submitter_id", "slide_section_location"])
-            if chain.associated_entity_type in {"analyte", "aliquot"}:
-                field_names.extend(
-                    [
-                        "analyte_id",
-                        "analyte_submitter_id",
-                        "analyte_type",
-                        "analyte_experimental_protocol_type",
-                    ]
-                )
-            if chain.associated_entity_type == "aliquot":
-                field_names.extend(["aliquot_id", "aliquot_submitter_id"])
-            for field in field_names:
-                observed[(record.record_kind, f"biospecimen_chain.{field}")].append(
-                    values[field] is not None
-                )
+        _observe_source_fields(record, observed)
+        _observe_chain_fields(record, observed)
     return [
         {
             "record_kind": kind,
@@ -462,7 +524,7 @@ def publish_product(
     workflow_counts = Counter(
         artifact.workflow_type or "missing"
         for artifact in artifacts
-        if artifact.data_type != "Slide Image"
+        if artifact.data_type != _SLIDE_IMAGE_DATA_TYPE
     )
     metrics: dict[str, object] = {
         "dataset_id": release.dataset_id,
@@ -478,23 +540,27 @@ def publish_product(
         "patient_leakage_count": 0,
     }
     _write_jsonl(
-        output_root / "native-records.jsonl",
+        output_root,
+        "native-records.jsonl",
         [record.model_dump(mode="json") for record in records],
     )
     _write_jsonl(
-        output_root / "artifacts.jsonl",
+        output_root,
+        "artifacts.jsonl",
         [artifact.model_dump(mode="json") for artifact in artifacts],
     )
     _write_jsonl(
-        output_root / "annotations.jsonl",
+        output_root,
+        "annotations.jsonl",
         [annotations[key] for key in sorted(annotations)],
     )
-    _write_jsonl(output_root / "case-links.jsonl", links)
-    _write_jsonl(output_root / "leakage-groups.jsonl", groups)
-    _write_json(output_root / "missingness.json", {"fields": missingness})
-    _write_json(output_root / "metrics.json", metrics)
+    _write_jsonl(output_root, "case-links.jsonl", links)
+    _write_jsonl(output_root, "leakage-groups.jsonl", groups)
+    _write_json(output_root, "missingness.json", {"fields": missingness})
+    _write_json(output_root, "metrics.json", metrics)
     _write_json(
-        output_root / "lineage.json",
+        output_root,
+        "lineage.json",
         {
             "dataset_id": release.dataset_id,
             "data_release": release.data_release,
@@ -507,7 +573,8 @@ def publish_product(
         },
     )
     _write_json(
-        output_root / "source-semantics.json",
+        output_root,
+        "source-semantics.json",
         {
             "dataset_id": release.dataset_id,
             "publisher": "NCI Genomic Data Commons",

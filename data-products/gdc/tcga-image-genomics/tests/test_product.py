@@ -15,6 +15,7 @@ from gdc_tcga_image_genomics.acquisition import (
 from gdc_tcga_image_genomics.models import PartitionAssignment, QuerySpec
 from gdc_tcga_image_genomics.product import (
     ProductError,
+    _output_path,
     load_contracts,
     load_native_records,
     publish_product,
@@ -86,32 +87,29 @@ def test_patient_level_partition_check_rejects_case_leakage(tmp_path: Path) -> N
     output = tmp_path / "outputs"
     publish_product(FIXTURE_ROOT, output)
     records = load_native_records(output / "native-records.jsonl")
+    assignments = [
+        PartitionAssignment(record_id=records[0].record_id, partition="train"),
+        PartitionAssignment(record_id=records[1].record_id, partition="test"),
+    ]
 
     with pytest.raises(ProductError, match="patient-level leakage"):
-        validate_partitions(
-            records,
-            [
-                PartitionAssignment(record_id=records[0].record_id, partition="train"),
-                PartitionAssignment(record_id=records[1].record_id, partition="test"),
-            ],
-        )
+        validate_partitions(records, assignments)
 
 
 def test_partition_check_rejects_unknown_and_conflicting_records(tmp_path: Path) -> None:
     output = tmp_path / "outputs"
     publish_product(FIXTURE_ROOT, output)
     records = load_native_records(output / "native-records.jsonl")
+    unknown = [PartitionAssignment(record_id="missing", partition="test")]
+    conflicting = [
+        PartitionAssignment(record_id=records[0].record_id, partition="train"),
+        PartitionAssignment(record_id=records[0].record_id, partition="test"),
+    ]
 
     with pytest.raises(ProductError, match="unknown record"):
-        validate_partitions(records, [PartitionAssignment(record_id="missing", partition="test")])
+        validate_partitions(records, unknown)
     with pytest.raises(ProductError, match="multiple partitions"):
-        validate_partitions(
-            records,
-            [
-                PartitionAssignment(record_id=records[0].record_id, partition="train"),
-                PartitionAssignment(record_id=records[0].record_id, partition="test"),
-            ],
-        )
+        validate_partitions(records, conflicting)
 
 
 def test_partition_check_groups_the_tcga_participant_across_case_ids(tmp_path: Path) -> None:
@@ -127,15 +125,27 @@ def test_partition_check_groups_the_tcga_participant_across_case_ids(tmp_path: P
             ],
         }
     )
+    assignments = [
+        PartitionAssignment(record_id=source.record_id, partition="train"),
+        PartitionAssignment(record_id=alternate.record_id, partition="test"),
+    ]
 
     with pytest.raises(ProductError, match=r"participants=.*TCGA-GN-A267"):
-        validate_partitions(
-            [source, alternate],
-            [
-                PartitionAssignment(record_id=source.record_id, partition="train"),
-                PartitionAssignment(record_id=alternate.record_id, partition="test"),
-            ],
-        )
+        validate_partitions([source, alternate], assignments)
+
+
+def test_output_path_rejects_directory_components(tmp_path: Path) -> None:
+    with pytest.raises(ProductError, match="must not contain directories"):
+        _output_path(tmp_path, "../outside.json")
+
+
+def test_output_path_rejects_symlink_escape(tmp_path: Path) -> None:
+    output = tmp_path / "outputs"
+    output.mkdir()
+    (output / "metrics.json").symlink_to(tmp_path / "outside.json")
+
+    with pytest.raises(ProductError, match="escapes its root"):
+        _output_path(output, "metrics.json")
 
 
 def test_status_must_match_the_pinned_release() -> None:

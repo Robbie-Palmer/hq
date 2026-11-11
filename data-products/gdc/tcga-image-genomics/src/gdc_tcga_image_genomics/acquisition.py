@@ -74,7 +74,7 @@ def _fetch_query(query: QuerySpec, destination: Path) -> int:
             raise ProductError(f"{query.query_id}: GDC total changed during retrieval")
         if pagination.count == 0 and offset < total:
             raise ProductError(f"{query.query_id}: GDC returned an empty page before completion")
-        _write_json(destination / f"page-{page_number:05d}.json", payload)
+        _write_json(destination, f"page-{page_number:05d}.json", payload)
         offset += pagination.count
         page_number += 1
     return offset
@@ -85,7 +85,7 @@ def refresh_product(root: Path = PROJECT_DIR) -> dict[str, object]:
     source_root = root / "metadata/raw"
     first_status = _get_json(str(release.status_url))
     validate_status(first_status, release)
-    _write_json(source_root / "status.json", first_status)
+    _write_json(source_root, "status.json", first_status)
     counts = {
         query.query_id: _fetch_query(query, source_root / query.query_id)
         for query in queries.queries
