@@ -1,3 +1,0 @@
-[core]
-    autostage = false
-    site_cache_dir = .dvc/site-cache
