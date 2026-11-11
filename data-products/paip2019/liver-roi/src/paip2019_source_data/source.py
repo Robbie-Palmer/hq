@@ -6,6 +6,7 @@ import re
 from collections import Counter
 from pathlib import Path
 from typing import Any, Literal, cast
+from xml.etree.ElementTree import Element
 
 import tifffile
 from defusedxml import ElementTree
@@ -124,27 +125,35 @@ def _negative_roa(value: str | None) -> bool:
     return value is not None and value.strip().lower() in {"1", "true"}
 
 
+def _local_name(element: Element) -> str:
+    return element.tag.rsplit("}", 1)[-1].lower()
+
+
+def _region_semantic(annotation_id: str | None, annotation: Element, region: Element) -> str | None:
+    negative = _negative_roa(
+        region.attrib.get("NegativeROA")
+        or region.attrib.get("NegativeRoa")
+        or annotation.attrib.get("NegativeROA")
+    )
+    return {
+        ("1", False): "whole_tumor_area",
+        ("2", False): "viable_tumor_area",
+        ("2", True): "negative_pen_region",
+    }.get((annotation_id, negative))
+
+
 def _xml_regions(path: Path) -> XmlRegionCounts:
     counts: Counter[str] = Counter()
     root = ElementTree.parse(path).getroot()
     for annotation in root.iter():
-        if annotation.tag.rsplit("}", 1)[-1].lower() != "annotation":
+        if _local_name(annotation) != "annotation":
             continue
         annotation_id = annotation.attrib.get("Id") or annotation.attrib.get("id")
         for region in annotation.iter():
-            if region.tag.rsplit("}", 1)[-1].lower() != "region":
-                continue
-            negative = _negative_roa(
-                region.attrib.get("NegativeROA")
-                or region.attrib.get("NegativeRoa")
-                or annotation.attrib.get("NegativeROA")
-            )
-            if annotation_id == "1" and not negative:
-                counts["whole_tumor_area"] += 1
-            elif annotation_id == "2" and not negative:
-                counts["viable_tumor_area"] += 1
-            elif annotation_id == "2" and negative:
-                counts["negative_pen_region"] += 1
+            if _local_name(region) == "region":
+                semantic = _region_semantic(annotation_id, annotation, region)
+                if semantic is not None:
+                    counts[semantic] += 1
     if counts["whole_tumor_area"] == 0 or counts["viable_tumor_area"] == 0:
         raise SourceDataError(f"{path.name}: XML lacks whole-tumour or viable-tumour regions")
     return XmlRegionCounts(
