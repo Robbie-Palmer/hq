@@ -7,99 +7,15 @@ import {
   Database,
   RefreshCw,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { loadReviewSession, saveReview } from "../api/review-service";
-import type {
-  ReviewEvent,
-  ReviewItem,
-  ReviewSession,
-} from "../domain/review-contract";
-import {
-  chooseMask,
-  chooseObject,
-  chooseProposal,
-  draftFromReview,
-  type ReviewDraft,
-  rejectProposals,
-} from "../domain/review-draft";
-import { createReviewEventId } from "../domain/review-event-id";
-import { summarizeReviews } from "../domain/review-summary";
-import {
-  LOOPBACK_SERVICE_URL,
-  resolveReviewServiceUrl,
-} from "../domain/service-url";
+import type { ReviewItem, ReviewSession } from "../domain/review-contract";
+import { chooseProposal } from "../domain/review-draft";
 import { CompletionSummary } from "./completion-summary";
 import { DecisionPanel } from "./decision-panel";
 import { ReviewImages } from "./review-images";
-
-const REVIEWER_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
-const CONFIGURED_SERVICE_URL =
-  process.env.NEXT_PUBLIC_ANNOTATION_WORKBENCH_SERVICE_URL?.trim() || undefined;
-
-function persistWorkbenchSettings(
-  serviceUrl: string,
-  reviewerId: string,
-  persistServiceUrl: boolean,
-) {
-  if (persistServiceUrl) {
-    window.localStorage.setItem("annotation-workbench:service-url", serviceUrl);
-  }
-  if (REVIEWER_ID_PATTERN.test(reviewerId)) {
-    window.localStorage.setItem("annotation-workbench:reviewer-id", reviewerId);
-  }
-}
-
-function shortcutDraft(
-  key: string,
-  draft: ReviewDraft,
-): ReviewDraft | undefined {
-  switch (key.toLowerCase()) {
-    case "1":
-      return chooseObject(draft, "valid_nucleus");
-    case "2":
-      return chooseObject(draft, "non_nucleus");
-    case "3":
-      return chooseObject(draft, "uncertain");
-    case "a":
-      return draft.selectedProposalId
-        ? chooseMask(draft, "accept", draft.selectedProposalId)
-        : undefined;
-    case "f":
-      return draft.selectedProposalId
-        ? chooseMask(draft, "refine", draft.selectedProposalId)
-        : undefined;
-    case "r":
-      return rejectProposals(draft);
-    default:
-      return undefined;
-  }
-}
-
-function useReviewShortcuts(
-  draft: ReviewDraft,
-  enabled: boolean,
-  onChange: (draft: ReviewDraft) => void,
-) {
-  useEffect(() => {
-    function handleShortcut(event: KeyboardEvent) {
-      const target = event.target;
-      const editing =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        target instanceof HTMLSelectElement;
-      if (!enabled || editing) return;
-      const nextDraft = shortcutDraft(event.key, draft);
-      if (!nextDraft || nextDraft === draft) return;
-      onChange(nextDraft);
-      event.preventDefault();
-    }
-    window.addEventListener("keydown", handleShortcut);
-    return () => window.removeEventListener("keydown", handleShortcut);
-  }, [draft, enabled, onChange]);
-}
+import { useAnnotationWorkbench } from "./use-annotation-workbench";
 
 function connectionButtonLabel(
   settingsReady: boolean,
@@ -108,6 +24,34 @@ function connectionButtonLabel(
 ): string {
   if (!settingsReady || loading) return "Connecting…";
   return serviceIsConfigured ? "Retry connection" : "Open review batch";
+}
+
+function ConnectionError({ error }: Readonly<{ error: string | null }>) {
+  if (!error) return null;
+  return (
+    <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+      <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
+      {error}
+    </p>
+  );
+}
+
+function ConnectionIntro({ configured }: Readonly<{ configured: boolean }>) {
+  return (
+    <div className="space-y-2">
+      <Badge variant="outline">
+        {configured ? "Configured service" : "Local development"}
+      </Badge>
+      <h1 className="text-2xl font-semibold tracking-tight">
+        Annotation Workbench
+      </h1>
+      <p className="text-sm text-muted-foreground">
+        {configured
+          ? "Opening the review batch configured by the launcher."
+          : "Connect to a local review service."}
+      </p>
+    </div>
+  );
 }
 
 function ConnectionPanel({
@@ -130,19 +74,7 @@ function ConnectionPanel({
   return (
     <main className="flex min-h-dvh items-center justify-center overflow-x-hidden bg-muted/20 p-4">
       <div className="w-full max-w-lg space-y-5 rounded-2xl border bg-card p-6 shadow-sm">
-        <div className="space-y-2">
-          <Badge variant="outline">
-            {serviceIsConfigured ? "Configured service" : "Local development"}
-          </Badge>
-          <h1 className="text-2xl font-semibold tracking-tight">
-            Annotation Workbench
-          </h1>
-          <p className="text-sm text-muted-foreground">
-            {serviceIsConfigured
-              ? "Opening the review batch configured by the launcher."
-              : "Connect to a local review service."}
-          </p>
-        </div>
+        <ConnectionIntro configured={serviceIsConfigured} />
         {serviceIsConfigured ? null : (
           <label
             htmlFor="review-service-url"
@@ -156,12 +88,7 @@ function ConnectionPanel({
             />
           </label>
         )}
-        {error ? (
-          <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-            <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
-            {error}
-          </p>
-        ) : null}
+        <ConnectionError error={error} />
         <Button
           type="button"
           className="w-full"
@@ -280,276 +207,163 @@ function TechnicalDetails({
 }
 
 export function AnnotationWorkbench() {
-  const [serviceUrl, setServiceUrl] = useState(LOOPBACK_SERVICE_URL);
-  const [reviewerId, setReviewerId] = useState("reviewer-a");
-  const [session, setSession] = useState<ReviewSession | null>(null);
-  const [currentIndex, setCurrentIndex] = useState(0);
-  const [draft, setDraft] = useState<ReviewDraft>(draftFromReview(undefined));
-  const [opacity, setOpacity] = useState(100);
-  const [showReference, setShowReference] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [showCompletion, setShowCompletion] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [settingsReady, setSettingsReady] = useState(false);
-  const serviceIsConfigured = CONFIGURED_SERVICE_URL !== undefined;
+  const workbench = useAnnotationWorkbench();
 
-  const connect = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const loaded = await loadReviewSession(serviceUrl);
-      setSession(loaded);
-      setCurrentIndex(0);
-    } catch (caught) {
-      setError(
-        caught instanceof Error
-          ? caught.message
-          : "Could not reach the review service",
-      );
-      setSession(null);
-    } finally {
-      setLoading(false);
-    }
-  }, [serviceUrl]);
-
-  useEffect(() => {
-    const storedUrl = window.localStorage.getItem(
-      "annotation-workbench:service-url",
-    );
-    const storedReviewer = window.localStorage.getItem(
-      "annotation-workbench:reviewer-id",
-    );
-    setServiceUrl(
-      resolveReviewServiceUrl({
-        configuredUrl: CONFIGURED_SERVICE_URL,
-        storedUrl: storedUrl ?? undefined,
-        hostname: window.location.hostname,
-      }),
-    );
-    if (storedReviewer) setReviewerId(storedReviewer);
-    setSettingsReady(true);
-  }, []);
-
-  useEffect(() => {
-    if (!settingsReady || !serviceIsConfigured) return;
-    void connect();
-  }, [connect, serviceIsConfigured, settingsReady]);
-
-  const item = session?.bundle.items[currentIndex];
-  const currentReview = useMemo(
-    () =>
-      item
-        ? session?.latest_reviews.find(
-            (review) =>
-              review.item_id === item.id && review.reviewer_id === reviewerId,
-          )
-        : undefined,
-    [item, reviewerId, session?.latest_reviews],
-  );
-
-  useEffect(() => {
-    if (!item) return;
-    setDraft(draftFromReview(currentReview));
-    setShowReference(false);
-  }, [currentReview, item]);
-
-  const reviewerIdIsValid = REVIEWER_ID_PATTERN.test(reviewerId);
-  const completedItems = session
-    ? new Set(
-        session.latest_reviews
-          .filter((review) => review.reviewer_id === reviewerId)
-          .map((review) => review.item_id),
-      )
-    : new Set<string>();
-  const reviewSummary = session
-    ? summarizeReviews(session.bundle.items, session.latest_reviews, reviewerId)
-    : null;
-
-  useEffect(() => {
-    if (!session) return;
-    const reviewedItemIds = new Set(
-      session.latest_reviews
-        .filter((review) => review.reviewer_id === reviewerId)
-        .map((review) => review.item_id),
-    );
-    setShowCompletion(reviewedItemIds.size === session.bundle.items.length);
-  }, [reviewerId, session]);
-
-  async function submitReview() {
-    if (!session || !item || !draft.objectDecision || !draft.maskDecision)
-      return;
-    setSaving(true);
-    setError(null);
-    const event: ReviewEvent = {
-      schema_version: "1.0.0",
-      event_id: createReviewEventId(),
-      batch_id: session.bundle.batch_id,
-      item_id: item.id,
-      reviewer_id: reviewerId,
-      reviewer_kind: "human",
-      created_at: new Date().toISOString(),
-      supersedes_event_id: currentReview?.event_id ?? null,
-      object_decision: draft.objectDecision,
-      mask_decision: draft.maskDecision,
-      selected_proposal_id: draft.selectedProposalId,
-      notes: draft.notes,
-    };
-    try {
-      const saved = await saveReview(serviceUrl, event);
-      const latestReviews = [
-        ...session.latest_reviews.filter(
-          (review) =>
-            review.item_id !== saved.item_id ||
-            review.reviewer_id !== saved.reviewer_id,
-        ),
-        saved,
-      ];
-      setSession({ ...session, latest_reviews: latestReviews });
-      const reviewedItemIds = new Set(
-        latestReviews
-          .filter((review) => review.reviewer_id === reviewerId)
-          .map((review) => review.item_id),
-      );
-      if (reviewedItemIds.size === session.bundle.items.length) {
-        setShowCompletion(true);
-      } else {
-        setCurrentIndex((index) =>
-          Math.min(index + 1, session.bundle.items.length - 1),
-        );
-      }
-    } catch (caught) {
-      setError(
-        caught instanceof Error ? caught.message : "Review could not be saved",
-      );
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function persistIdentity() {
-    persistWorkbenchSettings(serviceUrl, reviewerId, !serviceIsConfigured);
-  }
-
-  useReviewShortcuts(draft, Boolean(item) && !showCompletion, setDraft);
-
-  if (!session || !item) {
+  if (!workbench.session || !workbench.item) {
     return (
       <ConnectionPanel
-        serviceIsConfigured={serviceIsConfigured}
-        serviceUrl={serviceUrl}
-        settingsReady={settingsReady}
-        loading={loading}
-        error={error}
-        onServiceUrlChange={setServiceUrl}
+        serviceIsConfigured={workbench.serviceIsConfigured}
+        serviceUrl={workbench.serviceUrl}
+        settingsReady={workbench.settingsReady}
+        loading={workbench.loading}
+        error={workbench.error}
+        onServiceUrlChange={workbench.setServiceUrl}
         onConnect={() => {
-          persistIdentity();
-          void connect();
+          workbench.persistIdentity();
+          void workbench.connect();
         }}
       />
     );
   }
 
   return (
-    <main className="min-h-dvh w-full max-w-full overflow-x-hidden bg-muted/20">
-      <header className="border-b bg-background">
-        <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
-          <h1 className="mr-auto font-semibold">Annotation Workbench</h1>
-          <label
-            htmlFor="annotation-reviewer-name"
-            className="flex items-center gap-2 text-xs text-muted-foreground"
-          >
-            Reviewer
-            <Input
-              id="annotation-reviewer-name"
-              aria-label="Reviewer name"
-              aria-invalid={!reviewerIdIsValid}
-              className="h-8 w-32"
-              value={reviewerId}
-              onChange={(event) => setReviewerId(event.target.value)}
-              onBlur={persistIdentity}
-            />
-          </label>
-          <Button
-            type="button"
-            size="icon-sm"
-            variant="ghost"
-            onClick={() => void connect()}
-          >
-            <RefreshCw aria-label="Reload review batch" />
-          </Button>
-        </div>
-      </header>
+    <ActiveWorkbench
+      workbench={{
+        ...workbench,
+        session: workbench.session,
+        item: workbench.item,
+      }}
+    />
+  );
+}
 
-      {showCompletion && reviewSummary ? (
+type ActiveWorkbenchProps = Readonly<{
+  workbench: ReturnType<typeof useAnnotationWorkbench> & {
+    session: ReviewSession;
+    item: ReviewItem;
+  };
+}>;
+
+function ActiveWorkbench({ workbench }: ActiveWorkbenchProps) {
+  const { session } = workbench;
+  return (
+    <main className="min-h-dvh w-full max-w-full overflow-x-hidden bg-muted/20">
+      <WorkbenchHeader workbench={workbench} />
+
+      {workbench.showCompletion && workbench.reviewSummary ? (
         <CompletionSummary
-          summary={reviewSummary}
+          summary={workbench.reviewSummary}
           totalItems={session.bundle.items.length}
           onOpenItem={(index) => {
-            setCurrentIndex(index);
-            setShowCompletion(false);
+            workbench.setCurrentIndex(index);
+            workbench.setShowCompletion(false);
           }}
         />
       ) : (
-        <div className="mx-auto w-full max-w-7xl min-w-0 space-y-3 p-3 sm:p-4">
-          <ReviewNavigation
-            currentIndex={currentIndex}
-            totalItems={session.bundle.items.length}
-            completedItems={completedItems.size}
-            onPrevious={() =>
-              setCurrentIndex((index) => Math.max(0, index - 1))
-            }
-            onNext={() =>
-              setCurrentIndex((index) =>
-                Math.min(session.bundle.items.length - 1, index + 1),
-              )
-            }
-          />
-
-          <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-            <ReviewImages
-              serviceUrl={serviceUrl}
-              session={session}
-              item={item}
-              proposals={item.proposals}
-              selectedProposalId={draft.selectedProposalId}
-              opacity={opacity}
-              showReference={showReference}
-              onSelectProposal={(proposalId) =>
-                setDraft((current) => chooseProposal(current, proposalId))
-              }
-              onOpacityChange={setOpacity}
-              onReferenceChange={() => setShowReference((visible) => !visible)}
-            />
-
-            <aside className="min-w-0 space-y-3">
-              <DecisionPanel
-                draft={draft}
-                proposals={item.proposals}
-                saving={saving}
-                saveLabel={
-                  currentReview
-                    ? "Save changes"
-                    : completedItems.size === session.bundle.items.length - 1
-                      ? "Save and finish"
-                      : "Save and next"
-                }
-                reviewerIdIsValid={reviewerIdIsValid}
-                onChange={setDraft}
-                onSave={() => void submitReview()}
-              />
-              {error ? (
-                <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                  <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
-                  {error}
-                </p>
-              ) : null}
-            </aside>
-          </div>
-
-          <TechnicalDetails session={session} item={item} />
-        </div>
+        <ReviewWorkspace workbench={workbench} />
       )}
     </main>
+  );
+}
+
+function WorkbenchHeader({ workbench }: ActiveWorkbenchProps) {
+  return (
+    <header className="border-b bg-background">
+      <div className="mx-auto flex w-full max-w-7xl flex-wrap items-center gap-2 px-3 py-2 sm:px-4">
+        <h1 className="mr-auto font-semibold">Annotation Workbench</h1>
+        <label
+          htmlFor="annotation-reviewer-name"
+          className="flex items-center gap-2 text-xs text-muted-foreground"
+        >
+          Reviewer
+          <Input
+            id="annotation-reviewer-name"
+            aria-label="Reviewer name"
+            aria-invalid={!workbench.reviewerIdIsValid}
+            className="h-8 w-32"
+            value={workbench.reviewerId}
+            onChange={(event) => workbench.setReviewerId(event.target.value)}
+            onBlur={workbench.persistIdentity}
+          />
+        </label>
+        <Button
+          type="button"
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => void workbench.connect()}
+        >
+          <RefreshCw aria-label="Reload review batch" />
+        </Button>
+      </div>
+    </header>
+  );
+}
+
+function ReviewWorkspace({ workbench }: ActiveWorkbenchProps) {
+  const { session, item } = workbench;
+  return (
+    <div className="mx-auto w-full max-w-7xl min-w-0 space-y-3 p-3 sm:p-4">
+      <ReviewNavigation
+        currentIndex={workbench.currentIndex}
+        totalItems={session.bundle.items.length}
+        completedItems={workbench.completedItems.size}
+        onPrevious={() =>
+          workbench.setCurrentIndex((index) => Math.max(0, index - 1))
+        }
+        onNext={() =>
+          workbench.setCurrentIndex((index) =>
+            Math.min(session.bundle.items.length - 1, index + 1),
+          )
+        }
+      />
+      <ReviewColumns workbench={workbench} />
+      <TechnicalDetails session={session} item={item} />
+    </div>
+  );
+}
+
+function ReviewColumns({ workbench }: ActiveWorkbenchProps) {
+  const { session, item, draft } = workbench;
+  const saveLabel = workbench.currentReview
+    ? "Save changes"
+    : workbench.completedItems.size === session.bundle.items.length - 1
+      ? "Save and finish"
+      : "Save and next";
+  return (
+    <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
+      <ReviewImages
+        serviceUrl={workbench.serviceUrl}
+        session={session}
+        item={item}
+        proposals={item.proposals}
+        selectedProposalId={draft.selectedProposalId}
+        opacity={workbench.opacity}
+        showReference={workbench.showReference}
+        onSelectProposal={(proposalId) =>
+          workbench.setDraft((current) => chooseProposal(current, proposalId))
+        }
+        onOpacityChange={workbench.setOpacity}
+        onReferenceChange={() =>
+          workbench.setShowReference((visible) => !visible)
+        }
+      />
+      <aside className="min-w-0 space-y-3">
+        <DecisionPanel
+          draft={draft}
+          proposals={item.proposals}
+          saving={workbench.saving}
+          saveLabel={saveLabel}
+          reviewerIdIsValid={workbench.reviewerIdIsValid}
+          onChange={workbench.setDraft}
+          onSave={() => void workbench.submitReview()}
+        />
+        {workbench.error ? (
+          <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
+            {workbench.error}
+          </p>
+        ) : null}
+      </aside>
+    </div>
   );
 }
