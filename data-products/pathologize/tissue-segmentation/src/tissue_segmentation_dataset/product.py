@@ -8,6 +8,7 @@ from typing import Any, cast
 from data_artifacts.files import read_json, read_jsonl, write_json, write_jsonl
 from pydantic import BaseModel
 from segpath_source_data.models import NativeRecord as SegPathRecord
+from segpath_source_data.models import SourceManifest as SegPathSourceManifest
 
 from tissue_segmentation_dataset.models import (
     Adapter,
@@ -21,6 +22,9 @@ from tissue_segmentation_dataset.models import (
 )
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
+SOURCE_MANIFEST_MODELS: dict[str, type[BaseModel]] = {
+    "segpath-2022-registered-if-masks": SegPathSourceManifest,
+}
 
 
 class ProductError(RuntimeError):
@@ -486,6 +490,12 @@ def _production_blockers(
             for field in required_paths
             if not (root / item[field]).is_file()
         )
+        manifest_path = root / item["expected_manifest"]
+        if manifest_path.is_file() and (manifest_model := SOURCE_MANIFEST_MODELS.get(source)):
+            try:
+                manifest_model.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                blockers.append(f"source {source} manifest does not satisfy its source contract")
         for evidence_name, evidence in item["evidence"].items():
             evidence_path = root / evidence["path"]
             if not evidence_path.is_file():

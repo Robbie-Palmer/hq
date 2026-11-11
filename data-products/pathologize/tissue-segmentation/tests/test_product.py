@@ -243,6 +243,34 @@ def test_production_readiness_requires_declared_evidence_fields(tmp_path: Path) 
     assert _production_blockers(tmp_path, [], imports) == []
 
 
+def test_production_readiness_validates_segpath_task_contract(tmp_path: Path) -> None:
+    for name in ("dvc.lock", "native-records.jsonl"):
+        (tmp_path / name).write_text("{}\n", encoding="utf-8")
+    manifest = json.loads(
+        (
+            PROJECT_DIR.parent.parent / "segpath/registered-if-masks/manifest.json"
+        ).read_text(encoding="utf-8")
+    )
+    manifest["tasks"][0] = {}
+    (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    imports = {
+        "imports": [
+            {
+                "source_dataset_id": "segpath-2022-registered-if-masks",
+                "status": "pinned_source_product",
+                "expected_dvc_lock": "dvc.lock",
+                "expected_manifest": "manifest.json",
+                "expected_interface": "native-records.jsonl",
+                "evidence": {},
+            }
+        ]
+    }
+
+    assert _production_blockers(tmp_path, [], imports) == [
+        "source segpath-2022-registered-if-masks manifest does not satisfy its source contract"
+    ]
+
+
 def test_assay_provenance_rejects_missing_targets_and_registration() -> None:
     with pytest.raises(ValidationError, match="requires a target"):
         AssayProvenance(technique="IHC", targets=[], source_description="invalid")
