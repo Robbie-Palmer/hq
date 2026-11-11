@@ -115,10 +115,17 @@ class AnnotationProvenance(StrictModel):
 
 class SourceArtifactReference(StrictModel):
     source_dataset_id: str = Field(min_length=1)
-    path: str = Field(min_length=1)
+    artifact_ref: str = Field(min_length=1)
     media_type: str = Field(min_length=1)
-    checksum_algorithm: Literal["sha256"] = "sha256"
-    checksum: str = Field(pattern=r"^[a-f0-9]{64}$")
+    path: str | None = Field(default=None, min_length=1)
+    checksum_algorithm: Literal["sha256"] | None = None
+    checksum: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+
+    @model_validator(mode="after")
+    def checksum_is_complete(self) -> Self:
+        if (self.checksum_algorithm is None) != (self.checksum is None):
+            raise ValueError("artifact checksum algorithm and value must appear together")
+        return self
 
 
 class HarmonizedRecord(StrictModel):
@@ -128,7 +135,7 @@ class HarmonizedRecord(StrictModel):
     source_dataset_id: str
     source_record_id: str
     source_group_id: str
-    source_role: Literal["train", "validation", "test", "unassigned"]
+    source_role: str = Field(min_length=1)
     product_role: Literal["train", "validation", "test"]
     role_mapping_status: Literal["preserved", "assigned_by_group_hash"]
     organ: str
@@ -174,29 +181,6 @@ class BcssRecord(StrictModel):
     native_labels_present: list[str] = Field(min_length=1)
     image_stain: Literal["H&E"]
     annotation_method: Literal["structured_crowdsourcing_consensus"]
-
-
-class SegPathRecord(StrictModel):
-    schema_version: Literal["1.0.0"]
-    dataset_id: Literal["segpath-public-v1"]
-    patch_id: str
-    slide_id: str
-    organ: str = Field(min_length=1)
-    source_role: Literal["train", "validation", "test"]
-    image_path: str
-    mask_path: str
-    image_media_type: Literal["image/png"]
-    mask_media_type: Literal["image/png"]
-    image_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    mask_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    width: int = Field(gt=0)
-    height: int = Field(gt=0)
-    micrometres_per_pixel: float = Field(gt=0)
-    source_label: str = Field(min_length=1)
-    antigen: str = Field(min_length=1)
-    image_stain: Literal["H&E"]
-    annotation_assay: Literal["IF"]
-    registration_method: str = Field(min_length=1)
 
 
 class CrcEpitheliumRecord(StrictModel):

@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from collections import Counter, defaultdict
 from pathlib import Path
 from typing import Any, cast
 
+from data_artifacts.files import read_json, read_jsonl, write_json, write_jsonl
 from pydantic import BaseModel
+from segpath_source_data.models import NativeRecord as SegPathRecord
 
 from tissue_segmentation_dataset.models import (
     Adapter,
@@ -16,7 +17,6 @@ from tissue_segmentation_dataset.models import (
     CrcEpitheliumRecord,
     HarmonizedRecord,
     ProductSpec,
-    SegPathRecord,
     SourceArtifactReference,
 )
 
@@ -28,7 +28,7 @@ class ProductError(RuntimeError):
 
 
 def _read_object(path: Path) -> dict[str, Any]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = read_json(path)
     if not isinstance(payload, dict):
         raise ProductError(f"{path} must contain a JSON object")
     return cast(dict[str, Any], payload)
@@ -36,9 +36,9 @@ def _read_object(path: Path) -> dict[str, Any]:
 
 def _read_records(path: Path, model: type[BaseModel]) -> list[BaseModel]:
     records: list[BaseModel] = []
-    for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    for number, value in enumerate(read_jsonl(path), start=1):
         try:
-            records.append(model.model_validate_json(line))
+            records.append(model.model_validate(value))
         except ValueError as error:
             raise ProductError(f"invalid source record at {path}:{number}: {error}") from error
     if not records:
@@ -74,6 +74,7 @@ def _product_role(
     source_role: str,
     spec: ProductSpec,
 ) -> tuple[str, str]:
+    normalized_role = "validation" if source_role == "val" else source_role
     try:
         policy = spec.source_role_policy[source_dataset_id]
     except KeyError as error:
@@ -81,9 +82,9 @@ def _product_role(
     if policy == "preserve":
         if source_role == "unassigned":
             raise ProductError(f"{source_dataset_id} requires a publisher role")
-        return source_role, "preserved"
+        return normalized_role, "preserved"
     if source_role != "unassigned":
-        return source_role, "preserved"
+        return normalized_role, "preserved"
     return _group_split(source_dataset_id, source_group_id, spec), "assigned_by_group_hash"
 
 
@@ -106,12 +107,19 @@ def _mapped_labels(source_labels: list[str], adapter: Adapter) -> tuple[list[str
 
 
 def _artifact(
-    dataset_id: str, path: str, checksum: str, media_type: str
+    dataset_id: str,
+    *,
+    artifact_ref: str,
+    media_type: str,
+    path: str | None = None,
+    checksum: str | None = None,
 ) -> SourceArtifactReference:
     return SourceArtifactReference(
         source_dataset_id=dataset_id,
+        artifact_ref=artifact_ref,
         path=path,
         media_type=media_type,
+        checksum_algorithm="sha256" if checksum is not None else None,
         checksum=checksum,
     )
 
@@ -125,12 +133,8 @@ def _common_record(
     source_role: str,
     organ: str,
     source_tissue_role: str | None,
-    image_path: str,
-    mask_path: str,
-    image_media_type: str,
-    mask_media_type: str,
-    image_sha256: str,
-    mask_sha256: str,
+    image_artifact: SourceArtifactReference,
+    mask_artifact: SourceArtifactReference,
     width: int,
     height: int,
     micrometres_per_pixel: float,
@@ -138,6 +142,7 @@ def _common_record(
     annotation_provenance: AnnotationProvenance,
     source_labels: list[str],
     source_payload: dict[str, Any],
+    fixture_record: bool,
 ) -> HarmonizedRecord:
     if image_assay.technique not in adapter.expected_image_techniques:
         raise ProductError(
@@ -172,10 +177,8 @@ def _common_record(
         source_tissue_role=source_tissue_role,
         segmentation_scope="semantic_regions",
         coverage_semantics=adapter.coverage_semantics,
-        image_artifact=_artifact(
-            adapter.source_dataset_id, image_path, image_sha256, image_media_type
-        ),
-        mask_artifact=_artifact(adapter.source_dataset_id, mask_path, mask_sha256, mask_media_type),
+        image_artifact=image_artifact,
+        mask_artifact=mask_artifact,
         width=width,
         height=height,
         micrometres_per_pixel=micrometres_per_pixel,
@@ -186,12 +189,12 @@ def _common_record(
         mapping_statuses=cast(Any, mapping_statuses),
         adapter_id=adapter.adapter_id,
         source_payload=source_payload,
-        fixture_record=spec.fixture_data_only,
+        fixture_record=fixture_record,
     )
 
 
 def _adapt_bcss(
-    records: list[BaseModel], adapter: Adapter, spec: ProductSpec
+    records: list[BaseModel], adapter: Adapter, spec: ProductSpec, *, fixture_record: bool
 ) -> list[HarmonizedRecord]:
     output: list[HarmonizedRecord] = []
     for model in records:
@@ -205,12 +208,20 @@ def _adapt_bcss(
                 source_role=source.source_role,
                 organ=source.organ,
                 source_tissue_role=None,
-                image_path=source.image_path,
-                mask_path=source.mask_path,
-                image_media_type=source.image_media_type,
-                mask_media_type=source.mask_media_type,
-                image_sha256=source.image_sha256,
-                mask_sha256=source.mask_sha256,
+                image_artifact=_artifact(
+                    adapter.source_dataset_id,
+                    artifact_ref=f"{adapter.source_dataset_id}://{source.image_path}",
+                    path=source.image_path,
+                    checksum=source.image_sha256,
+                    media_type=source.image_media_type,
+                ),
+                mask_artifact=_artifact(
+                    adapter.source_dataset_id,
+                    artifact_ref=f"{adapter.source_dataset_id}://{source.mask_path}",
+                    path=source.mask_path,
+                    checksum=source.mask_sha256,
+                    media_type=source.mask_media_type,
+                ),
                 width=source.width,
                 height=source.height,
                 micrometres_per_pixel=source.micrometres_per_pixel,
@@ -227,13 +238,14 @@ def _adapt_bcss(
                 ),
                 source_labels=source.native_labels_present,
                 source_payload={"slide_id": source.slide_id},
+                fixture_record=fixture_record,
             )
         )
     return output
 
 
 def _adapt_segpath(
-    records: list[BaseModel], adapter: Adapter, spec: ProductSpec
+    records: list[BaseModel], adapter: Adapter, spec: ProductSpec, *, fixture_record: bool
 ) -> list[HarmonizedRecord]:
     output: list[HarmonizedRecord] = []
     for model in records:
@@ -242,20 +254,26 @@ def _adapt_segpath(
             _common_record(
                 spec=spec,
                 adapter=adapter,
-                source_record_id=source.patch_id,
-                source_group_id=source.slide_id,
+                source_record_id=source.record_id,
+                source_group_id=source.source_slide_id,
                 source_role=source.source_role,
-                organ=source.organ,
+                organ=source.published_tumour_type,
                 source_tissue_role=None,
-                image_path=source.image_path,
-                mask_path=source.mask_path,
-                image_media_type=source.image_media_type,
-                mask_media_type=source.mask_media_type,
-                image_sha256=source.image_sha256,
-                mask_sha256=source.mask_sha256,
-                width=source.width,
-                height=source.height,
-                micrometres_per_pixel=source.micrometres_per_pixel,
+                image_artifact=_artifact(
+                    adapter.source_dataset_id,
+                    artifact_ref=source.he_input.artifact_ref,
+                    path=source.he_input.member_path,
+                    media_type="image/png",
+                ),
+                mask_artifact=_artifact(
+                    adapter.source_dataset_id,
+                    artifact_ref=source.annotation.artifact.artifact_ref,
+                    path=source.annotation.artifact.member_path,
+                    media_type="image/png",
+                ),
+                width=source.width_pixels,
+                height=source.height_pixels,
+                micrometres_per_pixel=source.micrometers_per_pixel,
                 image_assay=AssayProvenance(
                     technique="H&E",
                     targets=[],
@@ -265,21 +283,32 @@ def _adapt_segpath(
                     method="immunofluorescence_restain",
                     evidence_assay=AssayProvenance(
                         technique="IF",
-                        targets=[source.antigen],
+                        targets=[source.antibody],
                         source_description="SegPath registered IF restain",
                     ),
                     registered_to_image=True,
-                    registration_method=source.registration_method,
+                    registration_method="source-native three-stage H&E-to-IF registration",
                 ),
-                source_labels=[source.source_label],
-                source_payload={"slide_id": source.slide_id, "antigen": source.antigen},
+                source_labels=[source.paper_target],
+                source_payload={
+                    "source_task_id": source.source_task_id,
+                    "antibody": source.antibody,
+                    "source_slide_key": source.source_slide_key,
+                    "published_tumour_type": source.published_tumour_type,
+                    "wsi_x": source.wsi_x,
+                    "wsi_y": source.wsi_y,
+                    "he_archive_filename": source.he_input.archive_filename,
+                    "mask_archive_filename": source.annotation.artifact.archive_filename,
+                    "registered_to_artifact_ref": source.annotation.registered_to_artifact_ref,
+                },
+                fixture_record=fixture_record,
             )
         )
     return output
 
 
 def _adapt_crc(
-    records: list[BaseModel], adapter: Adapter, spec: ProductSpec
+    records: list[BaseModel], adapter: Adapter, spec: ProductSpec, *, fixture_record: bool
 ) -> list[HarmonizedRecord]:
     output: list[HarmonizedRecord] = []
     for model in records:
@@ -294,12 +323,20 @@ def _adapt_crc(
                 source_role=source.source_role,
                 organ=source.organ,
                 source_tissue_role=source.tissue_role,
-                image_path=source.image_path,
-                mask_path=source.mask_path,
-                image_media_type=source.image_media_type,
-                mask_media_type=source.mask_media_type,
-                image_sha256=source.image_sha256,
-                mask_sha256=source.mask_sha256,
+                image_artifact=_artifact(
+                    adapter.source_dataset_id,
+                    artifact_ref=f"{adapter.source_dataset_id}://{source.image_path}",
+                    path=source.image_path,
+                    checksum=source.image_sha256,
+                    media_type=source.image_media_type,
+                ),
+                mask_artifact=_artifact(
+                    adapter.source_dataset_id,
+                    artifact_ref=f"{adapter.source_dataset_id}://{source.mask_path}",
+                    path=source.mask_path,
+                    checksum=source.mask_sha256,
+                    media_type=source.mask_media_type,
+                ),
                 width=source.width,
                 height=source.height,
                 micrometres_per_pixel=source.micrometres_per_pixel,
@@ -320,6 +357,7 @@ def _adapt_crc(
                     "tissue_role": source.tissue_role,
                     "marker_or_target": source.marker_or_target,
                 },
+                fixture_record=fixture_record,
             )
         )
     return output
@@ -332,6 +370,13 @@ def _require_group_isolation(records: list[HarmonizedRecord]) -> None:
     conflicts = {key: sorted(values) for key, values in roles.items() if len(values) > 1}
     if conflicts:
         raise ProductError(f"source groups cross product roles: {conflicts}")
+
+
+def _require_unique_record_ids(records: list[HarmonizedRecord]) -> None:
+    counts = Counter(record.record_id for record in records)
+    duplicates = sorted(record_id for record_id, count in counts.items() if count > 1)
+    if duplicates:
+        raise ProductError(f"duplicate derived record IDs: {duplicates}")
 
 
 def _load_adapters(root: Path) -> list[Adapter]:
@@ -407,19 +452,42 @@ def _metrics(records: list[HarmonizedRecord]) -> dict[str, object]:
     }
 
 
+def _production_blockers(
+    root: Path, records: list[HarmonizedRecord], imports: dict[str, Any]
+) -> list[str]:
+    blockers: list[str] = []
+    if any(record.fixture_record for record in records):
+        blockers.append("product contains synthetic contract records")
+    required_paths = ("expected_dvc_lock", "expected_manifest", "expected_interface")
+    for item in imports["imports"]:
+        source = item["source_dataset_id"]
+        if item["status"] != "pinned_source_product":
+            blockers.append(f"source product is not pinned: {source}")
+        blockers.extend(
+            f"source {source} is missing {field}: {item[field]}"
+            for field in required_paths
+            if not (root / item[field]).is_file()
+        )
+        for evidence_name, evidence_path in item["evidence"].items():
+            if not (root / evidence_path).is_file():
+                blockers.append(
+                    f"source {source} is missing {evidence_name} evidence: {evidence_path}"
+                )
+    return blockers
+
+
 def _reconciliation(
-    records: list[HarmonizedRecord], adapters: list[Adapter], imports: dict[str, Any]
+    root: Path,
+    records: list[HarmonizedRecord],
+    adapters: list[Adapter],
+    imports: dict[str, Any],
 ) -> dict[str, object]:
     source_counts = Counter(record.source_dataset_id for record in records)
     source_groups: dict[str, set[str]] = defaultdict(set)
     for record in records:
         source_groups[record.source_dataset_id].add(record.source_group_id)
     status_counts = Counter(mapping.status for adapter in adapters for mapping in adapter.mappings)
-    pending = [
-        item["source_dataset_id"]
-        for item in imports["imports"]
-        if item["status"] != "pinned_source_product"
-    ]
+    blockers = _production_blockers(root, records, imports)
     return {
         "adapter_ids": [adapter.adapter_id for adapter in adapters],
         "mapping_definition_counts": dict(sorted(status_counts.items())),
@@ -439,10 +507,8 @@ def _reconciliation(
         "source_limitations": {
             adapter.source_dataset_id: adapter.limitations for adapter in adapters
         },
-        "production_ready": not pending,
-        "production_blockers": [
-            f"pin source product and replace contract fixture: {source}" for source in pending
-        ],
+        "production_ready": not blockers,
+        "production_blockers": blockers,
     }
 
 
@@ -466,9 +532,10 @@ def _assay_report(records: list[HarmonizedRecord]) -> dict[str, object]:
     }
 
 
-def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def _is_fixture_input(root: Path, path: Path, item: dict[str, Any]) -> bool:
+    fixture_path = Path(item["contract_fixture"])
+    candidates = {(root / fixture_path).resolve(), (PROJECT_DIR / fixture_path).resolve()}
+    return path.resolve() in candidates
 
 
 def build_product(
@@ -480,9 +547,14 @@ def build_product(
     imports = _read_object(root / "imports.json")
     adapters = _load_adapters(root)
     _validate_contracts(root, spec, adapters, imports)
-    input_paths = source_paths or {
-        item["source_dataset_id"]: root / item["contract_fixture"] for item in imports["imports"]
-    }
+    input_paths = (
+        source_paths
+        if source_paths is not None
+        else {
+            item["source_dataset_id"]: root / item["contract_fixture"]
+            for item in imports["imports"]
+        }
+    )
     model_by_kind: dict[str, type[BaseModel]] = {
         "bcss": BcssRecord,
         "segpath": SegPathRecord,
@@ -492,6 +564,11 @@ def build_product(
     expected_sources = {adapter.source_dataset_id for adapter in adapters}
     if set(input_paths) != expected_sources:
         raise ProductError("source paths must cover every configured source exactly once")
+    import_by_source = {item["source_dataset_id"]: item for item in imports["imports"]}
+    fixtures = {
+        source: spec.fixture_data_only or _is_fixture_input(root, path, import_by_source[source])
+        for source, path in input_paths.items()
+    }
     records: list[HarmonizedRecord] = []
     bcss_adapter = adapter_by_kind["bcss"]
     records.extend(
@@ -499,6 +576,7 @@ def build_product(
             _read_records(input_paths[bcss_adapter.source_dataset_id], model_by_kind["bcss"]),
             bcss_adapter,
             spec,
+            fixture_record=fixtures[bcss_adapter.source_dataset_id],
         )
     )
     segpath_adapter = adapter_by_kind["segpath"]
@@ -507,6 +585,7 @@ def build_product(
             _read_records(input_paths[segpath_adapter.source_dataset_id], model_by_kind["segpath"]),
             segpath_adapter,
             spec,
+            fixture_record=fixtures[segpath_adapter.source_dataset_id],
         )
     )
     crc_adapter = adapter_by_kind["crc_epithelium"]
@@ -517,27 +596,25 @@ def build_product(
             ),
             crc_adapter,
             spec,
+            fixture_record=fixtures[crc_adapter.source_dataset_id],
         )
     )
     records.sort(key=lambda record: record.record_id)
+    _require_unique_record_ids(records)
     _require_group_isolation(records)
     output_root = root / "outputs"
-    output_root.mkdir(parents=True, exist_ok=True)
-    (output_root / "records.jsonl").write_text(
-        "".join(
-            json.dumps(record.model_dump(mode="json"), sort_keys=True) + "\n" for record in records
-        ),
-        encoding="utf-8",
-    )
+    write_jsonl(output_root / "records.jsonl", records)
     partitions: dict[str, list[str]] = defaultdict(list)
     for record in records:
         partitions[record.product_role].append(record.record_id)
     metrics = _metrics(records)
-    _write_json(output_root / "partitions.json", dict(sorted(partitions.items())))
-    _write_json(output_root / "metrics.json", metrics)
-    _write_json(output_root / "reconciliation.json", _reconciliation(records, adapters, imports))
-    _write_json(output_root / "assay-provenance.json", _assay_report(records))
-    _write_json(
+    write_json(output_root / "partitions.json", dict(sorted(partitions.items())))
+    write_json(output_root / "metrics.json", metrics)
+    write_json(
+        output_root / "reconciliation.json", _reconciliation(root, records, adapters, imports)
+    )
+    write_json(output_root / "assay-provenance.json", _assay_report(records))
+    write_json(
         output_root / "lineage.json",
         {
             "product_id": spec.product_id,

@@ -3,69 +3,90 @@ stages:
   build_contract_fixture:
     cmd: uv run --locked tissue-segmentation-data build
     deps:
+    - path: ../../../packages/data-artifacts/pyproject.toml
+      hash: md5
+      md5: 46ffb461099f8a1fa39d761c481b6f5b
+      size: 1429
+    - path: ../../../packages/data-artifacts/src/data_artifacts
+      hash: md5
+      md5: 8c3ea708a05332c54dd6e12d27308b14.dir
+      size: 14461
+      nfiles: 6
+    - path: ../../segpath/registered-if-masks/dvc.lock
+      hash: md5
+      md5: 368800d83d0a85bf802b68acfa2b4134
+      size: 1705
+    - path: ../../segpath/registered-if-masks/manifest.json
+      hash: md5
+      md5: a29ef5a294173fac1fe0abc96db628cc
+      size: 11902
+    - path: ../../segpath/registered-if-masks/src/segpath_source_data/models.py
+      hash: md5
+      md5: 2ac6e13a6186d000818af0b7231bb198
+      size: 6899
     - path: .python-version
       hash: md5
       md5: 61939823fbcc7e8de3b61ab105331baf
       size: 5
     - path: adapters
       hash: md5
-      md5: 350959f54defe7a46df600f0d0a244d4.dir
-      size: 7832
+      md5: ea134c75eaff744c2d4e607a23211f82.dir
+      size: 7885
       nfiles: 3
     - path: imports.json
       hash: md5
-      md5: 49d13c68f5185de8371b339c2b27685f
-      size: 1837
+      md5: 0e523a36092d5359b698748fd793dd85
+      size: 2592
     - path: ontologies
       hash: md5
-      md5: d5b2e4daf3de4ae19e91a60bcbf7750d.dir
-      size: 2073
+      md5: 951d12992de20e0adf6b4a0267342c00.dir
+      size: 2071
       nfiles: 1
     - path: products
       hash: md5
-      md5: 9aed0a65df2c02699d0fc65e8ebdd6ef.dir
-      size: 753
+      md5: 88e7fbceb8816073f7ca4790ca570665.dir
+      size: 768
       nfiles: 1
     - path: pyproject.toml
       hash: md5
-      md5: 2a8f7c08c22af3329a2ad6f4352e63e6
-      size: 1129
+      md5: fe6d4d87e5f2c36cf62008b62d36b068
+      size: 1359
     - path: src/tissue_segmentation_dataset
       hash: md5
-      md5: f7367d8252758521097151b35fb292c6.dir
-      size: 31900
+      md5: 53143f5e7f7b063b155506fa22a799bd.dir
+      size: 35087
       nfiles: 4
     - path: tests/fixtures
       hash: md5
-      md5: f8262939fe4db5147f59668db4f5b35a.dir
-      size: 5624
+      md5: a5f1d4fadeb7abed199ea6dd197deb89.dir
+      size: 6094
       nfiles: 3
     - path: uv.lock
       hash: md5
-      md5: 7d54a4c63f6c62bdfdbb7ad8a0581bfb
-      size: 34623
+      md5: 7a077b6325a912e37479a479cea2bc69
+      size: 40479
     outs:
     - path: outputs/assay-provenance.json
       hash: md5
-      md5: 0791e1a685af7ee24e76928586ff21dc
-      size: 452
+      md5: 0da2d4eb6d012262db1cf6516e983b25
+      size: 467
     - path: outputs/lineage.json
       hash: md5
-      md5: d7f180ec3ba792bef111a288326b6e9b
-      size: 2598
+      md5: 81d48dc7a351f1c21e1ede339bd3d1f5
+      size: 3224
     - path: outputs/metrics.json
       hash: md5
-      md5: 18b5e927e6365cd42ab40cc1727a667d
-      size: 1578
+      md5: 89e2273a695544622c472a31b08f7cf3
+      size: 1710
     - path: outputs/partitions.json
       hash: md5
-      md5: 31e8f01c835ff99af1df35cf78d6af7a
+      md5: a10270d249608d04620d39703fc4a14e
       size: 611
     - path: outputs/reconciliation.json
       hash: md5
-      md5: a7552e15f75a33d363a1725594073c5f
-      size: 2151
+      md5: 36c55aa25c851fd190a6c0e756918e98
+      size: 4141
     - path: outputs/records.jsonl
       hash: md5
-      md5: 3a387d12c4f49471c606b67b0a3a3f68
-      size: 12961
+      md5: d8b0bd47c0939d0751585d17fd2ddee1
+      size: 13851

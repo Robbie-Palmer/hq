@@ -24,7 +24,7 @@ def _root(tmp_path: Path) -> Path:
 def _source_paths(segpath: Path | None = None, bcss: Path | None = None) -> dict[str, Path]:
     return {
         "bcss-amgad-2019": bcss or FIXTURES / "bcss.jsonl",
-        "segpath-public-v1": segpath or FIXTURES / "segpath.jsonl",
+        "segpath-2022-registered-if-masks": segpath or FIXTURES / "segpath.jsonl",
         "crc-ihc-cish-he-epithelium-v1": FIXTURES / "crc-epithelium.jsonl",
     }
 
@@ -49,7 +49,8 @@ def test_committed_contracts_keep_source_semantics_separate() -> None:
     imports = json.loads((PROJECT_DIR / "imports.json").read_text(encoding="utf-8"))
     assert {item["status"] for item in imports["imports"]} == {"pending_source_product"}
     assert all(item["expected_dvc_lock"].endswith("dvc.lock") for item in imports["imports"])
-    assert all("checksums" in item["required_evidence"] for item in imports["imports"])
+    assert all("checksums" in item["evidence"] for item in imports["imports"])
+    assert all("source_ticket" not in item for item in imports["imports"])
 
 
 def test_build_product_publishes_references_partitions_and_reports(tmp_path: Path) -> None:
@@ -61,7 +62,13 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
     assert metrics["fixture_record_count"] == 7
     assert metrics["owned_binary_output_count"] == 0
     assert metrics["group_leakage_count"] == 0
-    assert metrics["organs"] == ["breast", "colorectum", "lung", "stomach"]
+    assert metrics["organs"] == [
+        "breast",
+        "colorectal cancer",
+        "colorectum",
+        "gastric cancer",
+        "lung cancer",
+    ]
     assert metrics["image_assay_techniques"] == ["H&E", "IHC"]
     assert metrics["annotation_evidence_techniques"] == ["IF"]
 
@@ -71,7 +78,7 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
     ]
     assert all(record["fixture_record"] for record in records)
     assert all(record["segmentation_scope"] == "semantic_regions" for record in records)
-    assert all(record["image_artifact"]["checksum_algorithm"] == "sha256" for record in records)
+    assert all(record["image_artifact"]["artifact_ref"] for record in records)
     assert all("source_image" not in record for record in records)
 
     segpath = next(
@@ -80,6 +87,14 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
     assert segpath["image_assay"]["technique"] == "H&E"
     assert segpath["annotation_provenance"]["evidence_assay"]["technique"] == "IF"
     assert segpath["coverage_semantics"] == "positive_binary_only"
+    assert segpath["image_artifact"]["artifact_ref"].startswith("segpath://")
+    assert segpath["image_artifact"]["checksum"] is None
+    validation_record = next(
+        record
+        for record in records
+        if record["source_dataset_id"].startswith("segpath") and record["source_role"] == "val"
+    )
+    assert validation_record["product_role"] == "validation"
 
     crc = [record for record in records if record["source_dataset_id"].startswith("crc-")]
     assert {record["image_assay"]["technique"] for record in crc} == {"H&E", "IHC"}
@@ -89,7 +104,7 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
 
     reconciliation = json.loads((root / "outputs/reconciliation.json").read_text(encoding="utf-8"))
     assert reconciliation["production_ready"] is False
-    assert len(reconciliation["production_blockers"]) == 3
+    assert "product contains synthetic contract records" in reconciliation["production_blockers"]
     assert reconciliation["dropped_record_count"] == 0
     assert reconciliation["reannotated_record_count"] == 0
     assert reconciliation["source_role_override_count"] == 0
@@ -123,7 +138,7 @@ def test_build_is_deterministic(tmp_path: Path) -> None:
 def test_product_rejects_publisher_role_group_leakage(tmp_path: Path) -> None:
     lines = (FIXTURES / "segpath.jsonl").read_text(encoding="utf-8").splitlines()
     duplicate = json.loads(lines[0])
-    duplicate["patch_id"] = "same-slide-test-patch"
+    duplicate["record_id"] = "same-slide-test-patch"
     duplicate["source_role"] = "test"
     conflicting = tmp_path / "segpath.jsonl"
     conflicting.write_text("\n".join([*lines, json.dumps(duplicate)]) + "\n", encoding="utf-8")
@@ -141,6 +156,34 @@ def test_product_rejects_unmapped_source_label(tmp_path: Path) -> None:
 
     with pytest.raises(ProductError, match="missing source labels"):
         build_product(_root(tmp_path / "root"), source_paths=_source_paths(bcss=invalid))
+
+
+def test_product_rejects_duplicate_source_record_id(tmp_path: Path) -> None:
+    lines = (FIXTURES / "segpath.jsonl").read_text(encoding="utf-8").splitlines()
+    duplicate = tmp_path / "segpath.jsonl"
+    duplicate.write_text("\n".join([lines[0], lines[0]]) + "\n", encoding="utf-8")
+
+    with pytest.raises(ProductError, match="duplicate derived record IDs"):
+        build_product(_root(tmp_path / "root"), source_paths=_source_paths(segpath=duplicate))
+
+
+def test_explicit_empty_source_paths_do_not_fall_back_to_fixtures(tmp_path: Path) -> None:
+    with pytest.raises(ProductError, match="cover every configured source exactly once"):
+        build_product(_root(tmp_path), source_paths={})
+
+
+def test_pinned_import_status_does_not_make_fixtures_production_ready(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+    imports = json.loads((root / "imports.json").read_text(encoding="utf-8"))
+    for item in imports["imports"]:
+        item["status"] = "pinned_source_product"
+    (root / "imports.json").write_text(json.dumps(imports), encoding="utf-8")
+
+    build_product(root, source_paths=_source_paths())
+
+    reconciliation = json.loads((root / "outputs/reconciliation.json").read_text())
+    assert reconciliation["production_ready"] is False
+    assert "product contains synthetic contract records" in reconciliation["production_blockers"]
 
 
 def test_assay_provenance_rejects_missing_targets_and_registration() -> None:

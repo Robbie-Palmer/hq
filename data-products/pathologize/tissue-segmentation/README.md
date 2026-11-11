@@ -1,49 +1,24 @@
 # Pathologize tissue segmentation
 
-This derived DVC project defines the Pathologize contract for composing general
-semantic tissue and cell-compartment segmentation sources. It is not an image
-collection. Records point to source-owned image and mask artifacts by path and
-SHA-256 digest. The project does not copy source bytes.
+This DVC data product combines semantic-segmentation records from public
+pathology datasets. Semantic segmentation assigns a class to each image pixel,
+such as tumour epithelium, stroma, lymphocytes, or necrosis. Sources keep their
+own labels and mask meanings. Versioned adapters map them to Pathologize tissue
+and cell-type labels without treating unlike source categories as equivalent.
 
-The first portfolio has three pending source products:
+The source portfolio includes:
 
-- BCSS, an exhaustive multiclass breast H&E ROI source with explicit ignore
-  pixels.
-- SegPath, a multi-organ H&E source with one positive cell-type mask per record.
-  Registered IF restaining supplies the annotation evidence.
-- The colorectal H&E, IHC, and CISH epithelium corpus. Its binary masks identify
-  epithelium while normal mucosa and cancer remain source tissue roles.
+- Breast Cancer Semantic Segmentation (BCSS), which has multiclass masks for
+  breast H&E image regions;
+- SegPath, which has H&E images and binary cell-type masks derived from
+  registered immunofluorescence restaining; and
+- a colorectal epithelium dataset with H&E, immunohistochemistry, and in-situ
+  hybridisation images.
 
-Each source keeps its native labels, roles, rights, retrieval evidence,
-checksums, and physical metadata. This product owns the Pathologize ontology,
-adapters, group-safe partitions, assay-aware lineage, and reconciliation
-reports. Adapter statuses distinguish exact, partial, source-merged, unmapped,
-and dropped concepts. Artifact quality, ROI selection, nucleus analysis, and
-instance segmentation are outside this product.
+The product publishes record tables, source-to-Pathologize label mappings,
+group-safe partitions, assay provenance, lineage, and reconciliation reports.
+Image and mask bytes remain in their source products. Records refer to those
+artifacts by stable identifier or path.
 
-## Contract fixture boundary
-
-The three source projects are being implemented on separate tickets. Until
-their DVC locks, manifests, and native indexes land, this project builds only a
-small synthetic contract fixture. `imports.json` records the expected pinned
-interfaces and required source evidence. Generated reports set
-`production_ready` to false and name every pending import.
-
-The fixture verifies table shape, mappings, partitions, stable artifact
-references, H&E and IHC image provenance, IF-derived annotation provenance,
-and lineage. It contains no dataset bytes and is not training or evaluation
-data. Source access, redistribution rights, archive checksums, and retrieval
-limitations remain the responsibility of each source product. This fixture
-cannot verify them.
-
-If this product later creates a mask, tile, embedding, registration, or
-transformed image, it must add that binary output to lineage with the operation
-and every parent artifact. The current product creates none, so lineage reports
-empty `owned_binary_outputs` and `binary_transformations` arrays.
-
-Run the deterministic checks and reproduce the DVC stage with:
-
-```bash
-mise //data-products/pathologize/tissue-segmentation:check
-mise //data-products/pathologize/tissue-segmentation:repro
-```
+The checked-in DVC stage uses synthetic contract records. They exercise the
+schema and reports but are not training or evaluation data.

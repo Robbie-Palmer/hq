@@ -11,6 +11,11 @@ stages:
       - src/tissue_segmentation_dataset
       - tests/fixtures
       - uv.lock
+      - ../../../packages/data-artifacts/pyproject.toml
+      - ../../../packages/data-artifacts/src/data_artifacts
+      - ../../segpath/registered-if-masks/dvc.lock
+      - ../../segpath/registered-if-masks/manifest.json
+      - ../../segpath/registered-if-masks/src/segpath_source_data/models.py
     outs:
       - outputs/records.jsonl
       - outputs/partitions.json

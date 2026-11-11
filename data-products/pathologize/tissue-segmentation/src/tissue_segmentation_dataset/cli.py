@@ -17,7 +17,7 @@ class Application:
         metrics = build_product(self.root)
         print(
             f"Built {metrics['record_count']} tissue-segmentation contract records across "
-            f"{metrics['source_count']} pending source products."
+            f"{metrics['source_count']} source interfaces."
         )
 
 
