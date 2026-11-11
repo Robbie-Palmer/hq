@@ -1,0 +1,57 @@
+[tools]
+python = "3.12"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tasks.sync]
+description = "Install the locked stain provenance contract environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the stain provenance contract lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format stain provenance contract code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint stain provenance contract code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check stain provenance contract code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run stain provenance contract tests"
+depends = ["sync"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run stain provenance contract tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks.schemas]
+description = "Write stain provenance JSON Schemas"
+depends = ["sync"]
+run = "uv run --locked pathologize-stain-provenance schemas"
+
+[tasks."schemas:check"]
+description = "Check committed stain provenance JSON Schemas for drift"
+depends = ["sync"]
+run = "uv run --locked pathologize-stain-provenance schemas --check"
+
+[tasks.verify]
+description = "Verify committed metadata without fetching dataset bytes"
+depends = ["sync"]
+run = "uv run --locked pathologize-stain-provenance verify"
+
+[tasks.check]
+description = "Run all stain provenance contract checks"
+depends = ["lint", "typecheck", "test:coverage", "schemas:check", "verify"]

@@ -21,6 +21,9 @@ Current products:
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
   with frozen patient- and slide-disjoint roles.
+- `pathologize/stain-assay-provenance`: metadata-only contracts for stain,
+  assay, pairing, source artifact references, derived artifact lineage, and
+  annotation provenance.
 
 Projects under `ml-pipelines/` consume these products for training and
 evaluation. Shared packages and orchestration do not own product semantics.

@@ -1,0 +1,1658 @@
+{
+  "$defs": {
+    "AccessMode": {
+      "enum": [
+        "public",
+        "gated",
+        "controlled",
+        "synthetic"
+      ],
+      "title": "AccessMode",
+      "type": "string"
+    },
+    "AccessRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "access_evidence_url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Access Evidence Url",
+          "type": "string"
+        },
+        "asset_distribution": {
+          "const": "reference_only",
+          "title": "Asset Distribution",
+          "type": "string"
+        },
+        "authentication_required": {
+          "title": "Authentication Required",
+          "type": "boolean"
+        },
+        "mode": {
+          "$ref": "#/$defs/AccessMode"
+        },
+        "notes": {
+          "minLength": 1,
+          "title": "Notes",
+          "type": "string"
+        },
+        "verification": {
+          "const": "metadata_only",
+          "title": "Verification",
+          "type": "string"
+        }
+      },
+      "required": [
+        "mode",
+        "authentication_required",
+        "verification",
+        "asset_distribution",
+        "access_evidence_url",
+        "notes"
+      ],
+      "title": "AccessRecord",
+      "type": "object"
+    },
+    "AnnotationSet": {
+      "additionalProperties": false,
+      "properties": {
+        "annotation_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Annotation Id",
+          "type": "string"
+        },
+        "artifact_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "label_schema_id": {
+          "minLength": 1,
+          "title": "Label Schema Id",
+          "type": "string"
+        },
+        "provenance": {
+          "discriminator": {
+            "mapping": {
+              "assay_derived": "#/$defs/AssayDerivedAnnotationProvenance",
+              "manual": "#/$defs/ManualAnnotationProvenance",
+              "model_derived": "#/$defs/ModelDerivedAnnotationProvenance"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/ManualAnnotationProvenance"
+            },
+            {
+              "$ref": "#/$defs/AssayDerivedAnnotationProvenance"
+            },
+            {
+              "$ref": "#/$defs/ModelDerivedAnnotationProvenance"
+            }
+          ],
+          "title": "Provenance"
+        }
+      },
+      "required": [
+        "annotation_id",
+        "artifact_id",
+        "label_schema_id",
+        "provenance"
+      ],
+      "title": "AnnotationSet",
+      "type": "object"
+    },
+    "AssayDerivedAnnotationProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "derivation_rule": {
+          "minLength": 1,
+          "title": "Derivation Rule",
+          "type": "string"
+        },
+        "generating_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Generating Image Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "assay_derived",
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_image_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Image Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "source_image_ids",
+        "generating_image_id",
+        "derivation_rule"
+      ],
+      "title": "AssayDerivedAnnotationProvenance",
+      "type": "object"
+    },
+    "CISHAssay": {
+      "additionalProperties": false,
+      "properties": {
+        "chromogens": {
+          "items": {
+            "$ref": "#/$defs/Chromogen"
+          },
+          "minItems": 1,
+          "title": "Chromogens",
+          "type": "array"
+        },
+        "counterstains": {
+          "items": {
+            "$ref": "#/$defs/Reagent"
+          },
+          "title": "Counterstains",
+          "type": "array"
+        },
+        "kind": {
+          "const": "cish",
+          "title": "Kind",
+          "type": "string"
+        },
+        "probes": {
+          "items": {
+            "$ref": "#/$defs/Probe"
+          },
+          "minItems": 1,
+          "title": "Probes",
+          "type": "array"
+        },
+        "protocol_id": {
+          "minLength": 1,
+          "title": "Protocol Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "protocol_id",
+        "probes",
+        "chromogens",
+        "counterstains"
+      ],
+      "title": "CISHAssay",
+      "type": "object"
+    },
+    "Chromogen": {
+      "additionalProperties": false,
+      "properties": {
+        "colour": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Colour"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Chromogen",
+      "type": "object"
+    },
+    "DerivationOperation": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": true,
+          "minProperties": 1,
+          "title": "Parameters",
+          "type": "object"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "parameters"
+      ],
+      "title": "DerivationOperation",
+      "type": "object"
+    },
+    "DerivedArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "annotation",
+            "mask",
+            "tile",
+            "embedding",
+            "registration",
+            "transformed_image"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "operation": {
+          "$ref": "#/$defs/DerivationOperation"
+        },
+        "owner_product_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Owner Product Id",
+          "type": "string"
+        },
+        "parent_artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Parent Artifact Ids",
+          "type": "array"
+        },
+        "sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "owner_product_id",
+        "kind",
+        "uri",
+        "sha256",
+        "parent_artifact_ids",
+        "operation"
+      ],
+      "title": "DerivedArtifact",
+      "type": "object"
+    },
+    "FluorescenceChannel": {
+      "additionalProperties": false,
+      "properties": {
+        "channel_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Channel Id",
+          "type": "string"
+        },
+        "fluorophore": {
+          "$ref": "#/$defs/Fluorophore"
+        },
+        "marker": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Marker"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "target": {
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "channel_id",
+        "target",
+        "fluorophore"
+      ],
+      "title": "FluorescenceChannel",
+      "type": "object"
+    },
+    "Fluorophore": {
+      "additionalProperties": false,
+      "properties": {
+        "emission_nanometres": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Emission Nanometres"
+        },
+        "excitation_nanometres": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Excitation Nanometres"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "Fluorophore",
+      "type": "object"
+    },
+    "HEAssay": {
+      "additionalProperties": false,
+      "properties": {
+        "eosin": {
+          "$ref": "#/$defs/Reagent"
+        },
+        "hematoxylin": {
+          "$ref": "#/$defs/Reagent"
+        },
+        "kind": {
+          "const": "he",
+          "title": "Kind",
+          "type": "string"
+        },
+        "protocol_id": {
+          "minLength": 1,
+          "title": "Protocol Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "protocol_id",
+        "hematoxylin",
+        "eosin"
+      ],
+      "title": "HEAssay",
+      "type": "object"
+    },
+    "IFAssay": {
+      "additionalProperties": false,
+      "properties": {
+        "channels": {
+          "items": {
+            "$ref": "#/$defs/FluorescenceChannel"
+          },
+          "minItems": 1,
+          "title": "Channels",
+          "type": "array"
+        },
+        "cycles": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Cycles",
+          "type": "integer"
+        },
+        "kind": {
+          "const": "if",
+          "title": "Kind",
+          "type": "string"
+        },
+        "protocol_id": {
+          "minLength": 1,
+          "title": "Protocol Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "protocol_id",
+        "channels"
+      ],
+      "title": "IFAssay",
+      "type": "object"
+    },
+    "IHCAssay": {
+      "additionalProperties": false,
+      "properties": {
+        "chromogens": {
+          "items": {
+            "$ref": "#/$defs/Chromogen"
+          },
+          "minItems": 1,
+          "title": "Chromogens",
+          "type": "array"
+        },
+        "counterstains": {
+          "items": {
+            "$ref": "#/$defs/Reagent"
+          },
+          "title": "Counterstains",
+          "type": "array"
+        },
+        "kind": {
+          "const": "ihc",
+          "title": "Kind",
+          "type": "string"
+        },
+        "markers": {
+          "items": {
+            "$ref": "#/$defs/Marker"
+          },
+          "minItems": 1,
+          "title": "Markers",
+          "type": "array"
+        },
+        "protocol_id": {
+          "minLength": 1,
+          "title": "Protocol Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "protocol_id",
+        "markers",
+        "chromogens",
+        "counterstains"
+      ],
+      "title": "IHCAssay",
+      "type": "object"
+    },
+    "ImageRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "assay": {
+          "discriminator": {
+            "mapping": {
+              "cish": "#/$defs/CISHAssay",
+              "he": "#/$defs/HEAssay",
+              "if": "#/$defs/IFAssay",
+              "ihc": "#/$defs/IHCAssay",
+              "virtual": "#/$defs/VirtualStainAssay"
+            },
+            "propertyName": "kind"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/HEAssay"
+            },
+            {
+              "$ref": "#/$defs/IHCAssay"
+            },
+            {
+              "$ref": "#/$defs/IFAssay"
+            },
+            {
+              "$ref": "#/$defs/CISHAssay"
+            },
+            {
+              "$ref": "#/$defs/VirtualStainAssay"
+            }
+          ],
+          "title": "Assay"
+        },
+        "image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Image Id",
+          "type": "string"
+        },
+        "image_scope": {
+          "enum": [
+            "field_of_view",
+            "patch",
+            "whole_slide",
+            "derived_image"
+          ],
+          "title": "Image Scope",
+          "type": "string"
+        },
+        "physical_scale": {
+          "$ref": "#/$defs/PhysicalScale"
+        },
+        "scanner": {
+          "$ref": "#/$defs/ScannerRecord"
+        },
+        "section_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Section Id",
+          "type": "string"
+        },
+        "source_record_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Source Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "image_id",
+        "source_record_id",
+        "artifact_id",
+        "section_id",
+        "image_scope",
+        "assay",
+        "scanner",
+        "physical_scale"
+      ],
+      "title": "ImageRecord",
+      "type": "object"
+    },
+    "IndependentSpecimens": {
+      "additionalProperties": false,
+      "properties": {
+        "comparison_basis": {
+          "minLength": 1,
+          "title": "Comparison Basis",
+          "type": "string"
+        },
+        "first_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "First Image Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "independent_specimens",
+          "title": "Kind",
+          "type": "string"
+        },
+        "relation_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Relation Id",
+          "type": "string"
+        },
+        "second_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Second Image Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relation_id",
+        "kind",
+        "first_image_id",
+        "second_image_id",
+        "comparison_basis"
+      ],
+      "title": "IndependentSpecimens",
+      "type": "object"
+    },
+    "ManualAnnotationProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "annotator_roles": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Annotator Roles",
+          "type": "array"
+        },
+        "assistance": {
+          "enum": [
+            "none",
+            "algorithmic_suggestions",
+            "assay_reference"
+          ],
+          "title": "Assistance",
+          "type": "string"
+        },
+        "kind": {
+          "const": "manual",
+          "title": "Kind",
+          "type": "string"
+        },
+        "protocol": {
+          "minLength": 1,
+          "title": "Protocol",
+          "type": "string"
+        },
+        "source_image_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Image Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "source_image_ids",
+        "protocol",
+        "annotator_roles",
+        "assistance"
+      ],
+      "title": "ManualAnnotationProvenance",
+      "type": "object"
+    },
+    "Marker": {
+      "additionalProperties": false,
+      "properties": {
+        "antibody": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Antibody"
+        },
+        "clone": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Clone"
+        },
+        "target": {
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target"
+      ],
+      "title": "Marker",
+      "type": "object"
+    },
+    "ModelDerivedAnnotationProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "inference_protocol": {
+          "minLength": 1,
+          "title": "Inference Protocol",
+          "type": "string"
+        },
+        "kind": {
+          "const": "model_derived",
+          "title": "Kind",
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelReference"
+        },
+        "source_image_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Image Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "source_image_ids",
+        "model",
+        "inference_protocol"
+      ],
+      "title": "ModelDerivedAnnotationProvenance",
+      "type": "object"
+    },
+    "ModelReference": {
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {
+          "minLength": 1,
+          "title": "Model Id",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        },
+        "weights_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Weights Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "model_id",
+        "version",
+        "weights_sha256"
+      ],
+      "title": "ModelReference",
+      "type": "object"
+    },
+    "PhysicalScale": {
+      "additionalProperties": false,
+      "properties": {
+        "basis": {
+          "enum": [
+            "source_metadata",
+            "measured",
+            "not_reported"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "evidence": {
+          "minLength": 1,
+          "title": "Evidence",
+          "type": "string"
+        },
+        "micrometres_per_pixel_x": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Micrometres Per Pixel X"
+        },
+        "micrometres_per_pixel_y": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Micrometres Per Pixel Y"
+        }
+      },
+      "required": [
+        "basis",
+        "evidence"
+      ],
+      "title": "PhysicalScale",
+      "type": "object"
+    },
+    "Probe": {
+      "additionalProperties": false,
+      "properties": {
+        "probe": {
+          "minLength": 1,
+          "title": "Probe",
+          "type": "string"
+        },
+        "target": {
+          "minLength": 1,
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target",
+        "probe"
+      ],
+      "title": "Probe",
+      "type": "object"
+    },
+    "ProductBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "imported_source_product_ids": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Imported Source Product Ids",
+          "type": "array"
+        },
+        "kind": {
+          "enum": [
+            "source_dataset",
+            "derived"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "product_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Product Id",
+          "type": "string"
+        },
+        "third_party_dataset_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Third Party Dataset Id"
+        }
+      },
+      "required": [
+        "product_id",
+        "kind",
+        "imported_source_product_ids"
+      ],
+      "title": "ProductBoundary",
+      "type": "object"
+    },
+    "Reagent": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "role": {
+          "minLength": 1,
+          "title": "Role",
+          "type": "string"
+        },
+        "source_term": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Term"
+        }
+      },
+      "required": [
+        "name",
+        "role"
+      ],
+      "title": "Reagent",
+      "type": "object"
+    },
+    "RegisteredPair": {
+      "additionalProperties": false,
+      "properties": {
+        "fixed_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Fixed Image Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "registered_pair",
+          "title": "Kind",
+          "type": "string"
+        },
+        "moving_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Moving Image Id",
+          "type": "string"
+        },
+        "relation_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Relation Id",
+          "type": "string"
+        },
+        "tissue_relation_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Tissue Relation Id",
+          "type": "string"
+        },
+        "transform": {
+          "$ref": "#/$defs/RegistrationTransform"
+        }
+      },
+      "required": [
+        "relation_id",
+        "kind",
+        "fixed_image_id",
+        "moving_image_id",
+        "tissue_relation_id",
+        "transform"
+      ],
+      "title": "RegisteredPair",
+      "type": "object"
+    },
+    "RegistrationTransform": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "coordinate_space": {
+          "minLength": 1,
+          "title": "Coordinate Space",
+          "type": "string"
+        },
+        "transform_kind": {
+          "enum": [
+            "rigid",
+            "affine",
+            "deformable",
+            "composite"
+          ],
+          "title": "Transform Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "transform_kind",
+        "artifact_id",
+        "coordinate_space"
+      ],
+      "title": "RegistrationTransform",
+      "type": "object"
+    },
+    "RightsRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Evidence Url",
+          "type": "string"
+        },
+        "license_id": {
+          "minLength": 1,
+          "title": "License Id",
+          "type": "string"
+        },
+        "license_name": {
+          "minLength": 1,
+          "title": "License Name",
+          "type": "string"
+        },
+        "redistribution": {
+          "minLength": 1,
+          "title": "Redistribution",
+          "type": "string"
+        },
+        "scope": {
+          "minLength": 1,
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "license_id",
+        "license_name",
+        "evidence_url",
+        "scope",
+        "redistribution"
+      ],
+      "title": "RightsRecord",
+      "type": "object"
+    },
+    "SameSectionRestained": {
+      "additionalProperties": false,
+      "properties": {
+        "earlier_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Earlier Image Id",
+          "type": "string"
+        },
+        "intervening_process": {
+          "minLength": 1,
+          "title": "Intervening Process",
+          "type": "string"
+        },
+        "kind": {
+          "const": "same_section_restained",
+          "title": "Kind",
+          "type": "string"
+        },
+        "later_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Later Image Id",
+          "type": "string"
+        },
+        "relation_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Relation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relation_id",
+        "kind",
+        "earlier_image_id",
+        "later_image_id",
+        "intervening_process"
+      ],
+      "title": "SameSectionRestained",
+      "type": "object"
+    },
+    "ScannerRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence": {
+          "minLength": 1,
+          "title": "Evidence",
+          "type": "string"
+        },
+        "identifier": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Identifier"
+        },
+        "manufacturer": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Manufacturer"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "not_reported_fields": {
+          "items": {
+            "enum": [
+              "manufacturer",
+              "model",
+              "identifier"
+            ],
+            "type": "string"
+          },
+          "title": "Not Reported Fields",
+          "type": "array"
+        }
+      },
+      "required": [
+        "not_reported_fields",
+        "evidence"
+      ],
+      "title": "ScannerRecord",
+      "type": "object"
+    },
+    "SerialSections": {
+      "additionalProperties": false,
+      "properties": {
+        "first_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "First Image Id",
+          "type": "string"
+        },
+        "kind": {
+          "const": "serial_sections",
+          "title": "Kind",
+          "type": "string"
+        },
+        "order_basis": {
+          "minLength": 1,
+          "title": "Order Basis",
+          "type": "string"
+        },
+        "relation_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Relation Id",
+          "type": "string"
+        },
+        "second_image_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Second Image Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "relation_id",
+        "kind",
+        "first_image_id",
+        "second_image_id",
+        "order_basis"
+      ],
+      "title": "SerialSections",
+      "type": "object"
+    },
+    "SourceDataset": {
+      "additionalProperties": false,
+      "properties": {
+        "access": {
+          "$ref": "#/$defs/AccessRecord"
+        },
+        "fact_evidence_urls": {
+          "items": {
+            "format": "uri",
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Fact Evidence Urls",
+          "type": "array"
+        },
+        "landing_page_url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Landing Page Url",
+          "type": "string"
+        },
+        "native_semantics": {
+          "minLength": 1,
+          "title": "Native Semantics",
+          "type": "string"
+        },
+        "publisher": {
+          "minLength": 1,
+          "title": "Publisher",
+          "type": "string"
+        },
+        "rights": {
+          "$ref": "#/$defs/RightsRecord"
+        },
+        "source_dataset_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Source Dataset Id",
+          "type": "string"
+        },
+        "source_product_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Source Product Id",
+          "type": "string"
+        },
+        "source_version": {
+          "minLength": 1,
+          "title": "Source Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_product_id",
+        "source_dataset_id",
+        "publisher",
+        "source_version",
+        "landing_page_url",
+        "fact_evidence_urls",
+        "native_semantics",
+        "rights",
+        "access"
+      ],
+      "title": "SourceDataset",
+      "type": "object"
+    },
+    "SourceRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Artifact Ids",
+          "type": "array"
+        },
+        "native_fields": {
+          "additionalProperties": true,
+          "minProperties": 1,
+          "title": "Native Fields",
+          "type": "object"
+        },
+        "publisher_record_id": {
+          "minLength": 1,
+          "title": "Publisher Record Id",
+          "type": "string"
+        },
+        "source_dataset_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Source Dataset Id",
+          "type": "string"
+        },
+        "source_record_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Source Record Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_record_id",
+        "source_dataset_id",
+        "publisher_record_id",
+        "native_fields",
+        "artifact_ids"
+      ],
+      "title": "SourceRecord",
+      "type": "object"
+    },
+    "StableSourceArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "bytes": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bytes"
+        },
+        "custody": {
+          "const": "reference_only",
+          "title": "Custody",
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "source_image",
+            "source_annotation",
+            "source_table",
+            "source_manifest"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "owner_product_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Owner Product Id",
+          "type": "string"
+        },
+        "publisher_identifier": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Publisher Identifier"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Sha256"
+        },
+        "source_record_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Source Record Id",
+          "type": "string"
+        },
+        "uri": {
+          "minLength": 1,
+          "title": "Uri",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "owner_product_id",
+        "source_record_id",
+        "kind",
+        "uri",
+        "custody"
+      ],
+      "title": "StableSourceArtifact",
+      "type": "object"
+    },
+    "TissuePreparation": {
+      "additionalProperties": false,
+      "properties": {
+        "embedding": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Embedding"
+        },
+        "evidence": {
+          "minLength": 1,
+          "title": "Evidence",
+          "type": "string"
+        },
+        "fixation": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fixation"
+        },
+        "preparation_notes": {
+          "minLength": 1,
+          "title": "Preparation Notes",
+          "type": "string"
+        },
+        "section_thickness_micrometres": {
+          "anyOf": [
+            {
+              "exclusiveMinimum": 0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Thickness Micrometres"
+        }
+      },
+      "required": [
+        "preparation_notes",
+        "evidence"
+      ],
+      "title": "TissuePreparation",
+      "type": "object"
+    },
+    "TissueSection": {
+      "additionalProperties": false,
+      "properties": {
+        "block_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Block Id"
+        },
+        "identity_basis": {
+          "minLength": 1,
+          "title": "Identity Basis",
+          "type": "string"
+        },
+        "preparation": {
+          "$ref": "#/$defs/TissuePreparation"
+        },
+        "section_id": {
+          "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+          "title": "Section Id",
+          "type": "string"
+        },
+        "section_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Section Index"
+        },
+        "specimen_id": {
+          "anyOf": [
+            {
+              "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Specimen Id"
+        }
+      },
+      "required": [
+        "section_id",
+        "identity_basis",
+        "preparation"
+      ],
+      "title": "TissueSection",
+      "type": "object"
+    },
+    "VirtualStainAssay": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "const": "virtual",
+          "title": "Kind",
+          "type": "string"
+        },
+        "model": {
+          "$ref": "#/$defs/ModelReference"
+        },
+        "protocol_id": {
+          "minLength": 1,
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "source_image_ids": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Source Image Ids",
+          "type": "array"
+        },
+        "target_assay_kind": {
+          "enum": [
+            "he",
+            "ihc",
+            "if",
+            "cish"
+          ],
+          "title": "Target Assay Kind",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "protocol_id",
+        "target_assay_kind",
+        "source_image_ids",
+        "model"
+      ],
+      "title": "VirtualStainAssay",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "annotations": {
+      "items": {
+        "$ref": "#/$defs/AnnotationSet"
+      },
+      "title": "Annotations",
+      "type": "array"
+    },
+    "contract_id": {
+      "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "derived_artifacts": {
+      "items": {
+        "$ref": "#/$defs/DerivedArtifact"
+      },
+      "title": "Derived Artifacts",
+      "type": "array"
+    },
+    "images": {
+      "items": {
+        "$ref": "#/$defs/ImageRecord"
+      },
+      "minItems": 1,
+      "title": "Images",
+      "type": "array"
+    },
+    "product": {
+      "$ref": "#/$defs/ProductBoundary"
+    },
+    "relations": {
+      "items": {
+        "discriminator": {
+          "mapping": {
+            "independent_specimens": "#/$defs/IndependentSpecimens",
+            "registered_pair": "#/$defs/RegisteredPair",
+            "same_section_restained": "#/$defs/SameSectionRestained",
+            "serial_sections": "#/$defs/SerialSections"
+          },
+          "propertyName": "kind"
+        },
+        "oneOf": [
+          {
+            "$ref": "#/$defs/SameSectionRestained"
+          },
+          {
+            "$ref": "#/$defs/SerialSections"
+          },
+          {
+            "$ref": "#/$defs/IndependentSpecimens"
+          },
+          {
+            "$ref": "#/$defs/RegisteredPair"
+          }
+        ]
+      },
+      "title": "Relations",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sections": {
+      "items": {
+        "$ref": "#/$defs/TissueSection"
+      },
+      "minItems": 1,
+      "title": "Sections",
+      "type": "array"
+    },
+    "source_artifacts": {
+      "items": {
+        "$ref": "#/$defs/StableSourceArtifact"
+      },
+      "minItems": 1,
+      "title": "Source Artifacts",
+      "type": "array"
+    },
+    "source_datasets": {
+      "items": {
+        "$ref": "#/$defs/SourceDataset"
+      },
+      "minItems": 1,
+      "title": "Source Datasets",
+      "type": "array"
+    },
+    "source_records": {
+      "items": {
+        "$ref": "#/$defs/SourceRecord"
+      },
+      "minItems": 1,
+      "title": "Source Records",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "contract_id",
+    "product",
+    "source_datasets",
+    "source_records",
+    "source_artifacts",
+    "derived_artifacts",
+    "sections",
+    "images",
+    "relations",
+    "annotations"
+  ],
+  "title": "ProvenanceContract",
+  "type": "object"
+}

@@ -1,0 +1,92 @@
+{
+  "schema_version": "1.0.0",
+  "migration_id": "pathologize.nucleus-analysis/provenance-map-v1",
+  "existing_product": "data-products/pathologize/nucleus-analysis",
+  "source_model": "nucleus_analysis_dataset.models.DatasetRecord",
+  "target_contract": "pathologize.stain-assay-provenance/v1",
+  "boundary": "mapping_example_only",
+  "authoritative_sources": [
+    {
+      "url": "https://doi.org/10.1093/gigascience/giac037",
+      "supports": ["dataset_fact", "rights"],
+      "note": "The NuCLS paper identifies the H&E, FFPE source material, annotation process, GigaDB record, and CC0 dataset terms."
+    },
+    {
+      "url": "https://gigadb.org/dataset/102207",
+      "supports": ["dataset_fact", "rights", "access"],
+      "note": "The publisher dataset record is the authority for the corrected single-rater release and files."
+    }
+  ],
+  "mappings": [
+    {
+      "source_path": "DatasetRecord.source_dataset_id",
+      "target_path": "source_records[].source_dataset_id",
+      "status": "preserved",
+      "note": "Keep the NuCLS source product ID and publisher vocabulary unchanged.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "DatasetRecord.item_id",
+      "target_path": "source_records[].publisher_record_id",
+      "status": "preserved",
+      "note": "The existing item ID remains the table join key.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "DatasetRecord.image_path",
+      "target_path": "source_artifacts[kind=source_image].uri",
+      "status": "preserved",
+      "note": "Reference the NuCLS source product artifact. Do not copy the RGB image.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "DatasetRecord.annotation_path",
+      "target_path": "source_artifacts[kind=source_annotation].uri",
+      "status": "preserved",
+      "note": "Reference the source-owned CSV. The derived product does not claim the annotation bytes.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "DatasetRecord.source_roles",
+      "target_path": "source_records[].native_fields.source_roles",
+      "status": "preserved",
+      "note": "Publisher fold roles stay source-native.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "DatasetRecord.source_labels_present",
+      "target_path": "source_records[].native_fields.source_labels_present",
+      "status": "preserved",
+      "note": "Publisher labels stay in the opaque source record.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "NuCLS paper stain and preparation description",
+      "target_path": "images[].assay.kind",
+      "status": "derived_with_evidence",
+      "note": "Set Pathologize assay kind to H&E without adding the value to the publisher record.",
+      "evidence_url": "https://doi.org/10.1093/gigascience/giac037"
+    },
+    {
+      "source_path": "NuCLS paper annotation procedure",
+      "target_path": "annotations[].provenance.kind",
+      "status": "derived_with_evidence",
+      "note": "Represent corrected single-rater labels as manual with algorithmic suggestions.",
+      "evidence_url": "https://doi.org/10.1093/gigascience/giac037"
+    },
+    {
+      "source_path": "DatasetRecord",
+      "target_path": "images[].scanner",
+      "status": "not_available",
+      "note": "The current product record has no scanner fields. Mark them not reported.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "DatasetRecord",
+      "target_path": "images[].physical_scale",
+      "status": "not_available",
+      "note": "The current product record has no physical pixel scale. Do not infer it from magnification.",
+      "evidence_url": null
+    }
+  ]
+}

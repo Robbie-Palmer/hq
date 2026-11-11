@@ -1,0 +1,90 @@
+{
+  "schema_version": "1.0.0",
+  "migration_id": "pathologize.slide-quality/provenance-map-v1",
+  "existing_product": "data-products/pathologize/slide-quality",
+  "source_model": "slide_quality_dataset.models.HarmonizedRecord",
+  "target_contract": "pathologize.stain-assay-provenance/v1",
+  "boundary": "mapping_example_only",
+  "authoritative_sources": [
+    {
+      "url": "https://zenodo.org/records/14039591",
+      "supports": ["dataset_fact", "rights", "access"],
+      "note": "The GrandQC depositor record defines MPP20 contents, expert masks, scale, file checksums, and non-commercial academic terms."
+    },
+    {
+      "url": "https://openreview.net/pdf?id=XNNsQqs1UP",
+      "supports": ["dataset_fact", "rights"],
+      "note": "The AIRAQc paper identifies the 50 H&E TCGA slides, manual artifact annotations, and linked public annotation release. Paper terms do not expand the annotation release rights."
+    },
+    {
+      "url": "https://docs.gdc.cancer.gov/Encyclopedia/pages/Data_Access_Policy/",
+      "supports": ["rights", "access"],
+      "note": "The GDC policy is the authority for open-data acknowledgement and re-identification restrictions."
+    }
+  ],
+  "mappings": [
+    {
+      "source_path": "HarmonizedRecord.source_dataset_id",
+      "target_path": "source_records[].source_dataset_id",
+      "status": "preserved",
+      "note": "Keep GrandQC and AIRAQc as two source products, one per third-party dataset.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "HarmonizedRecord.source_record_id",
+      "target_path": "source_records[].publisher_record_id",
+      "status": "preserved",
+      "note": "Use the source record ID as the table join key.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "HarmonizedRecord.image_path",
+      "target_path": "source_artifacts[kind=source_image].uri",
+      "status": "preserved",
+      "note": "Reference the owning source product. The slide-quality product must not copy image bytes.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "HarmonizedRecord.annotation_path",
+      "target_path": "source_artifacts[kind=source_annotation].uri",
+      "status": "preserved",
+      "note": "Reference source-owned masks and annotations. They are not new Pathologize artifacts.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "HarmonizedRecord.source_payload",
+      "target_path": "source_records[].native_fields",
+      "status": "preserved",
+      "note": "Keep publisher fields opaque instead of renaming them as Pathologize facts.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "HarmonizedRecord.micrometres_per_pixel",
+      "target_path": "images[].physical_scale",
+      "status": "preserved",
+      "note": "Use the existing value for both axes and retain its source evidence.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "GrandQC and AIRAQc primary publications",
+      "target_path": "images[].assay.kind",
+      "status": "derived_with_evidence",
+      "note": "Record H&E as a Pathologize interpretation while source payloads retain publisher terms.",
+      "evidence_url": "https://openreview.net/pdf?id=XNNsQqs1UP"
+    },
+    {
+      "source_path": "HarmonizedRecord.source_payload.scanner_manufacturer/model",
+      "target_path": "images[].scanner",
+      "status": "preserved",
+      "note": "AIRAQc records carry scanner fields. GrandQC records must mark missing scanner fields as not reported.",
+      "evidence_url": null
+    },
+    {
+      "source_path": "Existing source mask or annotation",
+      "target_path": "annotations[].artifact_id",
+      "status": "preserved",
+      "note": "Point at a source annotation artifact. Only a newly generated Pathologize mask may become a derived artifact.",
+      "evidence_url": null
+    }
+  ]
+}

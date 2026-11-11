@@ -1,0 +1,152 @@
+{
+  "$defs": {
+    "EvidenceReference": {
+      "additionalProperties": false,
+      "properties": {
+        "note": {
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        },
+        "supports": {
+          "items": {
+            "enum": [
+              "dataset_fact",
+              "rights",
+              "access"
+            ],
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Supports",
+          "type": "array"
+        },
+        "url": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Url",
+          "type": "string"
+        }
+      },
+      "required": [
+        "url",
+        "supports",
+        "note"
+      ],
+      "title": "EvidenceReference",
+      "type": "object"
+    },
+    "FieldMapping": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_url": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Url"
+        },
+        "note": {
+          "minLength": 1,
+          "title": "Note",
+          "type": "string"
+        },
+        "source_path": {
+          "minLength": 1,
+          "title": "Source Path",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "preserved",
+            "derived_with_evidence",
+            "not_available"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "target_path": {
+          "minLength": 1,
+          "title": "Target Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_path",
+        "target_path",
+        "status",
+        "note"
+      ],
+      "title": "FieldMapping",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "authoritative_sources": {
+      "items": {
+        "$ref": "#/$defs/EvidenceReference"
+      },
+      "minItems": 1,
+      "title": "Authoritative Sources",
+      "type": "array"
+    },
+    "boundary": {
+      "const": "mapping_example_only",
+      "title": "Boundary",
+      "type": "string"
+    },
+    "existing_product": {
+      "minLength": 1,
+      "title": "Existing Product",
+      "type": "string"
+    },
+    "mappings": {
+      "items": {
+        "$ref": "#/$defs/FieldMapping"
+      },
+      "minItems": 1,
+      "title": "Mappings",
+      "type": "array"
+    },
+    "migration_id": {
+      "pattern": "^[a-z0-9][a-z0-9:._/-]+$",
+      "title": "Migration Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_model": {
+      "minLength": 1,
+      "title": "Source Model",
+      "type": "string"
+    },
+    "target_contract": {
+      "const": "pathologize.stain-assay-provenance/v1",
+      "title": "Target Contract",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "migration_id",
+    "existing_product",
+    "source_model",
+    "target_contract",
+    "boundary",
+    "authoritative_sources",
+    "mappings"
+  ],
+  "title": "MigrationMap",
+  "type": "object"
+}

@@ -1,0 +1,469 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "pathologize.stain-assay-provenance/example-v1",
+  "product": {
+    "product_id": "pathologize.provenance-example/v1",
+    "kind": "derived",
+    "third_party_dataset_id": null,
+    "imported_source_product_ids": ["fixture.multi-assay-source/v1"]
+  },
+  "source_datasets": [
+    {
+      "source_product_id": "fixture.multi-assay-source/v1",
+      "source_dataset_id": "fixture-multi-assay-v1",
+      "publisher": "Pathologize contract fixtures",
+      "source_version": "1",
+      "landing_page_url": "https://example.invalid/pathologize-fixture",
+      "fact_evidence_urls": ["https://example.invalid/pathologize-fixture/metadata"],
+      "native_semantics": "Synthetic records exercise contract branches and make no clinical or dataset claim.",
+      "rights": {
+        "license_id": "LicenseRef-Synthetic-Fixture",
+        "license_name": "Repository-authored synthetic fixture",
+        "evidence_url": "https://example.invalid/pathologize-fixture/rights",
+        "scope": "Metadata fixture only",
+        "redistribution": "No third-party bytes are present."
+      },
+      "access": {
+        "mode": "synthetic",
+        "authentication_required": false,
+        "verification": "metadata_only",
+        "asset_distribution": "reference_only",
+        "access_evidence_url": "https://example.invalid/pathologize-fixture/access",
+        "notes": "Artifact URIs are non-resolving references used for deterministic validation."
+      }
+    }
+  ],
+  "source_records": [
+    {
+      "source_record_id": "fixture:record:same-section",
+      "source_dataset_id": "fixture-multi-assay-v1",
+      "publisher_record_id": "publisher-same-section",
+      "native_fields": {"publisher_pairing": "restained_same_glass_slide"},
+      "artifact_ids": ["fixture:artifact:he", "fixture:artifact:ihc"]
+    },
+    {
+      "source_record_id": "fixture:record:serial-section",
+      "source_dataset_id": "fixture-multi-assay-v1",
+      "publisher_record_id": "publisher-serial-section",
+      "native_fields": {"publisher_pairing": "adjacent_section"},
+      "artifact_ids": ["fixture:artifact:if"]
+    },
+    {
+      "source_record_id": "fixture:record:independent",
+      "source_dataset_id": "fixture-multi-assay-v1",
+      "publisher_record_id": "publisher-independent",
+      "native_fields": {"publisher_pairing": "unpaired_control"},
+      "artifact_ids": ["fixture:artifact:cish"]
+    }
+  ],
+  "source_artifacts": [
+    {
+      "artifact_id": "fixture:artifact:he",
+      "owner_product_id": "fixture.multi-assay-source/v1",
+      "source_record_id": "fixture:record:same-section",
+      "kind": "source_image",
+      "uri": "dvc://fixture.multi-assay-source/v1/he.svs",
+      "sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+      "publisher_identifier": "fixture-he",
+      "bytes": 1000,
+      "custody": "reference_only"
+    },
+    {
+      "artifact_id": "fixture:artifact:ihc",
+      "owner_product_id": "fixture.multi-assay-source/v1",
+      "source_record_id": "fixture:record:same-section",
+      "kind": "source_image",
+      "uri": "dvc://fixture.multi-assay-source/v1/ihc.svs",
+      "sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+      "publisher_identifier": "fixture-ihc",
+      "bytes": 1000,
+      "custody": "reference_only"
+    },
+    {
+      "artifact_id": "fixture:artifact:if",
+      "owner_product_id": "fixture.multi-assay-source/v1",
+      "source_record_id": "fixture:record:serial-section",
+      "kind": "source_image",
+      "uri": "dvc://fixture.multi-assay-source/v1/if.ome.tiff",
+      "sha256": "3333333333333333333333333333333333333333333333333333333333333333",
+      "publisher_identifier": "fixture-if",
+      "bytes": 1000,
+      "custody": "reference_only"
+    },
+    {
+      "artifact_id": "fixture:artifact:cish",
+      "owner_product_id": "fixture.multi-assay-source/v1",
+      "source_record_id": "fixture:record:independent",
+      "kind": "source_image",
+      "uri": "dvc://fixture.multi-assay-source/v1/cish.svs",
+      "sha256": "4444444444444444444444444444444444444444444444444444444444444444",
+      "publisher_identifier": "fixture-cish",
+      "bytes": 1000,
+      "custody": "reference_only"
+    }
+  ],
+  "derived_artifacts": [
+    {
+      "artifact_id": "example:artifact:registration",
+      "owner_product_id": "pathologize.provenance-example/v1",
+      "kind": "registration",
+      "uri": "outputs/registrations/he-to-if.json",
+      "sha256": "5555555555555555555555555555555555555555555555555555555555555555",
+      "parent_artifact_ids": ["fixture:artifact:he", "fixture:artifact:if"],
+      "operation": {
+        "name": "fixture-affine-registration",
+        "version": "1",
+        "parameters": {"metric": "mutual_information", "levels": 3}
+      }
+    },
+    {
+      "artifact_id": "example:artifact:manual-annotation",
+      "owner_product_id": "pathologize.provenance-example/v1",
+      "kind": "annotation",
+      "uri": "outputs/annotations/manual.geojson",
+      "sha256": "6666666666666666666666666666666666666666666666666666666666666666",
+      "parent_artifact_ids": ["fixture:artifact:he"],
+      "operation": {
+        "name": "manual-annotation",
+        "version": "protocol-1",
+        "parameters": {"reviewers": 1}
+      }
+    },
+    {
+      "artifact_id": "example:artifact:assay-mask",
+      "owner_product_id": "pathologize.provenance-example/v1",
+      "kind": "mask",
+      "uri": "outputs/masks/ihc-positive.ome.tiff",
+      "sha256": "7777777777777777777777777777777777777777777777777777777777777777",
+      "parent_artifact_ids": ["fixture:artifact:ihc"],
+      "operation": {
+        "name": "chromogen-threshold",
+        "version": "1",
+        "parameters": {"channel": "dab", "threshold": 0.5}
+      }
+    },
+    {
+      "artifact_id": "example:artifact:virtual-he",
+      "owner_product_id": "pathologize.provenance-example/v1",
+      "kind": "transformed_image",
+      "uri": "outputs/images/virtual-he.ome.tiff",
+      "sha256": "8888888888888888888888888888888888888888888888888888888888888888",
+      "parent_artifact_ids": ["fixture:artifact:if"],
+      "operation": {
+        "name": "virtual-stain-inference",
+        "version": "model-v1",
+        "parameters": {"target": "he", "tile_size": 512}
+      }
+    },
+    {
+      "artifact_id": "example:artifact:model-mask",
+      "owner_product_id": "pathologize.provenance-example/v1",
+      "kind": "mask",
+      "uri": "outputs/masks/model.json",
+      "sha256": "9999999999999999999999999999999999999999999999999999999999999999",
+      "parent_artifact_ids": ["example:artifact:virtual-he"],
+      "operation": {
+        "name": "segmentation-inference",
+        "version": "model-v2",
+        "parameters": {"threshold": 0.7}
+      }
+    },
+    {
+      "artifact_id": "example:artifact:tile",
+      "owner_product_id": "pathologize.provenance-example/v1",
+      "kind": "tile",
+      "uri": "outputs/tiles/he-0.png",
+      "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "parent_artifact_ids": ["fixture:artifact:he"],
+      "operation": {
+        "name": "physical-scale-tiling",
+        "version": "1",
+        "parameters": {"x": 0, "y": 0, "width": 512, "height": 512}
+      }
+    },
+    {
+      "artifact_id": "example:artifact:embedding",
+      "owner_product_id": "pathologize.provenance-example/v1",
+      "kind": "embedding",
+      "uri": "outputs/embeddings/he-0.npy",
+      "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "parent_artifact_ids": ["example:artifact:tile"],
+      "operation": {
+        "name": "fixture-encoder",
+        "version": "1",
+        "parameters": {"dimension": 4}
+      }
+    }
+  ],
+  "sections": [
+    {
+      "section_id": "fixture:section:one",
+      "specimen_id": "fixture:specimen:one",
+      "block_id": "fixture:block:one",
+      "section_index": 1,
+      "identity_basis": "Synthetic fixture identity",
+      "preparation": {
+        "fixation": "formalin",
+        "embedding": "paraffin",
+        "section_thickness_micrometres": 4.0,
+        "preparation_notes": "Synthetic preparation record",
+        "evidence": "Fixture metadata"
+      }
+    },
+    {
+      "section_id": "fixture:section:two",
+      "specimen_id": "fixture:specimen:one",
+      "block_id": "fixture:block:one",
+      "section_index": 2,
+      "identity_basis": "Synthetic fixture identity",
+      "preparation": {
+        "fixation": "formalin",
+        "embedding": "paraffin",
+        "section_thickness_micrometres": 4.0,
+        "preparation_notes": "Synthetic preparation record",
+        "evidence": "Fixture metadata"
+      }
+    },
+    {
+      "section_id": "fixture:section:three",
+      "specimen_id": "fixture:specimen:two",
+      "block_id": "fixture:block:two",
+      "section_index": 1,
+      "identity_basis": "Synthetic fixture identity",
+      "preparation": {
+        "fixation": "formalin",
+        "embedding": "paraffin",
+        "section_thickness_micrometres": 4.0,
+        "preparation_notes": "Synthetic preparation record",
+        "evidence": "Fixture metadata"
+      }
+    }
+  ],
+  "images": [
+    {
+      "image_id": "fixture:image:he",
+      "source_record_id": "fixture:record:same-section",
+      "artifact_id": "fixture:artifact:he",
+      "section_id": "fixture:section:one",
+      "image_scope": "whole_slide",
+      "assay": {
+        "kind": "he",
+        "protocol_id": "fixture-he-v1",
+        "hematoxylin": {"name": "hematoxylin", "role": "nuclear stain", "source_term": null},
+        "eosin": {"name": "eosin", "role": "counterstain", "source_term": null}
+      },
+      "scanner": {
+        "manufacturer": "Fixture Scanner Co",
+        "model": "F1",
+        "identifier": null,
+        "not_reported_fields": ["identifier"],
+        "evidence": "Fixture metadata"
+      },
+      "physical_scale": {
+        "micrometres_per_pixel_x": 0.25,
+        "micrometres_per_pixel_y": 0.25,
+        "basis": "source_metadata",
+        "evidence": "Fixture metadata"
+      }
+    },
+    {
+      "image_id": "fixture:image:ihc",
+      "source_record_id": "fixture:record:same-section",
+      "artifact_id": "fixture:artifact:ihc",
+      "section_id": "fixture:section:one",
+      "image_scope": "whole_slide",
+      "assay": {
+        "kind": "ihc",
+        "protocol_id": "fixture-ihc-v1",
+        "markers": [{"target": "Ki-67", "antibody": "fixture antibody", "clone": "fixture clone"}],
+        "chromogens": [{"name": "DAB", "colour": "brown"}],
+        "counterstains": [{"name": "hematoxylin", "role": "counterstain", "source_term": null}]
+      },
+      "scanner": {
+        "manufacturer": "Fixture Scanner Co",
+        "model": "F1",
+        "identifier": null,
+        "not_reported_fields": ["identifier"],
+        "evidence": "Fixture metadata"
+      },
+      "physical_scale": {
+        "micrometres_per_pixel_x": 0.25,
+        "micrometres_per_pixel_y": 0.25,
+        "basis": "source_metadata",
+        "evidence": "Fixture metadata"
+      }
+    },
+    {
+      "image_id": "fixture:image:if",
+      "source_record_id": "fixture:record:serial-section",
+      "artifact_id": "fixture:artifact:if",
+      "section_id": "fixture:section:two",
+      "image_scope": "whole_slide",
+      "assay": {
+        "kind": "if",
+        "protocol_id": "fixture-if-v1",
+        "channels": [
+          {
+            "channel_id": "fixture:channel:dapi",
+            "target": "DNA",
+            "marker": null,
+            "fluorophore": {"name": "DAPI", "excitation_nanometres": 358.0, "emission_nanometres": 461.0}
+          },
+          {
+            "channel_id": "fixture:channel:cd3",
+            "target": "CD3",
+            "marker": {"target": "CD3", "antibody": "fixture antibody", "clone": null},
+            "fluorophore": {"name": "FITC", "excitation_nanometres": 495.0, "emission_nanometres": 519.0}
+          }
+        ],
+        "cycles": 1
+      },
+      "scanner": {
+        "manufacturer": "Fixture Scanner Co",
+        "model": "F2",
+        "identifier": null,
+        "not_reported_fields": ["identifier"],
+        "evidence": "Fixture metadata"
+      },
+      "physical_scale": {
+        "micrometres_per_pixel_x": 0.5,
+        "micrometres_per_pixel_y": 0.5,
+        "basis": "source_metadata",
+        "evidence": "Fixture metadata"
+      }
+    },
+    {
+      "image_id": "fixture:image:cish",
+      "source_record_id": "fixture:record:independent",
+      "artifact_id": "fixture:artifact:cish",
+      "section_id": "fixture:section:three",
+      "image_scope": "whole_slide",
+      "assay": {
+        "kind": "cish",
+        "protocol_id": "fixture-cish-v1",
+        "probes": [{"target": "ERBB2", "probe": "fixture ERBB2 probe"}],
+        "chromogens": [{"name": "silver", "colour": "black"}],
+        "counterstains": [{"name": "hematoxylin", "role": "counterstain", "source_term": null}]
+      },
+      "scanner": {
+        "manufacturer": null,
+        "model": null,
+        "identifier": null,
+        "not_reported_fields": ["manufacturer", "model", "identifier"],
+        "evidence": "Fixture explicitly exercises unknown scanner metadata"
+      },
+      "physical_scale": {
+        "micrometres_per_pixel_x": null,
+        "micrometres_per_pixel_y": null,
+        "basis": "not_reported",
+        "evidence": "Fixture explicitly exercises unknown physical scale"
+      }
+    },
+    {
+      "image_id": "example:image:virtual-he",
+      "source_record_id": "fixture:record:serial-section",
+      "artifact_id": "example:artifact:virtual-he",
+      "section_id": "fixture:section:two",
+      "image_scope": "derived_image",
+      "assay": {
+        "kind": "virtual",
+        "protocol_id": "fixture-virtual-v1",
+        "target_assay_kind": "he",
+        "source_image_ids": ["fixture:image:if"],
+        "model": {
+          "model_id": "fixture-virtual-stain",
+          "version": "1",
+          "weights_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+        }
+      },
+      "scanner": {
+        "manufacturer": "Fixture Scanner Co",
+        "model": "F2",
+        "identifier": null,
+        "not_reported_fields": ["identifier"],
+        "evidence": "Inherited from the parent acquisition"
+      },
+      "physical_scale": {
+        "micrometres_per_pixel_x": 0.5,
+        "micrometres_per_pixel_y": 0.5,
+        "basis": "source_metadata",
+        "evidence": "Inherited without resampling from the parent image"
+      }
+    }
+  ],
+  "relations": [
+    {
+      "relation_id": "fixture:relation:restained",
+      "kind": "same_section_restained",
+      "earlier_image_id": "fixture:image:he",
+      "later_image_id": "fixture:image:ihc",
+      "intervening_process": "Synthetic destain and IHC restain"
+    },
+    {
+      "relation_id": "fixture:relation:serial",
+      "kind": "serial_sections",
+      "first_image_id": "fixture:image:he",
+      "second_image_id": "fixture:image:if",
+      "order_basis": "Synthetic section indices"
+    },
+    {
+      "relation_id": "fixture:relation:registered",
+      "kind": "registered_pair",
+      "fixed_image_id": "fixture:image:he",
+      "moving_image_id": "fixture:image:if",
+      "tissue_relation_id": "fixture:relation:serial",
+      "transform": {
+        "transform_kind": "affine",
+        "artifact_id": "example:artifact:registration",
+        "coordinate_space": "fixed image level zero pixels"
+      }
+    },
+    {
+      "relation_id": "fixture:relation:independent",
+      "kind": "independent_specimens",
+      "first_image_id": "fixture:image:he",
+      "second_image_id": "fixture:image:cish",
+      "comparison_basis": "Synthetic cohort comparison"
+    }
+  ],
+  "annotations": [
+    {
+      "annotation_id": "example:annotation:manual",
+      "artifact_id": "example:artifact:manual-annotation",
+      "label_schema_id": "fixture.manual/v1",
+      "provenance": {
+        "kind": "manual",
+        "source_image_ids": ["fixture:image:he"],
+        "protocol": "Fixture manual protocol",
+        "annotator_roles": ["pathologist"],
+        "assistance": "none"
+      }
+    },
+    {
+      "annotation_id": "example:annotation:assay",
+      "artifact_id": "example:artifact:assay-mask",
+      "label_schema_id": "fixture.ihc-positive/v1",
+      "provenance": {
+        "kind": "assay_derived",
+        "source_image_ids": ["fixture:image:ihc"],
+        "generating_image_id": "fixture:image:ihc",
+        "derivation_rule": "Threshold the synthetic chromogen channel"
+      }
+    },
+    {
+      "annotation_id": "example:annotation:model",
+      "artifact_id": "example:artifact:model-mask",
+      "label_schema_id": "fixture.model-mask/v1",
+      "provenance": {
+        "kind": "model_derived",
+        "source_image_ids": ["example:image:virtual-he"],
+        "model": {
+          "model_id": "fixture-segmenter",
+          "version": "2",
+          "weights_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"
+        },
+        "inference_protocol": "Fixture inference protocol"
+      }
+    }
+  ]
+}
