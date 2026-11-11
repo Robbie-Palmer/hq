@@ -1,0 +1,22 @@
+stages:
+  build_roi_portfolio:
+    cmd: uv run --locked roi-segmentation-data build
+    deps:
+      - .python-version
+      - adapters
+      - contracts
+      - fixtures
+      - imports.json
+      - ontologies
+      - products
+      - pyproject.toml
+      - src/roi_segmentation_dataset
+      - uv.lock
+    outs:
+      - outputs/records.jsonl
+      - outputs/manifest.json
+      - outputs/partitions.json
+      - outputs/lineage.json
+      - outputs/reconciliation.json
+    metrics:
+      - outputs/metrics.json
