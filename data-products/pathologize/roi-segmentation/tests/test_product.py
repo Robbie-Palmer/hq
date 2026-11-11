@@ -59,17 +59,26 @@ def test_build_publishes_multi_source_metadata_without_image_bytes(tmp_path: Pat
     assert metrics["record_count"] == 6
     assert metrics["records_by_source"] == {
         "camelyon16-lesion-annotations": 3,
-        "paip2019-liver-segmentation": 3,
+        "paip2019-liver-cancer-segmentation": 3,
     }
     assert metrics["organs"] == ["liver", "lymph_node"]
     assert metrics["group_leakage_count"] == 0
     assert metrics["slide_leakage_count"] == 0
     assert metrics["fixture_binding_count"] == 2
-    assert metrics["records_by_role"] == {"train": 4, "validation": 1, "test": 1}
+    assert metrics["records_by_role"] == {"train": 5, "validation": 0, "test": 1}
     records = load_records(root / "outputs/records.jsonl")
     assert {record.semantic_scope for record in records} == {"roi_selection"}
     assert all(record.image_artifact.uri.startswith("fixture://") for record in records)
     assert all(record.annotation_artifact.uri.startswith("fixture://") for record in records)
+    paip_records = [
+        record
+        for record in records
+        if record.source_dataset_id == "paip2019-liver-cancer-segmentation"
+    ]
+    assert all(record.image_artifact.artifact_id.startswith("paip2019:") for record in paip_records)
+    assert all(
+        record.annotation_artifact.artifact_id.startswith("paip2019:") for record in paip_records
+    )
     same_group = [record for record in records if record.source_group_id == "synthetic-case-a"]
     assert len({record.product_role for record in same_group}) == 1
     assert not any(path.suffix in {".tif", ".svs", ".png"} for path in root.rglob("*"))
@@ -85,7 +94,7 @@ def test_build_preserves_native_geometry_scale_and_mapping_distinction(tmp_path:
 
     build_product(root)
     records = load_records(root / "outputs/records.jsonl")
-    viable = next(record for record in records if record.source_region_label == "viable_tumour")
+    viable = next(record for record in records if record.source_region_label == "viable_tumor_area")
 
     assert viable.target_roi_role == "viable_lesion_inclusion"
     assert viable.mapping_status == "partial"
@@ -94,7 +103,7 @@ def test_build_preserves_native_geometry_scale_and_mapping_distinction(tmp_path:
     assert viable.geometry.rings[0][0].x == 2400
     reconciliation = json.loads((root / "outputs/reconciliation.json").read_text(encoding="utf-8"))
     assert reconciliation["excluded_semantics"] == ["tissue_compartment", "artifact_quality"]
-    assert reconciliation["mapping_definition_counts"] == {"partial": 6}
+    assert reconciliation["mapping_definition_counts"] == {"exact": 1, "partial": 6}
 
 
 def test_contract_preserves_ihc_pyramid_and_molecular_provenance() -> None:
