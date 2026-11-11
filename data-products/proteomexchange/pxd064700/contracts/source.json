@@ -1,0 +1,121 @@
+{
+  "schema_version": "1.0.0",
+  "product_id": "proteomexchange-pxd064700-revision-1",
+  "dataset": {
+    "accession": "PXD064700",
+    "revision": 1,
+    "announce_date": "2026-03-17",
+    "announcement_datetime": "2026-03-17T12:28:51",
+    "title": "Impact of tissue fixation on the isolation and detection of human brain proteome (DIA-LC-HRMS)",
+    "hosting_repository": "PRIDE",
+    "submission_type": "PARTIAL",
+    "dataset_origin": "Original data",
+    "review_level": "Peer-reviewed dataset",
+    "repository_support": "Unsupported dataset by repository",
+    "doi": "10.1016/J.JPROT.2025.105589"
+  },
+  "rights": {
+    "dataset_license": "Creative Commons Public Domain (CC0)",
+    "dataset_license_spdx": "CC0-1.0",
+    "dataset_license_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+    "article_license": "CC BY 4.0",
+    "article_license_url": "https://creativecommons.org/licenses/by/4.0/"
+  },
+  "publisher_roles": [
+    {
+      "name": "Laura Plantera",
+      "role": "dataset submitter",
+      "affiliation": "University of Leipzig, Medical Faculty",
+      "orcid": "0009-0008-9295-8676"
+    },
+    {
+      "name": "Uta Ceglarek",
+      "role": "lab head",
+      "affiliation": "Institute of Laboratory Medicine, Clinical Chemistry and Molecular Diagnostics, Faculty of Medicine, University of Leipzig, Leipzig, Germany",
+      "orcid": null
+    }
+  ],
+  "assay": {
+    "organism": "Homo sapiens (human)",
+    "organism_accession": "NEWT:9606",
+    "organism_part": "Brain",
+    "organism_part_accession": "BTO:0000142",
+    "instrument": "Orbitrap Exploris 480",
+    "instrument_accession": "MS:1003028",
+    "acquisition": "Data-independent acquisition",
+    "proteomics_type": "Bottom-up proteomics",
+    "quantification": "label-free quantification",
+    "search_software": "DIA-NN 1.8",
+    "analysis_software": ["Perseus 2.1.3.0", "R 4.4.1"],
+    "search_fdr": "1 %",
+    "repository_modification_statement": "No PTMs are included in the dataset"
+  },
+  "study_context": {
+    "material": "post-mortem human brain tissue",
+    "published_age_range_years": "64-101",
+    "regions": {
+      "Cx": "prefrontal cortex",
+      "HC": "hippocampus"
+    },
+    "preparation_comparison_donors": 6,
+    "commercial_ffpe_kit_comparison_donors": 4,
+    "braak_pilot": "low Braak 0-II (n=4) versus high Braak IV-VI (n=4) in formalin-fixed samples",
+    "donor_specific_age_sex_braak_or_diagnosis_published_in_repository_metadata": false
+  },
+  "preparations": [
+    {
+      "filename_token": "Fresh",
+      "preservation": "fresh-frozen",
+      "extraction": "ABC lysis, TFE denaturation, TCEP reduction, IAA alkylation, trypsin digestion, and Oasis-C18 desalting"
+    },
+    {
+      "filename_token": "Form",
+      "preservation": "formalin-fixed",
+      "extraction": "30 % ACN/100 mM ABC with 0.05 % RapiGest, Dounce and ultrasonic homogenisation, 95 °C for 90 min, DTT reduction, IAA alkylation, and trypsin digestion"
+    },
+    {
+      "filename_token": "FFPE",
+      "preservation": "formalin-fixed paraffin-embedded",
+      "extraction": "xylene de-waxing, graded ethanol rehydration, then the formalin-fixed extraction workflow"
+    },
+    {
+      "filename_token": "FFPE-Kit",
+      "preservation": "formalin-fixed paraffin-embedded",
+      "extraction": "Qiagen Qproteome workflow with the same digest and desalting steps"
+    }
+  ],
+  "artifact_policy": {
+    "mode": "metadata_only",
+    "commit_proteomics_payloads": false,
+    "requires_credentials": false,
+    "publisher_checksum_algorithm": "sha1"
+  },
+  "source_boundaries": {
+    "supported_uses": [
+      "assay suitability comparison",
+      "fixation artifact comparison",
+      "extraction protocol comparison",
+      "SOP evidence input"
+    ],
+    "downstream_only": [
+      "Pathologize comparison scores",
+      "Pathologize SOP recommendations",
+      "harmonized outcomes",
+      "cohort filtering",
+      "protein filtering",
+      "normalization",
+      "derived thresholds"
+    ],
+    "unsupported_uses": [
+      "diagnostic-confidence studies",
+      "whole-slide morphology studies"
+    ],
+    "unpublished_fields_not_inferred": [
+      "stain",
+      "imaging",
+      "scanner",
+      "patient diagnosis",
+      "operational cost"
+    ]
+  }
+}

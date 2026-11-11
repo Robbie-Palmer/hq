@@ -1,0 +1,61 @@
+schema: '2.0'
+stages:
+  publish_source_product:
+    cmd: uv run --locked pxd064700-source publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: 586ae6e146294bccf8a9dcd9546febd0.dir
+      size: 4254
+      nfiles: 1
+    - path: pyproject.toml
+      hash: md5
+      md5: c5179498040e6321ee51f133dc8d1753
+      size: 1182
+    - path: snapshots
+      hash: md5
+      md5: c67e6ac438ad0a693cee2cd344096ee5.dir
+      size: 638359
+      nfiles: 8
+    - path: src/pxd064700_source
+      hash: md5
+      md5: 8b759d9d6b53b31a7caf49b87ceedb46.dir
+      size: 92864
+      nfiles: 10
+    - path: uv.lock
+      hash: md5
+      md5: 4e41ca9bff2204b823405906a77304ab
+      size: 34617
+    outs:
+    - path: outputs/artifact-index.jsonl
+      hash: md5
+      md5: a4612397cc02df8be089fe7399e9357c
+      size: 503666
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 5ddc90aa80016a53c73e4a308ebe7316
+      size: 1467
+    - path: outputs/pairing-index.jsonl
+      hash: md5
+      md5: bee1a7fd80416b161b09b66f508bae60
+      size: 49876
+    - path: outputs/publisher-roles.json
+      hash: md5
+      md5: 62bbb4b6693a4cb92475150b8ec6f8f3
+      size: 539
+    - path: outputs/run-index.jsonl
+      hash: md5
+      md5: 3827463cd3c0f42e01b14c2993e69e99
+      size: 879365
+    - path: outputs/source-context.json
+      hash: md5
+      md5: a37f9160d0346f936cb25bf9f889dd65
+      size: 5206
+    - path: outputs/source-missingness.json
+      hash: md5
+      md5: 3f0c36ade5a5eb709dca98f2046fa0c0
+      size: 2261

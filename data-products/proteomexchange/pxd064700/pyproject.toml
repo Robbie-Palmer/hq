@@ -1,0 +1,52 @@
+[project]
+name = "pxd064700-source-data"
+version = "0.1.0"
+description = "Source-native ProteomeXchange PXD064700 fixation proteomics product"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+  "fire>=0.7,<0.8",
+  "pydantic>=2.12,<3",
+]
+
+[project.scripts]
+pxd064700-source = "pxd064700_source.cli:main"
+
+[dependency-groups]
+dev = [
+  "pytest>=9,<10",
+  "pytest-cov>=7,<8",
+  "ruff>=0.14,<0.15",
+  "ty>=0.0.75,<0.1",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv.build-backend]
+module-name = "pxd064700_source"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=pxd064700_source --cov-report=term-missing --cov-fail-under=90"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+omit = ["*/acquisition.py", "*/cli.py"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+ignore = ["T201", "TRY003"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.src]
+include = ["src", "tests"]
