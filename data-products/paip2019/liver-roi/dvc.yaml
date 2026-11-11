@@ -1,0 +1,13 @@
+stages:
+  publish_source_contract:
+    cmd: uv run --locked paip2019-source-data publish
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/paip2019_source_data
+      - uv.lock
+    outs:
+      - outputs/source-contract.json
+    metrics:
+      - outputs/source-metrics.json
