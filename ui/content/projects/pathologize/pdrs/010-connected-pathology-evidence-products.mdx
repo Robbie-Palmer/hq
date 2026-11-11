@@ -1,0 +1,185 @@
+---
+title: "PDR 010: Connect pathology evidence without forcing one hierarchy"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "DICOM slide coordinates module"
+    url: "https://dicom.nema.org/medical/dicom/2026c/output/chtml/part03/sect_C.8.12.2.html"
+  - title: "HL7 FHIR R5 DiagnosticReport definitions"
+    url: "https://hl7.org/fhir/R5/diagnosticreport-definitions.html"
+  - title: "FDA-NIH BEST biomarker resource"
+    url: "https://www.ncbi.nlm.nih.gov/books/NBK326791/"
+---
+
+## Context
+
+[PDR 009](/projects/pathologize/pdrs/009-source-native-pathology-data-mesh)
+keeps each source's vocabulary and lineage intact while products add their own
+interpretation. It does not tell a user which product answers a cell, tissue,
+slide, patient, service, or population question. A flat list would hide how a
+patient finding depends on smaller fields of evidence. One strict ladder would
+create a different problem. A cohort can span several institutions, and a
+population product can cut across health systems.
+
+Pathologize also needs to distinguish what an image or record contains from
+what a person marked, what a process measured, and what a product inferred.
+Without that distinction, a predicted molecular status can look like an assay
+result, a region label can look like observed tissue, or a cohort association
+can look like a fact about one patient.
+
+## Proposed decision
+
+Present Pathologize as a connected set of individual and aggregate evidence
+products. Each product answers a bounded question and remains useful on its
+own. Connections let a user inspect the evidence behind a finding or move from
+a broad signal to the records that need investigation.
+
+### Individual evidence levels
+
+Four levels describe evidence about an individual case:
+
+* **Cell.** What nuclei or cells are visible, where are they, what boundaries
+  and morphologies are supported, and what identity, state, or marker evidence
+  is attached to each one?
+* **Tissue structure.** Which compartments, structures, interfaces, and local
+  microenvironments are present? How are cells and extracellular features
+  arranged within a named region?
+* **Slide.** What specimen section and stain or assay does this image show?
+  Is the slide usable, where are artifacts and tissue, and what findings and
+  burdens apply to the slide as a whole?
+* **Patient.** What diagnosis, molecular status, prognosis, or treatment
+  response is supported for this person at a stated timepoint? Which specimens,
+  slides, tissue findings, assays, and reviews support that conclusion?
+
+These levels connect without claiming that every product must pass through
+each step. A slide quality finding may contribute directly to a patient-level
+review by limiting the evidence that can be interpreted. A molecular assay may
+support a patient-level status while also exposing localized signal at a cell
+or tissue-structure level. Missing intermediate evidence stays missing.
+
+Tissue products belong at the tissue-structure level. Stain products can span
+levels: stain identity, preparation quality, and assay controls apply to a
+slide, while localized stain signal can apply to cells or tissue structures.
+Diagnostic features may sit at any lower level, but a diagnosis for a person
+is a patient product. The same rule applies to a patient-level molecular
+status. Prognosis and treatment response are patient products tied to a stated
+timepoint or interval, with lower-level findings available as support rather
+than presented as the outcome itself.
+
+### Aggregate product scopes
+
+Aggregate products are first-class products with less individual detail. They
+are not a fifth individual evidence level, and the four scopes below do not
+form a strict extension of the individual levels:
+
+* **Cohort.** Which findings, missingness, quality failures, and outcomes occur
+  in a defined group? Is the group balanced enough for the question being
+  asked, and which subgroups need closer inspection?
+* **Institution.** Which preparation, stain, scanner, annotation, or workflow
+  effects recur within one organization? Where do quality and turnaround
+  problems concentrate?
+* **Health system.** How do institutions, referral paths, service lines, and
+  patient groups differ in data quality, operations, findings, and outcomes?
+  Where is impact uneven across the system?
+* **Population.** How representative is the available evidence across a
+  geographic or demographic population? Which outcome differences, coverage
+  gaps, or sampling biases deserve investigation?
+
+A cohort may cross institutions or health systems. An institution can contain
+many overlapping cohorts. A population product may combine or compare several
+organizational scopes. The product must state its scope instead of implying a
+universal roll-up.
+
+### Evidence kinds
+
+Every user-visible claim carries one of five evidence kinds:
+
+* **Observed** information comes directly from the source material or record,
+  such as pixels, a documented stain, an assay result, or a reported outcome.
+* **Annotated** information records a person's or publisher's designation,
+  including its author, review state, and native vocabulary.
+* **Measured** information quantifies observed or annotated evidence with a
+  stated method, unit, denominator, and quality state.
+* **Inferred** information is an interpretation or prediction. It identifies
+  its supporting evidence, uncertainty, intended use, and review state.
+* **Aggregated** information summarizes multiple eligible units for a declared
+  scope and period. It is never displayed as an observation about one person.
+
+A product may place these kinds beside one another, but it must not silently
+promote one into another. In particular, unknown is not negative, annotation is
+not observation, inferred status is not a measured assay result, and an
+aggregate association is not an individual or causal conclusion.
+
+### Movement between products
+
+The connections work in both directions. Cell, tissue-structure, slide, and
+patient evidence can reveal artifact, preparation, stain, scanner, workflow,
+and outcome effects when viewed across a broader scope. An aggregate product
+then shows whether those effects cluster by site, subgroup, period, or service.
+
+Aggregate products also direct lower-level work. Sampling bias, site drift,
+repeated quality failures, operational bottlenecks, and uneven outcome impact
+must link back to the eligible patients, slides, tissue regions, and cells when
+access and privacy allow it. Those findings can trigger focused review,
+corrected labels, new annotations, or enrichment of a lower-level product. The
+aggregate result remains visible during case inspection so the user does not
+mistake an illustrative case for the complete pattern.
+
+A source dataset may enrich one or several products. Each contribution states
+the levels or aggregate scopes it supports, its native meaning, and what it
+does not contain. Higher-level findings retain access to supporting lower-level
+evidence. Aggregate findings retain the definition and coverage of the
+contributing evidence. If rights, privacy, or source limitations prevent access
+to supporting material, the product says so instead of implying that it can be
+inspected.
+
+### User-facing evidence contract
+
+Individual products identify the source dataset, native label, specimen,
+slide, region or cell scope, stain or assay, clinically relevant timepoint,
+evidence kind, author or method, review state, and applicable quality limits.
+They distinguish present, absent, unknown, unassessed, and unsupported values.
+
+Aggregate products identify the included scope and period, contributing
+evidence kinds, coverage and missingness, known site or subgroup imbalance,
+important confounders, and the limits on record-level inspection. They show
+uncertainty and sample support near the finding. Associations affected by case
+mix, collection practice, treatment selection, scanner, stain, or workflow
+remain labelled as associations.
+
+Privacy limits override traceability. An aggregate product can suppress a
+small or identifying result, restrict record-level inspection, or show only
+the reason that supporting evidence is unavailable. It must not imply that
+privacy-protected records were absent from the analysis.
+
+Products display the expert-review state. Patient diagnosis, molecular status,
+prognosis, and treatment-response products state whether a qualified expert
+confirmed them. Lower-level disagreements and uncertain boundaries remain
+available during review. Aggregate findings that could change clinical,
+quality, sampling, or business decisions need review by people who understand
+the affected domain, confounding, and privacy risk.
+
+## Consequences
+
+Users can enter at the scale of their question without losing the path to
+supporting evidence. Product teams can add a useful source even when it covers
+only one level. Quality and operations teams can treat aggregate findings as
+real products while preserving the distinction between a broad pattern and an
+individual fact.
+
+The product map will expose gaps that a single score would hide. Some patient
+findings will lack cell evidence, some cell products will lack patient context,
+and some aggregate products will permit no record-level inspection.
+Maintaining evidence kinds, scope, confounders, privacy state, and review state
+adds work to every product, but omitting them would make cross-level navigation
+misleading.
+
+## Evaluation
+
+Accept the proposal when a user can start with a patient or aggregate finding,
+inspect its provenance and uncertainty, and reach the permitted supporting
+slide, tissue-structure, and cell evidence. The same product experience must
+let a user start with a lower-level quality or outcome signal, see its effect
+in cohort or organizational products, and return from an aggregate anomaly to
+the lower-level records that need review or enrichment. No view may present an
+annotation, inference, or aggregate association as observed individual fact.

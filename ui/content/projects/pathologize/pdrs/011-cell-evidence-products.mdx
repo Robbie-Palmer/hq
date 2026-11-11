@@ -1,0 +1,168 @@
+---
+title: "PDR 011: Expose reusable cell evidence without flattening labels"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "NuCLS nucleus classification, localization, and segmentation dataset"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC9112766/"
+  - title: "PanNuke dataset extension, insights, and baselines"
+    url: "https://arxiv.org/abs/2003.10778"
+  - title: "MoNuSAC 2020 multi-organ nuclei challenge"
+    url: "https://doi.org/10.1109/TMI.2021.3085712"
+  - title: "SegPath restaining-based annotations"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC9982301/"
+  - title: "CAP quantitative IHC biomarker reporting template"
+    url: "https://www.cap.org/wp-content/uploads/protocols/IHC.Bmk_1.2.0.0.REL_CAPCP.pdf?download=true"
+---
+
+## Context
+
+Cell sources answer different questions. NuCLS includes localization,
+boundaries, classes, and rater evidence for nuclei in breast cancer images.
+PanNuke publishes instance masks and five nucleus classes across 19 tissue
+types. MoNuSAC uses its own multi-organ nucleus classes. SegPath derives
+cell-type semantic masks by restaining sections with immunofluorescence. IHC
+and IF sources may expose marker signal or positivity without supplying the
+same boundaries or cell identities as an H\&E annotation.
+
+Calling these records "cells" would conceal useful differences. Nuclei, whole
+cells, detection points, semantic regions, and marker-positive objects carry
+different meanings and spatial support. Patch coverage also says little about
+an unobserved part of the slide or the patient as a whole.
+
+## Proposed decision
+
+Publish a cell-evidence product whose main user experience is an inspectable
+map of nuclei and cells. The product answers five questions: what object is
+supported, where it is, what appearance and marker evidence belongs to it,
+what is nearby, and how certain and well reviewed each statement is.
+
+### Cell map
+
+Each map item identifies whether it represents a nucleus, a whole cell, or an
+unresolved cellular object. It can expose:
+
+* a detection point, nucleus boundary, or whole-cell boundary, but only when
+  the source or a reviewed Pathologize annotation supports that geometry;
+* native identity labels and any separate user-facing grouping, with partial,
+  merged, unsupported, and disputed meanings made visible;
+* phenotype or state, kept separate from cell identity;
+* marker signal and positivity, including the marker, assay, cellular
+  compartment, threshold or interpretation, and control state where known;
+* morphology such as size, shape, intensity, or texture, with units and the
+  boundary from which it was measured;
+* position in the source image and physical coordinates when the source
+  supports them;
+* local neighbors and neighborhood membership under a named spatial rule; and
+* confidence, annotation author and role, review state, source vocabulary, and
+  any disagreement between raters or methods.
+
+Observed pixels, annotated identities, measured morphology, and inferred
+identity or state remain distinct. Missing marker evidence is unknown or not
+assessed, not marker-negative. A nucleus-only source cannot produce a supported
+whole-cell boundary by changing its display label.
+
+One cell map applies to one physical section, slide acquisition, and stain or
+assay at a stated timepoint. Serial sections do not contain the same physical
+cells. Restained or registered images may support correspondence, but the
+product states whether that relationship is exact, estimated, or unavailable.
+Longitudinal comparisons concern separate observations and do not imply that
+the same cell persisted across patient timepoints.
+
+### Local summaries
+
+The product also exposes counts, densities, and neighborhood summaries for a
+named field or tissue region. These are cell-derived measurements attached to
+that region, not intrinsic properties of one cell. Each summary shows the
+eligible object definition, included area, denominator, physical scale,
+coverage gaps, excluded or uncertain objects, and uncertainty. A user can
+return from a count or density to the cells that contributed to it when access
+allows.
+
+Neighborhood views show which cells meet the stated spatial relationship and
+which identities or states were eligible. They do not imply biological
+interaction from proximity alone. If physical scale, field coverage, or
+instance identity is missing, the product withholds unsupported densities or
+neighborhood claims.
+
+### Source contributions
+
+Sources broaden the product without pretending that their labels are
+equivalent:
+
+* **NuCLS** can contribute nucleus detections, some boundaries, breast-specific
+  native classes, and single-rater or multi-rater evidence. Its rater and
+  correction state remains visible.
+* **PanNuke** can contribute H\&E nucleus instances and its five native classes
+  across published tissue types. It does not by itself provide whole-cell
+  boundaries, marker status, or complete slide coverage.
+* **MoNuSAC** can contribute multi-organ nucleus instances and its four native
+  nucleus classes. A similarly named class in another source is not treated as
+  exact unless the evidence supports that interpretation.
+* **SegPath** can contribute cell-type semantic coverage associated with its
+  immunofluorescence restaining procedure. A semantic mask does not become an
+  individual cell instance, and its cell types remain tied to the source's
+  markers and protocol.
+* **IHC and IF sources** can contribute localized marker signal, marker
+  positivity, and assay controls. Positivity stays tied to the named marker,
+  compartment, assay, interpretation, and section. It does not replace H\&E
+  morphology or establish an unsupported cell identity.
+* **Other sources** can add only the geometries, labels, states, markers, and
+  spatial coverage that their evidence supports. The product shows unsupported
+  distinctions rather than filling them with a broader class.
+
+Source-native labels remain available beside any Pathologize grouping. A
+grouping explains what it merged or omitted and never rewrites the publisher's
+annotation. The Pathologize-owned product consists of the cell map, reviewed
+additions or corrections, measurements, local summaries, uncertainty, and the
+explanation of how each item should be read. Source images, publisher labels,
+assay results, and report statements remain attributed source evidence.
+
+### Downstream use and review
+
+Tissue-microenvironment products can reuse cell positions, states, marker
+evidence, neighborhoods, counts, and densities. Grading products can reuse
+supported morphology, identity, proliferation, or arrangement evidence when
+the grading question calls for it. Slide products can reuse spatial coverage,
+burden, heterogeneity, and quality limitations. Patient products can cite
+reviewed cell and tissue findings, but they cannot turn a patch-level cell map
+into a patient diagnosis, prognosis, molecular status, or treatment response
+without the required higher-level evidence and review.
+
+Every downstream product preserves a route back to the contributing cell map
+and source evidence when access permits. It also reports material information
+loss. Common losses include reducing a boundary to a point, treating nuclei as
+cells, converting semantic masks into instances, merging native labels,
+discarding rater disagreement, omitting uncertain cells, losing physical
+scale, or summarizing a patch as though it covered a slide.
+
+Request expert review or new annotation when the source lacks a required
+boundary or distinction, cell identity and state are disputed, marker controls
+or thresholds are inadequate, registration cannot support correspondence, or
+the proposed downstream claim exceeds the source's spatial or clinical scope.
+A product may remain useful with those gaps, but it must say which questions it
+cannot answer.
+
+## Consequences
+
+Users get one place to inspect cell evidence while retaining the distinctions
+that make each source scientifically useful. Downstream products can reuse
+reviewed cells and local summaries without presenting a convenient common
+label as source truth.
+
+The product will expose gaps. Some maps will show points without
+boundaries, nuclei without whole-cell extent, semantic coverage without
+instances, or morphology without marker evidence. Counts and neighborhoods
+will not be available when coverage or physical scale cannot support them.
+Review and reannotation add cost, but silently inventing the missing evidence
+would make every later product less trustworthy.
+
+## Evaluation
+
+Accept the proposal when one user-visible map can present a detection-only
+source, an instance-boundary source, and a SegPath-style semantic source
+without making their geometry or labels look equivalent. Native labels,
+annotation provenance, confidence, unsupported distinctions, and coverage
+gaps must remain visible. A user must be able to inspect the cells behind a
+local count or neighborhood, and a downstream tissue, grading, slide, or
+patient product must state both what it reused and what information it lost.
