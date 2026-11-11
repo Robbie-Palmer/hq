@@ -64,15 +64,21 @@ The initial proposals define the intended research boundary:
 * [PDR 005](/projects/pathologize/pdrs/005-restoration-as-reconstruction-and-model-input) proposes
   evaluating image restoration as uncertain reconstruction and as a possible input to downstream models.
 * [PDR 006](/projects/pathologize/pdrs/006-task-native-pathology-model-development) proposes matching
-  classification, regression, detection, segmentation and multiple instance learning to task-native
-  supervision and prediction contracts.
+  each pathology question to its evidence unit, label authority, native prediction contract, and evaluation.
 * [PDR 007](/projects/pathologize/pdrs/007-source-native-wsi-compatibility) supports source-native
   whole-slide formats through tested readers, preserves a CPU host-pixel path, and allows explicit
   format-specific acceleration.
 * [PDR 008](/projects/pathologize/pdrs/008-evidence-gated-gpu-pixel-decoding) requires an end-to-end
   workload improvement before GPU pixel decoding becomes a default.
 * [PDR 009](/projects/pathologize/pdrs/009-source-native-pathology-data-mesh) proposes reusable,
-  source-native DVC projects feeding consumer-owned reconciled products through versioned adapters.
+  source-native products feeding consumer-owned enrichment, benchmark, and downstream products without
+  overwriting source meaning.
+* [PDR 017](/projects/pathologize/pdrs/017-evidence-gated-pathology-product-readiness) proposes explicit
+  evidence and readiness gates before a diagnosis, subtype, grade, burden, biomarker, prognosis, survival,
+  recurrence, or treatment-response target becomes a data product.
+* [PDR 018](/projects/pathologize/pdrs/018-organizational-and-population-evidence-products) proposes first-class
+  cohort, institution, health-system, and population products with privacy-bounded drill-down to supporting
+  patient, slide, tissue-structure, and cell evidence.
 
 # Architecture decisions
 
@@ -107,11 +113,19 @@ The current implementation decisions and proposals are:
   logs and OpenTelemetry for framework-neutral training observability, with low-cardinality metrics and
   correlation to the existing DCGM and Netdata path.
 
-One architecture evaluation remains open:
+The proposed architecture evaluations and boundaries are:
 
 * [ADR 012](/projects/pathologize/adrs/012-evaluate-openlineage-end-to-end-lineage) proposes a bounded
   OpenLineage spike across DVC artifacts, training, evaluation, deployment, and production observations
   before deciding whether a persistent cross-system lineage service earns adoption.
+* [ADR 013](/projects/pathologize/adrs/013-source-and-derived-product-ownership) separates source,
+  enrichment, benchmark, and aggregate product ownership in an acyclic graph.
+* [ADR 014](/projects/pathologize/adrs/014-immutable-product-references-and-owner-materialization) proposes
+  immutable product references and keeps each derivative with the product that gives it meaning.
+* [ADR 015](/projects/pathologize/adrs/015-leakage-safe-cohort-composition) proposes versioned cohort manifests,
+  explicit mapping dispositions, and partitions at the highest known leakage unit.
+* [ADR 016](/projects/pathologize/adrs/016-shared-spatial-evidence-viewer) proposes extending the shared
+  Leaflet tile viewer through a versioned evidence-manifest boundary.
 
 # Research programme
 

@@ -1,0 +1,147 @@
+---
+title: "PDR 017: Gate pathology products by target evidence and readiness"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "FDA De Novo summary for Paige Prostate"
+    url: "https://www.accessdata.fda.gov/cdrh_docs/reviews/DEN200080.pdf"
+  - title: "Paige diagnostic AI target catalogue"
+    url: "https://www.paige.ai/diagnostic-ai"
+  - title: "Ibex Breast diagnostic and biomarker targets"
+    url: "https://ibex-ai.com/breast/"
+  - title: "CellViT++ cell segmentation and classification study"
+    url: "https://pubmed.ncbi.nlm.nih.gov/41576779/"
+  - title: "BEPH cancer diagnosis and survival prediction study"
+    url: "https://www.nature.com/articles/s41467-025-57587-y"
+  - title: "DeepPT treatment-response study"
+    url: "https://doi.org/10.1038/s43018-024-00793-2"
+ideas:
+  - "study-design"
+  - "sampling-bias"
+---
+
+## Context
+
+Pathologize can turn public pathology material into source, enrichment, benchmark, and downstream
+data products. A plausible label is not enough to justify that work. A target can be clinically
+recognisable yet lack a usable label source, adequate prevalence, redistribution rights, a defensible
+timepoint, or an evaluation cohort that separates development from external evidence.
+
+Primary literature and commercial pathology products show demand for cell finding, tumour detection,
+subtyping, grading, burden measurement, biomarker assessment, prognosis, and workflow support. They
+also show different intended uses and evidence standards. Their availability is evidence that a target
+may matter. It does not define a Pathologize product, establish local readiness, or turn a model method
+into a user outcome.
+
+The evidence unit also changes the claim. A detected cell, a bounded tissue structure, a slide-level
+assessment, and a patient outcome are related but not interchangeable. Cohort, institution,
+health-system, and population views evaluate groups and operating contexts. They cannot establish an
+individual finding.
+
+## Proposed decision
+
+Require a target-readiness record before Pathologize promotes a candidate into a source, enrichment,
+benchmark, or downstream data product. The record starts with the user question and intended decision.
+It then names the evidence level, label authority, timepoint, candidate sources, limits, and downstream
+consumer. Commercial availability and published model performance count as supporting evidence only.
+
+### Evidence levels
+
+Keep the evidence levels distinct:
+
+| Evidence level   | Questions it may answer                                                                                                          | Required evidence boundary                                                                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cell             | Where are cells or mitoses, what type are they, and what staining or morphology do they show?                                    | Cell or nucleus annotations, assay-linked measurements, field of view, physical scale, annotator or instrument provenance, and uncertainty                |
+| Tissue structure | Where are tumour, stroma, glands, necrosis, invasion, margins, vessels, or immune structures, and how are they arranged?         | Bounded regions or structures, ontology, annotation protocol, supporting stains or reports, spatial scale, and partial or disputed boundaries             |
+| Slide            | What does this specimen show for diagnosis, subtype, grade, tumour burden, tissue of origin, or molecular-screening eligibility? | Slide and specimen identity, report or assay source, selection rule, label timepoint, unreviewed tissue, and any discordance among slides or readers      |
+| Patient          | What do all eligible specimens support about diagnosis, prognosis, recurrence, survival, or treatment response?                  | Patient-level linkage, index date, treatment and follow-up windows, censoring, competing events, missing episodes, and isolation from development cohorts |
+
+A higher-level product may reference lower-level evidence in both directions. It must retain which slides,
+structures, and cells support a result and which eligible evidence was absent or excluded. It must not
+copy a patient or slide label onto every region, treat attention as an annotation, or promote a generated
+structure into observed evidence.
+
+### Candidate target families
+
+Pathologize may evaluate the following target families when a readiness record supports them:
+
+* diagnosis, differential diagnosis, tissue of origin, and benign or malignant status;
+* histological subtype, grade, stage-related morphology, tumour burden, invasion, and nodal disease;
+* cell, mitosis, gland, tissue-compartment, immune, and spatial-relationship evidence;
+* molecular and biomarker screening, including candidates for confirmatory testing rather than a claim
+  that morphology replaces the assay;
+* prognosis, recurrence, time-to-event survival, and risk stratification; and
+* treatment response, treatment benefit, resistance, and post-treatment change when treatment timing
+  and outcome ascertainment are available.
+
+This catalogue is not a roadmap. Each target competes on evidence quality, user value, rights,
+annotation cost, and the chance that Pathologize can add a reproducible product rather than another
+model demonstration.
+
+### Readiness record
+
+Every proposed target must answer all of these questions:
+
+1. Who will use the product, what question will they ask, and what action could change?
+2. Is the supporting unit a cell, tissue structure, slide, patient, or aggregate evaluation context?
+3. What clinical or research meaning does the target have, and what meaning is explicitly excluded?
+4. Who or what supplied the label, at which timepoint, under which ontology or assay, and how are
+   disagreement, censoring, or later correction represented?
+5. Which source products could supply eligible material, and what do their rights permit Pathologize
+   to inspect, transform, redistribute, or publish?
+6. What are the expected prevalence, class balance, missingness, follow-up, and small-group limits?
+7. What new annotation, linkage, adjudication, or assay work is required, and who can perform it?
+8. Which patient, specimen, slide, site, and temporal relationships could leak between development and
+   evaluation?
+9. Which external sites, scanners, preparation protocols, case mix, and time periods are needed before
+   a generalisation claim is credible?
+10. Which uncertainty and calibration outputs does the consumer need, and what happens when the
+    evidence is absent, conflicting, or outside the supported range?
+11. Which downstream products consume the result, and what lower-level evidence must remain available
+    for inspection?
+12. Which primary studies or official product materials support the target, and which claims remain
+    untested in Pathologize?
+
+### Readiness states
+
+Assign one of four states and publish the missing gates:
+
+* **Candidate** means the user question and supporting evidence are recorded, but source, rights, label,
+  prevalence, or evaluation gaps still prevent product work.
+* **Research-ready** means permitted data and labels can support bounded exploratory analysis. The
+  product states that its results are hypothesis-forming and cannot support a benchmark or user claim.
+* **Benchmark-ready** means the target has frozen eligibility, leakage units, label provenance,
+  development and sealed evaluation products, metrics, uncertainty expectations, external-validation
+  requirements, and inspectable failures.
+* **User-facing-ready** means a named user has tested the product in its intended workflow. The evidence
+  covers calibration, subgroup harm, external operating contexts, failure handling, privacy, rights,
+  monitoring, and the consequences of a wrong or missing result. Research-only Pathologize work will
+  usually stop before this state.
+
+An aggregate cohort, institution, health-system, or population product may establish prevalence,
+sampling bias, site shift, subgroup performance, calibration, screening yield, service demand, or
+epidemiology. Those findings can change data collection and evaluation. They do not promote an
+individual cell, slide, or patient result to a higher readiness state.
+
+## Consequences
+
+Targets will enter the programme because Pathologize can state their user, evidence, and evaluation
+case. A commercial catalogue can reveal real workflow demand, while literature can reveal a research
+signal or failure mode, without either becoming an imported product specification.
+
+The record will reject some attractive targets before model work begins. Longitudinal outcomes may fail
+because follow-up or treatment data are missing. Molecular screening may remain a triage benchmark
+because the confirmatory assay is the label authority. Rare findings may need a multi-site source or may
+never support a stable subgroup estimate.
+
+Readiness review adds documentation and can expose that a source useful for one evidence level is weak
+for another. That is cheaper than publishing a high score whose label timing, leakage, rights, or intended
+use cannot survive review.
+
+## Evaluation
+
+Accept the proposal when two target candidates at different evidence levels receive complete readiness
+records and reviewers can reproduce each state from cited source, label, rights, prevalence, and
+evaluation evidence. At least one candidate must remain blocked or research-ready because a real gate
+is missing. Reject the proposal if a commercial offering, paper, architecture, or leaderboard result can
+make a target benchmark-ready without the product-specific record.

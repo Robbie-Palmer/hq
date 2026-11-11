@@ -1,0 +1,67 @@
+---
+title: "ADR 016: Shared spatial evidence viewer"
+date: "2026-11-11"
+status: "Proposed"
+tech_stack: ["Leaflet", "Cloudflare R2"]
+implements_product_decisions:
+  - "pathologize:004-inspectable-spatial-evidence"
+---
+
+## Context
+
+[PDR 004](/projects/pathologize/pdrs/004-inspectable-spatial-evidence)
+requires a reader to move from an aggregate score to eligible slides, regions, outputs, errors, and
+provenance. It deliberately leaves viewer and storage choices to architecture.
+
+The site already has a Leaflet gigapixel tissue viewer backed by public tiles at
+`tiles.robbiepalmer.me`, and the separate Pathology Viewer project documents the same pyramid and tile
+access pattern. Pathologize needs experiment overlays and comparisons, not another general-purpose slide
+viewer or annotation system.
+
+## Proposed decision
+
+Extend the shared Leaflet tile viewer as Pathologize's first public spatial-evidence client. Keep the base
+slide and each mask, region, cell, score, or error layer independently selectable. The viewer receives a
+versioned evidence manifest that names the source or derived product revision, coordinate system, physical
+scale, layer role, run, and scorecard entry.
+
+Publish only redistributable tiles and overlays through the existing public tile boundary. Restricted or
+private evidence uses the same manifest contract in an authorized local inspection path and never receives
+a public tile URL. The viewer must distinguish source pixels, human annotations, generated images, model
+outputs, and attention or instance scores in both metadata and presentation.
+
+The product that creates a spatial derivative owns its versioned materialization under [ADR
+014](/projects/pathologize/adrs/014-immutable-product-references-and-owner-materialization).
+The viewer stores no second authoritative copy and does not decide benchmark eligibility. It reads the
+published evidence manifest and scorecard.
+
+Start with run selection, predetermined success and failure cases, layer toggles, and links back to the
+result record. Add editing, collaborative annotation, or pathology-system integration only after a separate
+product decision establishes that need.
+
+## Consequences
+
+Pathologize reuses a working public tile and interaction path. A score can lead to the exact spatial output
+without coupling benchmark contracts to Leaflet or public storage.
+
+The shared viewer will gain Pathologize-specific manifest and layer behavior. Large overlays still need
+efficient pyramids or vector representations, and restricted evidence needs a separate authorized runtime.
+Leaflet may become a poor fit for richer pathology interaction; the manifest boundary keeps that replacement
+possible.
+
+## Alternatives considered
+
+### Build a Pathologize viewer from scratch
+
+A dedicated client could fit pathology workflows more closely. It would repeat tile navigation and delay
+evidence inspection before the project has shown a need for editing or clinical integration.
+
+### Require an external desktop pathology viewer
+
+External tools remain useful for local inspection and interoperability tests. Requiring one would remove the
+public trace from a Pathologize score to its permitted evidence.
+
+### Embed static screenshots in reports
+
+Screenshots are easy to publish but cannot prove layer identity, permit systematic success and failure review,
+or preserve the coordinate and provenance links behind a region.
