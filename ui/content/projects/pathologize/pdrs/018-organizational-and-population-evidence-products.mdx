@@ -1,0 +1,116 @@
+---
+title: "PDR 018: Treat cohort, organizational, and population evidence as products"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "Site-specific digital histology signatures study"
+    url: "https://www.nature.com/articles/s41467-021-24698-1"
+  - title: "Scanner and laboratory shift in AI-assisted pathology"
+    url: "https://www.nature.com/articles/s41467-022-34945-8"
+  - title: "Articulate Pro multi-site clinical workflow study"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC13365413/"
+  - title: "SEER Cancer Stat Facts"
+    url: "https://seer.cancer.gov/statfacts/html/all.html"
+  - title: "IARC Global Cancer Observatory"
+    url: "https://gco.iarc.who.int/today/"
+ideas:
+  - "sampling-bias"
+  - "study-design"
+---
+
+## Context
+
+Pathology data products usually start with a patient, slide, tissue structure, or cell. The same evidence
+also supports questions about a cohort, laboratory, institution, health system, or population. Those
+questions are not merely dashboard slices. They can reveal sampling bias, scanner and preparation shift,
+data-quality failures, service demand, clinical workflow effects, and epidemiological variation that no
+individual record can establish.
+
+Aggregation changes the signal. A prevalence or survival estimate describes a defined group over a
+defined period. It carries less information about any one person than the records that contributed to it.
+SEER makes this limit explicit for survival statistics: group results cannot predict exactly what will
+happen to an individual patient. Pathologize needs the same boundary while retaining an authorized route
+back to supporting evidence when an aggregate result needs investigation.
+
+## Proposed decision
+
+Treat cohort, institution, health-system, and population views as first-class aggregate data products.
+Each product must state its question, denominator, eligibility, observation window, source coverage,
+missingness, uncertainty, privacy class, and intended action. It must preserve bidirectional provenance
+to the patient, slide, tissue-structure, and cell products that support it, subject to access controls.
+
+### Aggregate product levels
+
+| Product level | Questions it may answer                                                                                                                                                      | Required boundaries                                                                                                                                                   |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Cohort        | Who was sampled, who was excluded, how representative is the cohort, and how do prevalence, calibration, errors, and outcomes vary by subgroup?                              | Cohort purpose, source population, inclusion flow, case mix, missingness, time window, leakage groups, small-group limits, and comparison cohort                      |
+| Institution   | How do one site's scanners, stains, preparation, artifacts, rejection and rescan rates, turnaround, routing, concordance, and service demand affect quality and performance? | Site and laboratory identity, workflow version, scanner and protocol periods, local case mix, staffing context, and change points                                     |
+| Health system | How do sites differ in capacity, referrals, screening yield, biomarker prevalence, treatment, outcomes, access, and operational impact?                                      | Comparable definitions across sites, referral and routing rules, duplicate-patient handling, privacy controls, and both site-specific and pooled estimates            |
+| Population    | How do incidence, prevalence, screening yield, biomarker distribution, treatment, recurrence, survival, and outcomes vary across place, time, and demographic groups?        | Defined population and denominator, ascertainment, age or risk standardisation, coverage, censoring, reporting delay, confounding, and limits on individual inference |
+
+An aggregate product may combine measured pathology evidence with permitted clinical, operational, treatment,
+or outcome records. It must distinguish observed counts from estimates and pathology findings from later
+events. A treatment or outcome association is not a treatment-effect claim unless the study design supports
+that interpretation.
+
+### Bidirectional evidence
+
+Every aggregate result must support two directions of inquiry:
+
+* Upward provenance identifies which eligible patients, slides, structures, and cells contributed, which
+  records were missing or rejected, and how each record affected the denominator or estimate.
+* Downward drill-down lets an authorized reviewer move from an aggregate change to the permitted lower-level
+  evidence needed to investigate it. Public readers receive safe summaries or approved examples, not a route
+  around patient or source restrictions.
+
+The connection also runs from aggregate findings back into product work. A scanner-specific error can trigger
+data-quality review. An underrepresented group can trigger source rebalancing or external validation. A rise in
+rejection, rescan, turnaround, or routing delay can trigger workflow changes. A prevalence or screening-yield
+gap can trigger a new lower-level enrichment product. None of those findings establishes the diagnosis,
+biomarker, prognosis, or treatment response of an individual patient.
+
+### Required analyses and limits
+
+Cover the following when they are relevant to the product question:
+
+* stain, preparation, scanner, compression, artifact, rejection, and rescan effects;
+* site shift, case mix, referral patterns, workflow, routing, turnaround, service demand, and capacity;
+* diagnostic and reader concordance, calibration, subgroup performance, and screening yield;
+* biomarker prevalence, treatment variation, recurrence, survival, and other outcome variation; and
+* temporal drift before and after scanner, protocol, staffing, service, or population changes.
+
+Publish denominators and uncertainty beside rates. Report missingness by source and group. Separate a real
+site effect from a scanner or preparation effect when the data permit it, and state when they remain
+confounded. Do not pool away a harmful subgroup result. Suppress, combine, or restrict small groups when
+disclosure risk or unstable estimates outweighs detail.
+
+Case mix, ascertainment, treatment selection, referral, access, calendar time, and missing follow-up can all
+confound aggregate comparisons. Define these factors before interpreting an institution or population
+difference. Re-evaluate the product when source coverage, scanner mix, protocols, coding, treatment, or the
+underlying population changes.
+
+Dashboard layout, warehouse design, aggregation engine, storage, model, and materialization remain architecture
+choices. The product contract is the aggregate question, evidence, privacy boundary, drill-down right, quality
+limits, and action it supports.
+
+## Consequences
+
+Pathologize can treat data quality, business and clinical operations, and epidemiology as product questions in
+their own right. Aggregate products can expose why a lower-level benchmark transfers poorly and whether an
+apparent improvement survives another site, scanner, subgroup, or time period.
+
+The products require linkage and governance beyond image labels. Privacy risk can increase when several rare
+attributes are combined even if direct identifiers are absent. Small groups will sometimes need suppression,
+and restricted reviewers may be the only people allowed to inspect the supporting records.
+
+Aggregate results will remain weaker for individual decisions than direct patient, slide, structure, or cell
+evidence. That is a useful constraint. It keeps service planning, prevalence, and population outcomes from
+becoming unqualified claims about one person.
+
+## Evaluation
+
+Accept the proposal when one institution or cohort product traces an artifact, shift, or workflow finding down
+to authorized supporting records and back up to a corrected aggregate. A separate population or health-system
+product must report denominators, missingness, confounding, temporal limits, privacy controls, and subgroup
+uncertainty. Reject the proposal if either product exposes restricted records, hides a harmful small-group result,
+or presents an aggregate association as an individual finding.

@@ -10,8 +10,8 @@ An aggregate Dice score, F1 score or patient-level AUROC does not show whether a
 relied on preparation artifacts, missed small lesions, or failed on one scanner. Whole-slide outputs are spatial,
 but a table can detach the score from the regions that produced it.
 
-The repository already serves CPTAC-COAD pyramid tiles from R2 through a Leaflet viewer. Pathologize can extend
-that working surface instead of starting with another general annotation or whole-slide viewing product.
+Pathologize needs a bounded way to inspect this evidence without turning the research programme into another
+general annotation or whole-slide viewing product.
 
 ## Proposed decision
 
@@ -19,10 +19,9 @@ Publish inspectable spatial evidence alongside aggregate benchmark results. A re
 score to eligible slides, sampled regions, tissue and artifact masks, cell instances, model attention or region
 scores, errors and exclusions where licences permit publication.
 
-Use the existing Leaflet and R2 tile path as the first evidence viewer. Extend it with versioned experiment
-overlays, run comparison and provenance when those capabilities are needed. Use interoperable spatial formats so
-the same outputs can still be inspected with established pathology tools. Keep model attention labelled as model
-behaviour, not as a causal pathological explanation.
+Keep the evidence portable enough to inspect with established pathology tools. The product requires a traceable
+route from a reported result to its supporting spatial records. Viewer, storage, and overlay choices remain
+architecture decisions. Label model attention as model behaviour without claiming a causal pathological explanation.
 
 Include representative failures and performance slices by dataset, scanner, stain, tissue, class and quality.
 Do not publish patient material or derived images when the source licence does not permit it.
@@ -32,10 +31,9 @@ Do not publish patient material or derived images when the source licence does n
 Researchers and potential contributors can inspect what changed rather than trusting one number. Spatial evidence
 also makes tiling and quality experiments easier to compare.
 
-Publication becomes heavier and may need restricted local inspection for some datasets. The current public viewer
-also needs a deliberate boundary between redistributable examples and private or restricted artifacts. Large
-overlays require versioned storage and efficient formats. Visual examples can encourage cherry-picking, so the
-selection rule and complete machine-readable scorecard must accompany them.
+Publication becomes heavier and may need restricted local inspection for some datasets. The inspection product
+needs a deliberate boundary between redistributable examples and private or restricted artifacts. Visual examples
+can encourage cherry-picking, so the selection rule and complete machine-readable scorecard must accompany them.
 
 ## Evaluation
 

@@ -1,0 +1,70 @@
+---
+title: "ADR 013: Source and derived product ownership"
+date: "2026-11-11"
+status: "Proposed"
+implements_product_decisions:
+  - "pathologize:009-source-native-pathology-data-mesh"
+  - "pathologize:017-evidence-gated-pathology-product-readiness"
+  - "pathologize:018-organizational-and-population-evidence-products"
+---
+
+## Context
+
+[PDR 009](/projects/pathologize/pdrs/009-source-native-pathology-data-mesh)
+requires source-native products and consumer-owned downstream products without prescribing their
+technical composition. [PDR 017](/projects/pathologize/pdrs/017-evidence-gated-pathology-product-readiness)
+adds cell, tissue-structure, slide, and patient evidence levels. PDR 018 adds cohort, institution,
+[health-system and population products](/projects/pathologize/pdrs/018-organizational-and-population-evidence-products).
+
+One project cannot own all of these meanings. A publisher's label and identity are source evidence.
+A new tissue annotation is enrichment. A benchmark assigns eligibility and evaluation roles. An
+aggregate product answers a question about a group or operating context. Combining those concerns in
+one mutable dataset would let a downstream interpretation overwrite its source.
+
+## Proposed decision
+
+Compose Pathologize as an acyclic graph of independently versioned products with four ownership roles:
+
+* A **source product** owns acquired bytes, rights, checksums, publisher identities, native labels,
+  and retrieval evidence in the publisher's vocabulary.
+* An **enrichment product** owns new annotations, measurements, or linked evidence at a declared cell,
+  tissue-structure, slide, or patient level. It references rather than rewrites its source records.
+* A **benchmark product** owns a target question, eligibility, label interpretation, evaluation roles,
+  prediction contract, metrics, and frozen evidence sets.
+* An **aggregate product** owns a cohort, organizational, or population question, its denominator,
+  observation window, privacy boundary, uncertainty, and authorized drill-down.
+
+Place each owned product under `data-products/<bounded-context>/<product>`. Training and evaluation
+code under `ml-pipelines/` consumes product contracts and publishes its own result artifacts. Shared
+orchestration may run the graph, but it does not own product meaning.
+
+Every derived record keeps the upstream product and native record references that support it. A product
+may publish corrections or a new interpretation as its own version. It cannot edit an upstream product,
+replace a native identity with a convenient alias, or create a dependency cycle.
+
+Keep source-specific results beside any reconciled result. If an enrichment, benchmark, or aggregate
+product cannot represent a source distinction, it records that loss instead of changing the source
+contract.
+
+## Consequences
+
+Each product has one owner and vocabulary. New annotations, cohorts, benchmarks, and organizational
+views can evolve without making a source dataset claim facts it never supplied. The graph also gives
+lower-level and aggregate products a common direction for provenance and drill-down.
+
+The repository will contain more contracts and versioned products. Consumers need explicit compatibility
+and migration work. Some convenient in-place corrections become new product versions or downstream
+records instead.
+
+## Alternatives considered
+
+### Keep one canonical pathology dataset
+
+One dataset would simplify discovery, but it would mix publisher facts, project annotations, cohort roles,
+and aggregate interpretations. Missing identities would become guessed fields, and incompatible ontologies
+would be forced into one schema.
+
+### Let each model pipeline prepare its own inputs
+
+This keeps ownership local to the experiment. It also hides reconciliation, repeats source handling, and
+makes the model code the only account of which evidence entered a result.

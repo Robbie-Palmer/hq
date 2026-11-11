@@ -4,8 +4,8 @@ date: "2026-11-07"
 status: "Proposed"
 supersedes: "pathologize:001-one-versioned-pathology-data-registry"
 evidence:
-  - title: "DVC data registry and import contract"
-    url: "https://dvc.org/doc/command-reference/import"
+  - title: "Data mesh principles and logical architecture"
+    url: "https://martinfowler.com/articles/data-mesh-principles.html"
 ---
 
 ## Context
@@ -24,26 +24,22 @@ impossible to measure what each source contributed or what the mapping lost.
 
 ## Proposed decision
 
-Build the pathology data layer as an acyclic mesh of versioned DVC projects.
-Each source dataset owns its acquired bytes, rights, checksums, source
-identities, native ontology, and publisher roles in its own vocabulary. A
-catalog can index these source products, but it does not replace their domain
-contracts or copy their data.
+Build the pathology data layer as an acyclic mesh of versioned products. Each
+source product owns its acquired material, rights, checksums, source identities,
+native ontology, and publisher roles in its own vocabulary. A catalog may make
+these products discoverable, but it does not replace their contracts or become
+another owner of the data.
 
-Place each vertical slice under `data-products/<bounded-context>/<product>`.
-The project owns its contracts, acquisition or transformation code, DVC graph,
-quality checks, and published artifacts. Source products use the publisher's
-ubiquitous language. Derived products use the consuming bounded context's
-language and pin upstream product interfaces. Training and evaluation projects
-under `ml-pipelines/` consume these products. Shared orchestration stays thin
-and does not own product semantics.
+Downstream products answer a named user question in the consuming domain. They
+own their target ontology, eligibility, exclusions, reannotations, evidence
+level, intended use, and quality limits. Each output retains the source record
+and group identities needed to trace it back to native evidence. A downstream
+product cannot rewrite a source product or claim a source distinction that the
+publisher did not provide.
 
-Downstream dataset projects pin source projects and publish task-specific data
-products. Each product owns its target ontology, adapters, exclusions,
-reannotations, group-aware partitions, and intended training or evaluation
-roles. Adapters must classify mappings as exact, partial, source-merged,
-unmapped, or dropped. They retain source record and group identities so a
-consumer can trace every output back to its native record.
+When a product reconciles source concepts, classify each mapping as exact,
+partial, source-merged, unmapped, or dropped. The product must keep unavailable
+distinctions visible rather than forcing every source into a universal schema.
 
 Publish reconciliation metrics with each downstream product. Report records,
 groups, and label coverage added by each source. Also report records dropped,
@@ -51,29 +47,26 @@ concepts collapsed, distinctions unavailable, reannotations introduced, and
 source roles overridden. Preserve source-specific evaluation alongside any
 combined score.
 
-Use local DVC project dependencies while the mesh nodes share this monorepo.
-Use pinned `dvc import` files when a node moves to another Git repository. A
-source update must leave downstream products stale until their imports,
-adapters, partitions, and reports are reproduced deliberately.
+Product contracts must expose their upstream product revisions and leave a
+consumer's published result unchanged when an upstream product advances. The
+reference, storage, materialization, cohort-composition, and invalidation
+mechanics belong to architecture decisions.
 
 ## Consequences
 
-Source datasets remain honest about what they know, and task datasets can
-become uniform without pretending their inputs were uniform. Model pipelines
-consume one versioned product contract rather than embedding ontology mapping
-and split logic in training code. Enrichment and information loss become
-measurable outputs.
+Source datasets remain honest about what they know, and downstream products can
+become consistent without pretending their inputs were uniform. Enrichment and
+information loss become measurable outputs instead of hidden preparation work.
 
-The mesh creates more contracts and DVC projects than one registry. Adapter
-versions and cross-project dependencies need maintenance. Some sources cannot
-join a requested product without reannotation, and some will remain useful
-only as source-specific evaluation sets. Acyclic ownership is mandatory. A
-downstream product cannot write corrections back into a source dataset.
+The mesh creates more contracts than one registry. Cross-product dependencies
+need maintenance. Some sources cannot answer a requested question without new
+annotations, and some remain useful only for source-specific evaluation.
+Acyclic ownership is mandatory.
 
 ## Evaluation
 
-Accept the proposal when two source projects with different vocabularies feed
-one downstream dataset product, every output record retains source lineage,
-groups stay within one partition, and the reconciliation report measures both
-added coverage and lost distinctions. Updating either source must make the
-downstream DVC product stale without changing its committed result.
+Accept the proposal when two source products with different vocabularies feed
+one downstream product, every output record retains source lineage, and the
+reconciliation report measures both added coverage and lost distinctions. A
+new source revision must not silently alter the downstream product's published
+result.

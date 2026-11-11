@@ -1,0 +1,79 @@
+---
+title: "ADR 015: Leakage-safe cohort composition"
+date: "2026-11-11"
+status: "Proposed"
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:006-task-native-pathology-model-development"
+  - "pathologize:009-source-native-pathology-data-mesh"
+  - "pathologize:017-evidence-gated-pathology-product-readiness"
+  - "pathologize:018-organizational-and-population-evidence-products"
+---
+
+## Context
+
+[ADR 013](/projects/pathologize/adrs/013-source-and-derived-product-ownership)
+assigns cohort meaning to benchmark and aggregate products. [ADR
+014](/projects/pathologize/adrs/014-immutable-product-references-and-owner-materialization)
+pins their upstream products. The remaining architecture choice is how several sources become one cohort
+without leaking related evidence or hiding composition differences.
+
+Pathology sources can contain several cells per structure, structures per slide, slides per specimen,
+specimens per case, and cases per patient. Sites and acquisition periods can add another shared signal.
+A random record split can place nearly identical or causally related evidence on both sides of evaluation.
+
+## Proposed decision
+
+Materialize cohort composition as a versioned manifest owned by the benchmark or aggregate product. For
+every included and excluded record, retain:
+
+* upstream product revision and native record identity;
+* patient, case, specimen, block, slide, acquisition, site, and time identities when the source supplies
+  them;
+* eligibility result and a reason for exclusion or missing evidence;
+* label source, label timepoint, ontology or assay revision, and adjudication state;
+* mapping disposition as exact, partial, source-merged, unmapped, or dropped; and
+* assigned development, validation, test, external, or aggregate-observation role.
+
+Choose the highest known unit that could leak the target and keep that unit in one partition. Patient is
+the default boundary for patient and slide targets. A stricter case, family, site, acquisition-period, or
+temporal boundary applies when the question or source requires it. Unknown identities remain unknown and
+cannot be reconstructed from filenames to justify a weaker split.
+
+Freeze partitions before candidate comparison. Keep final test and external products sealed. Site or time
+holdouts remain separate when they support a transfer or drift question. An aggregate product may reuse the
+same membership manifest for denominators and drill-down, but an observation period cannot overlap a sealed
+outcome window in a way that leaks future information.
+
+Publish composition and reconciliation by source, group, label, site, time, and supported subgroup. Keep
+source-specific evaluation beside pooled evaluation. Do not force a source into a combined cohort when its
+label, timepoint, rights, or group identities cannot support the question.
+
+This ADR owns cohort mechanics. It does not choose a model, encoder, multiple-instance method, feature
+aggregation rule, or dashboard.
+
+## Consequences
+
+Benchmark and aggregate products can explain who contributed, why someone was excluded, and which unit
+prevents leakage. Site, time, and source effects remain visible instead of disappearing into a pooled score.
+
+Some sources will become ineligible because they lack the identity or time evidence needed for a defensible
+partition. Sealed products reduce the data available for development. Rebalancing or correcting a cohort
+creates a new manifest and invalidates dependent materializations.
+
+## Alternatives considered
+
+### Let each training run split its inputs
+
+Run-local splitting is convenient and can respond to one model's format. It makes evaluation depend on
+training code and permits two candidates to see different or contaminated evidence.
+
+### Split at the record or slide level for every task
+
+This maximizes sample counts. It leaks when related slides, specimens, cases, or patients share target
+signal and gives misleading confidence in transfer.
+
+### Pool all compatible sources and report one score
+
+Pooling can increase power. Without source-specific results it can hide site signatures, prevalence
+differences, mapping loss, and a harmful subgroup or institution result.

@@ -1,0 +1,73 @@
+---
+title: "ADR 014: Immutable product references and owner materialization"
+date: "2026-11-11"
+status: "Proposed"
+implements_product_decisions:
+  - "pathologize:009-source-native-pathology-data-mesh"
+  - "pathologize:017-evidence-gated-pathology-product-readiness"
+  - "pathologize:018-organizational-and-population-evidence-products"
+---
+
+## Context
+
+[ADR 013](/projects/pathologize/adrs/013-source-and-derived-product-ownership)
+gives source, enrichment, benchmark, and aggregate products separate owners. Those products still need
+stable references and a rule for where derived bytes live. A path alone can move, a Git revision alone
+does not identify an external file, and a DVC content hash alone does not state the producer contract or
+source rights.
+
+Pathologize already uses DVC for local pipeline graphs and bounded experiment artifacts. DVC documents
+[repository-local pipeline dependencies](https://dvc.org/doc/user-guide/pipelines/defining-pipelines)
+and [pinned imports from another Git repository](https://dvc.org/doc/command-reference/import). [ADR
+003](/projects/pathologize/adrs/003-on-demand-source-acquisition) keeps bulk source acquisition on demand
+and retains only verified experiment inputs and required derivatives.
+
+## Proposed decision
+
+Reference an upstream product by producer ID, contract version, immutable Git revision, published path,
+and content digest. Include the upstream native record or group identity when the reference selects less
+than the complete product. A mutable branch, latest alias, filename, URL, or storage key is not a released
+product reference by itself.
+
+Keep each product as a DVC project with its contract and small manifests in Git. Use repository-local DVC
+dependencies while producer and consumer share this monorepo. If a producer moves to another repository,
+use a pinned `dvc import` or an equivalent import record that preserves the producer revision, path, and
+digest. Do not copy an imported file into a consumer and present the copy as a new source.
+
+The product that creates a derivative owns its materialization. Tiles, masks, embeddings, harmonized
+records, cohort manifests, scorecards, and aggregate tables live as outputs of the product whose parameters
+give them meaning. Their manifests reference every upstream product and transformation revision. Git keeps
+identity, rights, parameters, checksums, and compact reports. DVC tracks materialized bytes under the
+retention and acquisition boundary from ADR 003.
+
+An upstream update marks the consumer stale but does not alter its committed output. The consumer chooses
+when to advance the reference, reruns its quality and reconciliation checks, and publishes a new version.
+No shared job may overwrite another product's materialization.
+
+## Consequences
+
+A result can name the exact producer contract and bytes it consumed. Rebuilding or moving a product does
+not require a new source identity when the referenced content and contract remain unchanged. A new upstream
+revision cannot silently change a published benchmark or aggregate.
+
+References carry more fields than a path. Moving a node between repositories requires import migration,
+and large derivatives still need deliberate retention. Duplicate materializations may exist when two
+products make different choices from the same source. That duplication reflects distinct ownership rather
+than accidental copies.
+
+## Alternatives considered
+
+### Use paths and the current branch
+
+This is easy inside one checkout. It makes a consumer's result depend on mutable repository state and gives
+no stable answer after a file moves.
+
+### Materialize shared derivatives in the source product
+
+Central materialization can reduce duplicate bytes. It would make the source owner responsible for tiling,
+ontology, cohort, and aggregation choices that belong to consumers.
+
+### Copy every upstream artifact into the consumer
+
+Copies isolate the consumer but blur source authority and multiply restricted bytes. Explicit references
+preserve ownership while DVC can still deduplicate identical content in its cache.
