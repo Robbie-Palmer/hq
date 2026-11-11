@@ -13,7 +13,7 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 from http.client import HTTPMessage
 from pathlib import Path, PurePosixPath
-from typing import IO, Any, Literal, override
+from typing import IO, Any, Literal, cast, override
 from urllib.parse import urlsplit
 
 from openpyxl import load_workbook
@@ -23,6 +23,7 @@ from sicapv2_source_data.models import (
     PatchCoordinates,
     PatchRecord,
     PatientRecord,
+    PublishedPartition,
     PublishedPatchLabels,
     PublishedRole,
     SlideRecord,
@@ -88,6 +89,18 @@ def _require_equal(actual: object, expected: object, field: str) -> None:
         raise SourceDataError(f"Mendeley {field} differs: expected {expected!r}, found {actual!r}")
 
 
+def _metadata_shapes(
+    dataset: object, files: object, versions: object
+) -> tuple[dict[str, Any], list[object], list[object]]:
+    if (
+        not isinstance(dataset, dict)
+        or not isinstance(files, list)
+        or not isinstance(versions, list)
+    ):
+        raise SourceDataError("Mendeley returned an unexpected metadata shape")
+    return cast(dict[str, Any], dataset), files, versions
+
+
 def verify_publisher_metadata(root: Path = PROJECT_DIR) -> dict[str, object]:
     manifest = load_manifest(root)
     dataset_url = (
@@ -99,15 +112,11 @@ def verify_publisher_metadata(root: Path = PROJECT_DIR) -> dict[str, object]:
         f"&version={manifest.publisher_version}&$start=0&$limit=1000"
     )
     versions_url = f"{PUBLIC_API}/datasets/{manifest.publisher_dataset_id}/versions"
-    dataset = _json_request(dataset_url)
-    files = _json_request(files_url)
-    versions = _json_request(versions_url)
-    if (
-        not isinstance(dataset, dict)
-        or not isinstance(files, list)
-        or not isinstance(versions, list)
-    ):
-        raise SourceDataError("Mendeley returned an unexpected metadata shape")
+    dataset, files, versions = _metadata_shapes(
+        _json_request(dataset_url),
+        _json_request(files_url),
+        _json_request(versions_url),
+    )
     _require_equal(dataset.get("id"), manifest.publisher_dataset_id, "dataset ID")
     doi = dataset.get("doi")
     _require_equal(doi.get("id") if isinstance(doi, dict) else None, manifest.doi, "DOI")
@@ -310,6 +319,80 @@ def _int_field(row: dict[str, object], field: str, table: str) -> int:
     return int(value)
 
 
+def _partition_artifact(infos: dict[str, zipfile.ZipInfo], path: str) -> OriginalArtifact:
+    info = infos.get(path)
+    if info is None:
+        raise SourceDataError(f"missing SICAPv2 partition artifact: {path}")
+    return _artifact(info)
+
+
+def _partition_image_name(row: dict[str, object], path: str) -> str:
+    image_name = row.get("image_name")
+    if not isinstance(image_name, str) or not image_name:
+        raise SourceDataError(f"{path}: invalid image_name")
+    return image_name
+
+
+def _append_published_role(
+    roles: dict[str, list[PublishedRole]],
+    image_name: str,
+    partition: PublishedPartition,
+    task: Literal["gleason_grading", "cribriform_detection"],
+    role: Literal["train", "test"],
+    artifact: OriginalArtifact,
+) -> None:
+    published_role = PublishedRole(
+        partition_id=partition.id,
+        task=task,
+        role=role,
+        table_artifact_ref=artifact.artifact_ref,
+    )
+    if any(
+        existing.partition_id == published_role.partition_id
+        and existing.task == published_role.task
+        for existing in roles[image_name]
+    ):
+        raise SourceDataError(f"{image_name}: duplicate role in {partition.id} {task} tables")
+    roles[image_name].append(published_role)
+
+
+def _record_patch_labels(
+    labels: dict[str, PublishedPatchLabels],
+    image_name: str,
+    row: dict[str, object],
+    path: str,
+    manifest: SourceManifest,
+) -> None:
+    patch_labels = PublishedPatchLabels(
+        **{field: _int_field(row, field, path) for field in manifest.published_patch_labels}
+    )
+    existing = labels.setdefault(image_name, patch_labels)
+    if existing != patch_labels:
+        raise SourceDataError(f"{image_name}: published labels differ across partitions")
+
+
+def _read_partition_table(
+    archive: zipfile.ZipFile,
+    infos: dict[str, zipfile.ZipInfo],
+    manifest: SourceManifest,
+    partition: PublishedPartition,
+    role_name: Literal["Train", "Test"],
+    task: Literal["gleason_grading", "cribriform_detection"],
+    suffix: str,
+    labels: dict[str, PublishedPatchLabels],
+    roles: dict[str, list[PublishedRole]],
+) -> OriginalArtifact:
+    role: Literal["train", "test"] = "train" if role_name == "Train" else "test"
+    path = f"{partition.path}/{role_name}{suffix}.xlsx"
+    artifact = _partition_artifact(infos, path)
+    for row in _table_rows(archive, path):
+        image_name = _partition_image_name(row, path)
+        _append_published_role(roles, image_name, partition, task, role, artifact)
+        if task == "gleason_grading":
+            _record_patch_labels(labels, image_name, row, path, manifest)
+    return artifact
+
+
 def _partition_tables(
     archive: zipfile.ZipFile,
     infos: dict[str, zipfile.ZipInfo],
@@ -320,46 +403,20 @@ def _partition_tables(
     artifacts: list[OriginalArtifact] = []
     for partition in manifest.published_partitions:
         for role_name in ("Train", "Test"):
-            role: Literal["train", "test"] = "train" if role_name == "Train" else "test"
             for task, suffix in (("gleason_grading", ""), ("cribriform_detection", "Cribfriform")):
-                path = f"{partition.path}/{role_name}{suffix}.xlsx"
-                info = infos.get(path)
-                if info is None:
-                    raise SourceDataError(f"missing SICAPv2 partition artifact: {path}")
-                artifact = _artifact(info)
-                artifacts.append(artifact)
-                for row in _table_rows(archive, path):
-                    image_name = row.get("image_name")
-                    if not isinstance(image_name, str) or not image_name:
-                        raise SourceDataError(f"{path}: invalid image_name")
-                    published_role = PublishedRole(
-                        partition_id=partition.id,
-                        task=task,
-                        role=role,
-                        table_artifact_ref=artifact.artifact_ref,
+                artifacts.append(
+                    _read_partition_table(
+                        archive,
+                        infos,
+                        manifest,
+                        partition,
+                        role_name,
+                        task,
+                        suffix,
+                        labels,
+                        roles,
                     )
-                    if any(
-                        existing.partition_id == published_role.partition_id
-                        and existing.task == published_role.task
-                        for existing in roles[image_name]
-                    ):
-                        raise SourceDataError(
-                            f"{image_name}: duplicate role in {partition.id} {task} tables"
-                        )
-                    roles[image_name].append(published_role)
-                    if task == "cribriform_detection":
-                        continue
-                    patch_labels = PublishedPatchLabels(
-                        **{
-                            field: _int_field(row, field, path)
-                            for field in manifest.published_patch_labels
-                        }
-                    )
-                    existing = labels.setdefault(image_name, patch_labels)
-                    if existing != patch_labels:
-                        raise SourceDataError(
-                            f"{image_name}: published labels differ across partitions"
-                        )
+                )
     return labels, roles, artifacts
 
 
@@ -486,7 +543,110 @@ def _write_outputs(
     return metrics
 
 
-def index_archive(root: Path = PROJECT_DIR) -> dict[str, object]:  # noqa: C901
+def _image_and_mask_infos(
+    infos: dict[str, zipfile.ZipInfo], manifest: SourceManifest
+) -> tuple[dict[str, zipfile.ZipInfo], dict[str, zipfile.ZipInfo]]:
+    image_infos = {
+        PurePosixPath(name).name: info
+        for name, info in infos.items()
+        if PurePosixPath(name).parent == PurePosixPath("SICAPv2/images") and name.endswith(".jpg")
+    }
+    mask_infos = {
+        PurePosixPath(name).name: info
+        for name, info in infos.items()
+        if PurePosixPath(name).parent == PurePosixPath("SICAPv2/masks") and name.endswith(".jpg")
+    }
+    if len(image_infos) != manifest.expected.image_count:
+        raise SourceDataError(f"expected {manifest.expected.image_count} images")
+    if len(mask_infos) != manifest.expected.mask_count or set(mask_infos) != set(image_infos):
+        raise SourceDataError("SICAPv2 image and Gleason-pattern mask identities differ")
+    return image_infos, mask_infos
+
+
+def _source_table_infos(
+    archive: zipfile.ZipFile,
+    infos: dict[str, zipfile.ZipInfo],
+    manifest: SourceManifest,
+) -> tuple[zipfile.ZipInfo, zipfile.ZipInfo]:
+    slide_info = infos.get("SICAPv2/wsi_labels.xlsx")
+    readme_info = infos.get("SICAPv2/readme.txt")
+    if slide_info is None or readme_info is None:
+        raise SourceDataError("SICAPv2 archive lacks source documentation or slide labels")
+    source_readme = archive.read(readme_info).decode("utf-8-sig")
+    if manifest.source_release not in source_readme:
+        raise SourceDataError("SICAPv2 archive internal release differs from the manifest")
+    return slide_info, readme_info
+
+
+def _patch_records(
+    image_infos: dict[str, zipfile.ZipInfo],
+    mask_infos: dict[str, zipfile.ZipInfo],
+    slides_by_id: dict[str, SlideRecord],
+    labels: dict[str, PublishedPatchLabels],
+    roles: dict[str, list[PublishedRole]],
+    manifest: SourceManifest,
+) -> tuple[list[PatchRecord], dict[str, list[str]]]:
+    records: list[PatchRecord] = []
+    refs_by_slide: dict[str, list[str]] = defaultdict(list)
+    for filename, image_info in sorted(image_infos.items()):
+        slide_id, coordinates = parse_patch_name(filename)
+        slide = slides_by_id.get(slide_id)
+        if slide is None:
+            raise SourceDataError(f"patch references missing slide identity: {filename}")
+        patch_id = filename.removesuffix(".jpg")
+        record_ref = f"sicapv2:v2:patch:{patch_id}"
+        records.append(
+            PatchRecord(
+                record_ref=record_ref,
+                patch_id=patch_id,
+                slide_ref=slide.record_ref,
+                slide_id=slide_id,
+                patient_ref=slide.patient_ref,
+                coordinates=coordinates,
+                scale=manifest.scale,
+                image=_artifact(image_info),
+                gleason_pattern_mask=_artifact(mask_infos[filename]),
+                mask_label_ids=(0, 1, 2, 3),
+                published_labels=labels.get(filename),
+                published_roles=sorted(
+                    roles.get(filename, []), key=lambda item: (item.partition_id, item.task)
+                ),
+            )
+        )
+        refs_by_slide[slide_id].append(record_ref)
+    if len(records) != manifest.expected.patch_count:
+        raise SourceDataError(f"expected {manifest.expected.patch_count} source patches")
+    return records, refs_by_slide
+
+
+def _slide_and_patient_records(
+    slides_by_id: dict[str, SlideRecord],
+    patch_refs_by_slide: dict[str, list[str]],
+    manifest: SourceManifest,
+) -> tuple[list[SlideRecord], list[PatientRecord]]:
+    slide_records = [
+        slide.model_copy(update={"patch_refs": patch_refs_by_slide[slide.slide_id]})
+        for slide in sorted(slides_by_id.values(), key=lambda item: item.slide_id)
+    ]
+    if len(slide_records) != manifest.expected.slide_count:
+        raise SourceDataError(f"expected {manifest.expected.slide_count} source slides")
+    slides_by_patient: dict[str, list[str]] = defaultdict(list)
+    for slide in slide_records:
+        slides_by_patient[slide.patient_id].append(slide.record_ref)
+    patient_records = [
+        PatientRecord(
+            record_ref=f"sicapv2:v2:patient:{patient_id}",
+            patient_id=patient_id,
+            slide_refs=sorted(slide_refs),
+        )
+        for patient_id, slide_refs in sorted(slides_by_patient.items())
+    ]
+    if len(patient_records) != manifest.expected.patient_count:
+        raise SourceDataError(f"expected {manifest.expected.patient_count} source patients")
+    return slide_records, patient_records
+
+
+def index_archive(root: Path = PROJECT_DIR) -> dict[str, object]:
     manifest = load_manifest(root)
     archive_path = root / "data/raw" / manifest.archive.filename
     verify_archive(archive_path, manifest)
@@ -498,29 +658,8 @@ def index_archive(root: Path = PROJECT_DIR) -> dict[str, object]:  # noqa: C901
                 f"found {len(all_infos)}"
             )
         infos = {info.filename: info for info in all_infos if not info.is_dir()}
-        image_infos = {
-            PurePosixPath(name).name: info
-            for name, info in infos.items()
-            if PurePosixPath(name).parent == PurePosixPath("SICAPv2/images")
-            and name.endswith(".jpg")
-        }
-        mask_infos = {
-            PurePosixPath(name).name: info
-            for name, info in infos.items()
-            if PurePosixPath(name).parent == PurePosixPath("SICAPv2/masks")
-            and name.endswith(".jpg")
-        }
-        if len(image_infos) != manifest.expected.image_count:
-            raise SourceDataError(f"expected {manifest.expected.image_count} images")
-        if len(mask_infos) != manifest.expected.mask_count or set(mask_infos) != set(image_infos):
-            raise SourceDataError("SICAPv2 image and Gleason-pattern mask identities differ")
-        slide_info = infos.get("SICAPv2/wsi_labels.xlsx")
-        readme_info = infos.get("SICAPv2/readme.txt")
-        if slide_info is None or readme_info is None:
-            raise SourceDataError("SICAPv2 archive lacks source documentation or slide labels")
-        source_readme = archive.read(readme_info).decode("utf-8-sig")
-        if manifest.source_release not in source_readme:
-            raise SourceDataError("SICAPv2 archive internal release differs from the manifest")
+        image_infos, mask_infos = _image_and_mask_infos(infos, manifest)
+        slide_info, readme_info = _source_table_infos(archive, infos, manifest)
         slides_by_id, slide_table = _slide_rows(archive, slide_info)
         labels, roles, partition_artifacts = _partition_tables(archive, infos, manifest)
         unknown_role_images = set(roles) - set(image_infos)
@@ -528,55 +667,12 @@ def index_archive(root: Path = PROJECT_DIR) -> dict[str, object]:  # noqa: C901
             raise SourceDataError(
                 f"published roles reference {len(unknown_role_images)} missing patches"
             )
-        patch_records: list[PatchRecord] = []
-        patch_refs_by_slide: dict[str, list[str]] = defaultdict(list)
-        for filename, image_info in sorted(image_infos.items()):
-            slide_id, coordinates = parse_patch_name(filename)
-            slide = slides_by_id.get(slide_id)
-            if slide is None:
-                raise SourceDataError(f"patch references missing slide identity: {filename}")
-            patch_id = filename.removesuffix(".jpg")
-            record_ref = f"sicapv2:v2:patch:{patch_id}"
-            patch_records.append(
-                PatchRecord(
-                    record_ref=record_ref,
-                    patch_id=patch_id,
-                    slide_ref=slide.record_ref,
-                    slide_id=slide_id,
-                    patient_ref=slide.patient_ref,
-                    coordinates=coordinates,
-                    scale=manifest.scale,
-                    image=_artifact(image_info),
-                    gleason_pattern_mask=_artifact(mask_infos[filename]),
-                    mask_label_ids=(0, 1, 2, 3),
-                    published_labels=labels.get(filename),
-                    published_roles=sorted(
-                        roles.get(filename, []), key=lambda item: (item.partition_id, item.task)
-                    ),
-                )
-            )
-            patch_refs_by_slide[slide_id].append(record_ref)
-        if len(patch_records) != manifest.expected.patch_count:
-            raise SourceDataError(f"expected {manifest.expected.patch_count} source patches")
-        slide_records = [
-            slide.model_copy(update={"patch_refs": patch_refs_by_slide[slide.slide_id]})
-            for slide in sorted(slides_by_id.values(), key=lambda item: item.slide_id)
-        ]
-        if len(slide_records) != manifest.expected.slide_count:
-            raise SourceDataError(f"expected {manifest.expected.slide_count} source slides")
-        slides_by_patient: dict[str, list[str]] = defaultdict(list)
-        for slide in slide_records:
-            slides_by_patient[slide.patient_id].append(slide.record_ref)
-        patient_records = [
-            PatientRecord(
-                record_ref=f"sicapv2:v2:patient:{patient_id}",
-                patient_id=patient_id,
-                slide_refs=sorted(slide_refs),
-            )
-            for patient_id, slide_refs in sorted(slides_by_patient.items())
-        ]
-        if len(patient_records) != manifest.expected.patient_count:
-            raise SourceDataError(f"expected {manifest.expected.patient_count} source patients")
+        patch_records, patch_refs_by_slide = _patch_records(
+            image_infos, mask_infos, slides_by_id, labels, roles, manifest
+        )
+        slide_records, patient_records = _slide_and_patient_records(
+            slides_by_id, patch_refs_by_slide, manifest
+        )
         table_artifacts = [_artifact(readme_info), slide_table, *partition_artifacts]
     return _write_outputs(
         root,

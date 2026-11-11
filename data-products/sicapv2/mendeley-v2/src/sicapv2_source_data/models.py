@@ -4,6 +4,9 @@ from typing import Literal, Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 
+_ARTIFACT_REF_PATTERN = r"^sicapv2:v2:artifact:"
+_PATIENT_REF_PATTERN = r"^sicapv2:v2:patient:"
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -117,7 +120,7 @@ class SourceManifest(StrictModel):
 
 
 class OriginalArtifact(StrictModel):
-    artifact_ref: str = Field(pattern=r"^sicapv2:v2:artifact:")
+    artifact_ref: str = Field(pattern=_ARTIFACT_REF_PATTERN)
     archive_ref: Literal["mendeley:9xxm58dvs3:v2:file:6ab087a7-ca89-47ac-9698-f6546bb50f98"]
     member_path: str = Field(pattern=r"^SICAPv2/")
     bytes: int = Field(ge=0)
@@ -131,7 +134,7 @@ class PublishedRole(StrictModel):
     ]
     task: Literal["gleason_grading", "cribriform_detection"]
     role: Literal["train", "test"]
-    table_artifact_ref: str = Field(pattern=r"^sicapv2:v2:artifact:")
+    table_artifact_ref: str = Field(pattern=_ARTIFACT_REF_PATTERN)
 
 
 class PublishedPatchLabels(StrictModel):
@@ -155,7 +158,7 @@ class PatchCoordinates(StrictModel):
 class PatientRecord(StrictModel):
     schema_version: Literal["1.0.0"] = "1.0.0"
     dataset_id: Literal["sicapv2-mendeley-v2"] = "sicapv2-mendeley-v2"
-    record_ref: str = Field(pattern=r"^sicapv2:v2:patient:")
+    record_ref: str = Field(pattern=_PATIENT_REF_PATTERN)
     patient_id: str = Field(min_length=1)
     slide_refs: list[str] = Field(min_length=1)
 
@@ -165,14 +168,14 @@ class SlideRecord(StrictModel):
     dataset_id: Literal["sicapv2-mendeley-v2"] = "sicapv2-mendeley-v2"
     record_ref: str = Field(pattern=r"^sicapv2:v2:slide:")
     slide_id: str = Field(min_length=1)
-    patient_ref: str = Field(pattern=r"^sicapv2:v2:patient:")
+    patient_ref: str = Field(pattern=_PATIENT_REF_PATTERN)
     patient_id: str = Field(min_length=1)
     gleason_primary: int = Field(ge=0, le=5)
     gleason_secondary: int = Field(ge=0, le=5)
     global_gleason_score: str = Field(pattern=r"^(NC|[345]\+[345]=[6-9]|5\+5=10)$")
     grade_group: int = Field(ge=0, le=5)
     grade_group_provenance: Literal["lossless_isup_mapping_from_published_primary_secondary"]
-    source_table_artifact_ref: str = Field(pattern=r"^sicapv2:v2:artifact:")
+    source_table_artifact_ref: str = Field(pattern=_ARTIFACT_REF_PATTERN)
     patch_refs: list[str]
 
 
@@ -183,7 +186,7 @@ class PatchRecord(StrictModel):
     patch_id: str = Field(min_length=1)
     slide_ref: str = Field(pattern=r"^sicapv2:v2:slide:")
     slide_id: str = Field(min_length=1)
-    patient_ref: str = Field(pattern=r"^sicapv2:v2:patient:")
+    patient_ref: str = Field(pattern=_PATIENT_REF_PATTERN)
     coordinates: PatchCoordinates
     scale: PhysicalScale
     image: OriginalArtifact
