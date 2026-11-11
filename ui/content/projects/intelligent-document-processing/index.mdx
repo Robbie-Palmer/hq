@@ -66,27 +66,29 @@ Operations["Operational source systems<br/>Gate and asset records"]
 end
 
 subgraph Terminal["Terminal-owned systems"]
-Intake["Document intake<br/>Existing gate workflow"]
-Classification["Classification<br/>Recognise the document type"]
+Interface["Existing gate workflow UI<br/>Bill of lading selected"]
+Intake["Server intake<br/>Image and selected document type"]
 Extraction["Extraction<br/>Read and structure required fields"]
 Validation["Validation<br/>Apply field and ontology checks"]
 Integration["Integration<br/>Cross-reference extracted fields"]
 Result["Gate verification result"]
 Correction["Human correction capture"]
 
-Intake -->|"Document image"| Classification
-Classification -->|"Classified document"| Extraction
+Interface -->|"Image and document type"| Intake
+Intake -->|"Known bill-of-lading image"| Extraction
 Extraction -->|"Structured values"| Validation
 Validation -->|"Validated values"| Integration
 Integration -->|"Comparison outcome"| Result
+Result -->|"Display result"| Interface
+Interface -->|"Correction"| Correction
 Correction -->|"Corrected values"| Validation
 end
 
 Document -->|"Freight record"| Guard
-Guard -->|"Photograph and submit"| Intake
+Guard -->|"Select bill of lading<br/>and submit photo"| Interface
 Operations -->|"Expected shipment data"| Integration
-Result -->|"Present for review"| Guard
-Guard -->|"Correct fields"| Correction
+Interface -->|"Present for review"| Guard
+Guard -->|"Correct fields"| Interface
 
 classDef external stroke-dasharray:5 5
 class Document,Guard,Operations external
@@ -96,11 +98,13 @@ class Document,Guard,Operations external
 
 The same flow in text is:
 
-1. A carrier or shipper supplies a bill of lading. A gate guard photographs it
-   and submits the image through Terminal's existing gate workflow.
-2. Terminal's document-processing service classifies the document, identifies
-   the required fields, extracts their values, and validates them against the
-   field definitions and domain ontology.
+1. A carrier or shipper supplies a bill of lading. A gate guard selects the
+   bill-of-lading context in Terminal's existing gate workflow, photographs the
+   document, and submits the image.
+2. The UI sends the image and selected document type to the server. The server
+   does not classify the document. Processing starts with field extraction,
+   then validates the structured values against the field definitions and
+   domain ontology.
 3. The integration compares the validated values with expected shipment data
    from external operational source systems, including gate and asset records,
    and returns a gate verification result.
