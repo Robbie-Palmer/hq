@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import shutil
 import urllib.request
 import zipfile
 from contextlib import closing
 from http.client import HTTPMessage
 from pathlib import Path, PurePosixPath
-from tempfile import TemporaryDirectory
+from tempfile import TemporaryDirectory, mkstemp
 from typing import IO, override
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
@@ -49,7 +50,7 @@ class _HttpsOnlyRedirectHandler(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def _download(url: str, destination: Path) -> None:
+def _download(url: str, destination: Path, max_bytes: int | None = None) -> None:
     parsed = urlsplit(url)
     if parsed.scheme != "https":
         raise ProductError("CAMELYON retrieval requires HTTPS")
@@ -61,7 +62,22 @@ def _download(url: str, destination: Path) -> None:
         closing(opener.open(request, timeout=60)) as response,
         destination.open("wb") as target,
     ):
-        shutil.copyfileobj(response, target, length=1024 * 1024)
+        written = 0
+        while chunk := response.read(1024 * 1024):
+            written += len(chunk)
+            if max_bytes is not None and written > max_bytes:
+                raise ProductError(f"download exceeds {max_bytes} byte limit")
+            target.write(chunk)
+
+
+def _temporary_download_path(destination: Path) -> Path:
+    descriptor, name = mkstemp(
+        dir=destination.parent,
+        prefix=f".{destination.name}.",
+        suffix=".part",
+    )
+    os.close(descriptor)
+    return Path(name)
 
 
 def _verify_metadata_file(source: MetadataSource, destination: Path) -> None:
@@ -103,10 +119,9 @@ def _acquire_archive(archive: AnnotationArchive, root: Path) -> Path:
             return destination
         raise ProductError(f"existing annotation archive differs: {archive.path}")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.part")
-    temporary.unlink(missing_ok=True)
+    temporary = _temporary_download_path(destination)
     try:
-        _download(str(archive.source_url), temporary)
+        _download(str(archive.source_url), temporary, archive.bytes)
         _require_archive_matches(temporary, archive)
         temporary.replace(destination)
     except BaseException:
@@ -152,10 +167,9 @@ def acquire_artifact(artifact_id: str, max_bytes: int, root: Path = PROJECT_DIR)
             return destination
         raise ProductError(f"existing artifact differs: {artifact.path}")
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.part")
-    temporary.unlink(missing_ok=True)
+    temporary = _temporary_download_path(destination)
     try:
-        _download(str(artifact.source_url), temporary)
+        _download(str(artifact.source_url), temporary, min(max_bytes, artifact.bytes))
         _require_artifact_matches(temporary, artifact)
         temporary.replace(destination)
     except BaseException:

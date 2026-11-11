@@ -7,7 +7,9 @@ import zipfile
 from pathlib import Path
 from typing import Any, cast
 
-from camelyon_roi_product.product import PROJECT_DIR, ProductError, _write_json
+from camelyon_roi_product.acquisition import _digest
+from camelyon_roi_product.models import SourceContract
+from camelyon_roi_product.product import PROJECT_DIR, ProductError, _read_json, _write_json
 
 DATASET_ID = "camelyon-gigadb-100439-roi-v1"
 SCALE = {
@@ -16,6 +18,29 @@ SCALE = {
     "axes": "X,Y",
     "physical_spacing": "embedded_in_pyramidal_tiff",
 }
+
+METADATA_FILE_NAMES = {
+    "camelyon16_reference.csv": "reference.csv",
+    "camelyon17_stage_labels.csv": "stage_labels.csv",
+}
+
+
+def _verify_freeze_inputs(metadata: Path, contract: SourceContract) -> None:
+    for source in contract.metadata_sources:
+        name = METADATA_FILE_NAMES.get(source.source_id, source.source_id)
+        path = metadata / name
+        if not path.is_file() or _digest(path, "sha256") != source.sha256:
+            raise ProductError(f"freeze metadata differs from pinned source: {source.source_id}")
+    for archive in contract.annotation_archives:
+        name = f"{archive.challenge}_{archive.source_role}_lesion_annotations.zip"
+        path = metadata / name
+        if (
+            not path.is_file()
+            or path.stat().st_size != archive.bytes
+            or _digest(path, "md5") != archive.md5
+            or _digest(path, "sha256") != archive.sha256
+        ):
+            raise ProductError(f"freeze archive differs from pinned source: {archive.artifact_id}")
 
 
 def _checksums(path: Path) -> dict[str, str]:
@@ -235,6 +260,8 @@ def _camelyon17(
 def freeze_snapshot(metadata_dir: str, root: str | None = None) -> None:
     metadata = Path(metadata_dir).resolve()
     target = Path(root).resolve() if root is not None else PROJECT_DIR
+    contract = SourceContract.model_validate(_read_json(target / "contracts/source.json"))
+    _verify_freeze_inputs(metadata, contract)
     files = _api_files(metadata / "gigadb_files.json")
     cam16_artifacts, cam16_records = _camelyon16(metadata, files)
     cam17_artifacts, cam17_records = _camelyon17(metadata, files)

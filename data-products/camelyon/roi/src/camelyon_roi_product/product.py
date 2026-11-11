@@ -48,6 +48,8 @@ def _validate_links(
         artifact = by_id.get(record.slide_artifact.artifact_id)
         if artifact is None or record.slide_id not in artifact.contains_slide_ids:
             raise ProductError(f"{record.record_id}: invalid slide artifact reference")
+        if artifact.challenge != record.challenge or artifact.source_role != record.source_role:
+            raise ProductError(f"{record.record_id}: slide artifact scope differs")
         if (
             record.lesion_annotation is not None
             and record.lesion_annotation.artifact_id not in annotation_ids
@@ -87,6 +89,16 @@ def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
     challenge_counts = Counter(record.challenge for record in records)
     if challenge_counts != Counter({"CAMELYON16": 399, "CAMELYON17": 50}):
         raise ProductError("native record counts differ from the declared source scope")
+    role_counts = Counter((record.challenge, record.source_role) for record in records)
+    expected_role_counts = Counter(
+        {
+            ("CAMELYON16", "training"): source.scope["camelyon16_training_slides"],
+            ("CAMELYON16", "testing"): source.scope["camelyon16_testing_slides"],
+            ("CAMELYON17", "training"): source.scope["camelyon17_annotated_training_slides"],
+        }
+    )
+    if role_counts != expected_role_counts:
+        raise ProductError("native record role counts differ from the declared source scope")
     output = root / "outputs"
     output.mkdir(parents=True, exist_ok=True)
     (output / "native-records.jsonl").write_text(

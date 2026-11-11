@@ -4,16 +4,54 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
-from pydantic import ValidationError
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    DirectoryPath,
+    Field,
+    PositiveInt,
+    ValidationError,
+    field_validator,
+)
 
 from camelyon_roi_product.acquisition import acquire_annotations, acquire_artifact, verify_metadata
 from camelyon_roi_product.freeze import freeze_snapshot
 from camelyon_roi_product.product import PROJECT_DIR, ProductError, publish_product
 
 
+class RootArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    root: DirectoryPath
+
+    @field_validator("root")
+    @classmethod
+    def resolve_root(cls, root: Path) -> Path:
+        return root.resolve()
+
+
+class AcquireArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    artifact_id: str = Field(min_length=1)
+    max_bytes: PositiveInt
+
+
+class FreezeArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    metadata_dir: DirectoryPath
+
+    @field_validator("metadata_dir")
+    @classmethod
+    def resolve_metadata_dir(cls, metadata_dir: Path) -> Path:
+        return metadata_dir.resolve()
+
+
 class Application:
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root).resolve() if root is not None else PROJECT_DIR
+        arguments = RootArguments(root=PROJECT_DIR if root is None else root)
+        self.root = arguments.root
 
     def publish(self) -> None:
         metrics = publish_product(self.root)
@@ -28,11 +66,13 @@ class Application:
         print(f"Indexed {count} publisher-native CAMELYON XML lesion annotations.")
 
     def acquire(self, artifact_id: str, max_bytes: int) -> None:
-        path = acquire_artifact(artifact_id, max_bytes, self.root)
+        arguments = AcquireArguments(artifact_id=artifact_id, max_bytes=max_bytes)
+        path = acquire_artifact(arguments.artifact_id, arguments.max_bytes, self.root)
         print(f"Acquired and verified {path.relative_to(self.root)}.")
 
     def freeze(self, metadata_dir: str) -> None:
-        freeze_snapshot(metadata_dir, str(self.root))
+        arguments = FreezeArguments(metadata_dir=metadata_dir)
+        freeze_snapshot(str(arguments.metadata_dir), str(self.root))
         print("Refreshed CAMELYON contracts from the reviewed publisher metadata snapshot.")
 
 
