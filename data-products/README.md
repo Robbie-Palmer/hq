@@ -19,10 +19,14 @@ Current products:
   TCGA slides for the fixed 24-slide pilot.
 - `bcss/semantic-segmentation`: source-native BCSS ROI masks, annotations,
   native codes, and referenced TCGA slides.
+- `segpath/registered-if-masks`: source-native SegPath H&E patches and
+  registered IF-derived binary masks across eight antigen tasks.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
   with frozen patient- and slide-disjoint roles.
+- `pathologize/roi-segmentation`: the multi-source slide-coordinate ROI
+  composition contract, adapters, group-safe roles, and reconciliation reports.
 
 Projects under `ml-pipelines/` consume these products for training and
 evaluation. Shared packages and orchestration do not own product semantics.
