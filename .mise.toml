@@ -90,6 +90,7 @@ config_roots = [
     "workers/wedding-planner-api",
     "packages/wedding-planner-contracts",
     "packages/wedding-planner-data",
+    "ml-pipelines/annotation-workbench-service",
 ]
 
 [settings]
@@ -373,7 +374,7 @@ pnpm exec biome lint --config-path biome.json --no-errors-on-unmatched "$@"
 
 [tasks."lint:api"]
 description = "Generate-check and lint committed OpenAPI contracts"
-depends = ["//workers/recipe-api:lint:api", "//workers/work-graph-api:lint:api"]
+depends = ["//ml-pipelines/annotation-workbench-service:lint:api", "//workers/recipe-api:lint:api", "//workers/work-graph-api:lint:api"]
 
 [tasks."lint:markdown"]
 description = "Lint and fix Markdown files (optionally pass files as args)"
@@ -717,6 +718,7 @@ depends = [
     "//ml-pipelines/recipe-dataset:test:coverage",
     "//ml-pipelines/ai-review-evaluation:test:coverage",
     "//ml-pipelines/financial-document-idp-evaluation:test:coverage",
+    "//ml-pipelines/annotation-workbench-service:test:coverage",
     "//ml-pipelines/pathologize-benchmark-contracts:test:coverage",
     "//ml-pipelines/pathologize-cell-analysis-benchmark:test:coverage",
     "//ml-pipelines/pathologize-data-registry:test:coverage",
