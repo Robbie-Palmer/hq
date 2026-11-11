@@ -4,7 +4,6 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
-import requests
 from pydantic import ValidationError
 
 from colorectal_multistain_source.source import (
@@ -47,7 +46,6 @@ def main(command: Sequence[str] | None = None) -> int:
         fire.Fire(Application, command=list(command) if command is not None else None)
     except (
         OSError,
-        requests.RequestException,
         SourceDataError,
         ValidationError,
         ValueError,
