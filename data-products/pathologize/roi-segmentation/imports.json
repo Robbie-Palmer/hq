@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "imports": [
+    {
+      "dataset_id": "camelyon16-lesion-annotations",
+      "source_ticket": null,
+      "planned_project": "../../camelyon/lesion-annotations",
+      "interface": "outputs/native-rois.jsonl",
+      "lock": "dvc.lock",
+      "binding_kind": "contract_fixture",
+      "binding_path": "fixtures/camelyon16-native.jsonl"
+    },
+    {
+      "dataset_id": "paip2019-liver-segmentation",
+      "source_ticket": null,
+      "planned_project": "../../paip2019/liver-segmentation",
+      "interface": "outputs/native-rois.jsonl",
+      "lock": "dvc.lock",
+      "binding_kind": "contract_fixture",
+      "binding_path": "fixtures/paip2019-native.jsonl"
+    }
+  ]
+}

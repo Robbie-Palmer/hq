@@ -1,0 +1,23 @@
+{
+  "schema_version": "1.0.0",
+  "contract_id": "pathologize-roi-segmentation-v1",
+  "semantic_scope": "roi_selection",
+  "target_roles": ["lesion_inclusion", "viable_lesion_inclusion", "analysis_exclusion"],
+  "excluded_semantic_scopes": ["tissue_compartment", "artifact_quality"],
+  "coordinate_contract": {
+    "coordinate_system": "slide",
+    "origin": "level_0_top_left",
+    "axis_order": "xy",
+    "geometry": "polygon",
+    "requirements": [
+      "preserve source vertices without reprojection",
+      "preserve source pyramid level and downsample to level 0",
+      "preserve both micrometres-per-pixel axes when the source publishes them"
+    ]
+  },
+  "provenance_contract": {
+    "source_artifacts": "preserve source-product artifact IDs, URIs, and SHA-256 digests when published; do not copy source bytes",
+    "stain": "preserve source stain name, method, and IHC marker when present",
+    "molecular_status": "preserve linked subject, biomarker, value, assay, and evidence reference without inference"
+  }
+}
