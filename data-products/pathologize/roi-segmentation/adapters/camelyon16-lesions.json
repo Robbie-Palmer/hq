@@ -1,0 +1,16 @@
+{
+  "schema_version": "1.0.0",
+  "adapter_id": "camelyon16-lesions-to-pathologize-roi-v1",
+  "source_dataset_id": "camelyon16-lesion-annotations",
+  "target_ontology_id": "pathologize-roi-selection-v1",
+  "mappings": [
+    {"source_label": "Tumor", "target_role": "lesion_inclusion", "status": "partial"},
+    {"source_label": "_0", "target_role": "lesion_inclusion", "status": "partial"},
+    {"source_label": "_1", "target_role": "lesion_inclusion", "status": "partial"},
+    {"source_label": "_2", "target_role": "lesion_inclusion", "status": "partial"}
+  ],
+  "notes": [
+    "The source label remains on every record; the target role only states ROI inclusion.",
+    "The adapter does not infer lymph-node tissue compartments or slide quality."
+  ]
+}
