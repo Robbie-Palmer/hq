@@ -27,16 +27,24 @@ import {
   type ReviewDraft,
 } from "../domain/review-draft";
 import {
-  inferReviewServiceUrl,
   LOOPBACK_SERVICE_URL,
+  resolveReviewServiceUrl,
 } from "../domain/service-url";
 import { DecisionPanel } from "./decision-panel";
 import { ReviewImages } from "./review-images";
 
 const REVIEWER_ID_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9._-]*$/;
+const CONFIGURED_SERVICE_URL =
+  process.env.NEXT_PUBLIC_ANNOTATION_WORKBENCH_SERVICE_URL?.trim() || undefined;
 
-function persistWorkbenchSettings(serviceUrl: string, reviewerId: string) {
-  window.localStorage.setItem("annotation-workbench:service-url", serviceUrl);
+function persistWorkbenchSettings(
+  serviceUrl: string,
+  reviewerId: string,
+  persistServiceUrl: boolean,
+) {
+  if (persistServiceUrl) {
+    window.localStorage.setItem("annotation-workbench:service-url", serviceUrl);
+  }
   if (REVIEWER_ID_PATTERN.test(reviewerId)) {
     window.localStorage.setItem("annotation-workbench:reviewer-id", reviewerId);
   }
@@ -107,6 +115,87 @@ function ReferenceToggle({
   );
 }
 
+function connectionButtonLabel(
+  settingsReady: boolean,
+  loading: boolean,
+  serviceIsConfigured: boolean,
+): string {
+  if (!settingsReady || loading) return "Connecting…";
+  return serviceIsConfigured ? "Retry connection" : "Open review batch";
+}
+
+function ConnectionPanel({
+  serviceIsConfigured,
+  serviceUrl,
+  settingsReady,
+  loading,
+  error,
+  onServiceUrlChange,
+  onConnect,
+}: Readonly<{
+  serviceIsConfigured: boolean;
+  serviceUrl: string;
+  settingsReady: boolean;
+  loading: boolean;
+  error: string | null;
+  onServiceUrlChange: (value: string) => void;
+  onConnect: () => void;
+}>) {
+  return (
+    <main className="flex min-h-screen items-center justify-center bg-muted/20 p-4">
+      <div className="w-full max-w-lg space-y-5 rounded-2xl border bg-card p-6 shadow-sm">
+        <div className="space-y-2">
+          <Badge variant="outline">
+            {serviceIsConfigured ? "Configured service" : "Local development"}
+          </Badge>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            Annotation Workbench
+          </h1>
+          <p className="text-sm text-muted-foreground">
+            {serviceIsConfigured
+              ? "Opening the review batch configured by the launcher."
+              : "Connect to a local review service. Source images and review records remain on the serving machine."}
+          </p>
+        </div>
+        {serviceIsConfigured ? null : (
+          <label
+            htmlFor="review-service-url"
+            className="grid gap-2 text-sm font-medium"
+          >
+            Review service URL
+            <Input
+              id="review-service-url"
+              value={serviceUrl}
+              onChange={(event) => onServiceUrlChange(event.target.value)}
+            />
+          </label>
+        )}
+        {error ? (
+          <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+            <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
+            {error}
+          </p>
+        ) : null}
+        <Button
+          type="button"
+          className="w-full"
+          disabled={loading || !settingsReady}
+          onClick={onConnect}
+        >
+          <Database aria-hidden />
+          {connectionButtonLabel(settingsReady, loading, serviceIsConfigured)}
+        </Button>
+        {serviceIsConfigured ? null : (
+          <p className="font-mono text-xs text-muted-foreground">
+            {"mise //ml-pipelines/annotation-workbench-service:serve -- "}
+            {"--bundle=/path/bundle.json"}
+          </p>
+        )}
+      </div>
+    </main>
+  );
+}
+
 export function AnnotationWorkbench() {
   const [serviceUrl, setServiceUrl] = useState(LOOPBACK_SERVICE_URL);
   const [reviewerId, setReviewerId] = useState("reviewer-a");
@@ -120,6 +209,8 @@ export function AnnotationWorkbench() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [settingsReady, setSettingsReady] = useState(false);
+  const serviceIsConfigured = CONFIGURED_SERVICE_URL !== undefined;
 
   const connect = useCallback(async () => {
     setLoading(true);
@@ -147,9 +238,21 @@ export function AnnotationWorkbench() {
     const storedReviewer = window.localStorage.getItem(
       "annotation-workbench:reviewer-id",
     );
-    setServiceUrl(storedUrl ?? inferReviewServiceUrl(window.location.hostname));
+    setServiceUrl(
+      resolveReviewServiceUrl({
+        configuredUrl: CONFIGURED_SERVICE_URL,
+        storedUrl: storedUrl ?? undefined,
+        hostname: window.location.hostname,
+      }),
+    );
     if (storedReviewer) setReviewerId(storedReviewer);
+    setSettingsReady(true);
   }, []);
+
+  useEffect(() => {
+    if (!settingsReady || !serviceIsConfigured) return;
+    void connect();
+  }, [connect, serviceIsConfigured, settingsReady]);
 
   const item = session?.bundle.items[currentIndex];
   const currentReview = useMemo(
@@ -234,60 +337,25 @@ export function AnnotationWorkbench() {
   }
 
   function persistIdentity() {
-    persistWorkbenchSettings(serviceUrl, reviewerId);
+    persistWorkbenchSettings(serviceUrl, reviewerId, !serviceIsConfigured);
   }
 
   useReviewShortcuts(draft, proposal?.id, Boolean(item), setDraft);
 
   if (!session || !item || !proposal) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-muted/20 p-4">
-        <div className="w-full max-w-lg space-y-5 rounded-2xl border bg-card p-6 shadow-sm">
-          <div className="space-y-2">
-            <Badge variant="outline">Local-first</Badge>
-            <h1 className="text-2xl font-semibold tracking-tight">
-              Annotation Workbench
-            </h1>
-            <p className="text-sm text-muted-foreground">
-              Connect to a local or tailnet review service. Source images and
-              review records remain on the serving machine.
-            </p>
-          </div>
-          <label
-            htmlFor="review-service-url"
-            className="grid gap-2 text-sm font-medium"
-          >
-            Review service URL
-            <Input
-              id="review-service-url"
-              value={serviceUrl}
-              onChange={(event) => setServiceUrl(event.target.value)}
-            />
-          </label>
-          {error ? (
-            <p className="flex gap-2 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-              <AlertCircle aria-hidden className="mt-0.5 size-4 shrink-0" />
-              {error}
-            </p>
-          ) : null}
-          <Button
-            type="button"
-            className="w-full"
-            disabled={loading}
-            onClick={() => {
-              persistIdentity();
-              void connect();
-            }}
-          >
-            <Database aria-hidden />
-            {loading ? "Connecting…" : "Open review batch"}
-          </Button>
-          <p className="font-mono text-xs text-muted-foreground">
-            {"mise //ml-pipelines/annotation-workbench-service:serve -- "}
-            {"--bundle=/path/bundle.json"}
-          </p>
-        </div>
-      </main>
+      <ConnectionPanel
+        serviceIsConfigured={serviceIsConfigured}
+        serviceUrl={serviceUrl}
+        settingsReady={settingsReady}
+        loading={loading}
+        error={error}
+        onServiceUrlChange={setServiceUrl}
+        onConnect={() => {
+          persistIdentity();
+          void connect();
+        }}
+      />
     );
   }
 

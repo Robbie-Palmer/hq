@@ -67,4 +67,5 @@ fi
 
 echo "Annotation Workbench mobile QA: ${ui_origin}/annotation-workbench"
 echo "FastAPI docs: ${api_url}/api/docs"
-mise //ui:dev -- --hostname "$tailnet_ip" --port "$ui_port"
+NEXT_PUBLIC_ANNOTATION_WORKBENCH_SERVICE_URL="$api_url" \
+  mise //ui:dev -- --hostname "$tailnet_ip" --port "$ui_port"

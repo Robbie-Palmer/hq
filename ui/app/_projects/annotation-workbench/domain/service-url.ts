@@ -15,4 +15,20 @@ export function inferReviewServiceUrl(hostname: string): string {
   return privateHost ? `http://${hostname}:8765` : LOOPBACK_SERVICE_URL;
 }
 
+export function resolveReviewServiceUrl({
+  configuredUrl,
+  storedUrl,
+  hostname,
+}: Readonly<{
+  configuredUrl?: string;
+  storedUrl?: string;
+  hostname: string;
+}>): string {
+  return (
+    configuredUrl?.trim() ||
+    storedUrl?.trim() ||
+    inferReviewServiceUrl(hostname)
+  );
+}
+
 export { LOOPBACK_SERVICE_URL };

@@ -47,6 +47,8 @@ mise //ml-pipelines/annotation-workbench-service:serve:tailnet -- \
 Set `ANNOTATION_WORKBENCH_UI_PORT` when port `3000` already belongs to another
 private service. The launcher uses the same port in the UI bind, printed URL,
 and API CORS allowlist, and refuses to let Next.js silently choose another one.
+It also supplies the review API URL to Next.js, so reviewers do not configure
+service addresses in the browser.
 
 ```sh
 ANNOTATION_WORKBENCH_UI_PORT=3001 \
