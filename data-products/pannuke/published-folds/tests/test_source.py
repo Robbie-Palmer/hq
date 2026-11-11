@@ -119,6 +119,11 @@ def test_committed_manifest_preserves_publisher_semantics() -> None:
     assert background.channel_index == 5
     assert background.publisher_readme_value == 6
     assert manifest.license.spdx_id == "CC-BY-NC-SA-4.0"
+    assert [paper.identifier for paper in manifest.papers] == [
+        "doi:10.1007/978-3-030-23937-4_2",
+        "arXiv:2003.10778",
+    ]
+    assert "must cite both papers" in manifest.publication_citation_requirement
     assert "no sample, slide, patient, or group identifier" in manifest.identity_evidence
     assert "publishes no checksum manifest" in manifest.checksum_provenance
 

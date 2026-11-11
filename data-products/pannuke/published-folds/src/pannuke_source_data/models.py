@@ -13,7 +13,7 @@ class StrictModel(BaseModel):
 
 class Paper(StrictModel):
     title: str = Field(min_length=1)
-    identifier: Literal["arXiv:2003.10778"]
+    identifier: Literal["doi:10.1007/978-3-030-23937-4_2", "arXiv:2003.10778"]
     url: HttpsUrl
 
 
@@ -93,7 +93,8 @@ class SourceManifest(StrictModel):
     source_version: str = Field(min_length=1)
     publisher: str = Field(min_length=1)
     publisher_record: HttpsUrl
-    paper: Paper
+    papers: list[Paper]
+    publication_citation_requirement: str = Field(min_length=1)
     license: License
     checksum_provenance: str = Field(min_length=1)
     archives: list[SourceArchive]
@@ -104,6 +105,11 @@ class SourceManifest(StrictModel):
 
     @model_validator(mode="after")
     def require_complete_native_contract(self) -> Self:
+        if [paper.identifier for paper in self.papers] != [
+            "doi:10.1007/978-3-030-23937-4_2",
+            "arXiv:2003.10778",
+        ]:
+            raise ValueError("PanNuke must preserve both publisher-listed papers")
         if [archive.fold for archive in self.archives] != [1, 2, 3]:
             raise ValueError("PanNuke archives must preserve publisher folds 1, 2, and 3")
         if [item.arrangement for item in self.publisher_role_arrangements] != [1, 2, 3]:

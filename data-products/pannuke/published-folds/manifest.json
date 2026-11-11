@@ -6,11 +6,19 @@
   "source_version": "University of Warwick fold archives published with the 2020 PanNuke extension",
   "publisher": "Tissue Image Analytics Centre, University of Warwick",
   "publisher_record": "https://warwick.ac.uk/fac/cross_fac/tia/data/pannuke/",
-  "paper": {
-    "title": "PanNuke Dataset Extension, Insights and Baselines",
-    "identifier": "arXiv:2003.10778",
-    "url": "https://arxiv.org/abs/2003.10778"
-  },
+  "papers": [
+    {
+      "title": "PanNuke: An Open Pan-Cancer Histology Dataset for Nuclei Instance Segmentation and Classification",
+      "identifier": "doi:10.1007/978-3-030-23937-4_2",
+      "url": "https://doi.org/10.1007/978-3-030-23937-4_2"
+    },
+    {
+      "title": "PanNuke Dataset Extension, Insights and Baselines",
+      "identifier": "arXiv:2003.10778",
+      "url": "https://arxiv.org/abs/2003.10778"
+    }
+  ],
+  "publication_citation_requirement": "Researchers who publish work using this dataset must cite both papers listed above.",
   "license": {
     "spdx_id": "CC-BY-NC-SA-4.0",
     "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",

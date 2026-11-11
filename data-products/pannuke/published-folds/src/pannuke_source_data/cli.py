@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, DirectoryPath, ValidationError, field_validator
 
 from pannuke_source_data.source import (
     PROJECT_DIR,
@@ -15,12 +15,34 @@ from pannuke_source_data.source import (
 )
 
 
+class RootArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    root: DirectoryPath
+
+    @field_validator("root")
+    @classmethod
+    def resolve_root(cls, root: Path) -> Path:
+        return root.resolve()
+
+
+class VerifyMetadataArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    output: Path | None
+
+    def resolved_output(self, root: Path) -> Path | None:
+        return None if self.output is None else (root / self.output).resolve()
+
+
 class Application:
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root).resolve() if root is not None else PROJECT_DIR
+        arguments = RootArguments(root=PROJECT_DIR if root is None else root)
+        self.root = arguments.root
 
     def verify_metadata(self, output: str | None = "outputs/publisher-metadata.json") -> None:
-        output_path = None if output is None else (self.root / output).resolve()
+        arguments = VerifyMetadataArguments(output=output)
+        output_path = arguments.resolved_output(self.root)
         evidence = verify_publisher_metadata(self.root, output_path)
         print(f"Verified metadata for {len(evidence.archives)} PanNuke fold archives.")
 
