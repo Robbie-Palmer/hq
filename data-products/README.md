@@ -15,10 +15,14 @@ Current products:
 - `grandqc/mpp20`: source-native GrandQC MPP20 patch pairs and masks.
 - `nucls/corrected-single-rater`: source-native NuCLS fields of view,
   annotations, ontology, and official fold roles.
+- `panda/challenge-2020`: source-native PANDA prostate-biopsy slides, grades,
+  provider-specific masks, rights, checksums, and gated access contract.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
 - `sicapv2/mendeley-v2`: source-native SICAPv2 patients, slides, patches,
   Gleason-pattern masks, global scores, and publisher partitions.
+- `paip2019/liver-roi`: source-native PAIP 2019 liver whole-slide images,
+  tumour masks, XML regions, challenge roles, and gated access contract.
 - `segpath/registered-if-masks`: source-native SegPath H&E patches and
   registered IF-derived binary masks across eight antigen tasks.
 - `pathologize/slide-quality`: the reconciled Pathologize artifact-spatial
