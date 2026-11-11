@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "publication_state": "awaiting_source_products",
+  "imports": [
+    {
+      "source_dataset_id": "bcss-amgad-2019",
+      "source_ticket": "pathologize-bcss-source-product",
+      "expected_dvc_lock": "../../bcss/amgad-2019/dvc.lock",
+      "expected_manifest": "../../bcss/amgad-2019/manifest.json",
+      "expected_interface": "outputs/native-index.jsonl",
+      "adapter": "adapters/bcss-amgad-2019.json",
+      "status": "pending_source_product",
+      "contract_fixture": "tests/fixtures/bcss.jsonl",
+      "required_evidence": ["rights", "retrieval", "checksums", "physical_scale", "native_ontology"]
+    },
+    {
+      "source_dataset_id": "segpath-public-v1",
+      "source_ticket": "pathologize-segpath-source-product",
+      "expected_dvc_lock": "../../segpath/public/dvc.lock",
+      "expected_manifest": "../../segpath/public/manifest.json",
+      "expected_interface": "outputs/native-index.jsonl",
+      "adapter": "adapters/segpath-public-v1.json",
+      "status": "pending_source_product",
+      "contract_fixture": "tests/fixtures/segpath.jsonl",
+      "required_evidence": ["rights", "retrieval", "checksums", "physical_scale", "native_ontology"]
+    },
+    {
+      "source_dataset_id": "crc-ihc-cish-he-epithelium-v1",
+      "source_ticket": "pathologize-colorectal-epithelium-source-product",
+      "expected_dvc_lock": "../../crc-epithelium/ihc-cish-he/dvc.lock",
+      "expected_manifest": "../../crc-epithelium/ihc-cish-he/manifest.json",
+      "expected_interface": "outputs/native-index.jsonl",
+      "adapter": "adapters/crc-ihc-cish-he-epithelium-v1.json",
+      "status": "pending_source_product",
+      "contract_fixture": "tests/fixtures/crc-epithelium.jsonl",
+      "required_evidence": ["rights", "retrieval", "checksums", "physical_scale", "native_ontology"]
+    }
+  ]
+}

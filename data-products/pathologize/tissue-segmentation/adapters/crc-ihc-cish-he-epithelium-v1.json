@@ -1,0 +1,19 @@
+{
+  "schema_version": "1.0.0",
+  "adapter_id": "crc-ihc-cish-he-epithelium-v1-to-tissue-compartment-v1",
+  "source_kind": "crc_epithelium",
+  "source_dataset_id": "crc-ihc-cish-he-epithelium-v1",
+  "source_interface_version": "1.0.0",
+  "target_ontology_id": "pathologize.tissue-compartment/v1",
+  "coverage_semantics": "binary_epithelium_mask",
+  "expected_image_techniques": ["H&E", "IHC", "CISH"],
+  "expected_annotation_techniques": [],
+  "mappings": [
+    {"source_label": "epithelium", "source_values": ["1"], "target_labels": ["epithelium"], "status": "partial", "rationale": "The mask includes normal and cancer epithelium; source tissue role remains separate."}
+  ],
+  "limitations": [
+    "The binary mask identifies epithelium only; unmarked pixels are not assigned another tissue label.",
+    "Normal mucosa and cancer are source tissue roles, not rewritten as pixel classes.",
+    "H&E, IHC marker, and CISH target provenance must remain distinct across images of related TMA material."
+  ]
+}

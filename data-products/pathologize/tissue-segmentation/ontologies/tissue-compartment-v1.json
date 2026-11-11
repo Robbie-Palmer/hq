@@ -1,0 +1,32 @@
+{
+  "schema_version": "1.0.0",
+  "ontology_id": "pathologize.tissue-compartment/v1",
+  "description": "Semantic tissue and cell-compartment concepts. This ontology does not define artifact quality, ROI selection, nuclei, or instances.",
+  "concepts": [
+    {"id": "ignore", "kind": "ignore", "parents": []},
+    {"id": "unknown", "kind": "unknown", "parents": []},
+    {"id": "epithelium", "kind": "tissue", "parents": []},
+    {"id": "neoplastic_epithelium", "kind": "tissue", "parents": ["epithelium"]},
+    {"id": "non_invasive_neoplastic_epithelium", "kind": "tissue", "parents": ["neoplastic_epithelium"]},
+    {"id": "non_neoplastic_epithelium", "kind": "tissue", "parents": ["epithelium"]},
+    {"id": "stroma", "kind": "tissue", "parents": []},
+    {"id": "smooth_muscle_or_myofibroblast", "kind": "cell_compartment", "parents": ["stroma"]},
+    {"id": "leukocyte", "kind": "cell_compartment", "parents": []},
+    {"id": "lymphocyte", "kind": "cell_compartment", "parents": ["leukocyte"]},
+    {"id": "plasma_cell", "kind": "cell_compartment", "parents": ["leukocyte"]},
+    {"id": "myeloid_cell", "kind": "cell_compartment", "parents": ["leukocyte"]},
+    {"id": "blood", "kind": "tissue", "parents": []},
+    {"id": "erythrocyte", "kind": "cell_compartment", "parents": ["blood"]},
+    {"id": "endothelium", "kind": "cell_compartment", "parents": []},
+    {"id": "blood_vessel", "kind": "tissue", "parents": []},
+    {"id": "lymphatic_vessel", "kind": "tissue", "parents": []},
+    {"id": "adipose", "kind": "tissue", "parents": []},
+    {"id": "necrosis_or_debris", "kind": "tissue", "parents": []},
+    {"id": "secretion_or_mucin", "kind": "tissue", "parents": []},
+    {"id": "nerve", "kind": "tissue", "parents": []},
+    {"id": "skin_adnexa", "kind": "tissue", "parents": []},
+    {"id": "angioinvasion", "kind": "spatial_relation", "parents": ["neoplastic_epithelium", "blood_vessel"]},
+    {"id": "other_tissue", "kind": "tissue", "parents": []}
+  ],
+  "excluded_tasks": ["artifact_quality", "roi_selection", "nucleus_analysis", "instance_segmentation"]
+}

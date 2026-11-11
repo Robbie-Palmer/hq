@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "product_id": "pathologize.general-tissue-segmentation/v1",
+  "description": "Multi-organ semantic tissue and cell-compartment contract with source assay provenance",
+  "ontology_id": "pathologize.tissue-compartment/v1",
+  "publication_state": "contract_fixture",
+  "fixture_data_only": true,
+  "split_policy": {
+    "method": "sha256_threshold",
+    "group_key": "source_group_id",
+    "seed": "pathologize.general-tissue-segmentation/v1",
+    "train_fraction": 0.7,
+    "validation_fraction": 0.15,
+    "test_fraction": 0.15
+  },
+  "source_role_policy": {
+    "bcss-amgad-2019": "group_hash_when_unassigned",
+    "segpath-public-v1": "preserve",
+    "crc-ihc-cish-he-epithelium-v1": "group_hash_when_unassigned"
+  }
+}

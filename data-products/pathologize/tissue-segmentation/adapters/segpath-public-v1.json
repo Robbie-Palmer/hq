@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "adapter_id": "segpath-public-v1-to-tissue-compartment-v1",
+  "source_kind": "segpath",
+  "source_dataset_id": "segpath-public-v1",
+  "source_interface_version": "1.0.0",
+  "target_ontology_id": "pathologize.tissue-compartment/v1",
+  "coverage_semantics": "positive_binary_only",
+  "expected_image_techniques": ["H&E"],
+  "expected_annotation_techniques": ["IF"],
+  "mappings": [
+    {"source_label": "epithelial cells", "source_values": ["1"], "target_labels": ["epithelium"], "status": "partial", "rationale": "The source target does not separate neoplastic from non-neoplastic epithelium."},
+    {"source_label": "smooth muscle cells/myofibroblasts", "source_values": ["1"], "target_labels": ["smooth_muscle_or_myofibroblast"], "status": "source_merged", "rationale": "The source antibody target does not separate smooth muscle from myofibroblasts."},
+    {"source_label": "red blood cells", "source_values": ["1"], "target_labels": ["erythrocyte"], "status": "exact", "rationale": "Same cell compartment meaning."},
+    {"source_label": "leukocytes", "source_values": ["1"], "target_labels": ["leukocyte"], "status": "exact", "rationale": "Same broad cell compartment meaning."},
+    {"source_label": "lymphocytes", "source_values": ["1"], "target_labels": ["lymphocyte"], "status": "exact", "rationale": "Same cell compartment meaning."},
+    {"source_label": "endothelial cells", "source_values": ["1"], "target_labels": ["endothelium"], "status": "exact", "rationale": "Same cell compartment meaning."},
+    {"source_label": "plasma cells", "source_values": ["1"], "target_labels": ["plasma_cell"], "status": "exact", "rationale": "Same cell compartment meaning."},
+    {"source_label": "myeloid cells", "source_values": ["1"], "target_labels": ["myeloid_cell"], "status": "exact", "rationale": "Same cell compartment meaning."}
+  ],
+  "limitations": [
+    "Each SegPath mask marks one IF-defined positive cell type; zero pixels are not a general background or exhaustive negative class.",
+    "The H&E image and IF-derived mask are related by source registration, so annotation assay and registration provenance must remain attached.",
+    "SegPath semantic masks do not introduce nucleus or cell instances into this product."
+  ]
+}

@@ -21,6 +21,10 @@ Current products:
   product built from GrandQC and AIRAQc.
 - `pathologize/nucleus-analysis`: the source-preserving NuCLS task product
   with frozen patient- and slide-disjoint roles.
+- `pathologize/tissue-segmentation`: the assay-aware, multi-source semantic
+  tissue-compartment composition contract. It currently publishes synthetic
+  contract evidence while its BCSS, SegPath, and colorectal source products
+  are built on separate tickets.
 
 Projects under `ml-pipelines/` consume these products for training and
 evaluation. Shared packages and orchestration do not own product semantics.
