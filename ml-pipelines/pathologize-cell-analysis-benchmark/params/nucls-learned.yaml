@@ -50,6 +50,7 @@ training:
   rectangular_batches: false
   multi_scale: false
   close_mosaic_epochs: 10
+  segment_initialization: detect_checkpoint_backbone_neck
   augmentation:
     hsv_h: 0.015
     hsv_s: 0.7
@@ -88,6 +89,9 @@ stop_rules:
   - Stop a task at 40 epochs, after 8 epochs without validation improvement, or after 4 wall-clock hours, whichever comes first.
   - Stop the experiment before aggregate GPU time exceeds 86400 seconds or peak allocation exceeds 12884901888 bytes.
   - Do not train a larger model in this experiment. A larger follow-up requires separate authorization and a measured quality case from validation results.
+  - Stop before training if the segmentation initialization audit does not prove that every shared backbone and neck tensor, and no task-head tensor, comes from the completed NuCLS detector checkpoint.
+  - Stop before frozen-test inference unless segmentation validation mask mAP50-95 improves by at least 0.005 over 0.12477, segmentation validation mask mAP50 is at least 0.26981, and detection validation box mAP50-95 remains within 0.005 of 0.18600.
+  - Reject the intervention if prediction conversion fails, detection localization F1 falls by more than 0.005 from 0.52067, segmentation localization F1 improves by less than 0.01 from 0.61123, or conditional polygon mean IoU falls below 0.75976.
   - Reject promotion if the learned result has conversion failures, violates leakage boundaries, or fails to improve the corresponding transparent-baseline task without an explicit failure analysis.
 export:
   performed: false
