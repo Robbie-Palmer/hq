@@ -81,6 +81,7 @@ class TrainingConfig(StrictModel):
     rectangular_batches: Literal[False]
     multi_scale: Literal[False]
     close_mosaic_epochs: int = Field(ge=0)
+    segment_initialization: Literal["source_weights", "detect_checkpoint_backbone_neck"]
     augmentation: AugmentationConfig
 
 
