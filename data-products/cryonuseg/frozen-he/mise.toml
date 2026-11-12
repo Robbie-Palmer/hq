@@ -1,0 +1,62 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked CryoNuSeg source-data environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the CryoNuSeg source-data lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format CryoNuSeg source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint CryoNuSeg source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check CryoNuSeg source-data code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run CryoNuSeg source-data tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run CryoNuSeg source-data tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the CryoNuSeg source-data project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.publish]
+description = "Validate and publish the native CryoNuSeg corpus"
+depends = ["sync"]
+run = "uv run --locked cryonuseg-source-data publish"
+
+[tasks.source-check]
+description = "Check pinned CryoNuSeg and GDC public metadata"
+depends = ["sync"]
+run = "uv run --locked cryonuseg-source-data source-check"
+
+[tasks.verify-archive]
+description = "Verify an existing CryoNuSeg v7 archive outside Git"
+depends = ["sync"]
+run = "uv run --locked cryonuseg-source-data verify-archive"
+
+[tasks.repro]
+description = "Reproduce the metadata-only CryoNuSeg source product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic CryoNuSeg source-data checks"
+depends = ["lint", "typecheck", "test:coverage"]

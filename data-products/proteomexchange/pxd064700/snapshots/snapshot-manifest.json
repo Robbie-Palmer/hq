@@ -1,0 +1,44 @@
+{
+  "acquisition_mode": "public_metadata_only",
+  "files": [
+    {
+      "bytes": 82795,
+      "path": "snapshots/checksum.txt",
+      "sha256": "8801c97270bade3ba07c4d51f40780c02042356957438f9e7d01728831bed33a"
+    },
+    {
+      "bytes": 200164,
+      "path": "snapshots/community-annotation.sdrf.tsv",
+      "sha256": "c3f3af75ae8cdfa22468ec24e4922381272a69f79c480e493c79dd31f8210c0a"
+    },
+    {
+      "bytes": 123,
+      "path": "snapshots/donor-name-map.tsv",
+      "sha256": "423ddd0662b838dbe0732164053f68f019723a5faffe6fa6b5858c98daf93550"
+    },
+    {
+      "bytes": 635,
+      "path": "snapshots/experiment-overview.txt",
+      "sha256": "59d53b00a0d18b56d62e04328bff8ec7a9473472c8c57743df83541d4a079416"
+    },
+    {
+      "bytes": 140238,
+      "path": "snapshots/ftp-listing.jsonl",
+      "sha256": "3a57b87f25f196d162244884088dbd68f836a6b07ffdf03d73ea4d9cb571d511"
+    },
+    {
+      "bytes": 6641,
+      "path": "snapshots/pride-project.json",
+      "sha256": "d7a2d37f61b80f5a152581c5ddec77b694db4398a87117ddfd32d2399d2f3120"
+    },
+    {
+      "bytes": 206363,
+      "path": "snapshots/proteomexchange-announcement.xml",
+      "sha256": "5533aca1de08aede25973e7da814cb20e271e5ea98df4cfaa32618a340f52d6d"
+    }
+  ],
+  "product_id": "proteomexchange-pxd064700-revision-1",
+  "requires_credentials": false,
+  "retrieved_at": "2026-11-11T09:33:25+00:00",
+  "schema_version": "1.0.0"
+}
