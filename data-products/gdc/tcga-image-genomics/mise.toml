@@ -1,0 +1,57 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked GDC TCGA product environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the GDC TCGA product lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format GDC TCGA product code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint GDC TCGA product code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check GDC TCGA product code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run GDC TCGA product tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run GDC TCGA product tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the GDC TCGA product"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.verify]
+description = "Publish the deterministic Data Release 46.0 metadata fixture"
+depends = ["sync"]
+run = "uv run --locked gdc-tcga-image-genomics verify"
+
+[tasks.refresh]
+description = "Refresh the full pinned-release open metadata product"
+depends = ["sync"]
+run = "uv run --locked gdc-tcga-image-genomics refresh"
+
+[tasks.repro]
+description = "Reproduce the metadata-only GDC TCGA verification through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic GDC TCGA product checks"
+depends = ["lint", "typecheck", "test:coverage"]

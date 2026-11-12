@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "gdc-tcga-data-release-46.0",
+  "access_scope": "Open GDC metadata and open-access file references only",
+  "redistribution": "This repository does not redistribute GDC slide or molecular file bytes.",
+  "licence_statement": "GDC open access is an access tier, not a blanket copyright licence.",
+  "duties": [
+    "Do not attempt to identify individual research participants.",
+    "Acknowledge the dataset and the NIH-designated repository in publications and presentations.",
+    "Acknowledge the TCGA Research Network when using TCGA data."
+  ],
+  "authoritative_sources": [
+    {
+      "title": "GDC Data Access Policy",
+      "url": "https://docs.gdc.cancer.gov/Encyclopedia/pages/Data_Access_Policy/"
+    },
+    {
+      "title": "GDC Data Access Processes and Tools",
+      "url": "https://gdc.cancer.gov/access-data/data-access-processes-and-tools"
+    },
+    {
+      "title": "NCI TCGA data and acknowledgement guidance",
+      "url": "https://www.cancer.gov/about-nci/organization/dcb/research-programs/past-programs/tcga"
+    }
+  ]
+}

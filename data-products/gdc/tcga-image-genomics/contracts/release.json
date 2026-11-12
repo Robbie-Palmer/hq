@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "gdc-tcga-data-release-46.0",
+  "data_release": "46.0",
+  "release_date": "2026-08-10",
+  "api_base_url": "https://api.gdc.cancer.gov",
+  "status_url": "https://api.gdc.cancer.gov/status",
+  "release_notes_url": "https://docs.gdc.cancer.gov/Data/Release_Notes/Data_Release_Notes/#data-release-460",
+  "api_status_commit_observed": "8f7c2a51ab0084b216ad1b62a3fae8b945439c53",
+  "official_active_manifest": {
+    "file_id": "e24cbfe8-36ed-4ce9-a8f8-02b13b832647",
+    "file_name": "gdc_manifest_20260810_data_release_46.0_active.tsv",
+    "url": "https://api.gdc.cancer.gov/data/e24cbfe8-36ed-4ce9-a8f8-02b13b832647"
+  }
+}
