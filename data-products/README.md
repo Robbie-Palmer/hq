@@ -21,6 +21,8 @@ Current products:
   provider-specific masks, rights, checksums, and gated access contract.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `cptac/lscc-public`: source-native CPTAC-LSCC participant, specimen, TCIA
+  slide, PDC proteomic-study, and GDC genomic-file linkage metadata.
 - `paip2019/liver-roi`: source-native PAIP 2019 liver whole-slide images,
   tumour masks, XML regions, challenge roles, and gated access contract.
 - `segpath/registered-if-masks`: source-native SegPath H&E patches and

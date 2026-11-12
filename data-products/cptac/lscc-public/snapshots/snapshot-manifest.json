@@ -1,0 +1,82 @@
+{
+  "files": [
+    {
+      "path": "snapshots/tcia-collection.json",
+      "records": 1,
+      "sha256": "5f0037e0d3f4cdecc94c689beabacdf05847e61cb3dd595491b892490d9ccc45"
+    },
+    {
+      "path": "snapshots/gdc-status.json",
+      "records": 1,
+      "sha256": "9f8cfe02426b5599b22a6302a9091f39dcd4aee37db27e03c6b4ad6735142640"
+    },
+    {
+      "path": "snapshots/tcia-slides.jsonl",
+      "records": 1081,
+      "sha256": "10a456103d45af2356509111ca585d773146dac3a478b4c4defe240e7dc7fe78"
+    },
+    {
+      "path": "snapshots/pdc-studies.jsonl",
+      "records": 4,
+      "sha256": "f8a1634521c08397dbe77afef8d6bda5f6f34ea3bea63afaf951cd8920ba265c"
+    },
+    {
+      "path": "snapshots/pdc-biospecimens.jsonl",
+      "records": 800,
+      "sha256": "54f8c160da4fcedbe33e6f828f9174688d692f9a08e15ba0d54ca1e0307fb7a3"
+    },
+    {
+      "path": "snapshots/pdc-clinical.jsonl",
+      "records": 752,
+      "sha256": "e10011045381da6d202f016e8a541dc345528d74bb560e32ee60366c44308db5"
+    },
+    {
+      "path": "snapshots/pdc-files.jsonl",
+      "records": 3915,
+      "sha256": "8b4cdb37c749737259f3ed447e344e6d173d59818ccbf88d8b6d8401aaf1f119"
+    },
+    {
+      "path": "snapshots/gdc-cases.jsonl",
+      "records": 108,
+      "sha256": "63962fb6b2eb0b4e203ce9c2e6173a5e6b2f53059d66f7b01f558362e5a961b0"
+    },
+    {
+      "path": "snapshots/gdc-files.jsonl",
+      "records": 6771,
+      "sha256": "89dbee0721622494c5381c6e30a9b8be1fd9694b78e78a06483c43f9f83a583e"
+    }
+  ],
+  "gdc_data_release": "Data Release 46.0 - August 10, 2026",
+  "gdc_data_release_version": "46.0",
+  "pdc_versions": [
+    {
+      "is_latest_version": "yes",
+      "pdc_study_id": "PDC000232",
+      "study_id": "17d5c31f-d028-11ea-b1fd-0aad30af8a83",
+      "study_version": "1"
+    },
+    {
+      "is_latest_version": "yes",
+      "pdc_study_id": "PDC000233",
+      "study_id": "17d5c50c-d028-11ea-b1fd-0aad30af8a83",
+      "study_version": "1"
+    },
+    {
+      "is_latest_version": "yes",
+      "pdc_study_id": "PDC000234",
+      "study_id": "17d5c677-d028-11ea-b1fd-0aad30af8a83",
+      "study_version": "1"
+    },
+    {
+      "is_latest_version": "yes",
+      "pdc_study_id": "PDC000237",
+      "study_id": "b3545fd1-ebcc-11ea-b1fd-0aad30af8a83",
+      "study_version": "1"
+    }
+  ],
+  "product_id": "cptac-lscc-public-v1",
+  "retrieved_at": "2026-11-11T08:36:11+00:00",
+  "schema_version": "1.0.0",
+  "tcia_collection_modified_gmt": "2026-11-03T14:36:04",
+  "tcia_collection_version": "15"
+}

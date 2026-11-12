@@ -1,0 +1,486 @@
+{
+  "collection": {
+    "_links": {
+      "about": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/wp/v2/types/tcia_collection"
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/v1/collections"
+        }
+      ],
+      "curies": [
+        {
+          "href": "https://api.w.org/{rel}",
+          "name": "wp",
+          "templated": true
+        }
+      ],
+      "predecessor-version": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/v1/collections/45043/revisions/48485",
+          "id": 48485
+        }
+      ],
+      "self": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/v1/collections/45043"
+        }
+      ],
+      "version-history": [
+        {
+          "count": 1,
+          "href": "https://www.cancerimagingarchive.net/api/v1/collections/45043/revisions"
+        }
+      ],
+      "wp:attachment": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/wp/v2/media?parent=45043"
+        }
+      ],
+      "wp:featuredmedia": [
+        {
+          "embeddable": true,
+          "href": "https://www.cancerimagingarchive.net/api/wp/v2/media/47081"
+        }
+      ]
+    },
+    "additional_resources": "<ul>\r\n \t<li><a href=\"https://pdc.cancer.gov/pdc/browse/filters/study_name:CPTAC%20LSCC%20Discovery%20Study%20-%20Phosphoproteome%7CCPTAC%20LSCC%20Discovery%20Study%20-%20Acetylome%7CCPTAC%20LSCC%20Discovery%20Study%20-%20Proteome%7CCPTAC%20LSCC%20Discovery%20Study%20-%20Ubiquitylome\">Proteomic Data Commons (PDC)</a>\u00a0(Proteomic &amp; Clinical Data)</li>\r\n \t<li><a href=\"https://portal.gdc.cancer.gov/projects/CPTAC-3\">Genomic Data Commons (GDC)</a>\u00a0(Genomic &amp; Clinical Data)</li>\r\n</ul>",
+    "analysis_results": "",
+    "cancer_locations": [
+      "Lung"
+    ],
+    "cancer_types": [
+      "Squamous Cell Carcinoma"
+    ],
+    "citations": [
+      44931,
+      46761,
+      52375,
+      9225
+    ],
+    "collection_abstract": "",
+    "collection_acknowledgements": "<p>We would like to acknowledge the individuals and institutions that have provided data for this collection:</p><ul><li>Beaumont Health System, Royal Oak, MI - Special thanks to\u00a0<strong>George D. Wilson, PhD</strong> from the Department of Radiation Oncology Research,\u00a0<strong>Barbara Pruetz</strong> of the Biobank,\u00a0<strong>Debra Kapczynski, MHSA, CIIP, RT(R)(CT)</strong>\u00a0and <strong>Rachel Deyer</strong> from the Department of Diagnostic Radiology.</li><li>Cureline, Inc. team and clinical network, Brisbane, CA - Special thanks to\u00a0<strong>Olga Potapova, PhD</strong>, <strong>Vladislav Golubkov, PhD</strong>, <strong>Victoria Fulidou, MD</strong>, <strong>Alexander Sviridov, Dmitry Belyaev, MD, Oxana Paklina, MD, Dr.Sc., Galiya Setdikova, MD, PhD</strong>, and <strong>Denis Golbin, MD, PhD</strong>.\u00a0</li><li>St. Joseph's Hospital and Medical Center, Phoenix, AZ - Special thanks to\u00a0<strong>Jennifer Eschbacher, MD</strong> from the Department of Neuropathology,\u00a0<strong>Catherine Seiler, PhD</strong>,\u00a0<strong>Rosy Singh</strong> and <strong>Beth Hermes</strong> from the Biobank Core Facility, and\u00a0<strong>Victor Sisneros</strong>, RT(R)(CT), CPSA.</li><li>International Institute for Molecular Oncology,\u00a0Pozna\u0144, Poland - Special thanks to\u00a0<strong>Maciej Wiznerowicz MD, PhD</strong>\u00a0and\u00a0<strong>Jan Lubi\u0144ski MD PhD;\u00a0Wojciech Dyszkiewicz MD, PhD., and \u0141ukasz G\u0105siorowski MD </strong>from\u00a0Greater Poland Center of Pulmonology and Thoracic Surgery,\u00a0Pozna\u0144, Poland;\u00a0<strong>Bartosz Kubisa MD, PhD.</strong>, <strong>Malgorzata Wojtys MD and PhD.</strong>, and <strong>Tomasz Grodzki MD, PhD</strong> of\u00a0Regional Hospital Complex, Szczecin, Poland</li><li>BioPartners, CA - Special thanks to\u00a0<strong>Alexander Gasparian, PhD.</strong> from the Department of Drug Discovery and Biomedical Sciences, University of South Carolina College of Pharmacy,\u00a0<strong>Kakhaber Zaalishvili, MD</strong> Medical Advisor and Staff Pathologist at BioPartners, LLC,\u00a0<strong>Milla Gorodnia, </strong>President of BioPartners, Inc.,\u00a0<strong>Victoria Christensen,</strong>\u00a0Global Business Development/Project Coordination Manager,\u00a0<strong>Oksana Havryliuk, MD.</strong>\u00a0Chief of Research department of radiodiagnostics of NCI (Ukraine),\u00a0<strong>Marianna Gredil\u2019,</strong>\u00a0Director of BioPartners, LLC, and <strong>Anna Legenka</strong>\u00a0Chief of the Data Department at BioPartners, LLC\u00a0</li><li>Boston Medical Center, Boston, MA - Special thanks to\u00a0<strong>Chris D. Andry M.Phil, PhD</strong>\u00a0from the Department of Pathology and Laboratory Medicine,\u00a0<strong>Margaret Lavoye, Artem Kaliaev</strong>, <strong>Wilson Chavez</strong>, <strong>Stephan Anderson</strong>, <strong>Jorge Soto</strong>, and\u00a0<strong>Mitchell Horn</strong>\u00a0from the Department of Radiology,\u00a0<strong>Elizabeth Duffy, MA\u00a0</strong>and\u00a0<strong>Cheryl Spencer, MA\u00a0</strong>of the Biobank.</li></ul>",
+    "collection_browse_title": "CPTAC-LSCC",
+    "collection_doi": "10.7937/K9/TCIA.2018.6EMUB5L2",
+    "collection_download_info": "Some data in this collection contains images that could potentially be used to reconstruct a human face. The process for requesting access to these is outlined in the <a href=\"https://www.cancerimagingarchive.net/nih-controlled-data-access-policy/\">NIH Controlled Data Access Policy</a>\u00a0page.",
+    "collection_downloads": [
+      44935,
+      48477,
+      44937
+    ],
+    "collection_featured_image": {
+      "ID": "47081",
+      "comment_count": "0",
+      "comment_status": "",
+      "guid": "https://www.cancerimagingarchive.net/?attachment_id=47081",
+      "menu_order": "0",
+      "ping_status": "closed",
+      "pinged": "",
+      "pod_item_id": "47081",
+      "post_author": "22",
+      "post_content": "",
+      "post_content_filtered": "",
+      "post_date": "2023-12-06 09:45:36",
+      "post_date_gmt": "2023-12-06 15:45:36",
+      "post_excerpt": "",
+      "post_mime_type": "image/png",
+      "post_modified": "2023-12-06 09:45:36",
+      "post_modified_gmt": "2023-12-06 15:45:36",
+      "post_name": "cptac-logo-2",
+      "post_parent": "42003",
+      "post_password": "",
+      "post_status": "inherit",
+      "post_title": "cptac-logo-2",
+      "post_type": "attachment",
+      "to_ping": ""
+    },
+    "collection_funding": "",
+    "collection_introduction": "",
+    "collection_page_accessibility": "Public",
+    "collection_short_title": "CPTAC-LSCC",
+    "collection_status": "Ongoing",
+    "collection_summary": "<p>This collection contains subjects from the National Cancer Institute\u2019s <u><a href=\"https://proteomics.cancer.gov/programs/cptac\">Clinical Proteomic Tumor Analysis Consortium</a></u> Lung Squamous Cell Carcinoma (CPTAC-LSCC) cohort.\u00a0CPTAC is a national effort to accelerate the understanding of the molecular basis of cancer through the application of large-scale proteome and genome analysis, or proteogenomics. Radiology and pathology images from CPTAC patients are being collected and made publicly available by The Cancer Imaging Archive to enable researchers to investigate cancer phenotypes which may correlate to corresponding proteomic, genomic and clinical data.</p><p>Imaging from each cancer type will be contained in its own TCIA Collection, with the collection name \"CPTAC-<em>cancertype</em>\". \u00a0Radiology imaging is collected from standard of care imaging performed on patients immediately before the pathological diagnosis, and from follow-up scans where available.\u00a0 For this reason the radiology image data sets are heterogeneous in terms of scanner modalities, manufacturers and acquisition protocols.\u00a0Pathology imaging is collected as part of the CPTAC qualification workflow. \u00a0</p><p>All CPTAC cohorts are released as either a single combined cohort, or split into <em>Discovery</em> and <em>Confirmatory</em> where applicable.\u00a0 There are two main types of proteomic studies: discovery proteomics and targeted proteomics. The term \"discovery proteomics\" is in reference to \"untargeted\" identification and quantification of a maximal number of proteins in a biological or clinical sample. The term \u201ctargeted proteomics\u201d refers to quantitative measurements on a defined subset of total proteins in a biological or clinical sample, often following the completion of discovery proteomics studies to confirm interesting targets selected. Commonly used proteomic technologies and platforms are different types of mass spectrometry and protein microarrays depending on the needs, throughput and sample input requirement of an analysis, with further development on nanotechnologies and automation in the pipeline in order to improve the detection of low abundance proteins, increase throughput, and selectively reach a target protein\u00a0<em>in vivo</em>. \u00a0Once the protein targets of interest are identified, high-throughput targeted assays are developed for confirmatory studies: tests to affirm that the initial tests were accurate. A summary of CPTAC imaging efforts can be found on the\u00a0<u><a href=\"https://wiki.cancerimagingarchive.net/display/Public/CPTAC+Imaging+Proteomics\">CPTAC Imaging Proteomics</a></u>\u00a0page.\u00a0</p><h3>CPTAC Imaging Special Interest Group</h3><p>You can join the\u00a0<a href=\"https://groups.google.com/forum/#!forum/cptac-imaging-sig\">CPTAC Imaging Special Interest Group </a>to be notified of webinars &amp; data releases, collaborate on common data wrangling tasks and seek out partners to explore research hypotheses!\u00a0 Artifacts from previous webinars such as slide decks and video recordings can be found on the\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/Public/CPTAC+SIG+Webinars\">CPTAC SIG Webinars</a>\u00a0page.</p><p>&nbsp;</p>",
+    "collection_title": "The Clinical Proteomic Tumor Analysis Consortium Lung Squamous Cell Carcinoma Collection",
+    "data_acquisition": "",
+    "data_analysis": "",
+    "data_types": [
+      "CT",
+      "PT"
+    ],
+    "date": "2023-11-20T04:53:29",
+    "date_gmt": "2023-11-20T10:53:29",
+    "date_updated": "2024-04-05",
+    "detailed_description": "<h3>Accessing CPTAC publication cohorts</h3>\r\nAll CPTAC cohorts are released as\u00a0either a single combined cohort, or split into\u00a0<em>Discovery</em>\u00a0and\u00a0<em>Confirmatory</em>\u00a0where applicable.\u00a0In the case of CPTAC-LSCC there was a \"Discovery Cohort\" release.\u00a0 Images associated with these cases can be downloaded using the following links:\r\n<ul>\r\n \t<li><a href=\"https://www.cancerimagingarchive.net/nbia-search/?MinNumberOfStudiesCriteria=1&amp;PatientCriteria=C3L-01000,C3L-01455,C3L-03272,C3N-00247,C3N-00497,C3N-01194,C3N-01846,C3N-01892,C3N-01893,C3N-02283,C3N-02284,C3N-02285,C3N-02288,C3N-02289,C3N-02300,C3N-02339,C3N-02434,C3N-02494,C3N-02523,C3N-02675,C3N-03424,C3N-03425,C3N-03486,C3N-04162&amp;CollectionCriteria=CPTAC-LSCC\">CPTAC-LSCC Radiology Discovery Cohort</a></li>\r\n \t<li><a href=\"https://faspex.cancerimagingarchive.net/aspera/faspex?context=eyJyZXNvdXJjZSI6InBhY2thZ2VzIiwidHlwZSI6ImV4dGVybmFsX2Rvd25sb2FkX3BhY2thZ2UiLCJpZCI6IjY5MCIsInBhc3Njb2RlIjoiZWU1OTUyYTc3ODZmYzcwOGEwMWEzODdiYmFhMGJkODhhYmNlYTU5NiIsInBhY2thZ2VfaWQiOiI2OTAiLCJlbWFpbCI6ImhlbHBAY2FuY2VyaW1hZ2luZ2FyY2hpdmUubmV0In0=\">CPTAC-LSCC Pathology Discovery Cohort</a></li>\r\n</ul>\r\n<h3>Accessing the Proteomic &amp; Genomic Clinical Data</h3>\r\nTo access/download the clinical data on the\u00a0<strong>Proteomic Data Commons (PDC)\u00a0</strong>and\u00a0<strong>Genomic Data Commons (GDC)</strong>,\u00a0once you have identified the data of your interest, move to the 'Clinical' tab on the browse page. Select the checkbox to select a specific row, all rows on the page or all pages and click the export clinical manifest button in CSV or TSV format on the GDC, or TSV or JSON format on the PDC.\r\n<h3>A Note about TCIA and CPTAC Subject Identifiers and Dates</h3>\r\n<h4><strong>Subject Identifiers:</strong></h4>\r\nA subject with radiology and pathology images stored in TCIA is identified with a de-identified project Patient ID that is identical to the Patient ID of the same subject with clinical, proteomic, and/or genomic data stored in other CPTAC databases and web sites.\r\n<h4><strong>Dates:</strong></h4>\r\nThe radiology imaging data is in DICOM format. To provide temporal context information aligned with events in the clinical data set for each patient, TCIA has inserted information in DICOM tag (0012,0050) <em>Clinical Trial Time Point ID</em>. This DICOM tag contains the number of days from the <u> <em>date the patient was initially diagnosed pathologically with the disease</em> </u> to the date of the scan. E.g. a scan acquired 3 days before the diagnosis would contain the value -3. A follow up scan acquired 90 days after diagnosis would contain the value 90.\r\n\r\nThe DICOM date tags (i.e. birth dates, imaging study dates, etc.) are modified per TCIA's standard process which offsets them by a random number of days. The offset is a number of days between 3 and 10 years prior to the real date that is consistent for each TCIA image-submitting site and collection, but that varies among sites and among collections from the same site. Thus, the number of days between a subject\u2019s longitudinal imaging studies are accurately preserved when more than one study has been archived while still meeting HIPAA requirements.",
+    "featured_media": 47081,
+    "guid": {
+      "rendered": "https://stage.cancerimagingarchive.net/collection/cptac-lscc/"
+    },
+    "hide_from_browse_table": "0",
+    "id": 45043,
+    "link": "https://www.cancerimagingarchive.net/collection/cptac-lscc/",
+    "modified": "2026-11-03T08:36:04",
+    "modified_gmt": "2026-11-03T14:36:04",
+    "program": [
+      "CPTAC"
+    ],
+    "publications_related": "",
+    "publications_using": "TCIA maintains <a href=\"https://www.cancerimagingarchive.net/publications/\"> a list of publications</a> which leverage TCIA data. If you have a manuscript you'd like to add please <a href=\"http://www.cancerimagingarchive.net/support/\">contact TCIA's Helpdesk</a>.",
+    "related_analysis_results": [
+      46301
+    ],
+    "related_collection": false,
+    "slug": "cptac-lscc",
+    "species": [
+      "Human"
+    ],
+    "status": "publish",
+    "subject_inclusion_and_exclusion_criteria": "",
+    "subjects": "212",
+    "supporting_data": [
+      "Clinical",
+      "Genomics",
+      "Proteomics"
+    ],
+    "template": "",
+    "title": {
+      "rendered": "CPTAC-LSCC"
+    },
+    "type": "tcia_collection",
+    "usage_notes": "",
+    "version_change_log": "Some series were found to contain head data and moved under access restrictions.",
+    "version_change_log_archived": "<h3>Version 14 (Current): Updated 2023/02/24</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 30.6 GB)</td><td><div><p><a href=\"/wp-content/uploads/TCIA-CPTAC-LSCC_v14_20230224.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0\u00a0 <a href=\"https://www.cancerimagingarchive.net/nbia-search/?CollectionCriteria=CPTAC-LSCC\"><button><i></i> Search</button></a>\u00a0 <br />(Download requires\u00a0the\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 414 GB)</td><td><div><p><a href=\"https://faspex.cancerimagingarchive.net/aspera/faspex?context=eyJyZXNvdXJjZSI6InBhY2thZ2VzIiwidHlwZSI6ImV4dGVybmFsX2Rvd25sb2FkX3BhY2thZ2UiLCJpZCI6IjY3MCIsInBhc3Njb2RlIjoiN2QzZjU0ZDY4Y2JiNjllZTIwZGRkYWI1YWU5N2Q1MDY5MjNlN2ZmNCIsInBhY2thZ2VfaWQiOiI2NzAiLCJlbWFpbCI6ImhlbHBAY2FuY2VyaW1hZ2luZ2FyY2hpdmUubmV0In0=\"><button><i></i> Download</button></a>\u00a0 <a href=\"https://cancerimagingarchive.net/datascope/cptac/home/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p><p>(Download and apply the\u00a0<a href=\"https://www.ibm.com/aspera/connect/\">IBM-Aspera-Connect plugin\u00a0</a>to your browser to retrieve this faspex package)\u00a0</p></div></td></tr><tr><td><a href=\"https://cptac-data-portal.georgetown.edu/study-summary/S058\">Discovery Study</a> (CPTAC Data Portal)</td><td><ul><li><a href=\"https://pdc.cancer.gov/pdc/browse/filters/program_name:Clinical Proteomic Tumor Analysis Consortium&amp;disease_type:Lung Squamous Cell Carcinoma\">Proteomic Data Commons</a></li><li><a href=\"https://portal.gdc.cancer.gov/exploration?filters=%7B%22op%22%3A%22and%22%2C%22content%22%3A%5B%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.disease_type%22%2C%22value%22%3A%5B%22squamous%20cell%20neoplasms%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.primary_site%22%2C%22value%22%3A%5B%22bronchus%20and%20lung%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.project.project_id%22%2C%22value%22%3A%5B%22CPTAC-3%22%5D%7D%7D%5D%7D&amp;searchTableTab=cases\">Genomic Data Commons</a></li><li><a href=\"https://faspex.cancerimagingarchive.net/aspera/faspex/external_deliveries/34?passcode=25a3752c9c0d831eb4abe486b044d80babf1c61c\">Pathology</a>\u00a0</li><li><a href=\"https://nbia.cancerimagingarchive.net/nbia-search/?MinNumberOfStudiesCriteria=1&amp;PatientCriteria=C3N-00247,C3N-02434,C3N-01846,C3N-02339,C3N-03486,C3N-04162,C3N-02494,C3N-02523,C3L-01000,C3N-00497,C3N-01194,C3N-01892,C3N-01893,C3N-02283,C3N-02284,C3N-02285,C3N-02288,C3N-02289,C3N-02300,C3N-02675,C3N-03424,C3N-03425,C3L-01455,C3L-03272&amp;CollectionCriteria=CPTAC-LSCC\">Radiology</a></li></ul></td></tr></tbody></table><p>Radiology modality data cleanup to remove extraneous scans.</p><h3>Version 13: Updated 2021/01/27</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 31 GB)</td><td><div><p><a href=\"/wp-content/uploads/TCIA-CPTAC-LSCC_v12_20200630.tcia\"><button><i></i> Download</button></a>\u00a0 <a href=\"https://www.cancerimagingarchive.net/nbia-search/?CollectionCriteria=CPTAC-LSCC\"><button><i></i> Search</button></a>\u00a0 (Download requires\u00a0the\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 414 GB)</td><td><div><p><a href=\"https://faspex.cancerimagingarchive.net/aspera/faspex?context=eyJyZXNvdXJjZSI6InBhY2thZ2VzIiwidHlwZSI6ImV4dGVybmFsX2Rvd25sb2FkX3BhY2thZ2UiLCJpZCI6IjY3MCIsInBhc3Njb2RlIjoiN2QzZjU0ZDY4Y2JiNjllZTIwZGRkYWI1YWU5N2Q1MDY5MjNlN2ZmNCIsInBhY2thZ2VfaWQiOiI2NzAiLCJlbWFpbCI6ImhlbHBAY2FuY2VyaW1hZ2luZ2FyY2hpdmUubmV0In0=\"><button><i></i> Download</button></a>\u00a0 <a href=\"https://cancerimagingarchive.net/datascope/cptac/home/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td><a href=\"https://cptac-data-portal.georgetown.edu/study-summary/S058\">Discovery Study</a> (CPTAC Data Portal)</td><td><ul><li><a href=\"https://pdc.cancer.gov/pdc/browse/filters/program_name:Clinical Proteomic Tumor Analysis Consortium&amp;disease_type:Lung Squamous Cell Carcinoma\">Proteomic Data Commons</a></li><li><a href=\"https://portal.gdc.cancer.gov/exploration?filters=%7B%22op%22%3A%22and%22%2C%22content%22%3A%5B%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.disease_type%22%2C%22value%22%3A%5B%22squamous%20cell%20neoplasms%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.primary_site%22%2C%22value%22%3A%5B%22bronchus%20and%20lung%22%5D%7D%7D%2C%7B%22op%22%3A%22in%22%2C%22content%22%3A%7B%22field%22%3A%22cases.project.project_id%22%2C%22value%22%3A%5B%22CPTAC-3%22%5D%7D%7D%5D%7D&amp;searchTableTab=cases\">Genomic Data Commons</a></li><li><a href=\"https://faspex.cancerimagingarchive.net/aspera/faspex/external_deliveries/34?passcode=25a3752c9c0d831eb4abe486b044d80babf1c61c\">Pathology</a>\u00a0</li><li><a href=\"https://nbia.cancerimagingarchive.net/nbia-search/?MinNumberOfStudiesCriteria=1&amp;PatientCriteria=C3N-00247,C3N-02434,C3N-01846,C3N-02339,C3N-03486,C3N-04162,C3N-02494,C3N-02523,C3L-01000,C3N-00497,C3N-01194,C3N-01892,C3N-01893,C3N-02283,C3N-02284,C3N-02285,C3N-02288,C3N-02289,C3N-02300,C3N-02675,C3N-03424,C3N-03425,C3L-01455,C3L-03272&amp;CollectionCriteria=CPTAC-LSCC\">Radiology</a></li></ul></td></tr></tbody></table><p>New Genomic and Proteomic data added</p><h3>Version 12: Updated 2020/06/25</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 28.8 GB)</td><td><div><p><a href=\"/wp-content/uploads/TCIA-CPTAC-LSCC_v12_20200630.tcia\"><button><i></i> Download</button></a>\u00a0 <a href=\"https://www.cancerimagingarchive.net/nbia-search/?CollectionCriteria=CPTAC-LSCC\"><button><i></i> Search</button></a>\u00a0 (Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 414 GB)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/home/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added 12 participants' radiology imaging from two sites.</p><h3>Version 11: Updated 2020/03/31</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 18.7 GB)</td><td><div><p><a href=\"/wp-content/uploads/TCIA-CPTAC-LSCC_v11_20200331.tcia\"><button><i></i> Download</button></a>\u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a> .)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 414 GB)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/home/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added 1 radiology subject</p><h3>Version 10 : Updated 2020/02/14</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 18 GB)</td><td><div><p>\u00a0 <a href=\"/wp-content/uploads/TCIA_CPTAC-LSCC-v8-Dec2019.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a> .)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 414 GB)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/home/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added 6 new pathology subjects and 74 new pathology images.</p><h3>Version 9: Updated 2020/01/24</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 18 GB)</td><td><div><p><a href=\"/wp-content/uploads/TCIA_CPTAC-LSCC-v8-Dec2019.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0\u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 341 GB)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/home/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added 51 new pathology patients and 367 new WSIs.</p><h3>Version 8: Updated 2019/12/19</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 18 GB)</td><td><div><p><a href=\"/wp-content/uploads/TCIA_CPTAC-LSCC-v8-Dec2019.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0\u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 148 GB)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/home/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added 3 new radiological subjects.</p><p>Transferred two subjects radiology imaging (C3N-00738 C3N-02290) to CPTAC-LUAD as a correction.</p><h3>Version 7: Updated 2019/09/30</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 19.5 GB)</td><td><div><p><a href=\"/wp-content/uploads/TCIA_CPTAC-LSCC-v7-Sep2019.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0\u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a> .)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 147.6 GB)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added New Subjects.</p><h3>Version 6 : Updated 2019/06/30</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 13.9 GB)</td><td><div><p>\u00a0 <a href=\"/wp-content/uploads/TCIA_CPTAC-LSCC-batch6-June2019.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0<br />(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (SVS, 147.6 GB)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added Subjects.</p><h3>Version 5: Updated 2019/03/31</h3><table><colgroup><col /><col /></colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 12.6 GB)</td><td><div><p>\u00a0 <a href=\"/wp-content/uploads/CPTAC-LSCC_batch5_Mar2019.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (web)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added new subjects</p><h3>Version 4 : Updated 2018/12/31</h3><table><colgroup> <col /> <col /> </colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 2.5 GB)</td><td><div><p><a href=\"/wp-content/uploads/CPTAC-LSCC_batch4_Dec2018.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0\u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a> .)</p></div></td></tr><tr><td>Tissue Slide Images (web)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added new subjects.</p><h3>Version 3: Updated 2018/06/30</h3><table><colgroup> <col /> <col /> </colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 0.6 GB)</td><td><div><p>\u00a0 <a href=\"/wp-content/uploads/TCIA_CPTAC-LSCC-2018-06-30-doiJNLP-X4kcnwhV.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (web)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added new subjects.</p><h3>Version 2: Updated 2018/01/10</h3><table><colgroup> <col /> <col /> </colgroup><tbody><tr><th>Data Type</th><th>Download all or Query/Filter</th></tr><tr><td>Images (DICOM, 0.4 GB)</td><td><div><p>\u00a0 <a href=\"/wp-content/uploads/TCIA_CPTAC-LSCC-B2-2018-05-01-doiJNLP-OLj7A5xk.tcia\"><button><i></i> Download</button></a>\u00a0 \u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td>Tissue Slide Images (web)</td><td><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/?filter={%22Image_Available%22:%5B%22Yes%22%5D,%22Tumor%22:%5B%22LSCC%22%5D}\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td>Proteomics (web)</td><td><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table><p>Added new subjects.</p><h3>Version 1: Updated 2018/01/10</h3><table><colgroup> <col /> <col /> </colgroup><tbody><tr><th colspan=\"1\">Data Type</th><th colspan=\"1\">Download all or Query/Filter</th></tr><tr><td colspan=\"1\">Images (DICOM, 0.132 GB)</td><td colspan=\"1\"><div><p><a href=\"/wp-content/uploads/CPTAC-LSCC-B1-doiJNLP-tpDU8o4E.tcia\"><button><i></i> Download</button></a>\u00a0</p><p>(Requires\u00a0<a href=\"https://wiki.cancerimagingarchive.net/display/NBIA/Downloading+TCIA+Images\">NBIA Data Retriever</a>)</p></div></td></tr><tr><td colspan=\"1\">Tissue Slide Images (web)</td><td colspan=\"1\"><div><p><a href=\"https://cancerimagingarchive.net/datascope/cptac/\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr><tr><td colspan=\"1\">Proteomics (web)</td><td colspan=\"1\"><div><p><a href=\"https://proteomics.cancer.gov/data-portal\"><button><i></i> Search</button></a>\u00a0</p></div></td></tr></tbody></table>",
+    "version_number": "15",
+    "versions": [
+      45017,
+      45019,
+      45021,
+      45023,
+      45025,
+      45027,
+      45029,
+      45031,
+      45033,
+      45035,
+      45037,
+      45039,
+      45041,
+      48475
+    ],
+    "yoast_head": "<!-- This site is optimized with the Yoast SEO plugin v22.0 - https://yoast.com/wordpress/plugins/seo/ -->\n<title>CPTAC-LSCC - The Cancer Imaging Archive (TCIA)</title>\n<meta name=\"robots\" content=\"index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1\" />\n<link rel=\"canonical\" href=\"https://www.cancerimagingarchive.net/collection/cptac-lscc/\" />\n<meta property=\"og:locale\" content=\"en_US\" />\n<meta property=\"og:type\" content=\"article\" />\n<meta property=\"og:title\" content=\"CPTAC-LSCC - The Cancer Imaging Archive (TCIA)\" />\n<meta property=\"og:description\" content=\"View this dataset for more details.\" />\n<meta property=\"og:url\" content=\"https://www.cancerimagingarchive.net/collection/cptac-lscc/\" />\n<meta property=\"og:site_name\" content=\"The Cancer Imaging Archive (TCIA)\" />\n<meta property=\"article:publisher\" content=\"https://www.facebook.com/The.Cancer.Imaging.Archive/\" />\n<meta property=\"article:modified_time\" content=\"2026-11-03T14:36:04+00:00\" />\n<meta property=\"og:image\" content=\"https://www.cancerimagingarchive.net/wp-content/uploads/cptac-logo-2.png\" />\n\t<meta property=\"og:image:width\" content=\"256\" />\n\t<meta property=\"og:image:height\" content=\"120\" />\n\t<meta property=\"og:image:type\" content=\"image/png\" />\n<meta name=\"twitter:card\" content=\"summary_large_image\" />\n<meta name=\"twitter:site\" content=\"@tcia_news\" />\n<script type=\"application/ld+json\" class=\"yoast-schema-graph\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":[\"WebPage\",\"CollectionPage\"],\"@id\":\"https://www.cancerimagingarchive.net/collection/cptac-lscc/\",\"url\":\"https://www.cancerimagingarchive.net/collection/cptac-lscc/\",\"name\":\"CPTAC-LSCC - The Cancer Imaging Archive (TCIA)\",\"isPartOf\":{\"@id\":\"https://www.cancerimagingarchive.net/#website\"},\"datePublished\":\"2023-11-20T10:53:29+00:00\",\"dateModified\":\"2026-11-03T14:36:04+00:00\",\"breadcrumb\":{\"@id\":\"https://www.cancerimagingarchive.net/collection/cptac-lscc/#breadcrumb\"},\"inLanguage\":\"en-US\"},{\"@type\":\"BreadcrumbList\",\"@id\":\"https://www.cancerimagingarchive.net/collection/cptac-lscc/#breadcrumb\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Home\",\"item\":\"https://www.cancerimagingarchive.net/\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"Collections\",\"item\":\"https://www.cancerimagingarchive.net/collections/\"},{\"@type\":\"ListItem\",\"position\":3,\"name\":\"CPTAC-LSCC\"}]},{\"@type\":\"WebSite\",\"@id\":\"https://www.cancerimagingarchive.net/#website\",\"url\":\"https://www.cancerimagingarchive.net/\",\"name\":\"The Cancer Imaging Archive\",\"description\":\"\",\"publisher\":{\"@id\":\"https://www.cancerimagingarchive.net/#organization\"},\"potentialAction\":[{\"@type\":\"SearchAction\",\"target\":{\"@type\":\"EntryPoint\",\"urlTemplate\":\"https://www.cancerimagingarchive.net/?s={search_term_string}\"},\"query-input\":\"required name=search_term_string\"}],\"inLanguage\":\"en-US\"},{\"@type\":\"Organization\",\"@id\":\"https://www.cancerimagingarchive.net/#organization\",\"name\":\"The Cancer Imaging Archive (TCIA)\",\"url\":\"https://www.cancerimagingarchive.net/\",\"logo\":{\"@type\":\"ImageObject\",\"inLanguage\":\"en-US\",\"@id\":\"https://www.cancerimagingarchive.net/#/schema/logo/image/\",\"url\":\"https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png\",\"contentUrl\":\"https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png\",\"width\":3334,\"height\":1001,\"caption\":\"The Cancer Imaging Archive (TCIA)\"},\"image\":{\"@id\":\"https://www.cancerimagingarchive.net/#/schema/logo/image/\"},\"sameAs\":[\"https://www.facebook.com/The.Cancer.Imaging.Archive/\",\"https://twitter.com/tcia_news\",\"https://vimeo.com/thecancerimagingarchive\",\"https://www.linkedin.com/groups/4371904/\"]}]}</script>\n<!-- / Yoast SEO plugin. -->",
+    "yoast_head_json": {
+      "article_modified_time": "2026-11-03T14:36:04+00:00",
+      "article_publisher": "https://www.facebook.com/The.Cancer.Imaging.Archive/",
+      "canonical": "https://www.cancerimagingarchive.net/collection/cptac-lscc/",
+      "og_description": "View this dataset for more details.",
+      "og_image": [
+        {
+          "height": 120,
+          "type": "image/png",
+          "url": "https://www.cancerimagingarchive.net/wp-content/uploads/cptac-logo-2.png",
+          "width": 256
+        }
+      ],
+      "og_locale": "en_US",
+      "og_site_name": "The Cancer Imaging Archive (TCIA)",
+      "og_title": "CPTAC-LSCC - The Cancer Imaging Archive (TCIA)",
+      "og_type": "article",
+      "og_url": "https://www.cancerimagingarchive.net/collection/cptac-lscc/",
+      "robots": {
+        "follow": "follow",
+        "index": "index",
+        "max-image-preview": "max-image-preview:large",
+        "max-snippet": "max-snippet:-1",
+        "max-video-preview": "max-video-preview:-1"
+      },
+      "schema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@id": "https://www.cancerimagingarchive.net/collection/cptac-lscc/",
+            "@type": [
+              "WebPage",
+              "CollectionPage"
+            ],
+            "breadcrumb": {
+              "@id": "https://www.cancerimagingarchive.net/collection/cptac-lscc/#breadcrumb"
+            },
+            "dateModified": "2026-11-03T14:36:04+00:00",
+            "datePublished": "2023-11-20T10:53:29+00:00",
+            "inLanguage": "en-US",
+            "isPartOf": {
+              "@id": "https://www.cancerimagingarchive.net/#website"
+            },
+            "name": "CPTAC-LSCC - The Cancer Imaging Archive (TCIA)",
+            "url": "https://www.cancerimagingarchive.net/collection/cptac-lscc/"
+          },
+          {
+            "@id": "https://www.cancerimagingarchive.net/collection/cptac-lscc/#breadcrumb",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "item": "https://www.cancerimagingarchive.net/",
+                "name": "Home",
+                "position": 1
+              },
+              {
+                "@type": "ListItem",
+                "item": "https://www.cancerimagingarchive.net/collections/",
+                "name": "Collections",
+                "position": 2
+              },
+              {
+                "@type": "ListItem",
+                "name": "CPTAC-LSCC",
+                "position": 3
+              }
+            ]
+          },
+          {
+            "@id": "https://www.cancerimagingarchive.net/#website",
+            "@type": "WebSite",
+            "description": "",
+            "inLanguage": "en-US",
+            "name": "The Cancer Imaging Archive",
+            "potentialAction": [
+              {
+                "@type": "SearchAction",
+                "query-input": "required name=search_term_string",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://www.cancerimagingarchive.net/?s={search_term_string}"
+                }
+              }
+            ],
+            "publisher": {
+              "@id": "https://www.cancerimagingarchive.net/#organization"
+            },
+            "url": "https://www.cancerimagingarchive.net/"
+          },
+          {
+            "@id": "https://www.cancerimagingarchive.net/#organization",
+            "@type": "Organization",
+            "image": {
+              "@id": "https://www.cancerimagingarchive.net/#/schema/logo/image/"
+            },
+            "logo": {
+              "@id": "https://www.cancerimagingarchive.net/#/schema/logo/image/",
+              "@type": "ImageObject",
+              "caption": "The Cancer Imaging Archive (TCIA)",
+              "contentUrl": "https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png",
+              "height": 1001,
+              "inLanguage": "en-US",
+              "url": "https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png",
+              "width": 3334
+            },
+            "name": "The Cancer Imaging Archive (TCIA)",
+            "sameAs": [
+              "https://www.facebook.com/The.Cancer.Imaging.Archive/",
+              "https://twitter.com/tcia_news",
+              "https://vimeo.com/thecancerimagingarchive",
+              "https://www.linkedin.com/groups/4371904/"
+            ],
+            "url": "https://www.cancerimagingarchive.net/"
+          }
+        ]
+      },
+      "title": "CPTAC-LSCC - The Cancer Imaging Archive (TCIA)",
+      "twitter_card": "summary_large_image",
+      "twitter_site": "@tcia_news"
+    }
+  },
+  "pathology_download": {
+    "_links": {
+      "about": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/wp/v2/types/tcia_downloads"
+        }
+      ],
+      "collection": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/v1/downloads"
+        }
+      ],
+      "curies": [
+        {
+          "href": "https://api.w.org/{rel}",
+          "name": "wp",
+          "templated": true
+        }
+      ],
+      "self": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/v1/downloads/44937"
+        }
+      ],
+      "wp:attachment": [
+        {
+          "href": "https://www.cancerimagingarchive.net/api/wp/v2/media?parent=44937"
+        }
+      ]
+    },
+    "cancer_location": false,
+    "cancer_type": false,
+    "collection_status": "Ongoing",
+    "data_license": "CC BY 4.0",
+    "data_type": [
+      "Whole Slide Image"
+    ],
+    "date": "2023-11-20T04:51:09",
+    "date_gmt": "2023-11-20T10:51:09",
+    "date_updated": "2023-11-20",
+    "description": "",
+    "display_cdrc_modal_dialog": "0",
+    "dnld_type": false,
+    "download_access": "Public",
+    "download_file": false,
+    "download_metadata": false,
+    "download_requirements": "Requires IBM Aspera Connect",
+    "download_size": "414",
+    "download_size_unit": "gb",
+    "download_title": "Tissue Slide Images",
+    "download_type": "Pathology Images",
+    "download_url": "https://faspex.cancerimagingarchive.net/aspera/faspex/public/package?context=eyJyZXNvdXJjZSI6InBhY2thZ2VzIiwidHlwZSI6ImV4dGVybmFsX2Rvd25sb2FkX3BhY2thZ2UiLCJpZCI6IjY3MCIsInBhc3Njb2RlIjoiN2QzZjU0ZDY4Y2JiNjllZTIwZGRkYWI1YWU5N2Q1MDY5MjNlN2ZmNCIsInBhY2thZ2VfaWQiOiI2NzAiLCJlbWFpbCI6ImhlbHBAY2FuY2VyaW1hZ2luZ2FyY2hpdmUubmV0In0=",
+    "file_type": [
+      "SVS"
+    ],
+    "fill_download_specs": "",
+    "guid": {
+      "rendered": "https://stage.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/"
+    },
+    "heading_example_text": "",
+    "id": 44937,
+    "image_count": "1081",
+    "link": "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/",
+    "modified": "2026-10-21T11:48:00",
+    "modified_gmt": "2026-10-21T16:48:00",
+    "search_url": "https://pathdb.cancerimagingarchive.net/eaglescope/dist/?configurl=%2Fsystem%2Ffiles%2Fcollectionmetadata%2F202407%2Fcptac_metadata_07-09-2024.json&filterState=%5B%7B%22id%22%3A%22Tumor%22%2C%22title%22%3A%22Tumor%22%2C%22field%22%3A%22Tumor%22%2C%22operation%22%3A%22eq%22%2C%22values%22%3A%22LSCC%22%7D%5D",
+    "series_count": [],
+    "slug": "cptac-lscc-da-path",
+    "species": false,
+    "status": "publish",
+    "study_count": [],
+    "subjects": "212",
+    "supporting_data": false,
+    "template": "",
+    "title": {
+      "rendered": "CPTAC-LSCC-DA-PATH"
+    },
+    "type": "tcia_downloads",
+    "yoast_head": "<!-- This site is optimized with the Yoast SEO plugin v22.0 - https://yoast.com/wordpress/plugins/seo/ -->\n<title>CPTAC-LSCC-DA-PATH - The Cancer Imaging Archive (TCIA)</title>\n<meta name=\"robots\" content=\"index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1\" />\n<link rel=\"canonical\" href=\"https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/\" />\n<meta property=\"og:locale\" content=\"en_US\" />\n<meta property=\"og:type\" content=\"article\" />\n<meta property=\"og:title\" content=\"CPTAC-LSCC-DA-PATH - The Cancer Imaging Archive (TCIA)\" />\n<meta property=\"og:url\" content=\"https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/\" />\n<meta property=\"og:site_name\" content=\"The Cancer Imaging Archive (TCIA)\" />\n<meta property=\"article:publisher\" content=\"https://www.facebook.com/The.Cancer.Imaging.Archive/\" />\n<meta property=\"article:modified_time\" content=\"2026-10-21T16:48:00+00:00\" />\n<meta name=\"twitter:card\" content=\"summary_large_image\" />\n<meta name=\"twitter:site\" content=\"@tcia_news\" />\n<script type=\"application/ld+json\" class=\"yoast-schema-graph\">{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"WebPage\",\"@id\":\"https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/\",\"url\":\"https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/\",\"name\":\"CPTAC-LSCC-DA-PATH - The Cancer Imaging Archive (TCIA)\",\"isPartOf\":{\"@id\":\"https://www.cancerimagingarchive.net/#website\"},\"datePublished\":\"2023-11-20T10:51:09+00:00\",\"dateModified\":\"2026-10-21T16:48:00+00:00\",\"breadcrumb\":{\"@id\":\"https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/#breadcrumb\"},\"inLanguage\":\"en-US\",\"potentialAction\":[{\"@type\":\"ReadAction\",\"target\":[\"https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/\"]}]},{\"@type\":\"BreadcrumbList\",\"@id\":\"https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/#breadcrumb\",\"itemListElement\":[{\"@type\":\"ListItem\",\"position\":1,\"name\":\"Home\",\"item\":\"https://www.cancerimagingarchive.net/\"},{\"@type\":\"ListItem\",\"position\":2,\"name\":\"CPTAC-LSCC-DA-PATH\"}]},{\"@type\":\"WebSite\",\"@id\":\"https://www.cancerimagingarchive.net/#website\",\"url\":\"https://www.cancerimagingarchive.net/\",\"name\":\"The Cancer Imaging Archive\",\"description\":\"\",\"publisher\":{\"@id\":\"https://www.cancerimagingarchive.net/#organization\"},\"potentialAction\":[{\"@type\":\"SearchAction\",\"target\":{\"@type\":\"EntryPoint\",\"urlTemplate\":\"https://www.cancerimagingarchive.net/?s={search_term_string}\"},\"query-input\":\"required name=search_term_string\"}],\"inLanguage\":\"en-US\"},{\"@type\":\"Organization\",\"@id\":\"https://www.cancerimagingarchive.net/#organization\",\"name\":\"The Cancer Imaging Archive (TCIA)\",\"url\":\"https://www.cancerimagingarchive.net/\",\"logo\":{\"@type\":\"ImageObject\",\"inLanguage\":\"en-US\",\"@id\":\"https://www.cancerimagingarchive.net/#/schema/logo/image/\",\"url\":\"https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png\",\"contentUrl\":\"https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png\",\"width\":3334,\"height\":1001,\"caption\":\"The Cancer Imaging Archive (TCIA)\"},\"image\":{\"@id\":\"https://www.cancerimagingarchive.net/#/schema/logo/image/\"},\"sameAs\":[\"https://www.facebook.com/The.Cancer.Imaging.Archive/\",\"https://twitter.com/tcia_news\",\"https://vimeo.com/thecancerimagingarchive\",\"https://www.linkedin.com/groups/4371904/\"]}]}</script>\n<!-- / Yoast SEO plugin. -->",
+    "yoast_head_json": {
+      "article_modified_time": "2026-10-21T16:48:00+00:00",
+      "article_publisher": "https://www.facebook.com/The.Cancer.Imaging.Archive/",
+      "canonical": "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/",
+      "og_locale": "en_US",
+      "og_site_name": "The Cancer Imaging Archive (TCIA)",
+      "og_title": "CPTAC-LSCC-DA-PATH - The Cancer Imaging Archive (TCIA)",
+      "og_type": "article",
+      "og_url": "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/",
+      "robots": {
+        "follow": "follow",
+        "index": "index",
+        "max-image-preview": "max-image-preview:large",
+        "max-snippet": "max-snippet:-1",
+        "max-video-preview": "max-video-preview:-1"
+      },
+      "schema": {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@id": "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/",
+            "@type": "WebPage",
+            "breadcrumb": {
+              "@id": "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/#breadcrumb"
+            },
+            "dateModified": "2026-10-21T16:48:00+00:00",
+            "datePublished": "2023-11-20T10:51:09+00:00",
+            "inLanguage": "en-US",
+            "isPartOf": {
+              "@id": "https://www.cancerimagingarchive.net/#website"
+            },
+            "name": "CPTAC-LSCC-DA-PATH - The Cancer Imaging Archive (TCIA)",
+            "potentialAction": [
+              {
+                "@type": "ReadAction",
+                "target": [
+                  "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/"
+                ]
+              }
+            ],
+            "url": "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/"
+          },
+          {
+            "@id": "https://www.cancerimagingarchive.net/tcia-downloads/cptac-lscc-da-path/#breadcrumb",
+            "@type": "BreadcrumbList",
+            "itemListElement": [
+              {
+                "@type": "ListItem",
+                "item": "https://www.cancerimagingarchive.net/",
+                "name": "Home",
+                "position": 1
+              },
+              {
+                "@type": "ListItem",
+                "name": "CPTAC-LSCC-DA-PATH",
+                "position": 2
+              }
+            ]
+          },
+          {
+            "@id": "https://www.cancerimagingarchive.net/#website",
+            "@type": "WebSite",
+            "description": "",
+            "inLanguage": "en-US",
+            "name": "The Cancer Imaging Archive",
+            "potentialAction": [
+              {
+                "@type": "SearchAction",
+                "query-input": "required name=search_term_string",
+                "target": {
+                  "@type": "EntryPoint",
+                  "urlTemplate": "https://www.cancerimagingarchive.net/?s={search_term_string}"
+                }
+              }
+            ],
+            "publisher": {
+              "@id": "https://www.cancerimagingarchive.net/#organization"
+            },
+            "url": "https://www.cancerimagingarchive.net/"
+          },
+          {
+            "@id": "https://www.cancerimagingarchive.net/#organization",
+            "@type": "Organization",
+            "image": {
+              "@id": "https://www.cancerimagingarchive.net/#/schema/logo/image/"
+            },
+            "logo": {
+              "@id": "https://www.cancerimagingarchive.net/#/schema/logo/image/",
+              "@type": "ImageObject",
+              "caption": "The Cancer Imaging Archive (TCIA)",
+              "contentUrl": "https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png",
+              "height": 1001,
+              "inLanguage": "en-US",
+              "url": "https://www.cancerimagingarchive.net/wp-content/uploads/2021/06/TCIA-Logo-01.png",
+              "width": 3334
+            },
+            "name": "The Cancer Imaging Archive (TCIA)",
+            "sameAs": [
+              "https://www.facebook.com/The.Cancer.Imaging.Archive/",
+              "https://twitter.com/tcia_news",
+              "https://vimeo.com/thecancerimagingarchive",
+              "https://www.linkedin.com/groups/4371904/"
+            ],
+            "url": "https://www.cancerimagingarchive.net/"
+          }
+        ]
+      },
+      "title": "CPTAC-LSCC-DA-PATH - The Cancer Imaging Archive (TCIA)",
+      "twitter_card": "summary_large_image",
+      "twitter_site": "@tcia_news"
+    }
+  }
+}

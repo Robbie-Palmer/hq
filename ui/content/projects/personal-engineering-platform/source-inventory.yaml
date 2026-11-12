@@ -710,6 +710,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/cptac-lscc-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/cptac/lscc-public" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/paip2019-liver-roi-data-product"
     project: "project:pathologize"
     paths: [ "data-products/paip2019/liver-roi" ]
