@@ -1,0 +1,96 @@
+schema: '2.0'
+stages:
+  acquire_metadata:
+    cmd: uv run --locked gtex-histology-source-data acquire
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: e61a1ac41694907db46492048ad6ce56.dir
+      size: 3485
+      nfiles: 2
+    - path: manifest.json
+      hash: md5
+      md5: fce2b991620a01ad964a518e8f919136
+      size: 9525
+    - path: pyproject.toml
+      hash: md5
+      md5: a9f9b4a3b5da2a72faebe2fb32f3bc45
+      size: 1125
+    - path: src/gtex_histology_source_data
+      hash: md5
+      md5: 7bd7d40e37d0355885ac19512f7b61a8.dir
+      size: 37889
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: 7fdd23259a9c282e6c8c1bf2b9d80503
+      size: 34622
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: 1842ca78d47845d7b33ffe2b759e0f49.dir
+      size: 133493997
+      nfiles: 12
+  index_native:
+    cmd: uv run --locked gtex-histology-source-data index
+    deps:
+    - path: contracts
+      hash: md5
+      md5: e61a1ac41694907db46492048ad6ce56.dir
+      size: 3485
+      nfiles: 2
+    - path: data/raw
+      hash: md5
+      md5: 1842ca78d47845d7b33ffe2b759e0f49.dir
+      size: 133493997
+      nfiles: 12
+    - path: manifest.json
+      hash: md5
+      md5: fce2b991620a01ad964a518e8f919136
+      size: 9525
+    - path: pyproject.toml
+      hash: md5
+      md5: a9f9b4a3b5da2a72faebe2fb32f3bc45
+      size: 1125
+    - path: src/gtex_histology_source_data
+      hash: md5
+      md5: 7bd7d40e37d0355885ac19512f7b61a8.dir
+      size: 37889
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: 7fdd23259a9c282e6c8c1bf2b9d80503
+      size: 34622
+    outs:
+    - path: outputs/anvil-svs.jsonl
+      hash: md5
+      md5: ce3915e9dd153162eb64ebb173b274d1
+      size: 23375495
+    - path: outputs/gtex-histology-images.jsonl
+      hash: md5
+      md5: d46bdc7e6af8ed5069587256a6cde268
+      size: 9573912
+    - path: outputs/gtex-molecular-aliquots.jsonl
+      hash: md5
+      md5: 93ad8025b72d81b28b18d3200b164fbf
+      size: 19490635
+    - path: outputs/idc-instances.jsonl
+      hash: md5
+      md5: 262b9b1d65af18c6d93fba9357dd6c28
+      size: 56818334
+    - path: outputs/idc-series.jsonl
+      hash: md5
+      md5: 22d56210e093a639b0738703ace08256
+      size: 23388347
+    - path: outputs/reconciliation.json
+      hash: md5
+      md5: 96d4db7dc17b466aa6838d77018f40d3
+      size: 1495
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: dbaed9a5c4757d61a519ab96d82b858d
+      size: 2279
