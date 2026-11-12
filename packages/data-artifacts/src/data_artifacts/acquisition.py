@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from html.parser import HTMLParser
 from typing import Any, cast, override
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -21,6 +21,17 @@ class RemoteFile(BaseModel):
     file_name: str = Field(min_length=1)
     bytes: int = Field(ge=1)
     locator: str = Field(min_length=1)
+
+
+class _RejectRedirects(HTTPRedirectHandler):
+    @override
+    def redirect_request(self, *_args: object, **_kwargs: object) -> Request | None:
+        raise AcquisitionError("metadata URL redirects are not allowed")
+
+
+def _open_without_redirects(request: Request, timeout: float) -> Any:
+    opener = build_opener(_RejectRedirects())
+    return opener.open(request, timeout=timeout)
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,7 +49,7 @@ class HttpsMetadataClient:
             url,
             headers={"Accept": self.accept, "User-Agent": self.user_agent},
         )
-        with urlopen(request, timeout=self.timeout_seconds) as response:  # noqa: S310
+        with _open_without_redirects(request, self.timeout_seconds) as response:
             return cast(bytes, response.read())
 
     def get_json_object(self, url: str) -> dict[str, Any]:

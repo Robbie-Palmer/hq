@@ -35,13 +35,13 @@ def test_https_metadata_client_reads_allowlisted_objects(
         def read(self) -> bytes:
             return b'{"accession":"example"}'
 
-    def fake_urlopen(request: Request, timeout: float) -> Response:
+    def fake_open(request: Request, timeout: float) -> Response:
         assert request.full_url == "https://metadata.example/record"
         assert request.get_header("User-agent") == "data-artifacts-test/1.0"
         assert timeout == 120
         return Response()
 
-    monkeypatch.setattr(acquisition, "urlopen", fake_urlopen)
+    monkeypatch.setattr(acquisition, "_open_without_redirects", fake_open)
 
     assert _client().get_json_object("https://metadata.example/record") == {"accession": "example"}
 
@@ -55,6 +55,21 @@ def test_https_metadata_client_rejects_unallowlisted_urls(url: str) -> None:
 
     with pytest.raises(AcquisitionError, match="not allowlisted"):
         client.get_bytes(url)
+
+
+def test_https_metadata_client_rejects_redirects() -> None:
+    handler = acquisition._RejectRedirects()
+    request = Request("https://metadata.example/record")
+
+    with pytest.raises(AcquisitionError, match="redirects are not allowed"):
+        handler.redirect_request(
+            request,
+            object(),
+            302,
+            "Found",
+            {},
+            "https://untrusted.example/record",
+        )
 
 
 def test_https_metadata_client_requires_json_objects(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -71,7 +71,7 @@
     {
       "filename_token": "Form",
       "preservation": "formalin-fixed",
-      "extraction": "30 % ACN/100 mM ABC with 0.05 % RapiGest, Dounce and ultrasonic homogenisation, 95 °C for 90 min, DTT reduction, IAA alkylation, and trypsin digestion"
+      "extraction": "30 % ACN/100 mM ABC with 0.05 % RapiGest, Dounce homogenisation, 95 °C for 90 min, ultrasonic homogenisation, DTT reduction, IAA alkylation, and trypsin digestion"
     },
     {
       "filename_token": "FFPE",

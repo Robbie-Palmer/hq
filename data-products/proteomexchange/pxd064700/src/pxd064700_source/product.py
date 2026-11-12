@@ -31,6 +31,18 @@ RUN_PATTERN = re.compile(
     r"t(?P<technical>\d+)-(?P<date>\d{2}-\d{2}-\d{4})-LP\.raw$"
 )
 SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+REQUIRED_SNAPSHOT_PATHS = frozenset(
+    {
+        "snapshots/checksum.txt",
+        "snapshots/community-annotation.sdrf.tsv",
+        "snapshots/donor-name-map.tsv",
+        "snapshots/experiment-overview.txt",
+        "snapshots/ftp-listing.jsonl",
+        "snapshots/pride-project.json",
+        "snapshots/proteomexchange-announcement.xml",
+    }
+)
+EXPECTED_UNCHECKSUMMED_FILES = frozenset({"PXD064700_community_annotated.sdrf.tsv", "checksum.txt"})
 
 
 class ProductError(RuntimeError):
@@ -45,6 +57,10 @@ def _read_object(path: Path) -> dict[str, Any]:
 
 
 def _verify_snapshots(root: Path, manifest: SnapshotManifest) -> None:
+    listed_paths = {snapshot.path for snapshot in manifest.files}
+    missing_paths = REQUIRED_SNAPSHOT_PATHS - listed_paths
+    if missing_paths:
+        raise ProductError(f"snapshot manifest omits required paths: {sorted(missing_paths)}")
     for snapshot in manifest.files:
         path = root / snapshot.path
         payload = path.read_bytes()
@@ -62,8 +78,7 @@ def read_ftp_entries(path: Path) -> list[RemoteFile]:
     ]
 
 
-def announcement_files(path: Path) -> dict[str, dict[str, str]]:
-    root = ET.parse(path).getroot()  # noqa: S314 - pinned local publisher metadata.
+def _announcement_files(root: ET.Element) -> dict[str, dict[str, str]]:
     if root.attrib.get("id") != "PXD064700":
         raise ProductError("ProteomeXchange announcement accession differs")
     summary = root.find("DatasetSummary")
@@ -84,6 +99,16 @@ def announcement_files(path: Path) -> dict[str, dict[str, str]]:
     if len(files) != 551:
         raise ProductError("ProteomeXchange revision 1 must announce 551 file references")
     return files
+
+
+def announcement_files(path: Path) -> dict[str, dict[str, str]]:
+    root = ET.parse(path).getroot()  # noqa: S314 - pinned local publisher metadata.
+    return _announcement_files(root)
+
+
+def announcement_files_from_bytes(payload: bytes) -> dict[str, dict[str, str]]:
+    root = ET.fromstring(payload)  # noqa: S314 - public publisher metadata.
+    return _announcement_files(root)
 
 
 def _checksums(path: Path) -> dict[str, tuple[str, str]]:
@@ -192,6 +217,12 @@ def _artifacts(
         raise ProductError("publisher checksum basename is absent from the FTP listing")
     if set(announced) - ftp_names:
         raise ProductError("announced file is absent from the FTP listing")
+    unchecksummed_files = ftp_names - set(checksums)
+    if unchecksummed_files != EXPECTED_UNCHECKSUMMED_FILES:
+        raise ProductError(
+            "publisher checksum coverage differs; expected unchecksummed files: "
+            f"{sorted(EXPECTED_UNCHECKSUMMED_FILES)}; observed: {sorted(unchecksummed_files)}"
+        )
     artifacts: list[ArtifactRecord] = []
     for entry in ftp_entries:
         announcement = announced.get(entry.file_name)

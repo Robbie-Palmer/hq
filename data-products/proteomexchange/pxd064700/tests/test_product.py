@@ -20,8 +20,16 @@ from pxd064700_source.acquisition import (
     refresh_snapshots,
     verify_live_identity,
 )
+from pxd064700_source.cli import Application, ApplicationArguments
 from pxd064700_source.models import SourceContract
-from pxd064700_source.product import ProductError, publish_product
+from pxd064700_source.product import (
+    ProductError,
+    _artifacts,
+    _checksums,
+    announcement_files,
+    publish_product,
+    read_ftp_entries,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 
@@ -151,6 +159,11 @@ def test_runs_preserve_native_preparation_and_assay_identity(published_root: Pat
     )
     assert "patient_diagnosis" not in selected
 
+    formalin_fixed = next(item for item in runs if item["preparation_token"] == "Form")
+    extraction = str(formalin_fixed["extraction"])
+    assert extraction.index("Dounce homogenisation") < extraction.index("95 °C for 90 min")
+    assert extraction.index("95 °C for 90 min") < extraction.index("ultrasonic homogenisation")
+
 
 def test_pairing_does_not_overstate_physical_specimen_identity(published_root: Path) -> None:
     pairings = _jsonl(published_root / "outputs/pairing-index.jsonl")
@@ -260,12 +273,52 @@ def test_publish_rejects_changed_snapshot(tmp_path: Path) -> None:
         publish_product(tmp_path)
 
 
+def test_publish_requires_every_snapshot_input(tmp_path: Path) -> None:
+    (tmp_path / "contracts").symlink_to(PROJECT_DIR / "contracts", target_is_directory=True)
+    snapshots = tmp_path / "snapshots"
+    snapshots.mkdir()
+    for source in (PROJECT_DIR / "snapshots").iterdir():
+        if source.name == "snapshot-manifest.json":
+            manifest = _json(source)
+            manifest["files"] = [
+                item
+                for item in manifest["files"]
+                if item["path"] != "snapshots/community-annotation.sdrf.tsv"
+            ]
+            (snapshots / source.name).write_text(json.dumps(manifest), encoding="utf-8")
+        else:
+            (snapshots / source.name).symlink_to(source)
+
+    with pytest.raises(ProductError, match="omits required paths"):
+        publish_product(tmp_path)
+
+
+def test_checksum_coverage_requires_the_two_published_gaps() -> None:
+    snapshots = PROJECT_DIR / "snapshots"
+    ftp_entries = read_ftp_entries(snapshots / "ftp-listing.jsonl")
+    announced = announcement_files(snapshots / "proteomexchange-announcement.xml")
+    checksums = _checksums(snapshots / "checksum.txt")
+    replaced_name = next(name for name in checksums if name.endswith(".raw"))
+    checksums["checksum.txt"] = checksums.pop(replaced_name)
+
+    with pytest.raises(ProductError, match="checksum coverage differs"):
+        _artifacts(ftp_entries, announced, checksums)
+
+
 def test_contract_forbids_payload_commits() -> None:
     payload = _json(PROJECT_DIR / "contracts/source.json")
     payload["artifact_policy"]["commit_proteomics_payloads"] = True
 
     with pytest.raises(ValidationError):
         SourceContract.model_validate(payload)
+
+
+def test_cli_validates_root_before_resolving(tmp_path: Path) -> None:
+    assert Application(root=str(tmp_path)).root == tmp_path.resolve()
+
+    invalid_input = {"root": 42}
+    with pytest.raises(ValidationError):
+        ApplicationArguments.model_validate(invalid_input)
 
 
 def test_metadata_client_rejects_non_official_hosts() -> None:
@@ -341,6 +394,31 @@ def test_refresh_snapshots_writes_normalized_metadata(
     assert _jsonl(tmp_path / "snapshots/ftp-listing.jsonl")[0]["bytes"] == 12
 
 
+def test_refresh_failure_preserves_previous_snapshots(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    snapshots = tmp_path / "snapshots"
+    snapshots.mkdir()
+    (snapshots / "snapshot-manifest.json").write_bytes(b"old manifest\n")
+    (snapshots / "pride-project.json").write_bytes(b"old project\n")
+    before = {path.name: path.read_bytes() for path in snapshots.iterdir()}
+
+    monkeypatch.setattr(acquisition, "_json_request", lambda _url: {"accession": "PXD064700"})
+    monkeypatch.setattr(acquisition, "_ftp_entries", lambda: [])
+
+    def fail_after_announcement(url: str) -> bytes:
+        if url == ANNOUNCEMENT_URL:
+            return b"<DatasetSummary />"
+        raise OSError("metadata request failed")
+
+    monkeypatch.setattr(acquisition, "_request", fail_after_announcement)
+
+    with pytest.raises(OSError, match="metadata request failed"):
+        refresh_snapshots(tmp_path)
+
+    assert {path.name: path.read_bytes() for path in snapshots.iterdir()} == before
+
+
 def test_live_verification_uses_pinned_https_identities(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -361,3 +439,4 @@ def test_live_verification_uses_pinned_https_identities(
     assert identity["announcement_file_count"] == 551
     assert identity["ftp_file_count"] == 552
     assert DIRECTORY_URL.endswith("/PXD064700/")
+    assert not (PROJECT_DIR / "snapshots/.live-announcement.xml").exists()

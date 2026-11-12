@@ -4,7 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from pxd064700_source.acquisition import (
     PROJECT_DIR,
@@ -15,9 +15,16 @@ from pxd064700_source.acquisition import (
 from pxd064700_source.product import ProductError, publish_product
 
 
+class ApplicationArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    root: Path | None = None
+
+
 class Application:
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root).resolve() if root is not None else PROJECT_DIR
+        arguments = ApplicationArguments.model_validate({"root": root})
+        self.root = arguments.root.resolve() if arguments.root is not None else PROJECT_DIR
 
     def refresh(self) -> None:
         manifest = refresh_snapshots(self.root)

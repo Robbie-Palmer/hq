@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from data_artifacts.acquisition import (
     AcquisitionError,
@@ -64,49 +65,65 @@ def _write_bytes(path: Path, value: bytes) -> None:
     path.write_bytes(value)
 
 
-def _snapshot_file(path: Path, root: Path) -> SnapshotFile:
+def _snapshot_file(path: Path, published_path: Path) -> SnapshotFile:
     return SnapshotFile(
-        path=path.relative_to(root).as_posix(),
+        path=published_path.as_posix(),
         bytes=path.stat().st_size,
         sha256=sha256_file(path),
     )
 
 
 def refresh_snapshots(root: Path = PROJECT_DIR) -> SnapshotManifest:
+    root.mkdir(parents=True, exist_ok=True)
     snapshots = root / "snapshots"
-    project = _json_request(PROJECT_API_URL)
-    write_json(snapshots / "pride-project.json", project)
-    _write_bytes(snapshots / "proteomexchange-announcement.xml", _request(ANNOUNCEMENT_URL))
-    entries = _ftp_entries()
-    write_jsonl(
-        snapshots / "ftp-listing.jsonl",
-        entries,
-    )
-    for local_name, url in METADATA_FILES.items():
-        payload = _request(url)
-        if local_name in {"donor-name-map.tsv", "experiment-overview.txt"}:
-            payload = normalize_line_endings(payload)
-        _write_bytes(snapshots / local_name, payload)
+    with TemporaryDirectory(prefix=".pxd064700-refresh-", dir=root) as temporary:
+        staging_root = Path(temporary)
+        staged_snapshots = staging_root / "snapshots"
+        staged_snapshots.mkdir()
 
-    snapshot_paths = sorted(
-        path
-        for path in snapshots.iterdir()
-        if path.is_file() and path.name != "snapshot-manifest.json"
-    )
-    manifest = SnapshotManifest(
-        schema_version="1.0.0",
-        product_id="proteomexchange-pxd064700-revision-1",
-        retrieved_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
-        acquisition_mode="public_metadata_only",
-        requires_credentials=False,
-        files=[_snapshot_file(path, root) for path in snapshot_paths],
-    )
-    write_json(snapshots / "snapshot-manifest.json", manifest)
-    return manifest
+        project = _json_request(PROJECT_API_URL)
+        write_json(staged_snapshots / "pride-project.json", project)
+        _write_bytes(
+            staged_snapshots / "proteomexchange-announcement.xml",
+            _request(ANNOUNCEMENT_URL),
+        )
+        entries = _ftp_entries()
+        write_jsonl(staged_snapshots / "ftp-listing.jsonl", entries)
+        for local_name, url in METADATA_FILES.items():
+            payload = _request(url)
+            if local_name in {"donor-name-map.tsv", "experiment-overview.txt"}:
+                payload = normalize_line_endings(payload)
+            _write_bytes(staged_snapshots / local_name, payload)
+
+        snapshot_paths = sorted(staged_snapshots.iterdir())
+        manifest = SnapshotManifest(
+            schema_version="1.0.0",
+            product_id="proteomexchange-pxd064700-revision-1",
+            retrieved_at=datetime.now(UTC).replace(microsecond=0).isoformat(),
+            acquisition_mode="public_metadata_only",
+            requires_credentials=False,
+            files=[_snapshot_file(path, Path("snapshots") / path.name) for path in snapshot_paths],
+        )
+        write_json(staged_snapshots / "snapshot-manifest.json", manifest)
+
+        previous_snapshots = staging_root / "previous-snapshots"
+        if snapshots.exists():
+            snapshots.replace(previous_snapshots)
+        try:
+            staged_snapshots.replace(snapshots)
+        except OSError:
+            if previous_snapshots.exists():
+                previous_snapshots.replace(snapshots)
+            raise
+        return manifest
 
 
 def verify_live_identity(root: Path = PROJECT_DIR) -> dict[str, object]:
-    from pxd064700_source.product import announcement_files, read_ftp_entries
+    from pxd064700_source.product import (
+        announcement_files,
+        announcement_files_from_bytes,
+        read_ftp_entries,
+    )
 
     project = _json_request(PROJECT_API_URL)
     if project.get("accession") != ACCESSION:
@@ -115,12 +132,7 @@ def verify_live_identity(root: Path = PROJECT_DIR) -> dict[str, object]:
         raise AcquisitionError("live PRIDE submission type differs from PARTIAL")
 
     pinned_announcement = announcement_files(root / "snapshots/proteomexchange-announcement.xml")
-    live_path = root / "snapshots/.live-announcement.xml"
-    live_path.write_bytes(_request(ANNOUNCEMENT_URL))
-    try:
-        live_announcement = announcement_files(live_path)
-    finally:
-        live_path.unlink(missing_ok=True)
+    live_announcement = announcement_files_from_bytes(_request(ANNOUNCEMENT_URL))
     if set(live_announcement) != set(pinned_announcement):
         raise AcquisitionError("live ProteomeXchange revision 1 file identities drifted")
 
