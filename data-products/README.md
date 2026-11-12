@@ -21,6 +21,8 @@ Current products:
   provider-specific masks, rights, checksums, and gated access contract.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `cryonuseg/frozen-he`: source-native CryoNuSeg frozen-section H&E patches,
+  manual annotation rounds, auxiliary masks, and exact GDC slide lineage.
 - `proteomexchange/pxd064700`: source-native PRIDE and ProteomeXchange metadata,
   run identities, pairings, checksums, and remote artifact references for the
   PXD064700 brain fixation proteomics study.

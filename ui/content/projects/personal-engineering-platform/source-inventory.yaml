@@ -80,6 +80,22 @@ components:
     receipt: { path: ".copier/projects/agentic-code-review.yml" }
     adoption: { state: "managed", batch: null }
 
+  - id: "component:annotation-workbench/annotation-workbench-service"
+    project: "project:annotation-workbench"
+    paths: [ "ml-pipelines/annotation-workbench-service" ]
+    toolchains: [ "python" ]
+    profile: { path: "ui/content/projects/annotation-workbench/project-profile.yaml", component_id: "annotation-workbench-service" }
+    receipt: { path: ".copier/projects/annotation-workbench.yml" }
+    adoption: { state: "managed", batch: null }
+
+  - id: "component:annotation-workbench/web"
+    project: "project:annotation-workbench"
+    paths: [ "ui/app/_projects/annotation-workbench", "ui/app/annotation-workbench" ]
+    toolchains: [ "typescript" ]
+    profile: { path: "ui/content/projects/annotation-workbench/project-profile.yaml", component_id: "web" }
+    receipt: { path: ".copier/projects/annotation-workbench.yml" }
+    adoption: { state: "managed", batch: null }
+
   - id: "component:personal-digital-infrastructure/publication"
     project: "project:personal-digital-infrastructure"
     paths: [ "ui/content/projects/personal-digital-infrastructure" ]
@@ -694,6 +710,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/cryonuseg-frozen-he-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/cryonuseg/frozen-he" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/pannuke-published-folds-data-product"
     project: "project:pathologize"
     paths: [ "data-products/pannuke/published-folds" ]
@@ -1139,6 +1163,14 @@ components:
     project: "project:pathologize"
     paths: [ "ui/content/projects/pathologize" ]
     toolchains: [ "mdx" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "03-project-content" }
+
+  - id: "component:annotation-workbench/publication"
+    project: "project:annotation-workbench"
+    paths: [ "ui/content/projects/annotation-workbench" ]
+    toolchains: [ "mdx", "yaml" ]
     profile: null
     receipt: null
     adoption: { state: "planned", batch: "03-project-content" }
