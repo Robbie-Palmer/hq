@@ -1,0 +1,83 @@
+---
+title: "PDR 010: Ingest the Zenodo skin frozen and FFPE preview"
+date: "2026-11-11"
+status: "Rejected"
+decision_date: "2026-11-11"
+evidence:
+  - title: "Zenodo skin frozen and FFPE preview record"
+    url: "https://zenodo.org/records/18780726"
+  - title: "Translation of frozen sections into FFPE images for skin cancer resection margins using generative AI"
+    url: "https://doi.org/10.1038/s41746-026-02939-1"
+  - title: "OpenSlide MIRAX format documentation"
+    url: "https://openslide.org/formats/mirax/"
+---
+
+## Context
+
+Zenodo record `18780726`, DOI `10.5281/zenodo.18780726`, describes five
+de-identified frozen and FFPE whole-slide image pairs from skin cancer resection
+margins. The cases cover extramammary Paget disease, Bowen disease, invasive
+squamous cell carcinoma, basal cell carcinoma, and melanoma. Unsuffixed names
+identify frozen preparations. A `P` suffix identifies FFPE preparations.
+
+The release has 30 files and a total size of 418,147 bytes. Each preparation has
+an `.mrxs` file, a metadata XML, and an annotation XML. Zenodo applies CC BY 4.0
+to the release. The related paper uses CC BY-NC-ND 4.0.
+
+The paper reports a separate clinical cohort of 2,594 slides from 283 patients.
+It contains 1,192 frozen and FFPE slide pairs and 210 additional main-tumour FFPE
+slides. The paper also reports 60 frozen-to-FFPE diagnostic discrepancies, a
+55-case expert reassessment, and an example where a deeper FFPE section contained
+tumour that was barely present in the frozen section. These facts explain why the
+source looked useful, but they do not describe image content in the five-case
+Zenodo preview. The full cohort remains subject to institutional governance and
+patient privacy. The authors offer access by reasonable request.
+
+## Payload investigation
+
+On 11 November 2026, the source-product investigation downloaded all 30 Zenodo
+objects to temporary storage. Every object matched its published byte count and
+MD5 checksum.
+
+The ten `.mrxs`-named objects ranged from 25,838 to 86,312 bytes. Each object was
+a valid 698 by 1,600 JFIF JPEG. None was a MIRAX descriptor. The record contained
+no same-named companion directory with MIRAX indexes or image tiles. The ten
+annotation XML files contained empty `annotations` elements.
+
+OpenSlide Python 1.4.7 with OpenSlide 4.0.1 attempted to open every `.mrxs`-named
+object. All ten attempts raised `OpenSlideUnsupportedFormatError`. The JPEGs can
+act as small visual previews, but they cannot provide WSI regions, pyramid levels,
+or diagnostic-resolution pixels.
+
+## Decision
+
+Reject the proposed source product for this release. Pathologize will not publish
+a DVC product, native records, derived comparisons, or SOP inputs from these
+files. Re-encoding a 698 by 1,600 JPEG as TIFF or another container would preserve
+the same low-resolution preview and would not recover the missing pixels.
+
+Keep the investigation in this rejected PDR and the associated Work Graph record.
+The Zenodo pair names remain publisher claims. They do not establish spatial
+registration or identical cutting planes.
+
+## Consequences
+
+The current release cannot support frozen-artifact analysis, diagnostic
+comparison, section-depth analysis, model development, or whole-slide viewing.
+The paper remains useful background evidence, but Pathologize will not treat paper
+cohort counts or workflow observations as preview data.
+
+Rejecting the product also avoids a misleading metadata-only node in the data
+mesh. A source product should supply material that at least one intended consumer
+can read and use.
+
+## Reconsideration
+
+Reconsider ingestion if the publisher releases either complete MIRAX descriptors
+and companion directories or another full-resolution WSI format. A replacement
+must pass checksum verification, format detection, reader open, pyramid geometry,
+and bounded pixel-read tests. Review its rights and access terms again, and retain
+the five source case and preparation identities without assuming registration.
+
+Access to the governed full cohort would require a separate decision. It must not
+be substituted silently for this public preview.
