@@ -23,6 +23,9 @@ Current products:
   TCGA slides for the fixed 24-slide pilot.
 - `cryonuseg/frozen-he`: source-native CryoNuSeg frozen-section H&E patches,
   manual annotation rounds, auxiliary masks, and exact GDC slide lineage.
+- `proteomexchange/pxd064700`: source-native PRIDE and ProteomeXchange metadata,
+  run identities, pairings, checksums, and remote artifact references for the
+  PXD064700 brain fixation proteomics study.
 - `paip2019/liver-roi`: source-native PAIP 2019 liver whole-slide images,
   tumour masks, XML regions, challenge roles, and gated access contract.
 - `segpath/registered-if-masks`: source-native SegPath H&E patches and
