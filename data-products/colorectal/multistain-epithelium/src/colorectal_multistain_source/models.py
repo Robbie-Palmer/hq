@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from enum import StrEnum
 from typing import Literal, Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
@@ -60,10 +61,39 @@ class Rights(StrictModel):
     zenodo_metadata_discrepancy: RightsDiscrepancy
 
 
+class NativeTissue(StrEnum):
+    CANCER = "Cancer"
+    NORMAL_MUCOSA = "Normal mucosa"
+
+
+class SourceArtifactRole(StrEnum):
+    IMAGE_MASK_PAIRS = "image_mask_pairs"
+    QUANTITATIVE_MEASUREMENTS = "project_specific_quantitative_measurements"
+    PUBLISHER_DOCUMENTATION = "publisher_documentation"
+
+
+class NativeAssay(StrEnum):
+    H_AND_E = "H&E"
+    IMMUNOHISTOCHEMISTRY = "Immunohistochemistry"
+    ISH = "ISH"
+
+
+class MarkerRole(StrEnum):
+    HISTOLOGIC_STAIN = "histologic_stain"
+    MIRNA_PROBE = "miRNA_probe"
+    NEGATIVE_CONTROL = "negative_control"
+    POSITIVE_CONTROL = "positive_control"
+    PROTEIN = "protein"
+
+
+class NativeRecordRole(StrEnum):
+    SEMANTIC_SEGMENTATION_PAIR = "semantic segmentation training image-mask pair"
+
+
 class NativeCorpus(StrictModel):
     patient_group_count: Literal[100]
     patient_group_pattern: str = Field(min_length=1)
-    tissue_values: list[Literal["Cancer", "Normal mucosa"]]
+    tissue_values: list[NativeTissue]
     normal_core_numbers: list[Literal[1, 2, 3]]
     cancer_core_numbers: list[Literal[4, 5, 6]]
     declared_cores_per_patient_per_tissue: Literal[3]
@@ -80,21 +110,6 @@ class NativeCorpus(StrictModel):
     publisher_partition: None
 
 
-SourceRole = Literal[
-    "image_mask_pairs",
-    "project_specific_quantitative_measurements",
-    "publisher_documentation",
-]
-NativeAssay = Literal["H&E", "Immunohistochemistry", "ISH"]
-MarkerRole = Literal[
-    "histologic_stain",
-    "miRNA_probe",
-    "negative_control",
-    "positive_control",
-    "protein",
-]
-
-
 class SourceArtifact(StrictModel):
     artifact_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
     label: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._ -]+$")
@@ -103,7 +118,7 @@ class SourceArtifact(StrictModel):
     bytes: int = Field(gt=0)
     content_type: Literal["application/zip", "text/plain"]
     md5: str = Field(pattern=r"^[a-f0-9]{32}$")
-    source_role: SourceRole
+    source_role: SourceArtifactRole
     native_assay: NativeAssay | None
     native_marker: str | None
     marker_role: MarkerRole | None
@@ -117,9 +132,11 @@ class SourceArtifact(StrictModel):
             self.marker_role,
             self.expected_pair_count,
         )
-        if self.source_role == "image_mask_pairs" and any(value is None for value in pair_values):
+        if self.source_role is SourceArtifactRole.IMAGE_MASK_PAIRS and any(
+            value is None for value in pair_values
+        ):
             raise ValueError("image-mask archives require assay, marker, role, and pair count")
-        if self.source_role != "image_mask_pairs" and any(
+        if self.source_role is not SourceArtifactRole.IMAGE_MASK_PAIRS and any(
             value is not None for value in pair_values
         ):
             raise ValueError("non-image artifacts cannot declare image-mask pair metadata")
@@ -142,7 +159,9 @@ class SourceManifest(StrictModel):
     @model_validator(mode="after")
     def require_complete_source_contract(self) -> Self:
         image_artifacts = [
-            artifact for artifact in self.artifacts if artifact.source_role == "image_mask_pairs"
+            artifact
+            for artifact in self.artifacts
+            if artifact.source_role is SourceArtifactRole.IMAGE_MASK_PAIRS
         ]
         if len(image_artifacts) != 18:
             raise ValueError("source contract must preserve all 18 stain and marker archives")
@@ -154,15 +173,9 @@ class SourceManifest(StrictModel):
             raise ValueError("Dataverse datafile IDs must be unique")
         if len({artifact.persistent_id for artifact in self.artifacts}) != len(self.artifacts):
             raise ValueError("artifact persistent IDs must be unique")
-        if {artifact.native_assay for artifact in image_artifacts} != {
-            "H&E",
-            "ISH",
-            "Immunohistochemistry",
-        }:
+        if {artifact.native_assay for artifact in image_artifacts} != set(NativeAssay):
             raise ValueError("H&E, IHC, and publisher-native ISH assays are required")
-        if {artifact.marker_role for artifact in image_artifacts}.issuperset(
-            {"histologic_stain", "miRNA_probe", "negative_control", "positive_control", "protein"}
-        ) is False:
+        if {artifact.marker_role for artifact in image_artifacts} != set(MarkerRole):
             raise ValueError("marker archives must retain probes, controls, stain, and proteins")
         return self
 
@@ -173,13 +186,13 @@ class NativeRecord(StrictModel):
     record_id: str = Field(pattern=r"^colorectal-multistain:v1:[a-f0-9]{64}$")
     patient_group_id: str = Field(pattern=r"^A\d{3}$")
     specimen_group_id: str = Field(pattern=r"^A\d{3}:(Cancer|Normal mucosa):[1-6]$")
-    native_tissue: Literal["Cancer", "Normal mucosa"]
+    native_tissue: NativeTissue
     native_core_number: int = Field(ge=1, le=6)
     native_assay: NativeAssay
     native_marker: str = Field(min_length=1)
     marker_role: MarkerRole
     source_acquisition_label: str = Field(min_length=1)
-    source_role: Literal["semantic segmentation training image-mask pair"]
+    source_role: NativeRecordRole
     source_artifact_id: str = Field(min_length=1)
     source_artifact_persistent_id: str = Field(min_length=1)
     source_pair_stem: str = Field(min_length=1)

@@ -13,17 +13,17 @@ stages:
       size: 12110
     - path: pyproject.toml
       hash: md5
-      md5: 84c89aea72f1472b1f249753bc8c01ba
-      size: 1178
+      md5: 22beeb3a6626d42e2b353094b2964011
+      size: 1297
     - path: src/colorectal_multistain_source
       hash: md5
-      md5: b92b7dc0702cdc47ba8306c47700af56.dir
-      size: 24627
+      md5: e002b9822cb807582b827869e64d8f7a.dir
+      size: 24382
       nfiles: 4
     - path: uv.lock
       hash: md5
-      md5: 8a62db815387f900b7aa95760f4f5b88
-      size: 49872
+      md5: 4cf6c1c476028280a48a607f2fb934d1
+      size: 54245
     outs:
     - path: outputs/metadata-verification.json
       hash: md5
@@ -38,22 +38,22 @@ stages:
       size: 12110
     - path: pyproject.toml
       hash: md5
-      md5: 84c89aea72f1472b1f249753bc8c01ba
-      size: 1178
+      md5: 22beeb3a6626d42e2b353094b2964011
+      size: 1297
     - path: src/colorectal_multistain_source
       hash: md5
-      md5: b92b7dc0702cdc47ba8306c47700af56.dir
-      size: 24627
+      md5: e002b9822cb807582b827869e64d8f7a.dir
+      size: 24382
       nfiles: 4
     - path: uv.lock
       hash: md5
-      md5: 8a62db815387f900b7aa95760f4f5b88
-      size: 49872
+      md5: 4cf6c1c476028280a48a607f2fb934d1
+      size: 54245
     outs:
     - path: outputs/native-index.jsonl
       hash: md5
-      md5: d1313d90f9093b7dd82414c0227744fa
-      size: 11715787
+      md5: 2989cb3ac9971895227de575c24a3ae7
+      size: 11201806
     - path: outputs/source-metrics.json
       hash: md5
       md5: 2e026902e18f9437820f4057ab6b7310

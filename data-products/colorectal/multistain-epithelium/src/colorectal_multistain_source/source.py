@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
 import re
 from collections import Counter
@@ -10,12 +9,25 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 
 import requests
+from data_artifacts.acquisition import HttpsMetadataClient
+from data_artifacts.files import load_model, md5_file, write_json, write_jsonl
 from remotezip import RemoteZip
 
-from colorectal_multistain_source.models import NativeRecord, SourceArtifact, SourceManifest
+from colorectal_multistain_source.models import (
+    NativeRecord,
+    NativeRecordRole,
+    NativeTissue,
+    SourceArtifact,
+    SourceArtifactRole,
+    SourceManifest,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 _PAIR_RE = re.compile(r"^(?P<acquisition>.+)_(?P<patient>A\d{3})-(?P<core>[1-6])$")
+_METADATA_CLIENT = HttpsMetadataClient(
+    allowed_hosts=frozenset({"dataverse.no", "zenodo.org"}),
+    user_agent="colorectal-multistain-source/0.1 (+metadata-only)",
+)
 
 
 class SourceDataError(RuntimeError):
@@ -23,16 +35,7 @@ class SourceDataError(RuntimeError):
 
 
 def load_manifest(root: Path = PROJECT_DIR) -> SourceManifest:
-    return SourceManifest.model_validate_json((root / "manifest.json").read_text(encoding="utf-8"))
-
-
-def _json_response(url: str) -> dict[str, Any]:
-    response = requests.get(url, timeout=(10, 60))
-    response.raise_for_status()
-    payload = response.json()
-    if not isinstance(payload, dict):
-        raise SourceDataError(f"publisher returned a non-object response: {url}")
-    return payload
+    return load_model(root / "manifest.json", SourceManifest)
 
 
 def _dataverse_file_projection(file: Mapping[str, Any]) -> dict[str, object]:
@@ -159,10 +162,12 @@ def _verify_zenodo(payload: Mapping[str, Any], manifest: SourceManifest) -> dict
 
 def verify_metadata(root: Path = PROJECT_DIR) -> dict[str, object]:
     manifest = load_manifest(root)
-    dataverse_payload = _json_response(
+    dataverse_payload = _METADATA_CLIENT.get_json_object(
         str(manifest.authoritative_records.dataverse.version_api_url)
     )
-    zenodo_payload = _json_response(str(manifest.authoritative_records.zenodo.api_url))
+    zenodo_payload = _METADATA_CLIENT.get_json_object(
+        str(manifest.authoritative_records.zenodo.api_url)
+    )
     report: dict[str, object] = {
         "schema_version": manifest.schema_version,
         "dataset_id": manifest.dataset_id,
@@ -172,8 +177,7 @@ def verify_metadata(root: Path = PROJECT_DIR) -> dict[str, object]:
         "zenodo": _verify_zenodo(zenodo_payload, manifest),
     }
     output = root / "outputs/metadata-verification.json"
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_json(output, report)
     return report
 
 
@@ -209,7 +213,7 @@ def _native_record(
     core = int(match.group("core"))
     allowed_cores = (
         manifest.native_corpus.cancer_core_numbers
-        if tissue == "Cancer"
+        if tissue == NativeTissue.CANCER
         else manifest.native_corpus.normal_core_numbers
     )
     if core not in allowed_cores:
@@ -233,7 +237,7 @@ def _native_record(
         native_marker=artifact.native_marker,
         marker_role=artifact.marker_role,
         source_acquisition_label=match.group("acquisition").rstrip("_"),
-        source_role="semantic segmentation training image-mask pair",
+        source_role=NativeRecordRole.SEMANTIC_SEGMENTATION_PAIR,
         source_artifact_id=artifact.artifact_id,
         source_artifact_persistent_id=artifact.persistent_id,
         source_pair_stem=pair_stem,
@@ -271,17 +275,15 @@ def _artifact_records(
     return [_native_record(manifest, artifact, stem) for stem in sorted(images)]
 
 
-def _json_line(record: NativeRecord) -> str:
-    return json.dumps(record.model_dump(mode="json"), sort_keys=True) + "\n"
-
-
 def index_native_references(
     root: Path = PROJECT_DIR,
     names_by_artifact: Mapping[str, list[str]] | None = None,
 ) -> dict[str, object]:
     manifest = load_manifest(root)
     image_artifacts = [
-        artifact for artifact in manifest.artifacts if artifact.source_role == "image_mask_pairs"
+        artifact
+        for artifact in manifest.artifacts
+        if artifact.source_role is SourceArtifactRole.IMAGE_MASK_PAIRS
     ]
     records: list[NativeRecord] = []
     counts_by_artifact: dict[str, int] = {}
@@ -308,10 +310,7 @@ def index_native_references(
             "remote archive directories differ from the 567 represented specimen groups"
         )
     output_root = root / "outputs"
-    output_root.mkdir(parents=True, exist_ok=True)
-    (output_root / "native-index.jsonl").write_text(
-        "".join(_json_line(record) for record in records), encoding="utf-8"
-    )
+    write_jsonl(output_root / "native-index.jsonl", records)
     assay_counts = Counter(record.native_assay for record in records)
     tissue_counts = Counter(record.native_tissue for record in records)
     metrics: dict[str, object] = {
@@ -327,18 +326,8 @@ def index_native_references(
         "records_by_native_assay": dict(sorted(assay_counts.items())),
         "records_by_native_tissue": dict(sorted(tissue_counts.items())),
     }
-    (output_root / "source-metrics.json").write_text(
-        json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-    )
+    write_json(output_root / "source-metrics.json", metrics)
     return metrics
-
-
-def _digest_md5(path: Path) -> str:
-    digest = hashlib.md5(usedforsecurity=False)
-    with path.open("rb") as stream:
-        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def verify_local_artifact(path: Path, artifact: SourceArtifact) -> None:
@@ -346,7 +335,7 @@ def verify_local_artifact(path: Path, artifact: SourceArtifact) -> None:
         raise SourceDataError(f"missing regular source artifact: {path}")
     if path.stat().st_size != artifact.bytes:
         raise SourceDataError(f"source artifact byte count differs: {path}")
-    if _digest_md5(path) != artifact.md5:
+    if md5_file(path) != artifact.md5:
         raise SourceDataError(f"source artifact MD5 differs: {path}")
 
 

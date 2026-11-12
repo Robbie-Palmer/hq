@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from colorectal_multistain_source.models import SourceArtifact, SourceManifest
+from colorectal_multistain_source.models import (
+    MarkerRole,
+    NativeAssay,
+    NativeTissue,
+    SourceArtifact,
+    SourceArtifactRole,
+    SourceManifest,
+)
 from colorectal_multistain_source.source import (
     SourceDataError,
     _artifact_records,
@@ -80,24 +87,25 @@ def _artifact(manifest: SourceManifest, artifact_id: str) -> SourceArtifact:
 def test_manifest_preserves_every_native_assay_marker_and_control() -> None:
     manifest = _manifest()
     image_artifacts = [
-        artifact for artifact in manifest.artifacts if artifact.source_role == "image_mask_pairs"
+        artifact
+        for artifact in manifest.artifacts
+        if artifact.source_role is SourceArtifactRole.IMAGE_MASK_PAIRS
     ]
 
     assert len(manifest.artifacts) == 20
     assert len(image_artifacts) == 18
     assert sum(artifact.expected_pair_count or 0 for artifact in image_artifacts) == 13179
-    assert {artifact.native_assay for artifact in image_artifacts} == {
-        "H&E",
-        "ISH",
-        "Immunohistochemistry",
-    }
+    assert {artifact.native_assay for artifact in image_artifacts} == set(NativeAssay)
     assert {
         artifact.native_marker
         for artifact in image_artifacts
-        if artifact.marker_role in {"miRNA_probe", "negative_control", "positive_control"}
+        if artifact.marker_role
+        in {MarkerRole.MIRNA_PROBE, MarkerRole.NEGATIVE_CONTROL, MarkerRole.POSITIVE_CONTROL}
     } == {"Scrambled probe", "U6 snRNA", "miR-143", "miR-145"}
     assert {
-        artifact.native_marker for artifact in image_artifacts if artifact.marker_role == "protein"
+        artifact.native_marker
+        for artifact in image_artifacts
+        if artifact.marker_role is MarkerRole.PROTEIN
     } == {
         "CD44",
         "CTNND1",
@@ -163,12 +171,15 @@ def test_verify_metadata_writes_stable_payload_without_archive_downloads(
         (PROJECT_DIR / "manifest.json").read_text(encoding="utf-8"), encoding="utf-8"
     )
 
-    def fake_json_response(url: str) -> dict[str, object]:
-        if "zenodo" in url:
-            return _zenodo_payload(manifest)
-        return _dataverse_payload(manifest)
+    class FakeMetadataClient:
+        def get_json_object(self, url: str) -> dict[str, object]:
+            if "zenodo" in url:
+                return _zenodo_payload(manifest)
+            return _dataverse_payload(manifest)
 
-    monkeypatch.setattr("colorectal_multistain_source.source._json_response", fake_json_response)
+    monkeypatch.setattr(
+        "colorectal_multistain_source.source._METADATA_CLIENT", FakeMetadataClient()
+    )
 
     report = verify_metadata(tmp_path)
 
@@ -233,9 +244,12 @@ def _fake_archive_names(artifact: SourceArtifact) -> list[str]:
     specimen_groups = [
         (patient_number, tissue, core)
         for patient_number in range(1, 101)
-        for tissue, cores in (("Normal mucosa", (1, 2, 3)), ("Cancer", (4, 5, 6)))
+        for tissue, cores in (
+            (NativeTissue.NORMAL_MUCOSA, (1, 2, 3)),
+            (NativeTissue.CANCER, (4, 5, 6)),
+        )
         for core in cores
-        if not (patient_number <= 33 and tissue == "Cancer" and core == 6)
+        if not (patient_number <= 33 and tissue is NativeTissue.CANCER and core == 6)
     ]
     assert len(specimen_groups) == 567
     for index in range(artifact.expected_pair_count):
@@ -251,7 +265,9 @@ def test_index_writes_all_stable_native_references_from_zip_metadata(tmp_path: P
         (PROJECT_DIR / "manifest.json").read_text(encoding="utf-8"), encoding="utf-8"
     )
     image_artifacts = [
-        artifact for artifact in manifest.artifacts if artifact.source_role == "image_mask_pairs"
+        artifact
+        for artifact in manifest.artifacts
+        if artifact.source_role is SourceArtifactRole.IMAGE_MASK_PAIRS
     ]
     names_by_artifact = {
         artifact.artifact_id: _fake_archive_names(artifact) for artifact in image_artifacts
