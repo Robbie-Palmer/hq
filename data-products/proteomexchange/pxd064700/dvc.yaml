@@ -4,6 +4,8 @@ stages:
     deps:
       - .python-version
       - contracts
+      - ../../../packages/data-artifacts/src/data_artifacts/acquisition.py
+      - ../../../packages/data-artifacts/src/data_artifacts/files.py
       - pyproject.toml
       - snapshots
       - src/pxd064700_source

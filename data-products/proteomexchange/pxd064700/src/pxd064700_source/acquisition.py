@@ -1,15 +1,19 @@
 from __future__ import annotations
 
-import ftplib
-import hashlib
-import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, cast
-from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
 
-from pxd064700_source.models import FtpEntry, SnapshotFile, SnapshotManifest
+from data_artifacts.acquisition import (
+    AcquisitionError,
+    HttpsMetadataClient,
+    RemoteFile,
+    html_directory_basenames,
+    list_anonymous_ftp_files,
+    normalize_line_endings,
+)
+from data_artifacts.files import sha256_file, write_json, write_jsonl
+
+from pxd064700_source.models import SnapshotFile, SnapshotManifest
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 ACCESSION = "PXD064700"
@@ -30,63 +34,29 @@ METADATA_FILES = {
         f"{HTTPS_ROOT}/reference_case_name_for_raw_data_equivalent_body_donor_number.txt"
     ),
 }
-ALLOWED_HTTPS_HOSTS = {
-    "www.ebi.ac.uk",
-    "ftp.pride.ebi.ac.uk",
-    "proteomecentral.proteomexchange.org",
-}
-
-
-class AcquisitionError(RuntimeError):
-    pass
+ALLOWED_HTTPS_HOSTS = frozenset(
+    {
+        "www.ebi.ac.uk",
+        "ftp.pride.ebi.ac.uk",
+        "proteomecentral.proteomexchange.org",
+    }
+)
+_METADATA_CLIENT = HttpsMetadataClient(
+    allowed_hosts=ALLOWED_HTTPS_HOSTS,
+    user_agent="pxd064700-source-data/0.1 (+metadata-only)",
+)
 
 
 def _request(url: str) -> bytes:
-    parsed = urlsplit(url)
-    if parsed.scheme != "https" or parsed.hostname not in ALLOWED_HTTPS_HOSTS:
-        raise AcquisitionError(f"metadata URL is not allowlisted: {url}")
-    request = Request(  # noqa: S310 - exact HTTPS hosts are allowlisted above.
-        url,
-        headers={
-            "Accept": "application/json, application/xml, text/plain, text/html",
-            "User-Agent": "pxd064700-source-data/0.1 (+metadata-only)",
-        },
-    )
-    with urlopen(request, timeout=120) as response:  # noqa: S310
-        return response.read()
+    return _METADATA_CLIENT.get_bytes(url)
 
 
-def _json_request(url: str) -> dict[str, Any]:
-    value = json.loads(_request(url))
-    if not isinstance(value, dict):
-        raise AcquisitionError(f"metadata endpoint did not return an object: {url}")
-    return cast(dict[str, Any], value)
+def _json_request(url: str) -> dict[str, object]:
+    return _METADATA_CLIENT.get_json_object(url)
 
 
-def _ftp_entries() -> list[FtpEntry]:
-    lines: list[str] = []
-    # PRIDE exposes exact byte sizes only through its anonymous metadata listing.
-    with ftplib.FTP(FTP_HOST, timeout=120) as client:  # noqa: S321  # NOSONAR
-        client.login()
-        client.cwd(FTP_DIR)
-        client.retrlines("LIST", lines.append)
-    entries: list[FtpEntry] = []
-    for line in lines:
-        fields = line.split(maxsplit=8)
-        if len(fields) != 9 or not fields[0].startswith("-"):
-            raise AcquisitionError(f"unexpected FTP listing row: {line}")
-        file_name = fields[8]
-        entries.append(
-            FtpEntry(
-                file_name=file_name,
-                bytes=int(fields[4]),
-                # Preserve the publisher's source locator; acquisition never opens it.
-                locator=f"ftp://{FTP_HOST}{FTP_DIR}/{file_name}",  # NOSONAR
-            )
-        )
-    if len({item.file_name for item in entries}) != len(entries):
-        raise AcquisitionError("FTP listing contains duplicate basenames")
-    return sorted(entries, key=lambda item: item.file_name)
+def _ftp_entries() -> list[RemoteFile]:
+    return list_anonymous_ftp_files(FTP_HOST, FTP_DIR)
 
 
 def _write_bytes(path: Path, value: bytes) -> None:
@@ -94,46 +64,28 @@ def _write_bytes(path: Path, value: bytes) -> None:
     path.write_bytes(value)
 
 
-def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def _write_jsonl(path: Path, values: list[dict[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "".join(json.dumps(value, sort_keys=True) + "\n" for value in values),
-        encoding="utf-8",
-    )
-
-
-def _normalize_line_endings(payload: bytes) -> bytes:
-    return payload.replace(b"\r\n", b"\n").rstrip(b"\n") + b"\n"
-
-
 def _snapshot_file(path: Path, root: Path) -> SnapshotFile:
-    payload = path.read_bytes()
     return SnapshotFile(
         path=path.relative_to(root).as_posix(),
-        bytes=len(payload),
-        sha256=hashlib.sha256(payload).hexdigest(),
+        bytes=path.stat().st_size,
+        sha256=sha256_file(path),
     )
 
 
 def refresh_snapshots(root: Path = PROJECT_DIR) -> SnapshotManifest:
     snapshots = root / "snapshots"
     project = _json_request(PROJECT_API_URL)
-    _write_json(snapshots / "pride-project.json", project)
+    write_json(snapshots / "pride-project.json", project)
     _write_bytes(snapshots / "proteomexchange-announcement.xml", _request(ANNOUNCEMENT_URL))
     entries = _ftp_entries()
-    _write_jsonl(
+    write_jsonl(
         snapshots / "ftp-listing.jsonl",
-        [item.model_dump(mode="json") for item in entries],
+        entries,
     )
     for local_name, url in METADATA_FILES.items():
         payload = _request(url)
         if local_name in {"donor-name-map.tsv", "experiment-overview.txt"}:
-            payload = _normalize_line_endings(payload)
+            payload = normalize_line_endings(payload)
         _write_bytes(snapshots / local_name, payload)
 
     snapshot_paths = sorted(
@@ -149,19 +101,8 @@ def refresh_snapshots(root: Path = PROJECT_DIR) -> SnapshotManifest:
         requires_credentials=False,
         files=[_snapshot_file(path, root) for path in snapshot_paths],
     )
-    _write_json(snapshots / "snapshot-manifest.json", manifest.model_dump(mode="json"))
+    write_json(snapshots / "snapshot-manifest.json", manifest)
     return manifest
-
-
-def _directory_basenames(payload: bytes) -> set[str]:
-    text = payload.decode("utf-8")
-    marker = 'href="'
-    names: set[str] = set()
-    for fragment in text.split(marker)[1:]:
-        href = fragment.split('"', 1)[0]
-        if href and not href.startswith(("?", "/")):
-            names.add(href)
-    return names
 
 
 def verify_live_identity(root: Path = PROJECT_DIR) -> dict[str, object]:
@@ -184,7 +125,7 @@ def verify_live_identity(root: Path = PROJECT_DIR) -> dict[str, object]:
         raise AcquisitionError("live ProteomeXchange revision 1 file identities drifted")
 
     pinned_ftp = {item.file_name for item in read_ftp_entries(root / "snapshots/ftp-listing.jsonl")}
-    live_ftp = _directory_basenames(_request(DIRECTORY_URL))
+    live_ftp = html_directory_basenames(_request(DIRECTORY_URL))
     if live_ftp != pinned_ftp:
         raise AcquisitionError("live PRIDE FTP directory identities drifted")
     return {

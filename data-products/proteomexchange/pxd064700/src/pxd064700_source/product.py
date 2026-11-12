@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import csv
 import hashlib
-import json
 import re
 import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
@@ -10,9 +9,11 @@ from pathlib import Path, PureWindowsPath
 from typing import Any, cast
 from urllib.parse import quote
 
+from data_artifacts.acquisition import RemoteFile
+from data_artifacts.files import read_json, write_json, write_jsonl
+
 from pxd064700_source.models import (
     ArtifactRecord,
-    FtpEntry,
     PairingRecord,
     PreparationToken,
     RegionToken,
@@ -37,23 +38,10 @@ class ProductError(RuntimeError):
 
 
 def _read_object(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
+    value = read_json(path)
     if not isinstance(value, dict):
         raise ProductError(f"expected JSON object in {path}")
     return cast(dict[str, Any], value)
-
-
-def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-
-
-def _write_jsonl(path: Path, values: list[dict[str, object]]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        "".join(json.dumps(value, sort_keys=True) + "\n" for value in values),
-        encoding="utf-8",
-    )
 
 
 def _verify_snapshots(root: Path, manifest: SnapshotManifest) -> None:
@@ -66,9 +54,9 @@ def _verify_snapshots(root: Path, manifest: SnapshotManifest) -> None:
             raise ProductError(f"snapshot checksum differs: {snapshot.path}")
 
 
-def read_ftp_entries(path: Path) -> list[FtpEntry]:
+def read_ftp_entries(path: Path) -> list[RemoteFile]:
     return [
-        FtpEntry.model_validate_json(line)
+        RemoteFile.model_validate_json(line)
         for line in path.read_text(encoding="utf-8").splitlines()
         if line
     ]
@@ -186,9 +174,7 @@ def _artifact_role(file_name: str) -> str:
         raise ProductError(f"unclassified source artifact: {file_name}") from error
 
 
-def _missing_checksum_reason(
-    file_name: str, checksum: tuple[str, str] | None
-) -> str | None:
+def _missing_checksum_reason(file_name: str, checksum: tuple[str, str] | None) -> str | None:
     if checksum is not None:
         return None
     if file_name == "checksum.txt":
@@ -197,7 +183,7 @@ def _missing_checksum_reason(
 
 
 def _artifacts(
-    ftp_entries: list[FtpEntry],
+    ftp_entries: list[RemoteFile],
     announced: dict[str, dict[str, str]],
     checksums: dict[str, tuple[str, str]],
 ) -> list[ArtifactRecord]:
@@ -463,19 +449,19 @@ def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
     missingness = _source_missingness(runs, donors, artifacts)
 
     output_root = root / "outputs"
-    _write_jsonl(
+    write_jsonl(
         output_root / "artifact-index.jsonl",
         [item.model_dump(mode="json") for item in artifacts],
     )
-    _write_jsonl(
+    write_jsonl(
         output_root / "run-index.jsonl",
         [item.model_dump(mode="json") for item in runs],
     )
-    _write_jsonl(
+    write_jsonl(
         output_root / "pairing-index.jsonl",
         [item.model_dump(mode="json") for item in pairings],
     )
-    _write_json(
+    write_json(
         output_root / "publisher-roles.json",
         {
             "schema_version": "1.0.0",
@@ -483,8 +469,8 @@ def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
             "roles": [item.model_dump(mode="json") for item in contract.publisher_roles],
         },
     )
-    _write_json(output_root / "source-missingness.json", missingness)
-    _write_json(output_root / "source-context.json", _source_context(contract, project, manifest))
+    write_json(output_root / "source-missingness.json", missingness)
+    write_json(output_root / "source-context.json", _source_context(contract, project, manifest))
 
     artifacts_by_category = Counter(
         item.announcement_category or "not_in_revision_1_announcement" for item in artifacts
@@ -511,5 +497,5 @@ def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
         ),
         "files_with_naming_variants": sum(bool(item.file_naming_variants) for item in runs),
     }
-    _write_json(output_root / "metrics.json", metrics)
+    write_json(output_root / "metrics.json", metrics)
     return metrics

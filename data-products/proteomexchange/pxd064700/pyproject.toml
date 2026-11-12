@@ -5,9 +5,13 @@ description = "Source-native ProteomeXchange PXD064700 fixation proteomics produ
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+  "data-artifacts",
   "fire>=0.7,<0.8",
   "pydantic>=2.12,<3",
 ]
+
+[tool.uv.sources]
+data-artifacts = { path = "../../../packages/data-artifacts", editable = true }
 
 [project.scripts]
 pxd064700-source = "pxd064700_source.cli:main"

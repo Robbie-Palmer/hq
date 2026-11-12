@@ -125,12 +125,6 @@ class SnapshotManifest(StrictModel):
     files: list[SnapshotFile] = Field(min_length=1)
 
 
-class FtpEntry(StrictModel):
-    file_name: str = Field(min_length=1)
-    bytes: int = Field(ge=1)
-    locator: str = Field(min_length=1)
-
-
 class ArtifactRecord(StrictModel):
     schema_version: Literal["1.0.0"] = "1.0.0"
     artifact_ref: str
