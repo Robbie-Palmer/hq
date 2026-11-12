@@ -821,6 +821,32 @@ catalog:
       relations:
         - type: part_of
           target: system:recipe-site/application
+    - id: system:annotation-workbench/application
+      kind: system
+      name: Annotation Workbench
+      project: project:annotation-workbench
+      source_paths:
+        - ml-pipelines/annotation-workbench-service
+        - ui/app/_projects/annotation-workbench
+    - id: component:annotation-workbench/annotation-workbench-service
+      kind: component
+      name: Annotation Workbench local service
+      project: project:annotation-workbench
+      source_paths:
+        - ml-pipelines/annotation-workbench-service
+      relations:
+        - type: part_of
+          target: system:annotation-workbench/application
+    - id: component:annotation-workbench/web
+      kind: component
+      name: Annotation Workbench
+      project: project:annotation-workbench
+      source_paths:
+        - ui/app/_projects/annotation-workbench
+      mount_path: /annotation-workbench
+      relations:
+        - type: part_of
+          target: system:annotation-workbench/application
 layers:
   - slug: "base"
     title: "Base"
