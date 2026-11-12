@@ -31,8 +31,8 @@ stages:
       nfiles: 8
     - path: src/pxd064700_source
       hash: md5
-      md5: b1c3cccbdab4f00abea5ae75916b90c0.dir
-      size: 88818
+      md5: ea273ce3c82489644996840a54524834.dir
+      size: 89616
       nfiles: 10
     - path: uv.lock
       hash: md5

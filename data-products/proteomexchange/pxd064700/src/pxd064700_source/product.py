@@ -31,9 +31,11 @@ RUN_PATTERN = re.compile(
     r"t(?P<technical>\d+)-(?P<date>\d{2}-\d{2}-\d{4})-LP\.raw$"
 )
 SHA1_PATTERN = re.compile(r"^[0-9a-f]{40}$")
+CHECKSUM_FILE_NAME = "checksum.txt"
+COMMUNITY_SDRF_FILE_NAME = "PXD064700_community_annotated.sdrf.tsv"
 REQUIRED_SNAPSHOT_PATHS = frozenset(
     {
-        "snapshots/checksum.txt",
+        f"snapshots/{CHECKSUM_FILE_NAME}",
         "snapshots/community-annotation.sdrf.tsv",
         "snapshots/donor-name-map.tsv",
         "snapshots/experiment-overview.txt",
@@ -42,7 +44,7 @@ REQUIRED_SNAPSHOT_PATHS = frozenset(
         "snapshots/proteomexchange-announcement.xml",
     }
 )
-EXPECTED_UNCHECKSUMMED_FILES = frozenset({"PXD064700_community_annotated.sdrf.tsv", "checksum.txt"})
+EXPECTED_UNCHECKSUMMED_FILES = frozenset({COMMUNITY_SDRF_FILE_NAME, CHECKSUM_FILE_NAME})
 
 
 class ProductError(RuntimeError):
@@ -179,9 +181,9 @@ def _artifact_role(file_name: str) -> str:
         "20240722_DIA-NN.stats.tsv": "DIA-NN run quality-control statistics",
         "20240722_DIA-NN.tsv": "DIA-NN protein, peptide, and precursor report",
         "20240722_DIA-NN.unique_genes_matrix.tsv": "DIA-NN unique-gene quantity matrix",
-        "PXD064700_community_annotated.sdrf.tsv": "community sample and assay metadata",
+        COMMUNITY_SDRF_FILE_NAME: "community sample and assay metadata",
         "UP000005640_9606.fasta": "human protein sequence database",
-        "checksum.txt": "publisher SHA-1 manifest",
+        CHECKSUM_FILE_NAME: "publisher SHA-1 manifest",
         "experiment_overview_and_software.txt": "experiment and software overview",
         "reference_case_name_for_raw_data_equivalent_body_donor_number.txt": (
             "paper-case to body-donor map"
@@ -202,17 +204,16 @@ def _artifact_role(file_name: str) -> str:
 def _missing_checksum_reason(file_name: str, checksum: tuple[str, str] | None) -> str | None:
     if checksum is not None:
         return None
-    if file_name == "checksum.txt":
+    if file_name == CHECKSUM_FILE_NAME:
         return "The publisher checksum file cannot checksum itself."
     return "The community SDRF was added after revision 1 and is absent from checksum.txt."
 
 
-def _artifacts(
-    ftp_entries: list[RemoteFile],
+def _validate_artifact_coverage(
+    ftp_names: set[str],
     announced: dict[str, dict[str, str]],
     checksums: dict[str, tuple[str, str]],
-) -> list[ArtifactRecord]:
-    ftp_names = {entry.file_name for entry in ftp_entries}
+) -> None:
     if set(checksums) - ftp_names:
         raise ProductError("publisher checksum basename is absent from the FTP listing")
     if set(announced) - ftp_names:
@@ -223,6 +224,15 @@ def _artifacts(
             "publisher checksum coverage differs; expected unchecksummed files: "
             f"{sorted(EXPECTED_UNCHECKSUMMED_FILES)}; observed: {sorted(unchecksummed_files)}"
         )
+
+
+def _artifacts(
+    ftp_entries: list[RemoteFile],
+    announced: dict[str, dict[str, str]],
+    checksums: dict[str, tuple[str, str]],
+) -> list[ArtifactRecord]:
+    ftp_names = {entry.file_name for entry in ftp_entries}
+    _validate_artifact_coverage(ftp_names, announced, checksums)
     artifacts: list[ArtifactRecord] = []
     for entry in ftp_entries:
         announcement = announced.get(entry.file_name)
