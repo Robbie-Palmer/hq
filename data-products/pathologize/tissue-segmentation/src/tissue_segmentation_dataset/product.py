@@ -474,12 +474,33 @@ def _missing_json_fields(path: Path, required_fields: list[str]) -> list[str]:
     return missing
 
 
-def _production_blockers(
-    root: Path, records: list[HarmonizedRecord], imports: dict[str, Any]
+def _input_path_blockers(
+    root: Path, imports: dict[str, Any], input_paths: dict[str, Path]
 ) -> list[str]:
     blockers: list[str] = []
-    if any(record.fixture_record for record in records):
+    for item in imports["imports"]:
+        source = item["source_dataset_id"]
+        selected_path = input_paths.get(source)
+        expected_path = (root / item["expected_interface"]).resolve()
+        if selected_path is None or selected_path.resolve() != expected_path:
+            blockers.append(
+                f"source {source} did not use pinned interface: {item['expected_interface']}"
+            )
+    return blockers
+
+
+def _production_blockers(
+    root: Path,
+    records: list[HarmonizedRecord],
+    imports: dict[str, Any],
+    input_paths: dict[str, Path] | None = None,
+) -> list[str]:
+    blockers: list[str] = []
+    has_fixture_records = any(record.fixture_record for record in records)
+    if has_fixture_records:
         blockers.append("product contains synthetic contract records")
+    if input_paths is not None and not has_fixture_records:
+        blockers.extend(_input_path_blockers(root, imports, input_paths))
     required_paths = ("expected_dvc_lock", "expected_manifest", "expected_interface")
     for item in imports["imports"]:
         source = item["source_dataset_id"]
@@ -515,13 +536,14 @@ def _reconciliation(
     records: list[HarmonizedRecord],
     adapters: list[Adapter],
     imports: dict[str, Any],
+    input_paths: dict[str, Path],
 ) -> dict[str, object]:
     source_counts = Counter(record.source_dataset_id for record in records)
     source_groups: dict[str, set[str]] = defaultdict(set)
     for record in records:
         source_groups[record.source_dataset_id].add(record.source_group_id)
     status_counts = Counter(mapping.status for adapter in adapters for mapping in adapter.mappings)
-    blockers = _production_blockers(root, records, imports)
+    blockers = _production_blockers(root, records, imports, input_paths)
     return {
         "adapter_ids": [adapter.adapter_id for adapter in adapters],
         "mapping_definition_counts": dict(sorted(status_counts.items())),
@@ -647,7 +669,8 @@ def build_product(
     write_json(output_root / "partitions.json", dict(sorted(partitions.items())))
     write_json(output_root / "metrics.json", metrics)
     write_json(
-        output_root / "reconciliation.json", _reconciliation(root, records, adapters, imports)
+        output_root / "reconciliation.json",
+        _reconciliation(root, records, adapters, imports, input_paths),
     )
     write_json(output_root / "assay-provenance.json", _assay_report(records))
     write_json(
@@ -655,7 +678,9 @@ def build_product(
         {
             "product_id": spec.product_id,
             "imports": imports["imports"],
-            "adapters": [f"adapters/{adapter.source_dataset_id}.json" for adapter in adapters],
+            "adapters": [
+                import_by_source[adapter.source_dataset_id]["adapter"] for adapter in adapters
+            ],
             "ontology": "ontologies/tissue-compartment-v1.json",
             "source_artifact_reference_fields": ["image_artifact", "mask_artifact"],
             "owned_binary_outputs": [],

@@ -4,6 +4,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
+from tissue_segmentation_dataset.cli import ApplicationInput
 from tissue_segmentation_dataset.models import (
     Adapter,
     AnnotationProvenance,
@@ -61,6 +62,11 @@ def test_committed_contracts_keep_source_semantics_separate() -> None:
     assert all(item["expected_dvc_lock"].endswith("dvc.lock") for item in imports["imports"])
     assert all("checksums" in item["evidence"] for item in imports["imports"])
     assert all("source_ticket" not in item for item in imports["imports"])
+
+
+def test_cli_input_rejects_non_path_root() -> None:
+    with pytest.raises(ValidationError):
+        ApplicationInput.model_validate({"root": 7})
 
 
 def test_build_product_publishes_references_partitions_and_reports(tmp_path: Path) -> None:
@@ -125,6 +131,8 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
     assert lineage["owned_binary_outputs"] == []
     assert lineage["binary_transformations"] == []
     assert lineage["source_artifact_reference_fields"] == ["image_artifact", "mask_artifact"]
+    assert "adapters/segpath-public-v1.json" in lineage["adapters"]
+    assert "adapters/segpath-2022-registered-if-masks.json" not in lineage["adapters"]
 
 
 def test_build_is_deterministic(tmp_path: Path) -> None:
@@ -241,6 +249,40 @@ def test_production_readiness_requires_declared_evidence_fields(tmp_path: Path) 
         json.dumps({"license": {"spdx_id": "CC-BY-4.0"}}), encoding="utf-8"
     )
     assert _production_blockers(tmp_path, [], imports) == []
+
+
+def test_production_readiness_rejects_unpinned_input_path(tmp_path: Path) -> None:
+    for name in ("dvc.lock", "native-index.jsonl"):
+        (tmp_path / name).write_text("{}\n", encoding="utf-8")
+    (tmp_path / "manifest.json").write_text(
+        json.dumps({"license": {"spdx_id": "CC-BY-4.0"}}), encoding="utf-8"
+    )
+    imports = {
+        "imports": [
+            {
+                "source_dataset_id": "source-v1",
+                "status": "pinned_source_product",
+                "expected_dvc_lock": "dvc.lock",
+                "expected_manifest": "manifest.json",
+                "expected_interface": "native-index.jsonl",
+                "evidence": {
+                    "rights": {
+                        "path": "manifest.json",
+                        "required_json_fields": ["license.spdx_id"],
+                    }
+                },
+            }
+        ]
+    }
+
+    blockers = _production_blockers(
+        tmp_path,
+        [],
+        imports,
+        {"source-v1": tmp_path / "alternate-index.jsonl"},
+    )
+
+    assert blockers == ["source source-v1 did not use pinned interface: native-index.jsonl"]
 
 
 def test_production_readiness_validates_segpath_task_contract(tmp_path: Path) -> None:

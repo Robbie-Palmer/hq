@@ -55,6 +55,9 @@ projects:
   - id: wedding-planner
     kind: application
     catalog_record: system:wedding-planner/application
+  - id: annotation-workbench
+    kind: application
+    catalog_record: system:annotation-workbench/application
 
 component_kinds:
   - id: "ui"

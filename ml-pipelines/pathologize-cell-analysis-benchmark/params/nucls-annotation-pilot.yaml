@@ -1,0 +1,52 @@
+schema_version: 1.0.0
+random_seed: 20261109
+models:
+  medsam:
+    adapter: medsam-vit-base-box-v1
+    repository: wanglab/medsam-vit-base
+    revision: de8488bca37bb1d4fb190f612c516126d739ce3b
+    weights_file: pytorch_model.bin
+    weights_bytes: 375045749
+    weights_sha256: 0ef67838fba16f16c0e308eaf7a3ae6fbf4fe8e13d7a120ca932671ed9c47db0
+    license: Apache-2.0
+  sam2:
+    adapter: sam2.1-hiera-small-box-v1
+    repository: facebook/sam2.1-hiera-small
+    revision: ee5bba1d82bb8749febdf90f45e84b687142ba03
+    weights_file: model.safetensors
+    weights_bytes: 184305280
+    weights_sha256: 0a4067b11ce1e23d5229203f11c718a823060d15a4b23fa2372a7d4b77cbbc60
+    license: Apache-2.0
+gated_models:
+  cellsam:
+    adapter: cellsam-v1.2-box-v1
+    repository: vanvalenlab/cellsam
+    revision: 3a2e42cab75a0eb50b9d3c04889a8ea1cdd73904
+    weights_file: cellsam-models_v1.2.tar.gz
+    weights_bytes: 1827651408
+    weights_sha256: e934da767123e4508c09e3233aad440af4c650f29565196ff6b59f1e49dd08c5
+    archive_member: cellsam_v1.2/cellsam_general.pt
+    member_bytes: 1158786941
+    member_sha256: e3e3b5ab41cd35fa80d7442fa83f0c092ddffabe2468c016590b9dfc1b5ddd3e
+    license: Modified-Apache-2.0-NonCommercial
+smoke:
+  polygon_references: 24
+  review_records: 12
+workbench:
+  batch_id: nucls-box-mask-pilot-20261110
+  created_at: 2026-11-10T00:00:00Z
+  image_size: 448
+limits:
+  wall_seconds_per_model: 900
+  maximum_peak_vram_bytes: 10737418240
+iteration_gates:
+  minimum_validation_mean_iou: 0.68
+  minimum_validation_success_at_iou_0_5: 0.90
+stop_rules:
+  - Stop if a model snapshot differs from the pinned revision or published weight digest.
+  - Stop CellSAM acquisition unless the Hugging Face account has accepted the model's non-commercial terms.
+  - Stop if deterministic annotation, conversion, or coordinate checks fail.
+  - Stop if another NuCLS process owns the GPU or peak allocated VRAM exceeds 10 GiB.
+  - Treat the first bounded comparison as a smoke run. Do not promote masks or make a scientific claim from it.
+  - Reject non-nucleus boxes before mask proposal. Preserve the source row and the revisable review decision.
+  - Do not expand the review batch unless a candidate improves the fixed polygon-reference metrics and the reviewed failure examples.

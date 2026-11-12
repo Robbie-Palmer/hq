@@ -4,14 +4,19 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from tissue_segmentation_dataset.product import PROJECT_DIR, ProductError, build_product
 
 
+class ApplicationInput(BaseModel):
+    root: Path | None = None
+
+
 class Application:
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root).resolve() if root is not None else PROJECT_DIR
+        command_input = ApplicationInput(root=root)
+        self.root = command_input.root.resolve() if command_input.root is not None else PROJECT_DIR
 
     def build(self) -> None:
         metrics = build_product(self.root)
