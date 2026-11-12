@@ -1,0 +1,111 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "pannuke-publisher-folds-202003",
+  "title": "PanNuke published folds",
+  "description": "The three publisher-defined PanNuke folds with native image, tissue, instance-mask, and cell-class semantics.",
+  "source_version": "University of Warwick fold archives published with the 2020 PanNuke extension",
+  "publisher": "Tissue Image Analytics Centre, University of Warwick",
+  "publisher_record": "https://warwick.ac.uk/fac/cross_fac/tia/data/pannuke/",
+  "papers": [
+    {
+      "title": "PanNuke: An Open Pan-Cancer Histology Dataset for Nuclei Instance Segmentation and Classification",
+      "identifier": "doi:10.1007/978-3-030-23937-4_2",
+      "url": "https://doi.org/10.1007/978-3-030-23937-4_2"
+    },
+    {
+      "title": "PanNuke Dataset Extension, Insights and Baselines",
+      "identifier": "arXiv:2003.10778",
+      "url": "https://arxiv.org/abs/2003.10778"
+    }
+  ],
+  "publication_citation_requirement": "Researchers who publish work using this dataset must cite both papers listed above.",
+  "license": {
+    "spdx_id": "CC-BY-NC-SA-4.0",
+    "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "evidence_url": "https://warwick.ac.uk/fac/cross_fac/tia/data/pannuke/",
+    "use_limitation": "Research purposes only; commercial use is not allowed by the publisher.",
+    "redistribution": "Redistribution and adaptations must retain attribution, remain non-commercial, and use the same license."
+  },
+  "checksum_provenance": "SHA-1 and SHA-256 were computed from the publisher archives on 2026-11-11. Warwick publishes no checksum manifest; its HTTP ETags equal the computed SHA-1 values.",
+  "archives": [
+    {
+      "fold": 1,
+      "filename": "fold_1.zip",
+      "url": "https://warwick.ac.uk/fac/cross_fac/tia/data/pannuke/fold_1.zip",
+      "bytes": 700275281,
+      "sha1": "0d03f6e214626db90177741e9b3136ea294a26f4",
+      "sha256": "6e19ad380300e8ce9480f9ab6a14cc91fa4b6a511609b40e3d70bdf9c881ed0b",
+      "publisher_etag": "0d03f6e214626db90177741e9b3136ea294a26f4",
+      "publisher_last_modified": "Mon, 30 Mar 2020 23:18:10 GMT",
+      "publisher_content_type": "application/zip;charset=UTF-8",
+      "record_count": 2656
+    },
+    {
+      "fold": 2,
+      "filename": "fold_2.zip",
+      "url": "https://warwick.ac.uk/fac/cross_fac/tia/data/pannuke/fold_2.zip",
+      "bytes": 658842552,
+      "sha1": "58d96e8eb0bf8da30da34b8391bd7625213a7dcd",
+      "sha256": "5bc540cc509f64b5f5a274d6e5a245527dbd3e6d3155d43555115c5d54709b07",
+      "publisher_etag": "58d96e8eb0bf8da30da34b8391bd7625213a7dcd",
+      "publisher_last_modified": "Mon, 30 Mar 2020 23:40:43 GMT",
+      "publisher_content_type": "application/zip;charset=UTF-8",
+      "record_count": 2523
+    },
+    {
+      "fold": 3,
+      "filename": "fold_3.zip",
+      "url": "https://warwick.ac.uk/fac/cross_fac/tia/data/pannuke/fold_3.zip",
+      "bytes": 717969882,
+      "sha1": "fa6cea2661f43900d7b7520766b624dd2680c3f8",
+      "sha256": "c14d372981c42f611ebc80afad01702b89cad8c1b3089daa31931cf5a4b1a39d",
+      "publisher_etag": "fa6cea2661f43900d7b7520766b624dd2680c3f8",
+      "publisher_last_modified": "Tue, 31 Mar 2020 00:25:47 GMT",
+      "publisher_content_type": "application/zip;charset=UTF-8",
+      "record_count": 2722
+    }
+  ],
+  "publisher_role_arrangements": [
+    {"arrangement": 1, "training_fold": 1, "validation_fold": 2, "testing_fold": 3},
+    {"arrangement": 2, "training_fold": 2, "validation_fold": 1, "testing_fold": 3},
+    {"arrangement": 3, "training_fold": 3, "validation_fold": 2, "testing_fold": 1}
+  ],
+  "array_contract": {
+    "height": 256,
+    "width": 256,
+    "image_channels": 3,
+    "mask_channels": 6,
+    "dtype": "float64",
+    "instance_id_semantics": "Within each image and nucleus-class channel, zero means absent and each positive value identifies one source nucleus instance. Instance values do not identify nuclei across records or channels.",
+    "cell_class_channels": [
+      {"channel_index": 0, "publisher_name": "Neoplastic cells", "publisher_readme_value": 0, "is_background": false},
+      {"channel_index": 1, "publisher_name": "Inflammatory", "publisher_readme_value": 1, "is_background": false},
+      {"channel_index": 2, "publisher_name": "Connective/Soft tissue cells", "publisher_readme_value": 2, "is_background": false},
+      {"channel_index": 3, "publisher_name": "Dead Cells", "publisher_readme_value": 3, "is_background": false},
+      {"channel_index": 4, "publisher_name": "Epithelial", "publisher_readme_value": 4, "is_background": false},
+      {"channel_index": 5, "publisher_name": "Background", "publisher_readme_value": 6, "is_background": true}
+    ]
+  },
+  "tissue_identities": [
+    "Adrenal_gland",
+    "Bile-duct",
+    "Bladder",
+    "Breast",
+    "Cervix",
+    "Colon",
+    "Esophagus",
+    "HeadNeck",
+    "Kidney",
+    "Liver",
+    "Lung",
+    "Ovarian",
+    "Pancreatic",
+    "Prostate",
+    "Skin",
+    "Stomach",
+    "Testis",
+    "Thyroid",
+    "Uterus"
+  ],
+  "identity_evidence": "The archives contain no sample, slide, patient, or group identifier. A record is source-addressed only by publisher fold and zero-based array index."
+}

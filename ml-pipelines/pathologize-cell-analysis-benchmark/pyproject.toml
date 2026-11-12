@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Nucleus localization, instance segmentation, and classification benchmark"
 requires-python = ">=3.12,<3.13"
 dependencies = [
+    "cellSAM",
     "data-artifacts",
     "fire>=0.7.1,<0.8",
     "numpy>=2.2.0,<3",
@@ -15,6 +16,7 @@ dependencies = [
     "scikit-image>=0.26.0,<0.27",
     "scikit-learn>=1.6.0,<1.9",
     "scipy>=1.15.0,<2",
+    "transformers==5.22.2",
     "ultralytics==8.4.202",
     "ultralytics-extensions",
 ]
@@ -41,11 +43,13 @@ package = true
 module-name = "pathologize_cell_analysis"
 
 [tool.uv.sources]
+cellsam = { git = "https://github.com/vanvalenlab/cellSAM.git", rev = "362a8e521bcd7313d5cb280bcd4cfc12977c1e9f" }
 data-artifacts = { path = "../../packages/data-artifacts", editable = true }
 ml-evaluation = { path = "../../packages/ml-evaluation", editable = true }
 nucleus-analysis-dataset = { path = "../../data-products/pathologize/nucleus-analysis", editable = true }
 nucls-source-data = { path = "../../data-products/nucls/corrected-single-rater", editable = true }
 pathologize-benchmark-contracts = { path = "../pathologize-benchmark-contracts", editable = true }
+segment-anything = { git = "https://github.com/facebookresearch/segment-anything.git", rev = "dca509fe793f601edb92606367a655c15ac00fdf" }
 ultralytics-extensions = { path = "../../packages/ultralytics-extensions", editable = true }
 
 [tool.pytest.ini_options]
