@@ -51,15 +51,18 @@ def test_https_metadata_client_reads_allowlisted_objects(
     ["http://metadata.example/record", "https://untrusted.example/record"],
 )
 def test_https_metadata_client_rejects_unallowlisted_urls(url: str) -> None:
+    client = _client()
+
     with pytest.raises(AcquisitionError, match="not allowlisted"):
-        _client().get_bytes(url)
+        client.get_bytes(url)
 
 
 def test_https_metadata_client_requires_json_objects(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(HttpsMetadataClient, "get_bytes", lambda _self, _url: b"[]")
+    client = _client()
 
     with pytest.raises(AcquisitionError, match="did not return an object"):
-        _client().get_json_object("https://metadata.example/record")
+        client.get_json_object("https://metadata.example/record")
 
 
 def test_anonymous_ftp_listing_is_sorted_and_retains_locators(
