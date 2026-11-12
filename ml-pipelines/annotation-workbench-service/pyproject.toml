@@ -1,0 +1,70 @@
+[project]
+name = "annotation-workbench-service"
+version = "0.1.0"
+description = "Local review service for versioned image-annotation bundles"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.120,<1",
+    "fire>=0.7.1,<0.8",
+    "pydantic>=2.12.5,<3",
+    "uvicorn>=0.35,<1",
+]
+
+[project.scripts]
+annotation-workbench = "annotation_workbench_service.cli:main"
+
+[dependency-groups]
+dev = [
+    "httpx2>=2,<3",
+    "pytest>=9.0.3,<10",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.14.14",
+    "ty>=0.0.75",
+]
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+package = true
+
+[tool.uv.build-backend]
+module-name = "annotation_workbench_service"
+
+[tool.pytest.ini_options]
+addopts = "--strict-config --strict-markers --cov=annotation_workbench_service --cov-report=term-missing --cov-fail-under=85"
+testpaths = ["tests"]
+
+[tool.ty.environment]
+python-version = "3.12"
+
+[tool.ty.src]
+include = ["src", "tests"]
+
+[tool.ty.rules]
+all = "error"
+
+[[tool.ty.overrides]]
+include = ["tests/**"]
+
+[tool.ty.overrides.rules]
+possibly-unresolved-reference = "ignore"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["A", "ANN", "ARG", "B", "C4", "C90", "E", "F", "I", "N", "PERF", "PTH", "RUF", "S", "SIM", "T20", "TRY", "UP"]
+ignore = [
+    "ANN401",
+    "T201",
+    "TRY003",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 14
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]

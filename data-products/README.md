@@ -15,6 +15,8 @@ Current products:
 - `grandqc/mpp20`: source-native GrandQC MPP20 patch pairs and masks.
 - `nucls/corrected-single-rater`: source-native NuCLS fields of view,
   annotations, ontology, and official fold roles.
+- `pannuke/published-folds`: source-native PanNuke images, six-channel
+  instance masks, tissue identities, and three publisher folds.
 - `panda/challenge-2020`: source-native PANDA prostate-biopsy slides, grades,
   provider-specific masks, rights, checksums, and gated access contract.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced

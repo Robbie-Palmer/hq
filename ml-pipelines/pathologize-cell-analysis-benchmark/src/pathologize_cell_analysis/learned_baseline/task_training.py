@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from data_artifacts.files import sha256_file
+from data_artifacts.files import read_json, sha256_file, write_json
 from ultralytics_extensions.checkpoints import (
     ResumeEvidence,
     checkpoint_epoch,
@@ -46,6 +46,10 @@ class TaskTrainingResult:
     gpu_seconds: float
 
 
+SEGMENT_INITIALIZATION_RECORD = "segment-initialization.json"
+BEST_CHECKPOINT_FILENAME = "best.pt"
+
+
 @dataclass(frozen=True)
 class TrainingAttempt:
     resume: ResumeEvidence | None
@@ -63,6 +67,20 @@ class TrainingAttempt:
     deadline_state: DeadlineState
     monitor: TrainingMonitor
     finalized_checkpoint: bool
+
+
+@dataclass(frozen=True)
+class TaskRunContext:
+    experiment: LearnedBaselineConfig
+    root: Path
+    training_root: Path
+    task: Task
+    weights: Path
+    definition: Path
+    task_output: Path
+    state_path: Path
+    initialization_checkpoint: Path | None
+    initialization_record_path: Path | None
 
 
 def _peak_rss_bytes() -> int:
@@ -91,16 +109,86 @@ def _load_training_model(
     task: Task,
     weights: Path,
     resume: ResumeEvidence | None,
-) -> Any:
+    initialization_checkpoint: Path | None = None,
+    initialization_record_path: Path | None = None,
+) -> tuple[Any, dict[str, object] | None]:
     if resume is None:
-        return yolo(str(weights), task=task)
+        model = yolo(str(weights), task=task)
+        if initialization_checkpoint is None:
+            return model, None
+        if initialization_record_path is None:
+            raise ValueError("segment initialization record path is required")
+        evidence = transfer_backbone_neck_from_checkpoint(
+            model,
+            torch_module,
+            initialization_checkpoint,
+        )
+        write_json(initialization_record_path, evidence)
+        return model, evidence
     checkpoint = load_safe_checkpoint(torch_module, resume.checkpoint)
     required_state = {"optimizer", "ema", "scaler", "stopper", "train_args"}
     if not required_state.issubset(checkpoint):
         raise ValueError(f"{task} checkpoint lacks exact resume state")
     if int(checkpoint["epoch"]) + 1 != resume.completed_epochs:
         raise ValueError(f"{task} checkpoint epoch differs from results.csv")
-    return yolo(str(resume.checkpoint), task=task)
+    evidence = None
+    if initialization_checkpoint is not None:
+        if initialization_record_path is None or not initialization_record_path.is_file():
+            raise FileNotFoundError("segment initialization evidence is missing for resume")
+        evidence = read_json(initialization_record_path)
+        if evidence.get("source_checkpoint_sha256") != sha256_file(initialization_checkpoint):
+            raise ValueError("segment initialization checkpoint digest differs for resume")
+    return yolo(str(resume.checkpoint), task=task), evidence
+
+
+def transfer_backbone_neck_from_checkpoint(
+    target_yolo: Any,
+    torch_module: Any,
+    source_checkpoint: Path,
+) -> dict[str, object]:
+    checkpoint = load_safe_checkpoint(torch_module, source_checkpoint)
+    source_model = checkpoint.get("model")
+    if source_model is None or not hasattr(source_model, "state_dict"):
+        raise ValueError("detection checkpoint lacks model weights")
+    target_model = target_yolo.model
+    target_layers = getattr(target_model, "model", None)
+    if target_layers is None or len(target_layers) < 2:
+        raise ValueError("segmentation model does not expose a separable task head")
+    head_prefix = f"model.{len(target_layers) - 1}."
+    source_state = source_model.float().state_dict()
+    target_state = target_model.state_dict()
+    target_shared = {key for key in target_state if not key.startswith(head_prefix)}
+    transferable = {
+        key: value
+        for key, value in source_state.items()
+        if key in target_shared and target_state[key].shape == value.shape
+    }
+    missing_shared = sorted(target_shared - transferable.keys())
+    transferred_head = sorted(key for key in transferable if key.startswith(head_prefix))
+    if missing_shared:
+        raise ValueError(
+            f"detection checkpoint lacks {len(missing_shared)} shared segmentation tensors"
+        )
+    if transferred_head:
+        raise ValueError("segment initialization attempted to transfer task-head tensors")
+    head_before = {
+        key: value.detach().clone()
+        for key, value in target_state.items()
+        if key.startswith(head_prefix)
+    }
+    target_model.load_state_dict(transferable, strict=False)
+    head_after = target_model.state_dict()
+    if any(not torch_module.equal(value, head_after[key]) for key, value in head_before.items()):
+        raise ValueError("segment task head changed during backbone and neck transfer")
+    return {
+        "strategy": "detect_checkpoint_backbone_neck",
+        "source_checkpoint": source_checkpoint.as_posix(),
+        "source_checkpoint_sha256": sha256_file(source_checkpoint),
+        "excluded_head_prefix": head_prefix,
+        "transferred_tensor_count": len(transferable),
+        "transferred_value_count": sum(value.numel() for value in transferable.values()),
+        "retained_head_tensor_count": len(head_before),
+    }
 
 
 def _fit_training_model(
@@ -160,12 +248,13 @@ def _checkpoint_evidence(
     monitor: TrainingMonitor,
     prior_task_seconds: float,
     continuation_gpu_seconds: float,
+    initialization: dict[str, object] | None,
 ) -> dict[str, object]:
-    best = task_output / "weights" / "best.pt"
+    best = task_output / "weights" / BEST_CHECKPOINT_FILENAME
     last = task_output / "weights" / "last.pt"
     if not best.is_file() or not last.is_file():
         raise FileNotFoundError(f"Ultralytics did not write both checkpoints for {task}")
-    return {
+    result: dict[str, object] = {
         "starting_weights": weights.relative_to(root).as_posix(),
         "starting_weights_sha256": sha256_file(weights),
         "model_definition": definition.relative_to(root).as_posix(),
@@ -182,6 +271,9 @@ def _checkpoint_evidence(
         "interrupted_elapsed_seconds_upper_bound": prior_task_seconds,
         "continuation_cuda_event_seconds": continuation_gpu_seconds,
     }
+    if initialization is not None:
+        result["initialization"] = initialization
+    return result
 
 
 def _validate_completed_task_state(
@@ -339,6 +431,7 @@ def _finish_attempt(
     cuda: Any,
     *,
     recovered_final_validation: bool,
+    initialization: dict[str, object] | None,
 ) -> TaskTrainingResult:
     attempt.end_event.record()
     cuda.synchronize()
@@ -366,6 +459,7 @@ def _finish_attempt(
         attempt.monitor,
         attempt.prior_task_seconds,
         continuation_gpu_seconds,
+        initialization,
     )
     if recovered_final_validation:
         task_checkpoint["recovered_final_validation"] = True
@@ -382,9 +476,18 @@ def _run_recovered_validation(
     attempt: TrainingAttempt,
     cuda: Any,
     yolo: Any,
+    initialization_checkpoint: Path | None,
+    initialization_record_path: Path | None,
 ) -> TaskTrainingResult:
     attempt.start_event.record()
-    recovered_model = yolo(str(task_output / "weights" / "best.pt"), task=task)
+    initialization = None
+    if initialization_checkpoint is not None:
+        if initialization_record_path is None or not initialization_record_path.is_file():
+            raise FileNotFoundError("segment initialization evidence is missing for recovery")
+        initialization = read_json(initialization_record_path)
+        if initialization.get("source_checkpoint_sha256") != sha256_file(initialization_checkpoint):
+            raise ValueError("segment initialization checkpoint digest differs for recovery")
+    recovered_model = yolo(str(task_output / "weights" / BEST_CHECKPOINT_FILENAME), task=task)
     _run_final_validation(recovered_model, training_arguments(experiment, root, task))
     return _finish_attempt(
         experiment,
@@ -396,53 +499,58 @@ def _run_recovered_validation(
         attempt,
         cuda,
         recovered_final_validation=True,
+        initialization=initialization,
     )
 
 
 def _run_training_attempt(
-    experiment: LearnedBaselineConfig,
-    root: Path,
-    training_root: Path,
-    task: Task,
-    weights: Path,
-    definition: Path,
-    task_output: Path,
-    state_path: Path,
+    context: TaskRunContext,
     attempt: TrainingAttempt,
     torch_module: Any,
     cuda: Any,
     yolo: Any,
 ) -> TaskTrainingResult:
-    model = _load_training_model(yolo, torch_module, task, weights, attempt.resume)
+    model, initialization = _load_training_model(
+        yolo,
+        torch_module,
+        context.task,
+        context.weights,
+        attempt.resume,
+        context.initialization_checkpoint,
+        context.initialization_record_path,
+    )
     model.add_callback("on_train_epoch_end", lambda trainer: _stop_at_deadline(trainer, attempt))
     model.add_callback(
         "on_fit_epoch_end",
-        lambda trainer: monitor_training(trainer, attempt.monitor, experiment.training.patience),
+        lambda trainer: monitor_training(
+            trainer, attempt.monitor, context.experiment.training.patience
+        ),
     )
     model.add_callback(
         "on_fit_epoch_end",
         lambda _trainer: write_training_task_state(
-            state_path, _current_task_state(attempt, cuda, "running")
+            context.state_path, _current_task_state(attempt, cuda, "running")
         ),
     )
     attempt.start_event.record()
     _fit_training_model(
         model,
         attempt.resume,
-        training_arguments(experiment, root, task),
-        training_root,
-        task,
+        training_arguments(context.experiment, context.root, context.task),
+        context.training_root,
+        context.task,
     )
     return _finish_attempt(
-        experiment,
-        root,
-        task,
-        weights,
-        definition,
-        task_output,
+        context.experiment,
+        context.root,
+        context.task,
+        context.weights,
+        context.definition,
+        context.task_output,
         attempt,
         cuda,
         recovered_final_validation=False,
+        initialization=initialization,
     )
 
 
@@ -465,6 +573,27 @@ def train_task(  # pragma: no cover
             stored_resource, stored_checkpoint, task_state.consumed_gpu_seconds_upper_bound
         )
 
+    initialization_checkpoint = None
+    initialization_record_path = None
+    if task == "segment" and experiment.training.segment_initialization == (
+        "detect_checkpoint_backbone_neck"
+    ):
+        initialization_checkpoint = training_root / "detect" / "weights" / BEST_CHECKPOINT_FILENAME
+        if not initialization_checkpoint.is_file():
+            raise FileNotFoundError("completed detection checkpoint is required for segmentation")
+        initialization_record_path = training_root / SEGMENT_INITIALIZATION_RECORD
+    context = TaskRunContext(
+        experiment=experiment,
+        root=root,
+        training_root=training_root,
+        task=task,
+        weights=weights,
+        definition=definition,
+        task_output=task_output,
+        state_path=state_path,
+        initialization_checkpoint=initialization_checkpoint,
+        initialization_record_path=initialization_record_path,
+    )
     attempt = _prepare_training_attempt(
         experiment, task, task_output, task_state, torch_module, cuda
     )
@@ -482,17 +611,12 @@ def train_task(  # pragma: no cover
                 attempt,
                 cuda,
                 yolo,
+                initialization_checkpoint,
+                initialization_record_path,
             )
         else:
             result = _run_training_attempt(
-                experiment,
-                root,
-                training_root,
-                task,
-                weights,
-                definition,
-                task_output,
-                state_path,
+                context,
                 attempt,
                 torch_module,
                 cuda,
