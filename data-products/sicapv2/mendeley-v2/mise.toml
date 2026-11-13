@@ -1,0 +1,66 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked SICAPv2 source-data environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the SICAPv2 source-data lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format SICAPv2 source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint SICAPv2 source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check SICAPv2 source-data code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run SICAPv2 source-data tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run SICAPv2 source-data tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the SICAPv2 source-data project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks."metadata:verify"]
+description = "Verify pinned SICAPv2 metadata without downloading the archive"
+depends = ["sync"]
+run = "uv run --locked sicapv2-source-data verify-metadata"
+
+[tasks.acquire]
+description = "Acquire and checksum the native SICAPv2 archive"
+depends = ["sync"]
+run = "uv run --locked sicapv2-source-data acquire"
+
+[tasks.index]
+description = "Index SICAPv2 in the publisher's native language"
+depends = ["sync"]
+run = "uv run --locked sicapv2-source-data index"
+
+[tasks.repro]
+description = "Reproduce the SICAPv2 source product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks."repro:metadata"]
+description = "Reproduce only credential-free SICAPv2 publisher metadata"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro verify_publisher_metadata"
+
+[tasks.check]
+description = "Run deterministic SICAPv2 source-data checks"
+depends = ["lint", "typecheck", "test:coverage"]

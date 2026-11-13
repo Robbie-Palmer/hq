@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "sicapv2-mendeley-v2",
+  "title": "SICAPv2 - Prostate Whole Slide Images with Gleason Grades Annotations",
+  "doi": "10.17632/9xxm58dvs3.2",
+  "paper_doi": "10.1016/j.cmpb.2020.105637",
+  "publisher": "Mendeley Data",
+  "publisher_record": "https://data.mendeley.com/datasets/9xxm58dvs3/2",
+  "publisher_dataset_id": "9xxm58dvs3",
+  "publisher_version": 2,
+  "published_at": "2020-10-22T13:41:01.412Z",
+  "source_release": "Version 1: 2020-05",
+  "contributor": {
+    "profile_id": "f1d364e0-92ba-3975-9ba1-a288ab10c04e",
+    "name": "Julio Silva-Rodríguez"
+  },
+  "institution": {
+    "name": "Universitat Politecnica de Valencia",
+    "ror_id": "https://ror.org/01460j859"
+  },
+  "license": {
+    "spdx_id": "CC-BY-4.0",
+    "name": "Creative Commons Attribution 4.0 International",
+    "url": "https://creativecommons.org/licenses/by/4.0/",
+    "attribution": "Credit the SICAPv2 contributor, link CC BY 4.0, and identify changes."
+  },
+  "archive": {
+    "file_id": "6ab087a7-ca89-47ac-9698-f6546bb50f98",
+    "filename": "SICAPv2.zip",
+    "url": "https://data.mendeley.com/public-files/datasets/9xxm58dvs3/files/6ab087a7-ca89-47ac-9698-f6546bb50f98/file_downloaded",
+    "content_type": "application/x-zip-compressed",
+    "bytes": 2159052394,
+    "sha256": "a28aa6a0e3831217bf31575cecfc1846607ace7ff25a4392f07052bbc7355916",
+    "created_at": "2020-10-21T17:19:42.51Z"
+  },
+  "scale": {
+    "source_magnification": "40X",
+    "patch_magnification": "10X",
+    "downsample_factor": 4,
+    "patch_width_pixels": 512,
+    "patch_height_pixels": 512,
+    "overlap_fraction": 0.5,
+    "minimum_tissue_fraction": 0.2,
+    "coordinate_frame": "publisher_wsi",
+    "coordinate_unit": "source_pixel"
+  },
+  "native_mask_labels": [
+    {"id": 0, "name": "NC", "description": "non cancerous"},
+    {"id": 1, "name": "GG3", "description": "Gleason grade 3"},
+    {"id": 2, "name": "GG4", "description": "Gleason grade 4"},
+    {"id": 3, "name": "GG5", "description": "Gleason grade 5"}
+  ],
+  "published_patch_labels": ["NC", "G3", "G4", "G5", "G4C"],
+  "published_partitions": [
+    {"id": "test", "path": "SICAPv2/partition/Test"},
+    {"id": "validation_val1", "path": "SICAPv2/partition/Validation/Val1"},
+    {"id": "validation_val2", "path": "SICAPv2/partition/Validation/Val2"},
+    {"id": "validation_val3", "path": "SICAPv2/partition/Validation/Val3"},
+    {"id": "validation_val4", "path": "SICAPv2/partition/Validation/Val4"}
+  ],
+  "expected": {
+    "patient_count": 95,
+    "slide_count": 155,
+    "patch_count": 18783,
+    "image_count": 18783,
+    "mask_count": 18783,
+    "archive_member_count": 37598,
+    "published_labelled_patch_count": 10339,
+    "published_patch_label_counts": {
+      "NC": 4417,
+      "G3": 1635,
+      "G4": 3622,
+      "G5": 665,
+      "G4C": 763
+    }
+  }
+}

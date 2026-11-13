@@ -1,0 +1,30 @@
+schema: '2.0'
+stages:
+  verify_publisher_metadata:
+    cmd: uv run --locked sicapv2-source-data verify-metadata
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: f7a0786bf15f8932deb09894a07f209f
+      size: 2845
+    - path: pyproject.toml
+      hash: md5
+      md5: 28fbdea9a09eeee4be862793702a3072
+      size: 1111
+    - path: records/publisher-metadata.json
+      hash: md5
+      md5: ee003665a8ae90236ceb77e1f4c2c6ac
+      size: 670
+    - path: src/sicapv2_source_data
+      hash: md5
+      md5: c3831e86a96803e614800d2a3093cf4c.dir
+      size: 36094
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 0fdf9ec6f06584c03a7546ff0a036097
+      size: 36139
