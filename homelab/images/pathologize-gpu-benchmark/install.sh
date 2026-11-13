@@ -2,35 +2,43 @@
 set -euo pipefail
 
 export DEBIAN_FRONTEND=noninteractive
-export PIP_BREAK_SYSTEM_PACKAGES=1
 
 apt-get update
 apt-get install --yes --no-install-recommends \
   ca-certificates \
-  python3 \
-  python3-pip
+  python3
 rm --recursive --force /var/lib/apt/lists/*
 
-python3 -m pip install --no-cache-dir --only-binary=:all: \
-  cupy-cuda12x==14.2.0 \
-  'cuda-toolkit[cudart,nvrtc]==12.8.1' \
-  nvidia-ml-py==13.615.71 \
-  torch==2.9.1 \
-  torchvision==0.24.1
+UV_PROJECT_ENVIRONMENT=/opt/pathologize/venv \
+  uv sync \
+    --project /tmp/hq/ml-pipelines/pathologize-tiling-benchmark \
+    --locked \
+    --no-build \
+    --extra cuda \
+    --extra model \
+    --no-dev \
+    --no-editable \
+    --no-install-package data-artifacts \
+    --no-install-package ml-evaluation \
+    --no-install-package pathologize-benchmark-contracts \
+    --no-install-package pathologize-tiler \
+    --no-install-package pathologize-tiling-benchmark
 
-python3 -m pip install --no-cache-dir --only-binary=:all: \
-  /tmp/hq/packages/data-artifacts \
-  /tmp/hq/packages/ml-evaluation
-python3 -m pip install --no-cache-dir --only-binary=:all: \
-  '/tmp/hq/packages/pathologize-tiler[cuda]' \
-  /tmp/hq/ml-pipelines/pathologize-benchmark-contracts
-python3 -m pip install --no-cache-dir --only-binary=:all: \
-  /tmp/hq/ml-pipelines/pathologize-tiling-benchmark
+local_sync_args=(
+  --project /tmp/hq/ml-pipelines/pathologize-tiling-benchmark
+  --locked
+  --offline
+  --extra cuda
+  --extra model
+  --no-dev
+  --no-editable
+)
+UV_PROJECT_ENVIRONMENT=/opt/pathologize/venv uv sync "${local_sync_args[@]}" # NOSONAR shell:S8541 -- Offline pass builds only the five repository-owned packages skipped above.
 
-python3 - <<'PY'
+/opt/pathologize/venv/bin/python - <<'PY'
 import nvidia.nvimgcodec
 import cupy
 
-if cupy.cuda.runtime.runtimeGetVersion() < 12010:
-    raise RuntimeError("the benchmark image requires CUDA 12.1 or newer")
+if cupy.cuda.runtime.runtimeGetVersion() < 13000:
+    raise RuntimeError("the benchmark image requires CUDA 13.0 or newer")
 PY
