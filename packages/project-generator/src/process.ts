@@ -31,16 +31,16 @@ export async function runCommand(
   let child: ChildProcess;
   switch (command) {
     case "copier":
-      child = spawn("copier", args, spawnOptions);
+      child = spawn("copier", args, spawnOptions); // NOSONAR typescript:S4036 -- Local operator toolchain is PATH-selected by design.
       break;
     case "git":
-      child = spawn("git", args, spawnOptions);
+      child = spawn("git", args, spawnOptions); // NOSONAR typescript:S4036 -- Local operator toolchain is PATH-selected by design.
       break;
     case "mise":
-      child = spawn("mise", args, spawnOptions);
+      child = spawn("mise", args, spawnOptions); // NOSONAR typescript:S4036 -- Local operator toolchain is PATH-selected by design.
       break;
     case "pnpm":
-      child = spawn("pnpm", args, spawnOptions);
+      child = spawn("pnpm", args, spawnOptions); // NOSONAR typescript:S4036 -- Local operator toolchain is PATH-selected by design.
       break;
   }
   const stdout: Buffer[] = [];

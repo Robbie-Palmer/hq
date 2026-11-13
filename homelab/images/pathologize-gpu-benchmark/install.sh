@@ -13,10 +13,27 @@ UV_PROJECT_ENVIRONMENT=/opt/pathologize/venv \
   uv sync \
     --project /tmp/hq/ml-pipelines/pathologize-tiling-benchmark \
     --locked \
+    --no-build \
     --extra cuda \
     --extra model \
     --no-dev \
-    --no-editable
+    --no-editable \
+    --no-install-package data-artifacts \
+    --no-install-package ml-evaluation \
+    --no-install-package pathologize-benchmark-contracts \
+    --no-install-package pathologize-tiler \
+    --no-install-package pathologize-tiling-benchmark
+
+local_sync_args=(
+  --project /tmp/hq/ml-pipelines/pathologize-tiling-benchmark
+  --locked
+  --offline
+  --extra cuda
+  --extra model
+  --no-dev
+  --no-editable
+)
+UV_PROJECT_ENVIRONMENT=/opt/pathologize/venv uv sync "${local_sync_args[@]}" # NOSONAR shell:S8541 -- Offline pass builds only the five repository-owned packages skipped above.
 
 /opt/pathologize/venv/bin/python - <<'PY'
 import nvidia.nvimgcodec
