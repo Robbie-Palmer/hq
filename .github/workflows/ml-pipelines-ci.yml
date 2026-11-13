@@ -5,6 +5,7 @@ on:
     paths:
       - "ml-pipelines/**"
       - "data-products/nucls/**"
+      - "data-products/bcss/**"
       - "data-products/pannuke/**"
       - "data-products/panda/**"
       - "data-products/pathologize/nucleus-analysis/**"
@@ -77,6 +78,7 @@ jobs:
     strategy:
       matrix:
         project:
+          - bcss/semantic-segmentation
           - nucls/corrected-single-rater
           - pannuke/published-folds
           - panda/challenge-2020
