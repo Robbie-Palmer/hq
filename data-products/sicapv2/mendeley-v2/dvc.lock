@@ -21,8 +21,8 @@ stages:
       size: 670
     - path: src/sicapv2_source_data
       hash: md5
-      md5: 49e50dad3fba0281b736e51013aba6a7.dir
-      size: 33661
+      md5: c3831e86a96803e614800d2a3093cf4c.dir
+      size: 36094
       nfiles: 4
     - path: uv.lock
       hash: md5

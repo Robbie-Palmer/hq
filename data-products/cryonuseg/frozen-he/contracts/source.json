@@ -1,0 +1,223 @@
+{
+  "annotations": {
+    "artifact_families": [
+      {
+        "artifact_id": "imagej_roi_boundaries",
+        "extension": ".roi",
+        "native_path_template": "Imagj_zips/{patch_id}_RoiSet/*.roi",
+        "role": "nucleus_boundary"
+      },
+      {
+        "artifact_id": "label_masks",
+        "extension": ".tif",
+        "native_path_template": "label masks/{patch_id}.tif",
+        "role": "instance_mask"
+      },
+      {
+        "artifact_id": "label_masks_modify",
+        "extension": ".tif",
+        "native_path_template": "label masks modify/{patch_id}.tif",
+        "role": "instance_mask"
+      },
+      {
+        "artifact_id": "mask_binary",
+        "extension": ".png",
+        "native_path_template": "mask binary/{patch_id}.png",
+        "role": "binary_mask"
+      },
+      {
+        "artifact_id": "mask_binary_without_border",
+        "extension": ".png",
+        "native_path_template": "mask binary without border/{patch_id}.png",
+        "role": "boundary_removed_mask"
+      },
+      {
+        "artifact_id": "mask_binary_without_border_erode",
+        "extension": ".png",
+        "native_path_template": "mask binary without border erode/{patch_id}.png",
+        "role": "eroded_boundary_removed_mask"
+      },
+      {
+        "artifact_id": "distance_maps",
+        "extension": ".png",
+        "native_path_template": "distance maps/{patch_id}.png",
+        "role": "distance_map"
+      },
+      {
+        "artifact_id": "weighted_maps",
+        "extension": ".png",
+        "native_path_template": "weighted_maps/{patch_id}.png",
+        "role": "weight_map"
+      },
+      {
+        "artifact_id": "weighted_maps_erode",
+        "extension": ".png",
+        "native_path_template": "weighted_maps_erode/{patch_id}.png",
+        "role": "eroded_weight_map"
+      },
+      {
+        "artifact_id": "overlay_save_path",
+        "extension": ".tif",
+        "native_path_template": "overlay_save_path/{patch_id}.tif",
+        "role": "overlay"
+      }
+    ],
+    "consensus_available": false,
+    "default_release": null,
+    "derived_png_files": 540,
+    "derived_tif_files": 270,
+    "paper_evaluation_release_id": "annotator-1-biologist-round-1",
+    "releases": [
+      {
+        "annotator_role": "biologist",
+        "archive_root": "Annotator 1 (biologist)",
+        "release_id": "annotator-1-biologist-round-1",
+        "roi_count": 7596,
+        "round": 1
+      },
+      {
+        "annotator_role": "biologist",
+        "archive_root": "Annotator 1 (biologist second round of manual marks up)/Annotator 1 (biologist second round of manual marks up)",
+        "release_id": "annotator-1-biologist-round-2",
+        "roi_count": 8044,
+        "round": 2
+      },
+      {
+        "annotator_role": "bioinformatician",
+        "archive_root": "Annotator 2 (bioinformatician)/Annotator 2 (bioinformatician)",
+        "release_id": "annotator-2-bioinformatician",
+        "roi_count": 8251,
+        "round": 1
+      }
+    ],
+    "total_roi_files": 23891
+  },
+  "archive": {
+    "checksum_provenance": "computed from the Kaggle v7 download bundle",
+    "compressed_bytes": 172522035,
+    "download_url": "https://api.kaggle.com/v1/datasets/download/ipateam/segmentation-of-nuclei-in-cryosectioned-he-images?datasetVersionNumber=7",
+    "md5": "46ead62d5ef90d4b6277b9a4dac055be",
+    "publisher_checksum_manifest": false,
+    "retrieved_at": "2026-11-11",
+    "sha256": "8843b3524920e0e786c66c1aa73484ed1c1ee01a5c33c20045d2b1b250c547d8"
+  },
+  "archive_inventory": {
+    "derived_png_files": 540,
+    "derived_tif_files": 270,
+    "roi_files": 23891,
+    "tissue_image_files": 30,
+    "total_files": 24731
+  },
+  "dataset_id": "cryonuseg-kaggle-v7",
+  "github": {
+    "commit": "06ac4090243de66e7cb81b011e041e7ecf79a68b",
+    "commit_api_url": "https://api.github.com/repos/masih4/CryoNuSeg/commits/06ac4090243de66e7cb81b011e041e7ecf79a68b",
+    "license_label": "MIT",
+    "repository_url": "https://github.com/masih4/CryoNuSeg",
+    "selected_wsis_path": "Selected_WSIs.xlsx",
+    "selected_wsis_sha256": "d8af343ecd41133e42ea211be823901db8d25f8ce951023c1e163e934314a45b",
+    "selected_wsis_url": "https://raw.githubusercontent.com/masih4/CryoNuSeg/06ac4090243de66e7cb81b011e041e7ecf79a68b/Selected_WSIs.xlsx"
+  },
+  "kaggle": {
+    "dataset_ref": "ipateam/segmentation-of-nuclei-in-cryosectioned-he-images",
+    "landing_page_url": "https://www.kaggle.com/datasets/ipateam/segmentation-of-nuclei-in-cryosectioned-he-images",
+    "license_label": "MIT",
+    "metadata_api_url": "https://www.kaggle.com/api/v1/datasets/view/ipateam/segmentation-of-nuclei-in-cryosectioned-he-images",
+    "reported_total_bytes": 416431626,
+    "updated_at": "2021-02-01T15:58:08.423Z",
+    "version": 7
+  },
+  "missingness": {
+    "clinical_outcomes": "not published in CryoNuSeg",
+    "consensus_annotation": "not published",
+    "paired_ffpe_images": "not present",
+    "preparation_timing": "not published",
+    "selected_wsis_scale": "SVS-Width, SVS-Height, and Pixel-Dimensions are blank only for Human_Testes_01"
+  },
+  "patch_extraction": {
+    "coordinate_basis": "Selected_WSIs CentroidX and CentroidY at the SVS base resolution",
+    "downsample_factor": 1,
+    "height_pixels": 512,
+    "image_format": "8-bit RGB TIFF",
+    "software": "QuPath",
+    "width_pixels": 512
+  },
+  "preparation": {
+    "acquisition_magnification": "40x for all selected WSIs",
+    "gdc_diagnostic_slide_meaning": "FFPE",
+    "gdc_experimental_strategy": "Tissue Slide",
+    "gdc_tissue_slide_meaning": "frozen section",
+    "stain": "H&E"
+  },
+  "publication": {
+    "citation": "Mahbod A, Schaefer G, Bancher B, Löw C, Dorffner G, Ecker R, Ellinger I. CryoNuSeg: A dataset for nuclei instance segmentation of cryosectioned H&E-stained histological images. Computers in Biology and Medicine. 2021;132:104349.",
+    "doi": "10.1016/j.compbiomed.2021.104349",
+    "url": "https://doi.org/10.1016/j.compbiomed.2021.104349"
+  },
+  "publishers": [
+    {
+      "name": "Amirreza Mahbod / ipateam",
+      "role": "Kaggle dataset publisher"
+    },
+    {
+      "name": "Amirreza Mahbod / masih4",
+      "role": "publisher repository maintainer and MIT copyright holder"
+    },
+    {
+      "name": "Elsevier",
+      "role": "article publisher"
+    },
+    {
+      "name": "NCI Genomic Data Commons",
+      "role": "upstream TCGA slide custodian"
+    }
+  ],
+  "rights": {
+    "kaggle_and_repository": "The Kaggle record and publisher repository label the release MIT.",
+    "redistribution": "This Git repository stores metadata only. Dataset and WSI bytes remain outside Git.",
+    "upstream_tcga_pixels": "The CryoNuSeg MIT label does not replace the terms governing the upstream TCGA slide pixels."
+  },
+  "schema_version": "1.0.0",
+  "scope": {
+    "excluded": [
+      "cross-source harmonization",
+      "FFPE comparison",
+      "training cohorts or splits",
+      "Pathologize ontology mappings or labels",
+      "clinical outcome labels",
+      "diagnostic-confidence conclusions",
+      "operational conclusions",
+      "cost conclusions"
+    ],
+    "supported": [
+      "frozen-section nuclear artifact studies",
+      "annotation-variability studies",
+      "nuclei instance-segmentation studies"
+    ]
+  },
+  "selected_wsis_source_columns": {
+    "age_source_value": "Age",
+    "annotator_1_biologist_round_1_count": "Nr Cells (biologist) 1st round of manual mark-ups",
+    "annotator_1_biologist_round_2_count": "Nr Cells (biologist) 2nd round of manual mark-ups",
+    "annotator_2_bioinformatician_count": "Nr Cells (bioinformatician)",
+    "artifact_note": "Notes",
+    "bit_depth": "BitDepth",
+    "centroid_x": "CentroidX",
+    "centroid_y": "CentroidY",
+    "gender": "Gender",
+    "image_file_name": "File Name plus the native .tif suffix",
+    "magnification": "Magnification",
+    "organ_source_value": "Organ",
+    "organwise_annotator_1_biologist_round_1_count": "Nr Cells organwise (biologist) 1st round of manual mark-ups",
+    "organwise_annotator_1_biologist_round_2_count": "Nr Cells organwise (biologist) 2nd round of manual mark-ups",
+    "organwise_annotator_2_bioinformatician_count": "Nr Cells organwise (bioinformatician)",
+    "pixel_dimensions": "Pixel-Dimensions",
+    "publisher_file_url": "URL",
+    "race": "Race",
+    "source_disease": "Disease",
+    "svs_height": "SVS-Height",
+    "svs_width": "SVS-Width",
+    "tcga_patient_barcode": "TCGA"
+  },
+  "title": "CryoNuSeg frozen-section H&E nuclei instance-segmentation source product"
+}
