@@ -143,13 +143,12 @@ copy_object() {
   local destination_size
 
   source_size=$(object_size "$source_key")
-  aws s3 cp \
-    "s3://${R2_DATABASE_BACKUPS_BUCKET_NAME}/${source_key}" \
-    "s3://${R2_DATABASE_BACKUPS_BUCKET_NAME}/${destination_key}" \
-    --copy-props none \
+  aws s3api copy-object \
+    --bucket "$R2_DATABASE_BACKUPS_BUCKET_NAME" \
+    --copy-source "${R2_DATABASE_BACKUPS_BUCKET_NAME}/${source_key}" \
     --endpoint-url "$endpoint" \
-    --no-progress \
-    --only-show-errors
+    --key "$destination_key" \
+    --output json >/dev/null
   destination_size=$(object_size "$destination_key")
 
   if [[ "$source_size" != "$destination_size" ]]; then

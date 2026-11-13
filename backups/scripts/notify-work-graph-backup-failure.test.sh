@@ -69,6 +69,8 @@ MOCK_CAPTURED_BODY="$captured_body" \
   bash "$notify_script" "$second_run"
 grep -Fxq -- "- $first_run" "$captured_body"
 grep -Fxq -- "- $second_run" "$captured_body"
+grep -Fzq -- "- $first_run
+- $second_run" "$captured_body"
 grep -Fxq -- "issue edit" "$operation_log"
 
 : >"$operation_log"

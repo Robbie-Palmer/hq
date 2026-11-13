@@ -28,7 +28,7 @@ if [[ -n "$existing" ]]; then
     exit 0
   fi
 
-  printf '%s\n\n- %s\n' "$existing_body" "$run_url" >"$body_file"
+  printf '%s\n- %s\n' "$existing_body" "$run_url" >"$body_file"
   gh issue edit "$existing" --body-file "$body_file"
   echo "Recorded failed run in issue #$existing"
   exit 0
