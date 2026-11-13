@@ -39,3 +39,11 @@ Current products:
 
 Projects under `ml-pipelines/` consume these products for training and
 evaluation. Shared packages and orchestration do not own product semantics.
+
+The Pathologize-specific boundary contract lives in
+`packages/pathologize-data-products`. It validates source ownership, stable
+artifact references, composed records, new derived artifacts, and recursive
+lineage through derived products. It also holds bounded migration plans for
+the products listed above. Derived products can consume segmentation masks,
+measurements, embeddings, bags, instances, label evidence, features, and model
+inputs by reference without making this layer responsible for model training.

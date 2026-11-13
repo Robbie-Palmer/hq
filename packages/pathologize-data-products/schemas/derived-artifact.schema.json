@@ -1,0 +1,334 @@
+{
+  "$defs": {
+    "AccessTier": {
+      "enum": [
+        "public",
+        "registration_required",
+        "restricted"
+      ],
+      "title": "AccessTier",
+      "type": "string"
+    },
+    "ArtifactReference": {
+      "additionalProperties": false,
+      "properties": {
+        "access_tier": {
+          "$ref": "#/$defs/AccessTier"
+        },
+        "checksum": {
+          "$ref": "#/$defs/Checksum"
+        },
+        "coordinate_frame": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CoordinateFrame"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "media_type": {
+          "pattern": "^[a-z0-9.+-]+/[a-z0-9.+-]+$",
+          "title": "Media Type",
+          "type": "string"
+        },
+        "path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Path"
+        },
+        "physical_scale": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PhysicalScale"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "product": {
+          "$ref": "#/$defs/ProductVersion"
+        },
+        "rights": {
+          "$ref": "#/$defs/Rights"
+        },
+        "role": {
+          "$ref": "#/$defs/ArtifactRole"
+        },
+        "source_record": {
+          "minLength": 1,
+          "title": "Source Record",
+          "type": "string"
+        },
+        "uri": {
+          "anyOf": [
+            {
+              "format": "uri",
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Uri"
+        }
+      },
+      "required": [
+        "product",
+        "source_record",
+        "role",
+        "checksum",
+        "media_type",
+        "rights",
+        "access_tier"
+      ],
+      "title": "ArtifactReference",
+      "type": "object"
+    },
+    "ArtifactRole": {
+      "enum": [
+        "source_archive",
+        "source_image",
+        "source_annotation",
+        "source_mask",
+        "source_manifest",
+        "source_records",
+        "table",
+        "manifest",
+        "adapter",
+        "partition",
+        "report",
+        "annotation",
+        "mask",
+        "tile",
+        "embedding",
+        "registration",
+        "transformed_image",
+        "measurement",
+        "bag",
+        "instance",
+        "label_evidence",
+        "feature",
+        "model_input"
+      ],
+      "title": "ArtifactRole",
+      "type": "string"
+    },
+    "Checksum": {
+      "additionalProperties": false,
+      "properties": {
+        "algorithm": {
+          "const": "sha256",
+          "default": "sha256",
+          "title": "Algorithm",
+          "type": "string"
+        },
+        "value": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "value"
+      ],
+      "title": "Checksum",
+      "type": "object"
+    },
+    "CoordinateFrame": {
+      "additionalProperties": false,
+      "properties": {
+        "axes": {
+          "items": {
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "Axes",
+          "type": "array"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "origin": {
+          "minLength": 1,
+          "title": "Origin",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "axes",
+        "origin"
+      ],
+      "title": "CoordinateFrame",
+      "type": "object"
+    },
+    "DerivedArtifactKind": {
+      "enum": [
+        "annotation",
+        "mask",
+        "tile",
+        "embedding",
+        "registration",
+        "transformed_image",
+        "measurement",
+        "bag",
+        "instance",
+        "label_evidence",
+        "feature",
+        "model_input"
+      ],
+      "title": "DerivedArtifactKind",
+      "type": "string"
+    },
+    "JsonValue": {},
+    "Operation": {
+      "additionalProperties": false,
+      "properties": {
+        "code_revision": {
+          "minLength": 1,
+          "title": "Code Revision",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "parameters": {
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          },
+          "title": "Parameters",
+          "type": "object"
+        }
+      },
+      "required": [
+        "name",
+        "parameters",
+        "code_revision"
+      ],
+      "title": "Operation",
+      "type": "object"
+    },
+    "PhysicalScale": {
+      "additionalProperties": false,
+      "properties": {
+        "micrometres_per_pixel_x": {
+          "exclusiveMinimum": 0,
+          "title": "Micrometres Per Pixel X",
+          "type": "number"
+        },
+        "micrometres_per_pixel_y": {
+          "exclusiveMinimum": 0,
+          "title": "Micrometres Per Pixel Y",
+          "type": "number"
+        }
+      },
+      "required": [
+        "micrometres_per_pixel_x",
+        "micrometres_per_pixel_y"
+      ],
+      "title": "PhysicalScale",
+      "type": "object"
+    },
+    "ProductVersion": {
+      "additionalProperties": false,
+      "properties": {
+        "product": {
+          "pattern": "^[a-z0-9][a-z0-9._/-]*$",
+          "title": "Product",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "product",
+        "version"
+      ],
+      "title": "ProductVersion",
+      "type": "object"
+    },
+    "Rights": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_uri": {
+          "format": "uri",
+          "minLength": 1,
+          "title": "Evidence Uri",
+          "type": "string"
+        },
+        "license": {
+          "minLength": 1,
+          "title": "License",
+          "type": "string"
+        },
+        "redistribution": {
+          "minLength": 1,
+          "title": "Redistribution",
+          "type": "string"
+        }
+      },
+      "required": [
+        "license",
+        "redistribution",
+        "evidence_uri"
+      ],
+      "title": "Rights",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "minLength": 1,
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "kind": {
+      "$ref": "#/$defs/DerivedArtifactKind"
+    },
+    "operation": {
+      "$ref": "#/$defs/Operation"
+    },
+    "parents": {
+      "items": {
+        "$ref": "#/$defs/ArtifactReference"
+      },
+      "minItems": 1,
+      "title": "Parents",
+      "type": "array"
+    },
+    "reference": {
+      "$ref": "#/$defs/ArtifactReference"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "kind",
+    "reference",
+    "operation",
+    "parents"
+  ],
+  "title": "DerivedArtifact",
+  "type": "object"
+}

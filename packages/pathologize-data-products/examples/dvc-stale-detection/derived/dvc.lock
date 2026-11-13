@@ -1,0 +1,26 @@
+schema: '2.0'
+stages:
+  compose:
+    cmd: python compose.py
+    deps:
+    - path: ../source/dvc.lock
+      hash: md5
+      md5: 5a61e5be0f2219184c4978561472a1a3
+      size: 192
+    - path: ../source/product.json
+      hash: md5
+      md5: dcca824016270135d5ec068ad0ec2bd1
+      size: 77
+    - path: ../source/records.jsonl
+      hash: md5
+      md5: 42c2bcfaa8da9036e24cff236bb8e38c
+      size: 131
+    - path: compose.py
+      hash: md5
+      md5: 5ce0856baa06ceba27800ac37ab32aca
+      size: 745
+    outs:
+    - path: composed.json
+      hash: md5
+      md5: 22b39f43e9738ebd59d8bb819c0bf218
+      size: 331

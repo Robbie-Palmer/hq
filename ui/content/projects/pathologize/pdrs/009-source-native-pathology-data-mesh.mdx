@@ -56,6 +56,14 @@ Use pinned `dvc import` files when a node moves to another Git repository. A
 source update must leave downstream products stale until their imports,
 adapters, partitions, and reports are reproduced deliberately.
 
+Apply the same rule recursively to derived products. Segmentation is one
+producer, not a privileged boundary. A measurement, embedding, whole-slide
+bag, label-evidence, model-input, or classification data product can pin an
+upstream derived artifact and retain its complete parent chain without copying
+the upstream bytes. The data-product contract records these references and
+operations. Model training and classifier behavior remain in consuming ML
+pipelines.
+
 ## Consequences
 
 Source datasets remain honest about what they know, and task datasets can
