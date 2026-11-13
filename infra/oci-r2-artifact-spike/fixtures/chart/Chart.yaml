@@ -1,0 +1,6 @@
+apiVersion: v2
+name: oci-r2-spike
+description: Bounded Helm fixture for the live R2 artifact spike
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
