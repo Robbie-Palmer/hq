@@ -31,6 +31,10 @@ extend-exclude = [
     "data-products/airaqc/tcga-public-pilot/records/native-corpus.json",
     # Publisher organ-role evidence retains TCGA patient and tissue-source IDs.
     "data-products/monusac/challenge-2020/contracts/organ-roles.json",
+    # Publisher-authored CryoNuSeg review notes retain their original spelling.
+    "data-products/cryonuseg/frozen-he/records/selected-wsis.csv",
+    # The pinned PRIDE response retains publisher field names and protocol text.
+    "data-products/proteomexchange/pxd064700/snapshots/pride-project.json",
     # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
     # comments so local changes remain auditable against the pinned source.
     "cpp/autonomic-satellite-swarm/third_party/sgp4/",
