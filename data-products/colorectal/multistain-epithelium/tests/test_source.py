@@ -70,7 +70,9 @@ def _zenodo_payload(manifest: SourceManifest) -> dict[str, object]:
         "doi": manifest.doi,
         "metadata": {
             "license": {"id": "cc-by-4.0"},
-            "description": "Total: 13,179 image/mask pairs. Dataset use must adhere to CC0-1.0.",
+            "description": (
+                "Total: 13,179 image/mask pairs. Dataset use must adhere to the CC0 licence."
+            ),
         },
         "files": [
             {
@@ -166,12 +168,19 @@ def test_zenodo_metadata_preserves_rights_discrepancy_and_files() -> None:
     assert result["description_license_spdx_id"] == "CC0-1.0"
 
 
-def test_zenodo_metadata_rejects_negated_description_rights() -> None:
+@pytest.mark.parametrize(
+    "description",
+    [
+        "Not CC0; 13,179 image/mask pairs.",
+        "No CC0 licence applies; 13,179 image/mask pairs.",
+    ],
+)
+def test_zenodo_metadata_rejects_nonaffirmative_description_rights(description: str) -> None:
     manifest = _manifest()
     payload = _zenodo_payload(manifest)
     metadata = payload["metadata"]
     assert isinstance(metadata, dict)
-    metadata["description"] = "Not CC0; 13,179 image/mask pairs."
+    metadata["description"] = description
 
     with pytest.raises(SourceDataError, match="pinned corpus size and CC0 terms"):
         _verify_zenodo(payload, manifest)

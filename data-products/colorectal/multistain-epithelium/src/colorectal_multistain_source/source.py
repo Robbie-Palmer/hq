@@ -131,16 +131,16 @@ def _verify_zenodo(payload: Mapping[str, Any], manifest: SourceManifest) -> dict
     pinned_description_license = (
         manifest.rights.zenodo_metadata_discrepancy.description_license_spdx_id
     )
-    description_license_mentions = (
-        re.findall(r"\b(?P<negated>not\s+)?CC0(?:[- ]1\.0)?\b", description, flags=re.IGNORECASE)
+    affirmative_license_statement = (
+        re.search(
+            r"\bdataset use must adhere to (?:the )?CC0(?:[- ]1\.0)? licen[cs]e\b",
+            description,
+            flags=re.IGNORECASE,
+        )
         if isinstance(description, str)
-        else []
-    )
-    actual_description_license = (
-        "CC0-1.0"
-        if description_license_mentions and not any(description_license_mentions)
         else None
     )
+    actual_description_license = "CC0-1.0" if affirmative_license_statement is not None else None
     if (
         not isinstance(description, str)
         or actual_description_license != pinned_description_license
