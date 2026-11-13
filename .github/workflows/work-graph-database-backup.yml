@@ -47,22 +47,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
+      contents: read
       issues: write
     steps:
-      - name: Create issue on failure
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Record failure in issue
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
-        run: |
-          existing=$(gh issue list --search "Work Graph database backup failed in:title" --state open --json number --jq '.[0].number // empty')
-          if [[ -n "$existing" ]]; then
-            echo "Issue #$existing already exists, skipping"
-          else
-            gh issue create \
-              --title "Work Graph database backup failed" \
-              --body "The scheduled encrypted Work Graph database backup failed.
-
-          **Workflow run:** ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-
-          The most recent successful Work Graph R2 backup may now be stale. Please investigate and rerun the workflow."
-          fi
+        run: backups/scripts/notify-work-graph-backup-failure.sh "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"

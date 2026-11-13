@@ -7,6 +7,10 @@ jq = "1.8.2"
 description = "Create an encrypted Neon pg_dump and upload it to R2"
 run = "bash scripts/backup-neon-to-r2.sh"
 
+[tasks.test]
+description = "Test backup notification behavior"
+run = "bash scripts/notify-work-graph-backup-failure.test.sh"
+
 [tasks.decrypt]
 description = "Decrypt an age-encrypted PostgreSQL backup"
 run = "bash scripts/decrypt-backup.sh"
