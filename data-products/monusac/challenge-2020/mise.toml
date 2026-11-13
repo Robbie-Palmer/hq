@@ -1,0 +1,67 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked MoNuSAC source-data environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the MoNuSAC source-data lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format MoNuSAC source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint MoNuSAC source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check MoNuSAC source-data code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run MoNuSAC source-data tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run MoNuSAC source-data tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the MoNuSAC source-data project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks."verify:metadata"]
+description = "Verify pinned MoNuSAC metadata without downloading dataset bytes"
+depends = ["sync"]
+run = "uv run --locked monusac-source-data verify-metadata"
+
+[tasks."verify:remote-metadata"]
+description = "Probe public MoNuSAC artifact headers without downloading dataset bytes"
+depends = ["sync"]
+run = "uv run --locked monusac-source-data probe-remote"
+
+[tasks.acquire]
+description = "Acquire and verify the native MoNuSAC distribution"
+depends = ["sync"]
+run = "uv run --locked monusac-source-data acquire"
+
+[tasks.index]
+description = "Index MoNuSAC in its source-native language"
+depends = ["sync"]
+run = "uv run --locked monusac-source-data index"
+
+[tasks.repro]
+description = "Reproduce the MoNuSAC source data product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic MoNuSAC source-data checks"
+depends = ["lint", "typecheck", "test:coverage", "verify:metadata"]
