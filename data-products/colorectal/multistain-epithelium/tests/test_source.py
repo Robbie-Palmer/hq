@@ -1,9 +1,12 @@
 import hashlib
 import json
 from pathlib import Path
+from typing import cast
 
 import pytest
+from pydantic import ValidationError
 
+from colorectal_multistain_source.cli import Application
 from colorectal_multistain_source.models import (
     MarkerRole,
     NativeAssay,
@@ -67,7 +70,7 @@ def _zenodo_payload(manifest: SourceManifest) -> dict[str, object]:
         "doi": manifest.doi,
         "metadata": {
             "license": {"id": "cc-by-4.0"},
-            "description": "Total: 13,179 image/mask pairs. Dataset use must adhere to CC0.",
+            "description": "Total: 13,179 image/mask pairs. Dataset use must adhere to CC0-1.0.",
         },
         "files": [
             {
@@ -163,6 +166,17 @@ def test_zenodo_metadata_preserves_rights_discrepancy_and_files() -> None:
     assert result["description_license_spdx_id"] == "CC0-1.0"
 
 
+def test_zenodo_metadata_rejects_negated_description_rights() -> None:
+    manifest = _manifest()
+    payload = _zenodo_payload(manifest)
+    metadata = payload["metadata"]
+    assert isinstance(metadata, dict)
+    metadata["description"] = "Not CC0; 13,179 image/mask pairs."
+
+    with pytest.raises(SourceDataError, match="pinned corpus size and CC0 terms"):
+        _verify_zenodo(payload, manifest)
+
+
 def test_verify_metadata_writes_stable_payload_without_archive_downloads(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -218,6 +232,20 @@ def test_artifact_records_preserve_pair_and_specimen_group() -> None:
         record.mask_member.removesuffix(".png") == record.source_pair_stem for record in records
     )
     assert all(record.publisher_partition is None for record in records)
+
+
+def test_artifact_records_preserve_member_case_and_reject_duplicates() -> None:
+    manifest = _manifest()
+    artifact = _artifact(manifest, "he").model_copy(update={"expected_pair_count": 1})
+    image_member = "HE/Cancer/HE__A001-4.JPG"
+    mask_member = "HE/Cancer/HE__A001-4.PNG"
+
+    records = _artifact_records(manifest, artifact, [image_member, mask_member])
+
+    assert records[0].image_member == image_member
+    assert records[0].mask_member == mask_member
+    with pytest.raises(SourceDataError, match="duplicate archive members"):
+        _artifact_records(manifest, artifact, [image_member, image_member, mask_member])
 
 
 def test_artifact_records_reject_orphan_masks_and_wrong_core_groups() -> None:
@@ -360,8 +388,74 @@ def test_acquire_streams_one_explicit_artifact_and_verifies_it(
     acquired = acquire_artifact("readme", tmp_path)
 
     assert acquired.read_bytes() == payload
-    assert not acquired.with_name(f".{acquired.name}.part").exists()
+    assert not list(acquired.parent.glob(f".{acquired.name}.*.part"))
     verify_local_artifact(acquired, artifact)
+
+
+def test_acquire_rejects_oversized_response_and_removes_temporary_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    manifest = _manifest()
+    source_artifact = _artifact(manifest, "readme")
+    artifact = source_artifact.model_copy(update={"bytes": 4})
+    patched_manifest = manifest.model_copy(
+        update={
+            "artifacts": [
+                artifact if item.artifact_id == artifact.artifact_id else item
+                for item in manifest.artifacts
+            ]
+        }
+    )
+    monkeypatch.setattr(
+        "colorectal_multistain_source.source.load_manifest", lambda _root: patched_manifest
+    )
+
+    class FakeResponse:
+        def __enter__(self) -> "FakeResponse":
+            return self
+
+        def __exit__(self, *_args: object) -> None:
+            return None
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def iter_content(self, *, chunk_size: int) -> list[bytes]:
+            assert chunk_size == 1024 * 1024
+            return [b"1234", b"5"]
+
+    monkeypatch.setattr(
+        "colorectal_multistain_source.source.requests.get",
+        lambda *_args, **_kwargs: FakeResponse(),
+    )
+
+    with pytest.raises(SourceDataError, match="exceeds declared byte count"):
+        acquire_artifact("readme", tmp_path)
+
+    destination = tmp_path / "data/raw" / artifact.label
+    assert not destination.exists()
+    assert not list(destination.parent.glob(f".{destination.name}.*.part"))
+
+
+def test_cli_validates_root_and_artifact_id_before_use(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    with pytest.raises(ValidationError):
+        Application(root=cast(str, []))
+
+    application = Application()
+    called = False
+
+    def fake_acquire(_artifact_id: str, _root: Path) -> Path:
+        nonlocal called
+        called = True
+        return Path("unused")
+
+    monkeypatch.setattr("colorectal_multistain_source.cli.acquire_artifact", fake_acquire)
+
+    with pytest.raises(ValidationError):
+        application.acquire("INVALID ID")
+    assert called is False
 
 
 def test_local_verification_rejects_changed_artifact(tmp_path: Path) -> None:

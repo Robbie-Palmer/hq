@@ -5,7 +5,7 @@ from pathlib import Path
 
 import fire
 from data_artifacts.acquisition import AcquisitionError
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from colorectal_multistain_source.source import (
     PROJECT_DIR,
@@ -16,9 +16,22 @@ from colorectal_multistain_source.source import (
 )
 
 
+class ApplicationArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    root: Path | None = None
+
+
+class AcquireArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    artifact_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]+$")
+
+
 class Application:
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root).resolve() if root is not None else PROJECT_DIR
+        arguments = ApplicationArguments.model_validate({"root": root})
+        self.root = arguments.root.resolve() if arguments.root is not None else PROJECT_DIR
 
     def verify_metadata(self) -> None:
         report = verify_metadata(self.root)
@@ -38,7 +51,8 @@ class Application:
         )
 
     def acquire(self, artifact_id: str) -> None:
-        path = acquire_artifact(artifact_id, self.root)
+        arguments = AcquireArguments.model_validate({"artifact_id": artifact_id})
+        path = acquire_artifact(arguments.artifact_id, self.root)
         print(f"Verified publisher artifact at {path}.")
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import tempfile
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path, PurePosixPath
@@ -127,7 +128,24 @@ def _verify_zenodo(payload: Mapping[str, Any], manifest: SourceManifest) -> dict
     if platform_license != manifest.rights.zenodo_metadata_discrepancy.platform_license_id:
         raise SourceDataError("Zenodo platform license differs from the recorded discrepancy")
     description = metadata.get("description")
-    if not isinstance(description, str) or "CC0" not in description or "13,179" not in description:
+    pinned_description_license = (
+        manifest.rights.zenodo_metadata_discrepancy.description_license_spdx_id
+    )
+    description_license_mentions = (
+        re.findall(r"\b(?P<negated>not\s+)?CC0(?:[- ]1\.0)?\b", description, flags=re.IGNORECASE)
+        if isinstance(description, str)
+        else []
+    )
+    actual_description_license = (
+        "CC0-1.0"
+        if description_license_mentions and not any(description_license_mentions)
+        else None
+    )
+    if (
+        not isinstance(description, str)
+        or actual_description_license != pinned_description_license
+        or "13,179" not in description
+    ):
         raise SourceDataError(
             "Zenodo description no longer states the pinned corpus size and CC0 terms"
         )
@@ -199,6 +217,8 @@ def _native_record(
     manifest: SourceManifest,
     artifact: SourceArtifact,
     pair_stem: str,
+    image_member: str,
+    mask_member: str,
 ) -> NativeRecord:
     parts = PurePosixPath(pair_stem).parts
     if len(parts) != 3 or parts[0] != artifact.label.removesuffix(".zip"):
@@ -241,9 +261,9 @@ def _native_record(
         source_artifact_id=artifact.artifact_id,
         source_artifact_persistent_id=artifact.persistent_id,
         source_pair_stem=pair_stem,
-        image_member=f"{pair_stem}.jpg",
+        image_member=image_member,
         image_role="TMA core image",
-        mask_member=f"{pair_stem}.png",
+        mask_member=mask_member,
         mask_role="epithelium segmentation mask",
         publisher_partition=None,
     )
@@ -261,18 +281,29 @@ def _artifact_records(
     ]
     if unsupported:
         raise SourceDataError(f"{artifact.label}: unsupported archive members {unsupported[:3]}")
-    images = {name[:-4] for name in names if name.lower().endswith(".jpg")}
-    masks = {name[:-4] for name in names if name.lower().endswith(".png")}
-    if images != masks:
+    file_names = [name for name in names if not name.endswith("/")]
+    duplicates = [name for name, count in Counter(file_names).items() if count > 1]
+    if duplicates:
+        raise SourceDataError(f"{artifact.label}: duplicate archive members {duplicates[:3]}")
+    images = {name[:-4]: name for name in file_names if name.lower().endswith(".jpg")}
+    masks = {name[:-4]: name for name in file_names if name.lower().endswith(".png")}
+    if len(images) + len(masks) != len(file_names):
+        raise SourceDataError(f"{artifact.label}: duplicate image or mask pair stems")
+    image_stems = set(images)
+    mask_stems = set(masks)
+    if image_stems != mask_stems:
         raise SourceDataError(
-            f"{artifact.label}: found {len(images - masks)} images without masks and "
-            f"{len(masks - images)} masks without images"
+            f"{artifact.label}: found {len(image_stems - mask_stems)} images without masks and "
+            f"{len(mask_stems - image_stems)} masks without images"
         )
     if len(images) != artifact.expected_pair_count:
         raise SourceDataError(
             f"{artifact.label}: expected {artifact.expected_pair_count} pairs, found {len(images)}"
         )
-    return [_native_record(manifest, artifact, stem) for stem in sorted(images)]
+    return [
+        _native_record(manifest, artifact, stem, images[stem], masks[stem])
+        for stem in sorted(images)
+    ]
 
 
 def index_native_references(
@@ -339,6 +370,14 @@ def verify_local_artifact(path: Path, artifact: SourceArtifact) -> None:
         raise SourceDataError(f"source artifact MD5 differs: {path}")
 
 
+def _checked_download_size(total: int, artifact: SourceArtifact) -> int:
+    if total > artifact.bytes:
+        raise SourceDataError(
+            f"source artifact exceeds declared byte count: {artifact.artifact_id}"
+        )
+    return total
+
+
 def acquire_artifact(artifact_id: str, root: Path = PROJECT_DIR) -> Path:
     manifest = load_manifest(root)
     artifacts = {artifact.artifact_id: artifact for artifact in manifest.artifacts}
@@ -350,14 +389,19 @@ def acquire_artifact(artifact_id: str, root: Path = PROJECT_DIR) -> Path:
         verify_local_artifact(destination, artifact)
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name(f".{destination.name}.part")
-    temporary.unlink(missing_ok=True)
+    file_descriptor, temporary_name = tempfile.mkstemp(
+        prefix=f".{destination.name}.", suffix=".part", dir=destination.parent
+    )
+    os.close(file_descriptor)
+    temporary = Path(temporary_name)
     try:
         with requests.get(_artifact_url(artifact), stream=True, timeout=(10, 120)) as response:
             response.raise_for_status()
+            written = 0
             with temporary.open("wb") as output:
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
+                        written = _checked_download_size(written + len(chunk), artifact)
                         output.write(chunk)
                 output.flush()
                 os.fsync(output.fileno())
