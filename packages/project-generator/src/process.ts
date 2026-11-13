@@ -13,7 +13,7 @@ export interface CommandOptions {
   readonly allowFailure?: boolean;
 }
 
-type SupportedCommand = "bash" | "copier" | "git" | "mise" | "pnpm";
+type SupportedCommand = "copier" | "git" | "mise" | "pnpm";
 
 export async function runCommand(
   command: SupportedCommand,
@@ -30,9 +30,6 @@ export async function runCommand(
   };
   let child: ChildProcess;
   switch (command) {
-    case "bash":
-      child = spawn("bash", args, spawnOptions);
-      break;
     case "copier":
       child = spawn("copier", args, spawnOptions);
       break;
