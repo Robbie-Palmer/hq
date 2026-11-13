@@ -6,6 +6,7 @@ on:
       - "ml-pipelines/**"
       - "data-products/nucls/**"
       - "data-products/bcss/**"
+      - "data-products/pannuke/**"
       - "data-products/panda/**"
       - "data-products/pathologize/nucleus-analysis/**"
       - "packages/recipe-parsing/**"
@@ -72,13 +73,14 @@ jobs:
       - name: Check Ultralytics extensions package
         run: mise run //packages/ultralytics-extensions:check
 
-  source-data-products-check:
+  nucls-data-products-check:
     runs-on: ubuntu-latest
     strategy:
       matrix:
         project:
           - bcss/semantic-segmentation
           - nucls/corrected-single-rater
+          - pannuke/published-folds
           - panda/challenge-2020
           - pathologize/nucleus-analysis
     steps:
