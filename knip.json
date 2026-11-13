@@ -51,7 +51,8 @@
     "packages/agent-coordinator-domain": {},
     "packages/ai-review-domain": {},
     "packages/project-generator": {
-      "entry": ["src/cli.ts"]
+      "entry": ["src/cli.ts"],
+      "ignoreBinaries": ["copier"]
     },
     "packages/planning-case-domain": {},
     "packages/platform-contracts": {
