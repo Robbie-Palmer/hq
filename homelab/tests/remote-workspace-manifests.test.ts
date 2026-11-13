@@ -2366,16 +2366,21 @@ test("the Pathologize GPU benchmark image pins CUDA dependencies and public inpu
     dockerfile,
     /^FROM docker\.io\/nvidia\/cuda:[^@]+@sha256:[a-f0-9]{64}$/m,
   );
+  assert.match(
+    dockerfile,
+    /^FROM ghcr\.io\/astral-sh\/uv:[^@]+@sha256:[a-f0-9]{64} AS uv$/m,
+  );
+  assert.match(dockerfile, /pathologize-tiling-benchmark\/uv\.lock/);
   assert.match(dockerfile, /COPY ml-pipelines\/pathologize-data-registry\/data\/raw\/cptac-coad-idc/);
   assert.match(dockerfile, /USER 1000:1000/);
   assert.match(dockerfile, /ENTRYPOINT \["pathologize-model-loader-benchmark"\]/);
-  assert.match(installer, /pathologize-tiler\[cuda\]/);
+  assert.match(installer, /uv sync/);
+  assert.match(installer, /--locked/);
+  assert.match(installer, /--extra cuda/);
+  assert.match(installer, /--extra model/);
+  assert.match(installer, /--no-editable/);
   assert.match(installer, /import nvidia\.nvimgcodec/);
-  assert.match(installer, /cupy-cuda12x==14\.2\.0/);
-  assert.match(installer, /cuda-toolkit\[cudart,nvrtc\]==12\.8\.1/);
-  assert.match(installer, /torch==2\.9\.1/);
-  assert.match(installer, /torchvision==0\.24\.1/);
-  assert.match(installer, /nvidia-ml-py==13\.615\.71/);
+  assert.doesNotMatch(installer, /pip install/);
   assert.match(buildScript, /--platform linux\/amd64/);
   assert.match(buildScript, /--pull=false/);
   assert.match(

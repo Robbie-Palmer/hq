@@ -1,5 +1,5 @@
 version = 1
-revision = 5
+revision = 3
 requires-python = ">=3.12, <3.15"
 
 [[package]]
@@ -330,35 +330,35 @@ wheels = [
 ]
 
 [[package]]
-name = "nvidia-nvimgcodec-cu12"
+name = "nvidia-nvimgcodec-cu13"
 version = "0.10.0.9"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/f8/ac525882409d24c6f89bb881bc6680e9557f349db2f6e00fa29b602ceebb/nvidia_nvimgcodec_cu12-0.10.0.9-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:c278d6d25296e49b0b3191271e0b584d6f84fc70e5b75fabadb11b3f86c3c3c1", size = 35395982, upload-time = "2026-11-03T17:28:33.878Z" },
+    { url = "https://files.pythonhosted.org/packages/b3/f3/9a63c18ec46a58abd2e2000a68586c550ce5c631a0c57c2ec4310a2c4bf9/nvidia_nvimgcodec_cu13-0.10.0.9-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:460039267ef167cce9746258dca00d90f441a14f723a72761afc3f277f5625c2", size = 27767443, upload-time = "2026-11-03T17:29:20.513Z" },
 ]
 
 [package.optional-dependencies]
 nvjpeg = [
-    { name = "nvidia-nvjpeg-cu12" },
+    { name = "nvidia-nvjpeg" },
 ]
 nvjpeg2k = [
-    { name = "nvidia-nvjpeg2k-cu12" },
+    { name = "nvidia-nvjpeg2k-cu13" },
 ]
 
 [[package]]
-name = "nvidia-nvjpeg-cu12"
-version = "12.4.0.76"
+name = "nvidia-nvjpeg"
+version = "13.3.2.43"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/57/68/d3526394584134a23f2500833c62d3352e1feda7547041f4612b1a183aa3/nvidia_nvjpeg_cu12-12.4.0.76-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:3888f10b32fbd58e80166c48e01073732d752fa5f167b7cb5b9615f1c6375a20", size = 5313609, upload-time = "2025-06-05T20:10:43.92Z" },
+    { url = "https://files.pythonhosted.org/packages/95/64/143f2a7cb53334deeff9cba24cd3f2e41e88e7853b5edc2e3baffed5fd08/nvidia_nvjpeg-13.3.2.43-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:27f9c4a25a73f1d1ad35c342c8d657c8ff43e23877f338ef15fb2602ac2e5aa8", size = 3847265, upload-time = "2026-11-04T23:33:43.925Z" },
 ]
 
 [[package]]
-name = "nvidia-nvjpeg2k-cu12"
+name = "nvidia-nvjpeg2k-cu13"
 version = "0.12.0.58"
 source = { registry = "https://pypi.org/simple" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/69/69/f61ae09f7bdcdda22bfabad7eadec1f781b33cb47a1f9b4e67a375737c66/nvidia_nvjpeg2k_cu12-0.12.0.58-py3-none-manylinux2014_x86_64.whl", hash = "sha256:9fd28574f72e04a54b406c602fea5141d035f1011646697ac0fcc768062f41ba", size = 9620768, upload-time = "2026-10-28T21:36:58.71Z" },
+    { url = "https://files.pythonhosted.org/packages/49/ba/85220e91ab925f8a5d082afb4e416d6df20d6013e8eb46b1a453e663d375/nvidia_nvjpeg2k_cu13-0.12.0.58-py3-none-manylinux2014_x86_64.whl", hash = "sha256:ab7792d78611c86e74fc797f49d92fc4ad329214aac3b42fa0f43efa073f09e8", size = 4232216, upload-time = "2026-10-28T21:38:37.792Z" },
 ]
 
 [[package]]
@@ -432,7 +432,7 @@ dependencies = [
 
 [package.optional-dependencies]
 cuda = [
-    { name = "nvidia-nvimgcodec-cu12", extra = ["nvjpeg", "nvjpeg2k"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-nvimgcodec-cu13", extra = ["nvjpeg", "nvjpeg2k"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 
 [package.dev-dependencies]
@@ -446,7 +446,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "nvidia-nvimgcodec-cu12", extras = ["nvjpeg", "nvjpeg2k"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=0.10.0.9,<0.11" },
+    { name = "nvidia-nvimgcodec-cu13", extras = ["nvjpeg", "nvjpeg2k"], marker = "platform_machine == 'x86_64' and sys_platform == 'linux' and extra == 'cuda'", specifier = ">=0.10.0.9,<0.11" },
     { name = "openslide-bin", specifier = ">=4.0.0.11" },
     { name = "openslide-python", specifier = ">=1.4.3" },
     { name = "pillow", specifier = ">=13.0.0" },

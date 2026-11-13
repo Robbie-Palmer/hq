@@ -1,4 +1,4 @@
-import { spawn } from "node:child_process";
+import { spawn, type ChildProcess, type SpawnOptions } from "node:child_process";
 
 export interface CommandResult {
   readonly stdout: string;
@@ -13,16 +13,39 @@ export interface CommandOptions {
   readonly allowFailure?: boolean;
 }
 
+type SupportedCommand = "bash" | "copier" | "git" | "mise" | "pnpm";
+
 export async function runCommand(
-  command: string,
+  command: SupportedCommand,
   args: readonly string[],
   options: CommandOptions = {},
 ): Promise<CommandResult> {
-  const child = spawn(command, args, {
+  const spawnOptions: SpawnOptions = {
     cwd: options.cwd,
     env: options.env ?? process.env,
-    stdio: [options.input === undefined ? "ignore" : "pipe", "pipe", "pipe"],
-  });
+    stdio:
+      options.input === undefined
+        ? ["ignore", "pipe", "pipe"]
+        : ["pipe", "pipe", "pipe"],
+  };
+  let child: ChildProcess;
+  switch (command) {
+    case "bash":
+      child = spawn("bash", args, spawnOptions);
+      break;
+    case "copier":
+      child = spawn("copier", args, spawnOptions);
+      break;
+    case "git":
+      child = spawn("git", args, spawnOptions);
+      break;
+    case "mise":
+      child = spawn("mise", args, spawnOptions);
+      break;
+    case "pnpm":
+      child = spawn("pnpm", args, spawnOptions);
+      break;
+  }
   const stdout: Buffer[] = [];
   const stderr: Buffer[] = [];
   if (!child.stdout || !child.stderr) {
