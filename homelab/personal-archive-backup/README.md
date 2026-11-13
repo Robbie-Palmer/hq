@@ -139,3 +139,70 @@ Do not record credentials or full source paths here.
 | Recovery egress | The restore materialized 3,700,154,368 bytes and triggered the account's 100 percent daily download-cap alert; exact billable egress was not available from the alert |
 | Mac mini 10 TB drive copy | Pending |
 | Object Lock maintenance test | Pending |
+
+## Controlled one-day Object Lock experiment
+
+The experiment creates the private disposable bucket
+`robbie-personal-archive-object-lock-lab-20261104` with Object Lock enabled.
+It refuses to reuse a bucket with that name. Objects stay under a unique prefix
+in `object-lock-experiments/`; the script never accepts a prefix in the
+production `restic/` namespace. The command creates temporary maintenance,
+policy, and data keys, and revokes all three before it exits. The data key is
+restricted to the disposable prefix and deliberately omits `bypassGovernance`.
+
+First, run the idle check on the archive source host and keep its JSON output
+in a temporary file. The proof expires after 15 minutes:
+
+```bash
+idle_proof=$(mktemp)
+mise run //homelab:personal-archive-object-lock-idle-check \
+  >"${idle_proof}"
+```
+
+Provide the Backblaze bootstrap key ID and secret through private files, not
+command-line arguments or environment values. The script uses that credential
+only for read-only preflight plus creation and final revocation of the
+short-lived maintenance key. Then start the experiment:
+
+```bash
+B2_ADMIN_KEY_ID_FILE=/private/path/key-id \
+B2_ADMIN_APPLICATION_KEY_FILE=/private/path/application-key \
+  mise run //homelab:personal-archive-object-lock -- \
+    start --idle-proof "${idle_proof}"
+```
+
+The command proves that the exact experiment bucket name is unused before it
+creates the bucket. It then checks the private bucket, Object Lock capability,
+and empty default-retention setting. It installs its teardown trap before
+enabling a one-day governance default. After the upload, it verifies every
+object under the disposable prefix, removes the default, and proves both direct
+version deletion fails without governance bypass. Restic prune may still
+return success by adding delete markers; the script proves that every locked
+upload version remains retained afterward. Its JSON output is safe to use as
+the non-secret evidence record. `retainedBytes` and
+`retainedByteDays` quantify the experiment's one-day storage behavior. Object
+Lock has no separate fee, but those bytes remain subject to normal B2 storage
+charges until the reported retention time expires.
+
+After the reported `retainUntil` time, clean up only the recorded prefix:
+
+```bash
+B2_ADMIN_KEY_ID_FILE=/private/path/key-id \
+B2_ADMIN_APPLICATION_KEY_FILE=/private/path/application-key \
+  mise run //homelab:personal-archive-object-lock -- \
+    cleanup --prefix object-lock-experiments/YYYYMMDDTHHMMSSZ-NONCE/restic \
+    --retain-until YYYY-MM-DDTHH:MM:SSZ
+```
+
+The cleanup command refuses to run before expiry or while any bucket default
+retention exists. It creates fresh short-lived maintenance and prefix-only
+keys without governance bypass, deletes every version in the disposable
+repository, proves the prefix is empty, deletes the experiment bucket, and
+revokes both keys.
+
+If a post-upload assertion leaves a retained disposable prefix, a retry may
+reuse the dedicated bucket only by passing that exact prefix with
+`--reuse-existing-prefix`. The command refuses the retry if any object falls
+outside that prefix. After expiry, clean the earlier prefix with
+`--keep-bucket`, then clean the successful prefix without that flag so the
+final command also deletes the empty experiment bucket.
