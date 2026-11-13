@@ -1,0 +1,23 @@
+stages:
+  verify_metadata:
+    cmd: uv run --locked colorectal-multistain-source verify-metadata
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/colorectal_multistain_source
+      - uv.lock
+    outs:
+      - outputs/metadata-verification.json
+
+  index_native_references:
+    cmd: uv run --locked colorectal-multistain-source index
+    deps:
+      - manifest.json
+      - pyproject.toml
+      - src/colorectal_multistain_source
+      - uv.lock
+    outs:
+      - outputs/native-index.jsonl
+    metrics:
+      - outputs/source-metrics.json
