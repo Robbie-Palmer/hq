@@ -667,7 +667,7 @@ reconcile() {
 
   tracked_count=$(jq '.tickets | length' "${state_file}")
   if [[ "${tracked_count}" -lt "${max_tickets}" ]]; then
-    ready=$(work_graph ready --limit 100)
+    ready=$(work_graph ready --limit 100 --exclude-project agent-coordinator)
     while IFS= read -r ticket_json; do
       ticket_id=$(jq -er '.id' <<<"${ticket_json}")
       if jq -e --arg ticket_id "${ticket_id}" '.tickets[$ticket_id] != null' "${state_file}" >/dev/null; then

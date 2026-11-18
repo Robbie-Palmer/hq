@@ -52,9 +52,10 @@ merge authority.
 ## Vulnerability admission
 
 `VulnerabilityControllerPolicySchema` validates the Vector controller's
-checked-in webhook policy. `decideVulnerabilityAdmission` accepts only a narrow
-routing record plus a fresh Dependabot alert fetched from GitHub. Webhook
-signature, replay, age, and request filtering stay in T3 Code.
+checked-in reconciliation policy. `decideVulnerabilityAdmission` accepts only
+a fresh Dependabot alert fetched from GitHub and the current incident count.
+The controller runs as ordinary code and calls T3 only when the deterministic
+Renovate decision requires an implementation worker.
 
 The controller authorization module verifies the checked-in Cedar bundle
 digest, validates every policy against its schema, and denies requests that

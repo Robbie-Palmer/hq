@@ -148,6 +148,18 @@ unchanged plan. If token creation succeeded but distribution failed, revoke the
 orphan by its reviewed token name before retrying. The resume file deliberately
 stores no token ID or value.
 
+### R2 parent credentials
+
+Use
+`infra/account-foundation/cloudflare-token-plans/r2-parent-credentials.yaml`
+with the `Cloudflare Token Bootstrap` workflow.
+
+Initial bootstrap may proceed. Rotation must wait for
+`pep-r2-temporary-credential-broker`, which will provide the temporary-
+credential proof required before revoking the previous parent. Policy
+conformance alone is not that proof. If distribution fails, revoke the orphan
+before retrying the unchanged plan.
+
 ### Provisioner rotation and parking
 
 Use

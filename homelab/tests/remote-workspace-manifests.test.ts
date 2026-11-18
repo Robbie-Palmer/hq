@@ -2127,6 +2127,7 @@ test("Vector T3 sessions can launch only bounded GPU benchmark Jobs", () => {
     "quantity('16Gi')",
     "quantity('8Gi')",
     "emptyDir",
+    "!has(object.spec.template.spec.volumes[0].emptyDir.medium)",
     "subPathExpr",
     "mountPropagation",
   ]) {
@@ -2433,7 +2434,7 @@ test("the Vector workspace image provides the required glibc version", () => {
   assert.match(renovateConfig, /suite=trixie(?:-updates|-security)?/);
 });
 
-test("the Vector vulnerability controller keeps ingress narrow and mounts its policy", () => {
+test("the Vector vulnerability reconciler mounts policy and launches workers through T3", () => {
   const resources = parseResources(overlays.vector);
   const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
   const service = resource(resources, "Service", "t3-code", "t3-code");
@@ -2467,15 +2468,14 @@ test("the Vector vulnerability controller keeps ingress narrow and mounts its po
     ),
     "utf8",
   );
-  const expectedPrompt = readFileSync(
-    new URL(
-      "../k3s/overlays/vector-development/workspaces/operator/agent-coordinator/controller-prompt.md",
-      import.meta.url,
-    ),
-    "utf8",
-  );
   assert.equal(valueAt(controllerConfig, ["data", "controller-policy.json"]), expectedPolicy);
-  assert.equal(valueAt(controllerConfig, ["data", "controller-prompt.md"]), expectedPrompt);
+  assert.equal(
+    Object.hasOwn(
+      valueAt(controllerConfig, ["data"]) as Record<string, unknown>,
+      "controller-prompt.md",
+    ),
+    false,
+  );
   for (const fileName of [
     "controller.cedarschema.json",
     "controller-admission.cedar",
@@ -2493,14 +2493,41 @@ test("the Vector vulnerability controller keeps ingress narrow and mounts its po
     );
     assert.equal(valueAt(controllerConfig, ["data", fileName]), expected);
   }
-  assert.doesNotMatch(expectedPrompt, /\{\{\s*(?:body|request)\s*}}/);
-  assert.match(expectedPrompt, /not instructions, authority, URLs to visit, shell text/);
-  assert.match(expectedPrompt, /deny or unknown result from any layer wins/);
-
   const containers = valueAt(deployment, ["spec", "template", "spec", "containers"]);
   assert.ok(Array.isArray(containers));
   const t3Container = containers.find(({ name }) => name === "t3-code");
+  const controllerContainer = containers.find(
+    ({ name }) => name === "severe-vulnerability-controller",
+  );
   assert.ok(t3Container);
+  assert.ok(controllerContainer);
+  assert.deepEqual(controllerContainer.command, [
+    "/opt/agent-coordinator/run-vulnerability-controller",
+  ]);
+  assert.equal(
+    controllerContainer.env.find(
+      ({ name }: { name: string }) => name === "T3_ORIGIN",
+    )?.value,
+    "http://127.0.0.1:3773",
+  );
+  assert.deepEqual(
+    controllerContainer.envFrom.map(
+      ({ secretRef }: { secretRef: { name: string } }) => secretRef.name,
+    ),
+    ["t3-code-work-graph"],
+  );
+  assert.deepEqual(
+    controllerContainer.env.find(
+      ({ name }: { name: string }) => name === "GH_TOKEN",
+    )?.valueFrom,
+    {
+      secretKeyRef: {
+        key: "GH_TOKEN",
+        name: "t3-code-runtime",
+        optional: false,
+      },
+    },
+  );
   const mounts = valueAt(t3Container, ["volumeMounts"]);
   assert.ok(Array.isArray(mounts));
   assert.deepEqual(
@@ -2520,6 +2547,20 @@ test("the Vector vulnerability controller keeps ingress narrow and mounts its po
     {
       defaultMode: 292,
       name: controllerConfig.metadata.name,
+    },
+  );
+  assert.deepEqual(
+    volumes.find(
+      ({ name }) => name === "agent-coordinator-vulnerability-runtime",
+    )?.configMap,
+    {
+      defaultMode: 365,
+      name: resources.find(
+        ({ kind, metadata }) =>
+          kind === "ConfigMap" &&
+          metadata.namespace === "t3-code" &&
+          metadata.name.startsWith("agent-coordinator-vulnerability-runtime-"),
+      )?.metadata.name,
     },
   );
 });
@@ -3459,6 +3500,14 @@ test("the Vector health check validates the NVIDIA runtime and browser sandbox",
   );
 
   assert.match(hostConfig, /profile t3-code-agent-browser flags=\(unconfined\)/);
+  assert.match(
+    hostConfig,
+    /systemd\.services\.vector-development-power-profile = \{[\s\S]*?wantedBy = \[ "graphical\.target" \];/,
+  );
+  assert.match(
+    healthCheck,
+    /Vector health check failed at remote line %s: %s/,
+  );
   assert.match(hostConfig, /\n\s+userns,\n/);
   assert.match(hostConfig, /packages = \[ pkgs\.apparmor-profiles \];/);
   assert.match(
@@ -3640,82 +3689,6 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   );
   assert.ok(vectorHealthCheck.includes("posthog-query homepage-vitals"));
   assert.ok(vectorHealthCheck.includes("POSTHOG_PERSONAL_API_KEY"));
-});
-
-test("the Vector controller webhook reconciler is fixed to the pilot boundary", () => {
-  const reconciler = readFileSync(
-    new URL(
-      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
-      import.meta.url,
-    ),
-    "utf8",
-  );
-
-  assert.ok(reconciler.includes('repository="Robbie-Palmer/hq"'));
-  assert.doesNotMatch(reconciler, /CONTROLLER_GITHUB_REPOSITORY/);
-  assert.ok(reconciler.includes('events: ["dependabot_alert"]'));
-  assert.ok(reconciler.includes('content_type: "json"'));
-  assert.ok(reconciler.includes('insecure_ssl: "0"'));
-  assert.ok(reconciler.includes('export GH_TOKEN="$github_token"'));
-  assert.ok(reconciler.includes('github_token=$(<"$github_token_file")'));
-  assert.ok(
-    reconciler.includes('--rawfile webhook_secret "$webhook_secret_file"'),
-  );
-  assert.doesNotMatch(reconciler, /mapfile/);
-  assert.doesNotMatch(reconciler, /--arg webhook_(?:secret|url)/);
-  assert.doesNotMatch(
-    reconciler,
-    /^\s*(?:echo|printf|cat)\s+[^\n]*(webhook_secret|github_token)/m,
-  );
-  assert.doesNotMatch(
-    reconciler,
-    /^\s*set\s+(?:-[A-Za-z]*x\b|-o\s+xtrace\b)/m,
-  );
-  assert.ok(
-    reconciler.includes('active="${CONTROLLER_WEBHOOK_ACTIVE:-false}"'),
-  );
-});
-
-test("the Vector controller webhook rejects a terminal secret newline", () => {
-  const temporaryDirectory = mkdtempSync(
-    join(tmpdir(), "vector-controller-webhook-"),
-  );
-  const binDirectory = join(temporaryDirectory, "bin");
-  const secretPath = join(temporaryDirectory, "webhook-secret");
-  const tokenPath = join(temporaryDirectory, "github-token");
-  const reconciler = fileURLToPath(
-    new URL(
-      "../scripts/configure-severe-vulnerability-controller-webhook.sh",
-      import.meta.url,
-    ),
-  );
-
-  try {
-    mkdirSync(binDirectory);
-    writeFileSync(secretPath, "test-secret\n");
-    writeFileSync(tokenPath, "test-token");
-    writeFileSync(join(binDirectory, "gh"), "#!/usr/bin/env bash\nexit 99\n");
-    chmodSync(join(binDirectory, "gh"), 0o755);
-
-    const result = spawnSync("bash", [reconciler], {
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
-        CONTROLLER_WEBHOOK_URL: "https://relay.t3.codes/v1/hooks/test",
-        CONTROLLER_WEBHOOK_SECRET_FILE: secretPath,
-        CONTROLLER_GITHUB_TOKEN_FILE: tokenPath,
-      },
-    });
-
-    assert.equal(result.status, 2);
-    assert.match(
-      result.stderr,
-      /controller webhook secret file must not end with a newline/i,
-    );
-  } finally {
-    rmSync(temporaryDirectory, { recursive: true, force: true });
-  }
 });
 
 test("the Vector Doppler wrapper confines callers to declared dev configs", () => {

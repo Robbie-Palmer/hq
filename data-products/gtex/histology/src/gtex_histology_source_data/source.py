@@ -22,6 +22,7 @@ from gtex_histology_source_data.models import (
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 USER_AGENT = "gtex-histology-source-data/0.1 (+metadata-only)"
 PAGE_SIZE = 10_000
+ACQUISITION_FILENAME = "acquisition.json"
 SNAPSHOT_FILENAMES = {
     "gtex_histology_api": "gtex-histology-api.jsonl",
     "anvil_svs": "anvil-svs.jsonl",
@@ -325,7 +326,7 @@ def _validate_existing(root: Path, evidence: AcquisitionEvidence, manifest: Sour
 
 
 def validate_acquisition(root: Path, manifest: SourceManifest) -> AcquisitionEvidence:
-    evidence_path = root / "acquisition.json"
+    evidence_path = root / ACQUISITION_FILENAME
     if not evidence_path.is_file():
         raise SourceDataError("acquire metadata before indexing")
     evidence = AcquisitionEvidence.model_validate_json(evidence_path.read_text(encoding="utf-8"))
@@ -336,7 +337,7 @@ def validate_acquisition(root: Path, manifest: SourceManifest) -> AcquisitionEvi
 def acquire_metadata(root: Path = PROJECT_DIR) -> AcquisitionEvidence:
     manifest = load_manifest(root)
     output = root / "data/raw"
-    evidence_path = output / "acquisition.json"
+    evidence_path = output / ACQUISITION_FILENAME
     if output.exists():
         if not evidence_path.is_file():
             raise SourceDataError(f"incomplete acquisition output: {output}")
@@ -365,7 +366,7 @@ def acquire_metadata(root: Path = PROJECT_DIR) -> AcquisitionEvidence:
             files.append(_write_snapshot(temporary / filename, fetch(snapshot), snapshot))
 
         evidence = AcquisitionEvidence(dataset_id=manifest.dataset_id, files=files)
-        (temporary / "acquisition.json").write_text(
+        (temporary / ACQUISITION_FILENAME).write_text(
             evidence.model_dump_json(indent=2) + "\n", encoding="utf-8"
         )
         output.parent.mkdir(parents=True, exist_ok=True)

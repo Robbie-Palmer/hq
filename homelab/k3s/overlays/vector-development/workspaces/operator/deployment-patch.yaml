@@ -179,6 +179,59 @@ spec:
             - name: cache
               mountPath: /data/cache/shared-task-cache
               subPath: shared-task-cache
+        - name: severe-vulnerability-controller
+          image: ghcr.io/robbie-palmer/t3-code:0.1.5-agent-tools-21
+          command:
+            - /opt/agent-coordinator/run-vulnerability-controller
+          env:
+            - name: HOME
+              value: /data/home
+            - name: T3CODE_HOME
+              value: /data/home/.t3
+            - name: AGENT_COORDINATOR_POLICY_DIRECTORY
+              value: /etc/agent-coordinator
+            - name: AGENT_COORDINATOR_PROJECT_ROOT
+              value: /data/workspaces/personal-site
+            - name: T3_ORIGIN
+              value: http://127.0.0.1:3773
+            - name: GH_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: t3-code-runtime
+                  key: GH_TOKEN
+                  optional: false
+          envFrom:
+            - secretRef:
+                name: t3-code-work-graph
+                optional: false
+          resources:
+            requests:
+              cpu: 100m
+              ephemeral-storage: 256Mi
+              memory: 256Mi
+            limits:
+              cpu: "2"
+              ephemeral-storage: 2Gi
+              memory: 2Gi
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            readOnlyRootFilesystem: true
+            seccompProfile:
+              type: RuntimeDefault
+          volumeMounts:
+            - name: agent-coordinator-vulnerability-controller
+              mountPath: /etc/agent-coordinator
+              readOnly: true
+            - name: agent-coordinator-vulnerability-runtime
+              mountPath: /opt/agent-coordinator
+              readOnly: true
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
         - name: docker
           image: docker:29.8.2-dind-rootless@sha256:c652fa9cebdaa3d655c33c6389c3c409f9a0fea6449c7d7c56c486fe71af0591
           env:
@@ -240,6 +293,10 @@ spec:
           configMap:
             name: agent-coordinator-vulnerability-controller
             defaultMode: 292
+        - name: agent-coordinator-vulnerability-runtime
+          configMap:
+            name: agent-coordinator-vulnerability-runtime
+            defaultMode: 365
         - name: gpu-benchmark-kubernetes-api
           projected:
             defaultMode: 292

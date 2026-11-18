@@ -18,6 +18,12 @@ from gtex_histology_source_data.source import (
     validate_acquisition,
 )
 
+HISTOLOGY_OUTPUT_FILENAME = "gtex-histology-images.jsonl"
+MOLECULAR_OUTPUT_FILENAME = "gtex-molecular-aliquots.jsonl"
+ANVIL_OUTPUT_FILENAME = "anvil-svs.jsonl"
+IDC_SERIES_OUTPUT_FILENAME = "idc-series.jsonl"
+IDC_INSTANCES_OUTPUT_FILENAME = "idc-instances.jsonl"
+
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
     with path.open(encoding="utf-8") as source:
@@ -253,13 +259,11 @@ def _expected_counts(manifest: SourceManifest) -> dict[str, int]:
     identities = {identity.name: identity for identity in manifest.identities}
     snapshots = {snapshot.name: snapshot for snapshot in manifest.snapshots}
     return {
-        "gtex-histology-images.jsonl": snapshots["gtex_histology_api"].expected_records,
-        "gtex-molecular-aliquots.jsonl": identities["GTEx Portal"].counts[
-            "v8_sample_attribute_rows"
-        ],
-        "anvil-svs.jsonl": snapshots["anvil_svs"].expected_records,
-        "idc-series.jsonl": snapshots["idc_series"].expected_records,
-        "idc-instances.jsonl": snapshots["idc_instances"].expected_records,
+        HISTOLOGY_OUTPUT_FILENAME: snapshots["gtex_histology_api"].expected_records,
+        MOLECULAR_OUTPUT_FILENAME: identities["GTEx Portal"].counts["v8_sample_attribute_rows"],
+        ANVIL_OUTPUT_FILENAME: snapshots["anvil_svs"].expected_records,
+        IDC_SERIES_OUTPUT_FILENAME: snapshots["idc_series"].expected_records,
+        IDC_INSTANCES_OUTPUT_FILENAME: snapshots["idc_instances"].expected_records,
     }
 
 
@@ -289,15 +293,19 @@ def build_product(root: Path = PROJECT_DIR) -> dict[str, Any]:
     complete = False
     try:
         counts = {
-            "gtex-histology-images.jsonl": _write_jsonl(
-                temporary / "gtex-histology-images.jsonl", histology
+            HISTOLOGY_OUTPUT_FILENAME: _write_jsonl(
+                temporary / HISTOLOGY_OUTPUT_FILENAME, histology
             ),
-            "gtex-molecular-aliquots.jsonl": _write_jsonl(
-                temporary / "gtex-molecular-aliquots.jsonl", molecular
+            MOLECULAR_OUTPUT_FILENAME: _write_jsonl(
+                temporary / MOLECULAR_OUTPUT_FILENAME, molecular
             ),
-            "anvil-svs.jsonl": _write_jsonl(temporary / "anvil-svs.jsonl", anvil),
-            "idc-series.jsonl": _write_jsonl(temporary / "idc-series.jsonl", series),
-            "idc-instances.jsonl": _write_jsonl(temporary / "idc-instances.jsonl", instances),
+            ANVIL_OUTPUT_FILENAME: _write_jsonl(temporary / ANVIL_OUTPUT_FILENAME, anvil),
+            IDC_SERIES_OUTPUT_FILENAME: _write_jsonl(
+                temporary / IDC_SERIES_OUTPUT_FILENAME, series
+            ),
+            IDC_INSTANCES_OUTPUT_FILENAME: _write_jsonl(
+                temporary / IDC_INSTANCES_OUTPUT_FILENAME, instances
+            ),
         }
         expected = _expected_counts(manifest)
         _require_counts(counts, expected)

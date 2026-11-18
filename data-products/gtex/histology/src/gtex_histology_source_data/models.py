@@ -5,6 +5,8 @@ from typing import Literal, Self
 
 from pydantic import AnyHttpUrl, BaseModel, ConfigDict, Field, model_validator
 
+SHA256_PATTERN = r"^[a-f0-9]{64}$"
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -15,7 +17,7 @@ class Artifact(StrictModel):
     url: AnyHttpUrl
     bytes: int = Field(gt=0)
     md5: str = Field(pattern=r"^[a-f0-9]{32}$")
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: str = Field(pattern=SHA256_PATTERN)
     media_type: str = Field(min_length=1)
 
 
@@ -23,7 +25,7 @@ class Snapshot(StrictModel):
     name: Literal["gtex_histology_api", "anvil_svs", "idc_series", "idc_instances"]
     endpoint: AnyHttpUrl
     expected_records: int = Field(gt=0)
-    canonical_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    canonical_sha256: str = Field(pattern=SHA256_PATTERN)
 
 
 class PublisherIdentity(StrictModel):
@@ -97,7 +99,7 @@ class AcquisitionFile(StrictModel):
     name: str
     records: int | None = None
     bytes: int = Field(ge=0)
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: str = Field(pattern=SHA256_PATTERN)
 
 
 class AcquisitionEvidence(StrictModel):

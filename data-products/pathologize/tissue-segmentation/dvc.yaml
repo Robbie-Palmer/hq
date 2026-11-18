@@ -1,0 +1,26 @@
+stages:
+  build_contract_fixture:
+    cmd: uv run --locked tissue-segmentation-data build
+    deps:
+      - .python-version
+      - adapters
+      - imports.json
+      - ontologies
+      - products
+      - pyproject.toml
+      - src/tissue_segmentation_dataset
+      - tests/fixtures
+      - uv.lock
+      - ../../../packages/data-artifacts/pyproject.toml
+      - ../../../packages/data-artifacts/src/data_artifacts
+      - ../../segpath/registered-if-masks/dvc.lock
+      - ../../segpath/registered-if-masks/manifest.json
+      - ../../segpath/registered-if-masks/src/segpath_source_data/models.py
+    outs:
+      - outputs/records.jsonl
+      - outputs/partitions.json
+      - outputs/lineage.json
+      - outputs/reconciliation.json
+      - outputs/assay-provenance.json
+    metrics:
+      - outputs/metrics.json

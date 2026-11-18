@@ -9,5 +9,5 @@ when {
   resource.state == "open" &&
   ["high", "critical"].contains(resource.severity) &&
   context.activeIncidentCount < 1 &&
-  context.routeMatchesCurrentState
+  context.providerStateFresh
 };

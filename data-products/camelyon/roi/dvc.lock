@@ -1,0 +1,201 @@
+schema: '2.0'
+stages:
+  publish_native_contract:
+    cmd: uv run --locked camelyon-roi-product publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts/source.json
+      hash: md5
+      md5: 1767f98b04cc1628b26bebfc5e93f375
+      size: 5635
+    - path: data/metadata
+      hash: md5
+      md5: 88ca62c89be3adaf4d54432a68ea99ac.dir
+      size: 398873
+      nfiles: 7
+    - path: data/raw/CAMELYON16/testing/lesion_annotations.zip
+      hash: md5
+      md5: ed03f33283b5c4fdbf76d2a89751efdc
+      size: 2717614
+    - path: data/raw/CAMELYON16/training/lesion_annotations.zip
+      hash: md5
+      md5: 8a80d325a58b835c2da5b46c543767a3
+      size: 7693371
+    - path: data/raw/CAMELYON17/training/lesion_annotations.zip
+      hash: md5
+      md5: 794508a5f01146a843505d29a4b495b0
+      size: 337341
+    - path: pyproject.toml
+      hash: md5
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
+    - path: src/camelyon_roi_product
+      hash: md5
+      md5: bbbc560dc64e763f3814cce5936e3c0c.dir
+      size: 34527
+      nfiles: 6
+    - path: uv.lock
+      hash: md5
+      md5: 17174f89a6e938e46a7a6efef762517c
+      size: 38989
+    outs:
+    - path: outputs/artifact-references.json
+      hash: md5
+      md5: ab073a5258fd62520c62b2e64043aa0e
+      size: 233486
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 50eee62e0c0e874f9f7480390e24206b
+      size: 227
+    - path: outputs/native-records.jsonl
+      hash: md5
+      md5: e3b7fed97471ae5c3ca49a3a21edcfd1
+      size: 354767
+  acquire_publisher_metadata:
+    cmd: uv run --locked camelyon-roi-product acquire_metadata
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts/source.json
+      hash: md5
+      md5: 1767f98b04cc1628b26bebfc5e93f375
+      size: 5635
+    - path: pyproject.toml
+      hash: md5
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
+    - path: src/camelyon_roi_product/acquisition.py
+      hash: md5
+      md5: 075c0b586a46bb0ec683be3d8e36bbb7
+      size: 10747
+    - path: src/camelyon_roi_product/cli.py
+      hash: md5
+      md5: 855971170383da3f908048c340b53678
+      size: 2612
+    - path: src/camelyon_roi_product/models.py
+      hash: md5
+      md5: 84ddba4592c162fa23bdbcc59bfffcd8
+      size: 4442
+    - path: src/camelyon_roi_product/product.py
+      hash: md5
+      md5: 91994ceb275f715f22aa4344d3092841
+      size: 5907
+    - path: uv.lock
+      hash: md5
+      md5: 17174f89a6e938e46a7a6efef762517c
+      size: 38989
+    outs:
+    - path: data/metadata
+      hash: md5
+      md5: 88ca62c89be3adaf4d54432a68ea99ac.dir
+      size: 398873
+      nfiles: 7
+  acquire_annotation_archives:
+    cmd: uv run --locked camelyon-roi-product acquire_annotation_archives
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts/source.json
+      hash: md5
+      md5: 1767f98b04cc1628b26bebfc5e93f375
+      size: 5635
+    - path: pyproject.toml
+      hash: md5
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
+    - path: src/camelyon_roi_product/acquisition.py
+      hash: md5
+      md5: 075c0b586a46bb0ec683be3d8e36bbb7
+      size: 10747
+    - path: src/camelyon_roi_product/cli.py
+      hash: md5
+      md5: 855971170383da3f908048c340b53678
+      size: 2612
+    - path: src/camelyon_roi_product/models.py
+      hash: md5
+      md5: 84ddba4592c162fa23bdbcc59bfffcd8
+      size: 4442
+    - path: src/camelyon_roi_product/product.py
+      hash: md5
+      md5: 91994ceb275f715f22aa4344d3092841
+      size: 5907
+    - path: uv.lock
+      hash: md5
+      md5: 17174f89a6e938e46a7a6efef762517c
+      size: 38989
+    outs:
+    - path: data/raw/CAMELYON16/testing/lesion_annotations.zip
+      hash: md5
+      md5: ed03f33283b5c4fdbf76d2a89751efdc
+      size: 2717614
+    - path: data/raw/CAMELYON16/training/lesion_annotations.zip
+      hash: md5
+      md5: 8a80d325a58b835c2da5b46c543767a3
+      size: 7693371
+    - path: data/raw/CAMELYON17/training/lesion_annotations.zip
+      hash: md5
+      md5: 794508a5f01146a843505d29a4b495b0
+      size: 337341
+  index_native_annotations:
+    cmd: uv run --locked camelyon-roi-product index_annotations
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts/source.json
+      hash: md5
+      md5: 1767f98b04cc1628b26bebfc5e93f375
+      size: 5635
+    - path: data/raw/CAMELYON16/testing/lesion_annotations.zip
+      hash: md5
+      md5: ed03f33283b5c4fdbf76d2a89751efdc
+      size: 2717614
+    - path: data/raw/CAMELYON16/training/lesion_annotations.zip
+      hash: md5
+      md5: 8a80d325a58b835c2da5b46c543767a3
+      size: 7693371
+    - path: data/raw/CAMELYON17/training/lesion_annotations.zip
+      hash: md5
+      md5: 794508a5f01146a843505d29a4b495b0
+      size: 337341
+    - path: pyproject.toml
+      hash: md5
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
+    - path: src/camelyon_roi_product/acquisition.py
+      hash: md5
+      md5: 075c0b586a46bb0ec683be3d8e36bbb7
+      size: 10747
+    - path: src/camelyon_roi_product/cli.py
+      hash: md5
+      md5: 855971170383da3f908048c340b53678
+      size: 2612
+    - path: src/camelyon_roi_product/models.py
+      hash: md5
+      md5: 84ddba4592c162fa23bdbcc59bfffcd8
+      size: 4442
+    - path: src/camelyon_roi_product/product.py
+      hash: md5
+      md5: 91994ceb275f715f22aa4344d3092841
+      size: 5907
+    - path: uv.lock
+      hash: md5
+      md5: 17174f89a6e938e46a7a6efef762517c
+      size: 38989
+    outs:
+    - path: outputs/annotation-metrics.json
+      hash: md5
+      md5: 354ef816544019ecbe5f789865f160ef
+      size: 74
+    - path: outputs/lesion-annotations.jsonl
+      hash: md5
+      md5: 5a007ec2aa990fb060d35fff269283a1
+      size: 57507690

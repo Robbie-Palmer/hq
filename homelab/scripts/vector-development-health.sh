@@ -9,6 +9,9 @@ vector_development_prepare_ssh "${target}"
 
 ssh "${VECTOR_DEVELOPMENT_SSH_OPTIONS[@]}" "${target}" 'bash -se' <<'REMOTE'
 set -euo pipefail
+trap 'status=$?
+  printf "Vector health check failed at remote line %s: %s\n" "$LINENO" "$BASH_COMMAND" >&2
+  exit "$status"' ERR
 test "$(hostname)" = vector-development
 test "$(id -u robbie)" = 1000
 test "$(id -u t3code)" = 2000
