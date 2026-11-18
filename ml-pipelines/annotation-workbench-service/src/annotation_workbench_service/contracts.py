@@ -135,8 +135,11 @@ def _validate_item_asset_references(
         ],
     ]
     missing = sorted(
-        {asset_id for asset_id, _expected_kind, _description in expected_roles}
-        - set(assets_by_id)
+        {
+            asset_id
+            for asset_id, _expected_kind, _description in expected_roles
+            if asset_id not in assets_by_id
+        }
     )
     if missing:
         raise ValueError(f"item {item.id} references missing assets: {missing}")
