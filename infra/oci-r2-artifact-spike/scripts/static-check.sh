@@ -26,15 +26,17 @@ case "$mode" in
     fi
     ;;
   test)
-    if env -u R2_ENDPOINT -u R2_ACCESS_KEY_ID -u R2_SECRET_ACCESS_KEY -u R2_BUCKET_PREFIX \
+    if env -u R2_ENDPOINT -u R2_BUCKET -u AWS_ACCESS_KEY_ID -u AWS_SECRET_ACCESS_KEY \
+      -u AWS_SESSION_TOKEN \
       bash scripts/run-live.sh --preflight >/dev/null 2>&1; then
       echo "Preflight accepted missing credentials" >&2
       exit 1
     fi
     R2_ENDPOINT=https://example.r2.cloudflarestorage.com \
-      R2_ACCESS_KEY_ID=fixture-access-key \
-      R2_SECRET_ACCESS_KEY=fixture-secret-key \
-      R2_BUCKET_PREFIX=oci-r2-spike-test \
+      R2_BUCKET=hq-oci-r2-canary-fixture \
+      AWS_ACCESS_KEY_ID=fixture-access-key \
+      AWS_SECRET_ACCESS_KEY=fixture-secret-key \
+      AWS_SESSION_TOKEN=fixture-session-token \
       bash scripts/run-live.sh --preflight | grep -Fq 'accepted without making requests'
     for image_variable in AWS_CLI_IMAGE HTTPD_IMAGE ZOT_IMAGE ZOT_PREVIOUS_IMAGE; do
       [[ "${!image_variable}" == *@sha256:* ]] || {
@@ -43,7 +45,7 @@ case "$mode" in
       }
     done
     if rg -n --hidden --glob '!scripts/static-check.sh' \
-      '(R2_SECRET_ACCESS_KEY|AWS_SECRET_ACCESS_KEY)[[:space:]]*=[[:space:]]*[^$<{[:space:]]+' .; then
+      '(CLOUDFLARE_R2_PARENT_CREDENTIALS|AWS_SECRET_ACCESS_KEY|AWS_SESSION_TOKEN)[[:space:]]*=[[:space:]]*[^$<{[:space:]]+' .; then
       echo "A credential value appears to be committed" >&2
       exit 1
     fi
@@ -60,7 +62,9 @@ case "$mode" in
       .provider == "cloudflare-r2" and
       .implementation == "zot" and
       .credentialsPersisted == false and
+      .credentialScope == "one disposable bucket" and
       .teardown.bucketDeleted == true and
+      .teardown.scopeProbeBucketDeleted == true and
       ([.results[].status] | all(. == "pass")) and
       (.results | map(.requirement) | sort) == ([
         "authentication", "conditional-and-concurrent-writes", "export",

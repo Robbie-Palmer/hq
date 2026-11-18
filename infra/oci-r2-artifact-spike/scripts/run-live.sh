@@ -7,7 +7,7 @@ cd "$project_root"
 source versions.env
 export PATH="$repository_root/infra/oci-registry-spike/.cache/bin:$PATH"
 
-required=(R2_ENDPOINT R2_ACCESS_KEY_ID R2_SECRET_ACCESS_KEY R2_BUCKET_PREFIX)
+required=(R2_ENDPOINT R2_BUCKET AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN)
 for variable in "${required[@]}"; do
   if [[ -z "${!variable:-}" ]]; then
     echo "$variable is required for the live R2 spike" >&2
@@ -18,12 +18,10 @@ if [[ ! "$R2_ENDPOINT" =~ ^https://[a-zA-Z0-9.-]+\.r2\.cloudflarestorage\.com/?$
   echo "R2_ENDPOINT must be a canonical Cloudflare R2 S3 endpoint" >&2
   exit 2
 fi
-if [[ ! "$R2_BUCKET_PREFIX" =~ ^[a-z0-9][a-z0-9-]{2,29}[a-z0-9]$ ]]; then
-  echo "R2_BUCKET_PREFIX must be 4-31 lowercase letters, digits, or interior hyphens" >&2
+if [[ ! "$R2_BUCKET" =~ ^[a-z0-9][a-z0-9-]{1,62}$ ]]; then
+  echo "R2_BUCKET must be a valid R2 bucket name" >&2
   exit 2
 fi
-export AWS_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
-export AWS_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
 if [[ "${1:-}" == "--preflight" ]]; then
   echo "Live R2 inputs accepted without making requests or persisting credentials."
   exit 0
@@ -47,28 +45,27 @@ request_log="$run_root/direct-r2-request-classes.log"
 container_name=oci-r2-artifact-spike-zot
 registry_endpoint="localhost:$ZOT_PORT"
 registry_url="http://$registry_endpoint" # NOSONAR: loopback-only disposable registry.
-bucket="$R2_BUCKET_PREFIX-$(date -u +%s)-$(openssl rand -hex 3)"
+bucket="$R2_BUCKET"
 registry_username=spike
 registry_password="$(openssl rand -hex 24)"
-cleanup_complete=0
 
 [[ "$run_root" == "$project_root/.artifacts/run" ]]
-rm -rf "$run_root" "$state_root"
-mkdir -p "$run_root/logs" "$fixture_root" "$state_root/auth" "$state_root/config" "$state_root/oras"
+rm -rf "$run_root"
+rm -rf "$state_root/auth" "$state_root/config" "$state_root/helm" "$state_root/oras"
+mkdir -p "$run_root/logs" "$fixture_root" "$state_root/auth" "$state_root/config" "$state_root/helm" "$state_root/oras"
 : > "$results_file"
 : > "$request_log"
-printf '%s\n' "$bucket" > "$state_root/bucket"
-chmod 600 "$state_root/bucket"
 
 r2() {
   case "$1:$2" in
-    s3api:head-*|s3api:get-*|s3api:list-*) printf 'B\n' >> "$request_log" ;;
-    s3:rm) printf 'A\nB\n' >> "$request_log" ;;
+    s3api:head-*|s3api:get-*) printf 'B\n' >> "$request_log" ;;
+    s3:rm) printf 'A\nA\n' >> "$request_log" ;;
     *) printf 'A\n' >> "$request_log" ;;
   esac
   docker run --rm \
     --env AWS_ACCESS_KEY_ID \
     --env AWS_SECRET_ACCESS_KEY \
+    --env AWS_SESSION_TOKEN \
     --env AWS_DEFAULT_REGION=auto \
     --env AWS_EC2_METADATA_DISABLED=true \
     --volume "$run_root:/work" \
@@ -111,6 +108,7 @@ start_zot() {
     --publish "127.0.0.1:$ZOT_PORT:5000" \
     --env AWS_ACCESS_KEY_ID \
     --env AWS_SECRET_ACCESS_KEY \
+    --env AWS_SESSION_TOKEN \
     --volume "$config:/etc/zot/config.json:ro" \
     --volume "$state_root/auth/htpasswd:/etc/zot/registry-htpasswd:ro" \
     "$image" serve /etc/zot/config.json >/dev/null
@@ -137,18 +135,11 @@ blob_key_for() {
 
 emergency_cleanup() {
   docker rm --force "$container_name" >/dev/null 2>&1 || true
-  if [[ "$cleanup_complete" -eq 0 ]]; then
-    R2_BUCKET="$bucket" bash scripts/teardown.sh >/dev/null 2>&1 || \
-      echo "Automatic R2 teardown failed; rerun mise //infra/oci-r2-artifact-spike:teardown with the same credentials" >&2
-  fi
   unset registry_password
-  unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY
-  rm -rf "$state_root/auth" "$state_root/oras"
+  unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
+  rm -rf "$state_root/auth" "$state_root/helm" "$state_root/oras"
 }
 trap emergency_cleanup EXIT
-
-echo "Creating disposable R2 bucket $bucket"
-r2 s3api create-bucket --bucket "$bucket" >/dev/null
 
 invalid_secret=invalid
 if AWS_SECRET_ACCESS_KEY=${invalid_secret} r2 s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
@@ -166,7 +157,7 @@ start_zot "$ZOT_PREVIOUS_IMAGE" "$state_root/config/zot.json"
 [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' "$registry_url/v2/")" == 401 ]]
 [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --user "$registry_username:wrong" "$registry_url/v2/")" == 401 ]]
 [[ "$(curl --silent --output /dev/null --write-out '%{http_code}' --user "$registry_username:$registry_password" "$registry_url/v2/")" == 200 ]]
-record authentication "R2 rejected an invalid S3 secret; zot rejected missing and invalid registry credentials"
+record authentication "The temporary R2 session rejected an invalid secret; zot rejected missing and invalid registry credentials"
 
 printf '%s' "$registry_password" | oras login "${oras_auth[@]}" \
   --username "$registry_username" --password-stdin "$registry_endpoint"
@@ -233,6 +224,7 @@ dd if=/dev/zero of="$fixture_root/model/model.bin" bs=1M count=16 status=none
   --artifact-type application/vnd.cncf.model.file.v1 \
   "$registry_endpoint/spike/model:v1" model.bin:application/octet-stream)
 helm package fixtures/chart --destination "$fixture_root/chart" >/dev/null
+export HELM_REGISTRY_CONFIG="$state_root/helm/config.json"
 printf '%s' "$registry_password" | helm registry login "$registry_endpoint" \
   --username "$registry_username" --password-stdin --plain-http
 helm push "$fixture_root/chart/oci-r2-spike-0.1.0.tgz" \
@@ -281,6 +273,7 @@ docker run --rm \
   --user 65532:65532 \
   --env AWS_ACCESS_KEY_ID \
   --env AWS_SECRET_ACCESS_KEY \
+  --env AWS_SESSION_TOKEN \
   --volume "$state_root/config/zot.json:/etc/zot/config.json:ro" \
   --volume "$state_root/auth/htpasswd:/etc/zot/registry-htpasswd:ro" \
   "$ZOT_IMAGE" scrub /etc/zot/config.json > "$run_root/logs/scrub.log" 2>&1
@@ -311,15 +304,18 @@ gc_key="$(blob_key_for "$gc_hex")"
 oras manifest delete "${oras_auth[@]}" --force "$registry_endpoint/spike/gc@$gc_digest"
 start_zot "$ZOT_IMAGE" "$state_root/config/zot-gc.json"
 for _ in $(seq 1 30); do
-  if ! r2 s3api head-object --bucket "$bucket" --key "$gc_key" >/dev/null 2>&1; then
+  gc_error="$run_root/logs/gc-head-object.log"
+  if ! r2 s3api head-object --bucket "$bucket" --key "$gc_key" >/dev/null 2>"$gc_error"; then
+    grep -Eqi '(404|NoSuchKey|Not Found)' "$gc_error"
     break
   fi
   sleep 1
 done
-if r2 s3api head-object --bucket "$bucket" --key "$gc_key" >/dev/null 2>&1; then
+if r2 s3api head-object --bucket "$bucket" --key "$gc_key" >/dev/null 2>"$gc_error"; then
   echo "zot garbage collection left the unreferenced R2 blob" >&2
   exit 1
 fi
+grep -Eqi '(404|NoSuchKey|Not Found)' "$gc_error"
 start_zot "$ZOT_IMAGE" "$state_root/config/zot.json"
 record garbage-collection "A dedicated aggressive-GC run removed an unreferenced R2 blob"
 
@@ -330,20 +326,12 @@ storage_gb_month="$(jq -n --argjson bytes "$stored_bytes" '$bytes / 1000000000')
 storage_monthly_cost="$(jq -n --argjson gb "$storage_gb_month" '$gb * 0.015')"
 
 docker rm --force "$container_name" >/dev/null
-R2_BUCKET="$bucket" R2_REQUEST_LOG="$request_log" bash scripts/teardown.sh > "$run_root/logs/teardown.log"
-cleanup_complete=1
-record teardown "The canary emptied and deleted its disposable bucket, then verified HeadBucket failed"
 direct_class_a="$(grep -c '^A$' "$request_log")"
 direct_class_b="$(grep -c '^B$' "$request_log")"
 direct_request_cost="$(jq -n --argjson a "$direct_class_a" --argjson b "$direct_class_b" \
   '$a * 4.50 / 1000000 + $b * 0.36 / 1000000')"
 
-mkdir -p evidence
 jq -n \
-  --arg observedAt "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-  --arg revision "$(git -C "$repository_root" rev-parse HEAD)" \
-  --arg zotImage "$ZOT_IMAGE" \
-  --arg previousZotImage "$ZOT_PREVIOUS_IMAGE" \
   --argjson results "$(jq -s . "$results_file")" \
   --argjson objectCount "$object_count" \
   --argjson storedBytes "$stored_bytes" \
@@ -352,21 +340,6 @@ jq -n \
   --argjson storageMonthlyCost "$storage_monthly_cost" \
   --argjson directRequestCost "$direct_request_cost" \
   '{
-    schemaVersion: 1,
-    ticket: "pep-oci-artifact-storage-spike",
-    observedAt: $observedAt,
-    revision: $revision,
-    provider: "cloudflare-r2",
-    implementation: "zot",
-    credentialsPersisted: false,
-    configuration: {
-      region: "auto",
-      forcePathStyle: true,
-      signatureVersion: 4,
-      tls: true,
-      isolatedBucket: true
-    },
-    images: {current: $zotImage, previous: $previousZotImage},
     results: $results,
     measurements: {
       beforeTeardown: {objectCount: $objectCount, storedBytes: $storedBytes},
@@ -378,9 +351,7 @@ jq -n \
         directRequestCost: $directRequestCost,
         registryInternalRequestCost: "not observable with S3 credentials; use R2 account analytics for billing reconciliation"
       }
-    },
-    teardown: {bucketDeleted: true, credentialsRevocation: "owner action outside the S3 protocol"}
-  }' > evidence/scorecard.json
+    }
+  }' > "$run_root/consumer-evidence.json"
 
-echo "Live R2 canary passed and teardown was verified."
-echo "Evidence: infra/oci-r2-artifact-spike/evidence/scorecard.json"
+echo "Live R2 consumer checks passed; the broker now owns teardown."

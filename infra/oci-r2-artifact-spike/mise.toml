@@ -3,16 +3,19 @@ description = "Install the checksum-verified OCI clients shared with the local b
 depends = ["//infra/oci-registry-spike:install"]
 
 [tasks.preflight]
-description = "Validate the live R2 input contract without making requests"
+description = "Validate the brokered live R2 consumer contract without requests"
 run = "bash scripts/run-live.sh --preflight"
 
+[tasks.prepare]
+description = "Install broker and canary dependencies before parent credentials enter the environment"
+depends = ["install", "//packages/object-storage:install"]
+
 [tasks.live]
-description = "Run the destructive live-R2 zot canary and prove teardown"
-depends = ["install"]
-run = "bash scripts/run-live.sh"
+description = "Run the prepared live-R2 canary through temporary credentials and prove teardown"
+run = "bash scripts/run-brokered-live.sh"
 
 [tasks.teardown]
-description = "Remove a recorded disposable bucket after an interrupted canary"
+description = "Recover and remove broker-owned buckets after an interrupted canary"
 run = "bash scripts/teardown.sh"
 
 [tasks.format]

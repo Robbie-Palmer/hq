@@ -2,7 +2,7 @@
   "name": "object-storage",
   "version": "0.1.0",
   "private": true,
-  "description": "Shared encrypted object metadata and deletion verification contracts",
+  "description": "Shared object-storage contracts and protected R2 credential brokering",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -13,7 +13,9 @@
     "test:coverage": "vitest run --coverage"
   },
   "devDependencies": {
+    "@types/node": "^24",
     "@vitest/coverage-v8": "^5.0.0",
+    "tsx": "^4.23.12",
     "typescript": "^6.0.0",
     "vitest": "^5.0.0"
   }

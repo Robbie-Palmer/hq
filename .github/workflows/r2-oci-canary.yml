@@ -1,0 +1,57 @@
+name: R2 OCI Canary
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: r2-oci-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: production-cloudflare-token-bootstrap
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Prepare canary dependencies
+        run: mise //infra/oci-r2-artifact-spike:prepare
+
+      - name: Run canary through the temporary-credential broker
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_R2_PARENT_CREDENTIALS: ${{ secrets.CLOUDFLARE_R2_PARENT_CREDENTIALS }}
+        run: mise //infra/oci-r2-artifact-spike:live
+
+      - name: Retry cleanup after a broker failure
+        if: failure()
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_R2_PARENT_CREDENTIALS: ${{ secrets.CLOUDFLARE_R2_PARENT_CREDENTIALS }}
+          RECEIPT: infra/oci-r2-artifact-spike/.state/broker-receipt.json
+        run: |
+          if [[ -f "$RECEIPT" ]]; then
+            mise //infra/oci-r2-artifact-spike:teardown
+          fi
+
+      - name: Publish redacted evidence
+        env:
+          SCORECARD: infra/oci-r2-artifact-spike/evidence/scorecard.json
+        run: |
+          mise //infra/oci-r2-artifact-spike:evidence:check
+          {
+            echo '## R2 OCI canary evidence'
+            echo '```json'
+            jq . "$SCORECARD"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
