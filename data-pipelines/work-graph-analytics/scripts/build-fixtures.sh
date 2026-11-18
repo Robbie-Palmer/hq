@@ -3,7 +3,10 @@ set -euo pipefail
 
 project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work_dir="$(mktemp -d)"
-trap 'rm -rf "$work_dir"' EXIT
+cleanup() {
+  rm -rf "$work_dir"
+}
+trap cleanup EXIT
 
 output_root="$work_dir/published"
 retry_output_root="$work_dir/retry-published"
@@ -40,7 +43,8 @@ uv run --locked dbt build \
 uv run --locked work-graph-analytics publish \
   "$retry_output_root" fixture-v2 "$staging_root"
 
-uv run --locked python scripts/assert_fixture.py \
-  "$output_root/fixture-v1" \
-  "$output_root/fixture-v2" \
-  "$retry_output_root/fixture-v2"
+(
+  cd "$work_dir"
+  uv run --project "$project_dir" --locked python \
+    "$project_dir/scripts/assert_fixture.py"
+)

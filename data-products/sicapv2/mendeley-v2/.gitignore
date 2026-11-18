@@ -1,0 +1,8 @@
+/data
+/outputs
+/.outputs.*
+/records/.publisher-metadata.json.*.part
+/.venv
+/.coverage
+/coverage.xml
+**/__pycache__/

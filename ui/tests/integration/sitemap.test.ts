@@ -24,6 +24,7 @@ const STATIC_ASSET_SEGMENTS = new Set(["recipe-site-design"]);
 // Compatibility and interactive app pages marked noindex — served but kept
 // out of the sitemap on purpose.
 const NOINDEX_PAGES = new Set([
+  "annotation-workbench",
   "initiatives",
   "recipes/admin/terms",
   "recipes/add",

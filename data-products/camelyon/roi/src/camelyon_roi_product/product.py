@@ -5,6 +5,8 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, cast
 
+from data_artifacts import files as artifact_files
+
 from camelyon_roi_product.models import ArtifactManifest, NativeRecord, SourceContract
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -22,8 +24,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def _write_json(path: Path, value: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    artifact_files.write_json(path, value)
 
 
 def _load_records(path: Path) -> list[NativeRecord]:
@@ -77,16 +78,8 @@ def _validate_native_semantics(records: list[NativeRecord]) -> None:
             raise ProductError(f"{record.record_id}: positive slide lacks an XML reference")
 
 
-def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
-    source = SourceContract.model_validate(_read_json(root / "contracts/source.json"))
-    artifacts = ArtifactManifest.model_validate(_read_json(root / "contracts/artifacts.json"))
-    records = _load_records(root / "records/native-records.json")
-    if source.dataset_id != artifacts.dataset_id:
-        raise ProductError("source and artifact dataset identifiers differ")
-    _validate_links(records, artifacts, source)
-    _validate_native_semantics(records)
-
-    challenge_counts = Counter(record.challenge for record in records)
+def _validate_scope_counts(records: list[NativeRecord], source: SourceContract) -> Counter[str]:
+    challenge_counts = Counter[str](record.challenge for record in records)
     if challenge_counts != Counter({"CAMELYON16": 399, "CAMELYON17": 50}):
         raise ProductError("native record counts differ from the declared source scope")
     role_counts = Counter((record.challenge, record.source_role) for record in records)
@@ -99,16 +92,26 @@ def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
     )
     if role_counts != expected_role_counts:
         raise ProductError("native record role counts differ from the declared source scope")
-    output = root / "outputs"
-    output.mkdir(parents=True, exist_ok=True)
-    (output / "native-records.jsonl").write_text(
-        "".join(
-            json.dumps(record.model_dump(mode="json"), sort_keys=True) + "\n" for record in records
-        ),
-        encoding="utf-8",
+    return challenge_counts
+
+
+def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
+    source = SourceContract.model_validate(_read_json(root / "contracts/source.json"))
+    artifacts = ArtifactManifest.model_validate(_read_json(root / "contracts/artifacts.json"))
+    records = _load_records(root / "records/native-records.json")
+    if source.dataset_id != artifacts.dataset_id:
+        raise ProductError("source and artifact dataset identifiers differ")
+    _validate_links(records, artifacts, source)
+    _validate_native_semantics(records)
+
+    challenge_counts = _validate_scope_counts(records, source)
+    output = artifact_files.resolve_under(root, "outputs")
+    artifact_files.write_jsonl(
+        artifact_files.resolve_under(output, "native-records.jsonl"),
+        (record.model_dump(mode="json") for record in records),
     )
-    _write_json(
-        output / "artifact-references.json",
+    artifact_files.write_json(
+        artifact_files.resolve_under(output, "artifact-references.json"),
         {
             "schema_version": "1.0.0",
             "dataset_id": source.dataset_id,
@@ -131,5 +134,5 @@ def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
             record.lesion_annotation is not None for record in records
         ),
     }
-    _write_json(output / "metrics.json", metrics)
+    artifact_files.write_json(artifact_files.resolve_under(output, "metrics.json"), metrics)
     return metrics

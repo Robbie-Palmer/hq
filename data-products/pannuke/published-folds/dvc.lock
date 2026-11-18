@@ -1,0 +1,95 @@
+schema: '2.0'
+stages:
+  verify_publisher_metadata:
+    cmd: uv run --locked pannuke-source-data verify-metadata
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: ce2211511533d35539ab2076dabc854e
+      size: 4793
+    - path: pyproject.toml
+      hash: md5
+      md5: eee8163071a181a9b16a81507c937cf6
+      size: 1112
+    - path: src/pannuke_source_data
+      hash: md5
+      md5: 80f01f79779adaae2dccfd6cf1f9cbba.dir
+      size: 20556
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: ce25c61744200dac1e84a3f8cf18ca5e
+      size: 38536
+    outs:
+    - path: outputs/publisher-metadata.json
+      hash: md5
+      md5: 4e419889034af188120a755c4e0bf9ee
+      size: 1014
+  acquire_native:
+    cmd: uv run --locked pannuke-source-data acquire
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: ce2211511533d35539ab2076dabc854e
+      size: 4793
+    - path: pyproject.toml
+      hash: md5
+      md5: eee8163071a181a9b16a81507c937cf6
+      size: 1112
+    - path: src/pannuke_source_data
+      hash: md5
+      md5: 80f01f79779adaae2dccfd6cf1f9cbba.dir
+      size: 20556
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: ce25c61744200dac1e84a3f8cf18ca5e
+      size: 38536
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: 655fe66cf80a1e5e041d1b8484029c6c.dir
+      size: 2077088504
+      nfiles: 4
+  index_native:
+    cmd: uv run --locked pannuke-source-data index
+    deps:
+    - path: data/raw
+      hash: md5
+      md5: 655fe66cf80a1e5e041d1b8484029c6c.dir
+      size: 2077088504
+      nfiles: 4
+    - path: manifest.json
+      hash: md5
+      md5: ce2211511533d35539ab2076dabc854e
+      size: 4793
+    - path: pyproject.toml
+      hash: md5
+      md5: eee8163071a181a9b16a81507c937cf6
+      size: 1112
+    - path: src/pannuke_source_data
+      hash: md5
+      md5: 80f01f79779adaae2dccfd6cf1f9cbba.dir
+      size: 20556
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: ce25c61744200dac1e84a3f8cf18ca5e
+      size: 38536
+    outs:
+    - path: outputs/native-index.jsonl
+      hash: md5
+      md5: 077a299896787ef47341fec3a2ccc1cd
+      size: 6513499
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: 9a14b66f68baca9e5cef23472ab896c6
+      size: 1668

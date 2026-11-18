@@ -70,12 +70,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 64fbddd9d6c95a222885b664f3c31294
-      size: 2415
+      md5: 77d6b7d695d91e1771df24d4f81233bd
+      size: 2711
     - path: uv.lock
       hash: md5
-      md5: b7f14431db9e106a193512fd6b5cf0fe
-      size: 146380
+      md5: 41f33abaf481de8db11a37d3e134e0c8
+      size: 198487
     outs:
     - path: data/synthetic
       hash: md5
@@ -144,12 +144,12 @@ stages:
       size: 65
     - path: pyproject.toml
       hash: md5
-      md5: 64fbddd9d6c95a222885b664f3c31294
-      size: 2415
+      md5: 77d6b7d695d91e1771df24d4f81233bd
+      size: 2711
     - path: uv.lock
       hash: md5
-      md5: b7f14431db9e106a193512fd6b5cf0fe
-      size: 146380
+      md5: 41f33abaf481de8db11a37d3e134e0c8
+      size: 198487
     outs:
     - path: outputs/runs
       hash: md5
@@ -177,18 +177,18 @@ stages:
       hash: md5
       md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
-    - path:
+    - path: 
         outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/failures.json
       hash: md5
       md5: f508b159fe9d8c3b2ebca9ac0e3f7e29
       size: 50
-    - path:
+    - path: 
         outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/predictions.jsonl
       hash: md5
       md5: d5a566bec9e3460ab4e09c5c160f8a61
       size: 2233
     outs:
-    - path:
+    - path: 
         outputs/evaluations/cell-analysis-contract-v1/deterministic-color-v1.json
       hash: md5
       md5: ad349d341f81003d619456511d0e2521
@@ -209,7 +209,7 @@ stages:
       hash: md5
       md5: d9bceb816daf9aef0482ff2a2640cb84
       size: 2524
-    - path:
+    - path: 
         outputs/evaluations/cell-analysis-contract-v1/deterministic-color-v1.json
       hash: md5
       md5: ad349d341f81003d619456511d0e2521
@@ -218,7 +218,7 @@ stages:
       hash: md5
       md5: dfd8b576efff23c4ff6c1bae53f6504c
       size: 65
-    - path:
+    - path: 
         outputs/runs/cell-analysis-contract-v1/deterministic-color-v1/run-record.json
       hash: md5
       md5: d1a4a979f57e6a45a74b3fe8d868247c
@@ -318,22 +318,22 @@ stages:
       hash: md5
       md5: 6c6100087f354963a81a922be5ad588e
       size: 2675862
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/outputs/metrics.json
       hash: md5
       md5: 0d13a343c9ff16dc261b25e5218da4c2
       size: 838
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/__init__.py
       hash: md5
       md5: acbc9cbca6a19a3d86549f03b96fbc3e
       size: 513
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/models.py
       hash: md5
       md5: 8259ff2107e8c8a53d203261182b7b8f
       size: 2850
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/src/nucleus_analysis_dataset/product.py
       hash: md5
       md5: 04e03bebe58441cf9e8397a195d34eca
@@ -405,7 +405,7 @@ stages:
   prepare_learned_artifacts:
     cmd: uv run --locked pathologize-cell-analysis learned acquire-artifacts
     deps:
-    - path:
+    - path: 
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/downloads.py
       hash: md5
       md5: fe46b316d09a96e80822f3120ba16e34
@@ -420,8 +420,8 @@ stages:
       size: 2019
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 2708ecbd737d4d945549e88d1946974b
-      size: 8548
+      md5: 063999f3a4fa4f3bf9b9a7662ee6de78
+      size: 8637
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
       md5: 6d520a2484f894e38b7336c7f7cee45e
@@ -441,30 +441,30 @@ stages:
             task: detect
             architecture: YOLO26n
             definition: ultralytics/cfg/models/26/yolo26.yaml
-            definition_url:
+            definition_url: 
               https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26.yaml
-            definition_sha256:
+            definition_sha256: 
               b1d1fa0c69eced64f9939536038bd8d697c32e72200b34187a767de431af7ef0
             weights: yolo26n.pt
-            weights_url:
+            weights_url: 
               https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
             weights_bytes: 5544453
-            weights_sha256:
+            weights_sha256: 
               9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef
             weights_license: AGPL-3.0-or-later
           segment:
             task: segment
             architecture: YOLO26n-seg
             definition: ultralytics/cfg/models/26/yolo26-seg.yaml
-            definition_url:
+            definition_url: 
               https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26-seg.yaml
-            definition_sha256:
+            definition_sha256: 
               53c0348a36a3e19bbc3bd4f695f50cbbfc97a3059f62e9b251f278ad74fdd7cb
             weights: yolo26n-seg.pt
-            weights_url:
+            weights_url: 
               https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n-seg.pt
             weights_bytes: 6719965
-            weights_sha256:
+            weights_sha256: 
               361fbfabab285c3237700b6bb91d7ecfa602cd945fffda8dbe1242829b71e73f
             weights_license: AGPL-3.0-or-later
         package:
@@ -498,7 +498,7 @@ stages:
       hash: md5
       md5: 34f2bfc5825209957d2f58c2781029a1
       size: 2114
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
       hash: md5
       md5: 657453f93aebb8f894188161e68d5499
@@ -507,12 +507,12 @@ stages:
       hash: md5
       md5: 6c6100087f354963a81a922be5ad588e
       size: 2675862
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/outputs/records.jsonl
       hash: md5
       md5: 32a8928cbe26e40e0b1c6d4affb894f1
       size: 2035255
-    - path:
+    - path: 
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/labels.py
       hash: md5
       md5: c603a5b5abea59f230bd3b025f6e4879
@@ -527,8 +527,8 @@ stages:
       size: 2019
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 2708ecbd737d4d945549e88d1946974b
-      size: 8548
+      md5: 063999f3a4fa4f3bf9b9a7662ee6de78
+      size: 8637
     - path: src/pathologize_cell_analysis/data.py
       hash: md5
       md5: 76cad890f324a54e56a02e91c0070398
@@ -557,12 +557,12 @@ stages:
   train_nucls_learned:
     cmd: uv run --locked pathologize-cell-analysis learned train
     deps:
-    - path:
+    - path: 
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
       hash: md5
       md5: e78958d02659e80728a6abde8e96de32
       size: 3012
-    - path:
+    - path: 
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/recovery.py
       hash: md5
       md5: 101afbaa5736ab301d3a67260f88f650
@@ -587,16 +587,16 @@ stages:
       size: 2019
     - path: src/pathologize_cell_analysis/contracts.py
       hash: md5
-      md5: 2708ecbd737d4d945549e88d1946974b
-      size: 8548
+      md5: 063999f3a4fa4f3bf9b9a7662ee6de78
+      size: 8637
     - path: src/pathologize_cell_analysis/learned_baseline/config.py
       hash: md5
       md5: 6d520a2484f894e38b7336c7f7cee45e
       size: 1659
     - path: src/pathologize_cell_analysis/learned_baseline/task_training.py
       hash: md5
-      md5: 7a5739b5a5fc0a17cb8641005d245a3b
-      size: 17542
+      md5: 09b98ac6c85a2a0fa39ab2e3be58da6e
+      size: 22899
     - path: src/pathologize_cell_analysis/learned_baseline/training.py
       hash: md5
       md5: 17e08f577388d3aa86893d5073bca657
@@ -620,30 +620,30 @@ stages:
             task: detect
             architecture: YOLO26n
             definition: ultralytics/cfg/models/26/yolo26.yaml
-            definition_url:
+            definition_url: 
               https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26.yaml
-            definition_sha256:
+            definition_sha256: 
               b1d1fa0c69eced64f9939536038bd8d697c32e72200b34187a767de431af7ef0
             weights: yolo26n.pt
-            weights_url:
+            weights_url: 
               https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
             weights_bytes: 5544453
-            weights_sha256:
+            weights_sha256: 
               9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef
             weights_license: AGPL-3.0-or-later
           segment:
             task: segment
             architecture: YOLO26n-seg
             definition: ultralytics/cfg/models/26/yolo26-seg.yaml
-            definition_url:
+            definition_url: 
               https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26-seg.yaml
-            definition_sha256:
+            definition_sha256: 
               53c0348a36a3e19bbc3bd4f695f50cbbfc97a3059f62e9b251f278ad74fdd7cb
             weights: yolo26n-seg.pt
-            weights_url:
+            weights_url: 
               https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n-seg.pt
             weights_bytes: 6719965
-            weights_sha256:
+            weights_sha256: 
               361fbfabab285c3237700b6bb91d7ecfa602cd945fffda8dbe1242829b71e73f
             weights_license: AGPL-3.0-or-later
         package:
@@ -656,20 +656,31 @@ stages:
           detect: 20261107
           segment: 20261108
         stop_rules:
-        - Stop before training if source rights, official folds, patient IDs,
-          slide IDs, empty images, ignored categories, or pixel coordinates
+        - Stop before training if source rights, official folds, patient IDs, 
+          slide IDs, empty images, ignored categories, or pixel coordinates 
           cannot be preserved.
-        - Stop before training if golden label conversion or coordinate
+        - Stop before training if golden label conversion or coordinate 
           round-trip tests fail.
-        - Stop a task at 40 epochs, after 8 epochs without validation
+        - Stop a task at 40 epochs, after 8 epochs without validation 
           improvement, or after 4 wall-clock hours, whichever comes first.
         - Stop the experiment before aggregate GPU time exceeds 86400 seconds or
           peak allocation exceeds 12884901888 bytes.
-        - Do not train a larger model in this experiment. A larger follow-up
-          requires separate authorization and a measured quality case from
+        - Do not train a larger model in this experiment. A larger follow-up 
+          requires separate authorization and a measured quality case from 
           validation results.
-        - Reject promotion if the learned result has conversion failures,
-          violates leakage boundaries, or fails to improve the corresponding
+        - Stop before training if the segmentation initialization audit does not
+          prove that every shared backbone and neck tensor, and no task-head 
+          tensor, comes from the completed NuCLS detector checkpoint.
+        - Stop before frozen-test inference unless segmentation validation mask 
+          mAP50-95 improves by at least 0.005 over 0.12477, segmentation 
+          validation mask mAP50 is at least 0.26981, and detection validation 
+          box mAP50-95 remains within 0.005 of 0.18600.
+        - Reject the intervention if prediction conversion fails, detection 
+          localization F1 falls by more than 0.005 from 0.52067, segmentation 
+          localization F1 improves by less than 0.01 from 0.61123, or 
+          conditional polygon mean IoU falls below 0.75976.
+        - Reject promotion if the learned result has conversion failures, 
+          violates leakage boundaries, or fails to improve the corresponding 
           transparent-baseline task without an explicit failure analysis.
         training:
           device: 0
@@ -691,6 +702,7 @@ stages:
           rectangular_batches: false
           multi_scale: false
           close_mosaic_epochs: 10
+          segment_initialization: detect_checkpoint_backbone_neck
           augmentation:
             hsv_h: 0.015
             hsv_s: 0.7
@@ -710,9 +722,9 @@ stages:
     outs:
     - path: outputs/learned-baseline/training
       hash: md5
-      md5: 43595db29e036012cedd506d0cc29a2e.dir
-      size: 24135496
-      nfiles: 9
+      md5: 7151f43b1025c9ba63f1a79dc34a0f05.dir
+      size: 24137501
+      nfiles: 12
   predict_nucls_learned:
     cmd: uv run --locked pathologize-cell-analysis learned predict
     deps:
@@ -720,7 +732,7 @@ stages:
       hash: md5
       md5: 34f2bfc5825209957d2f58c2781029a1
       size: 2114
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
       hash: md5
       md5: 657453f93aebb8f894188161e68d5499
@@ -729,7 +741,7 @@ stages:
       hash: md5
       md5: 6c6100087f354963a81a922be5ad588e
       size: 2675862
-    - path:
+    - path: 
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/results.py
       hash: md5
       md5: c5b0be027fbab71381c978d3628239a7
@@ -813,7 +825,7 @@ stages:
       hash: md5
       md5: 34f2bfc5825209957d2f58c2781029a1
       size: 2114
-    - path:
+    - path: 
         ../../data-products/pathologize/nucleus-analysis/ontologies/source-preserving.json
       hash: md5
       md5: 657453f93aebb8f894188161e68d5499
@@ -822,7 +834,7 @@ stages:
       hash: md5
       md5: 6c6100087f354963a81a922be5ad588e
       size: 2675862
-    - path:
+    - path: 
         ../../packages/ultralytics-extensions/src/ultralytics_extensions/checkpoints.py
       hash: md5
       md5: e78958d02659e80728a6abde8e96de32
@@ -939,30 +951,30 @@ stages:
             task: detect
             architecture: YOLO26n
             definition: ultralytics/cfg/models/26/yolo26.yaml
-            definition_url:
+            definition_url: 
               https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26.yaml
-            definition_sha256:
+            definition_sha256: 
               b1d1fa0c69eced64f9939536038bd8d697c32e72200b34187a767de431af7ef0
             weights: yolo26n.pt
-            weights_url:
+            weights_url: 
               https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n.pt
             weights_bytes: 5544453
-            weights_sha256:
+            weights_sha256: 
               9b09cc8bf347f0fc8a5f7657480587f25db09b34bf33b0652110fb03a8ad4fef
             weights_license: AGPL-3.0-or-later
           segment:
             task: segment
             architecture: YOLO26n-seg
             definition: ultralytics/cfg/models/26/yolo26-seg.yaml
-            definition_url:
+            definition_url: 
               https://raw.githubusercontent.com/ultralytics/ultralytics/ae725d5cb20c2d849b864cd34fc15f5c55f877a5/ultralytics/cfg/models/26/yolo26-seg.yaml
-            definition_sha256:
+            definition_sha256: 
               53c0348a36a3e19bbc3bd4f695f50cbbfc97a3059f62e9b251f278ad74fdd7cb
             weights: yolo26n-seg.pt
-            weights_url:
+            weights_url: 
               https://github.com/ultralytics/assets/releases/download/v8.4.0/yolo26n-seg.pt
             weights_bytes: 6719965
-            weights_sha256:
+            weights_sha256: 
               361fbfabab285c3237700b6bb91d7ecfa602cd945fffda8dbe1242829b71e73f
             weights_license: AGPL-3.0-or-later
         package:
