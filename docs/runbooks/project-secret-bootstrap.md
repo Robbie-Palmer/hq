@@ -163,8 +163,9 @@ and one-time token value from Cloudflare. It derives the S3 secret as the
 SHA-256 digest of that value, following Cloudflare's R2 authentication
 contract. The JSON contains `apiToken`, `accessKeyId`, and `secretAccessKey`.
 Do not split fields in a shell command, print them, or copy them to a routine
-deployment environment. The temporary-credential broker reads the JSON only
-inside the protected job and gives consumers shorter-lived credentials.
+deployment environment. Once available, the temporary-credential broker will
+read the JSON only inside the protected job and give consumers shorter-lived
+credentials.
 
 Run the redacted plan and authority check before applying:
 
@@ -178,9 +179,16 @@ mise //:project:secret-bootstrap:conformance -- \
 Apply from the `Cloudflare Token Bootstrap` workflow with the
 `rotate-r2-parent-credentials` checkpoint acknowledged. Keep the old parent
 active until the replacement passes exact policy inspection and issues a
-working temporary credential. Revoke the old token by its privately recorded
-ID after that proof. If distribution fails after creation, revoke the orphan
-token before retrying the unchanged plan.
+working temporary credential.
+
+That temporary-credential proof is not available until Work Graph item
+`pep-r2-temporary-credential-broker` lands. Until its proof command is added to
+this runbook, an initial bootstrap may proceed, but a rotation must leave the
+previous parent token active. Do not treat exact policy inspection alone as
+proof and do not revoke the previous token. After the broker lands, use its
+documented proof command and revoke the old token by its privately recorded ID
+only after the proof succeeds. If distribution fails after creation, revoke
+the orphan token before retrying the unchanged plan.
 
 ### Provisioner rotation and parking
 
