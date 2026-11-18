@@ -1,0 +1,2894 @@
+[
+  {
+    "accession_id": "EGAF00008978622",
+    "extension": "fastq.gz",
+    "filesize": 1544507697,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a58c5ef336c9655fafcf2a727a371a0d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978623",
+    "extension": "fastq.gz",
+    "filesize": 4449571981,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "95a8b74fcbaa56b8556791effa3c243a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978624",
+    "extension": "fastq.gz",
+    "filesize": 4395422198,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b9ba23f16c5178833b9984140bc80b51",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978625",
+    "extension": "fastq.gz",
+    "filesize": 4250060083,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "8dbabbedd8118e00026a2a0190f32ce5",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978626",
+    "extension": "fastq.gz",
+    "filesize": 5614422366,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1bebedc93ce558bab59b3c56d14714fd",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978628",
+    "extension": "fastq.gz",
+    "filesize": 5728875476,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0bcba056cb0796264935b4b199c46764",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978630",
+    "extension": "fastq.gz",
+    "filesize": 5398942072,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "67f62722fb40a9f849f5331e58fa2b49",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978646",
+    "extension": "fastq.gz",
+    "filesize": 5582343796,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "715209f7414da5ce4e6af251f4090c64",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978683",
+    "extension": "fastq.gz",
+    "filesize": 5345163478,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "54b9eb06aed3711c8d29db8b3fc4a1e9",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008978692",
+    "extension": "fastq.gz",
+    "filesize": 5595605854,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "baa3debd8c256c561be41643531a0b95",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980185",
+    "extension": "fastq.gz",
+    "filesize": 1827895524,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "27834f5fd84760edad7b82e4c1133860",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980186",
+    "extension": "fastq.gz",
+    "filesize": 2955848524,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c39642560ee519d8eec729b6b62840c5",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980187",
+    "extension": "fastq.gz",
+    "filesize": 3474714619,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c340f2e86c14c42e6a439b91b3518d7a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980188",
+    "extension": "fastq.gz",
+    "filesize": 1763016208,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "34eac6bffba42c36b78ce147e862d18e",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980189",
+    "extension": "fastq.gz",
+    "filesize": 2602243895,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "826980be69314becc4c1436052cb6a06",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980190",
+    "extension": "fastq.gz",
+    "filesize": 2844357886,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f6cbe8fdba5509a90feffbc8c21fcea3",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980191",
+    "extension": "fastq.gz",
+    "filesize": 3603479181,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e914b00ee013d820415406c3b02b6f91",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980192",
+    "extension": "fastq.gz",
+    "filesize": 1140570536,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6018717e9dadff51b45af29a1353cfc4",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980193",
+    "extension": "fastq.gz",
+    "filesize": 3662462089,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "03ade2531063af1b2cdd0627a6838552",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980196",
+    "extension": "fastq.gz",
+    "filesize": 1324590686,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f74911f35748caf1a2baded0d9741b3d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980197",
+    "extension": "fastq.gz",
+    "filesize": 1688083298,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "605dfac662803881c0d6c6e0a3760dc4",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980198",
+    "extension": "fastq.gz",
+    "filesize": 2637458859,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b76cb7e41c1799a12363c4ac9f7fd4da",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980199",
+    "extension": "fastq.gz",
+    "filesize": 2741537094,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "560283ab746d01560a5d59ba4866fa7b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980200",
+    "extension": "fastq.gz",
+    "filesize": 3570616740,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "3e98e3bae4784902c2a883c9086e6ee0",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980201",
+    "extension": "fastq.gz",
+    "filesize": 1296703830,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f78b0d76a924da993cb98d915e7ad9d7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980202",
+    "extension": "fastq.gz",
+    "filesize": 2502346772,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "bd3266337452257899512d17b9a42f02",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980204",
+    "extension": "fastq.gz",
+    "filesize": 3508668589,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "11ff264f45c21c3365312d4b40706b8f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980205",
+    "extension": "fastq.gz",
+    "filesize": 5441202497,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f1ae82902bb06eb903dbabc3a2bd2bcf",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980206",
+    "extension": "fastq.gz",
+    "filesize": 1097868379,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "38da126f0534efc985624d42a169fb9b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980207",
+    "extension": "fastq.gz",
+    "filesize": 3303860591,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "ce85473dff1eaf91dee7c999ab616a32",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980208",
+    "extension": "fastq.gz",
+    "filesize": 1267095186,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0b2516a9b4bf65ab942416b7fec55ff0",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980209",
+    "extension": "fastq.gz",
+    "filesize": 5444638024,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6fb2e5283a175c66e13cf1bb509b310b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980210",
+    "extension": "fastq.gz",
+    "filesize": 1228008594,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1122d6204197bbf00ddc2fc9c0dddb43",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980211",
+    "extension": "fastq.gz",
+    "filesize": 2525495047,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0a1f53dffb68352c952c0ad83070044b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980212",
+    "extension": "fastq.gz",
+    "filesize": 6939753534,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "972709be81bc44efddc422c13eaf0b51",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980213",
+    "extension": "fastq.gz",
+    "filesize": 5275351819,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "575410d19deb089a820b87e211b17654",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980214",
+    "extension": "fastq.gz",
+    "filesize": 1474258815,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "4f1c9a5bde6360fc37103a856a2e3468",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980216",
+    "extension": "fastq.gz",
+    "filesize": 4963768500,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "bbaa2e439e9559eae5ed9b416dc635a0",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980217",
+    "extension": "fastq.gz",
+    "filesize": 4062870979,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "95a0cf9a8f3a6b5a02fe125e15a7ceb1",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980218",
+    "extension": "fastq.gz",
+    "filesize": 1296177477,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "07a45c6b7149e7c770852009fb172acc",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980219",
+    "extension": "fastq.gz",
+    "filesize": 3919574924,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "da8b7ed5f71531d32be258da29e88c14",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980220",
+    "extension": "fastq.gz",
+    "filesize": 3156252694,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "5543fc8042932c22efd81647014db94f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980221",
+    "extension": "fastq.gz",
+    "filesize": 1383661370,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0e4ff5e052ac5d2ec4b0118638904f13",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980222",
+    "extension": "fastq.gz",
+    "filesize": 1500813701,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "d644f6be2439bfee27eadc49c9209d46",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980223",
+    "extension": "fastq.gz",
+    "filesize": 1387335746,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1d82bbd687b772a49dcf8a7e87378f68",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980224",
+    "extension": "fastq.gz",
+    "filesize": 4457782329,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "88a9f0c748f72ffb02bd8489d7107ae1",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980225",
+    "extension": "fastq.gz",
+    "filesize": 6033992797,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "054c2e7fc71d469e8c2c59db2aac8b02",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980226",
+    "extension": "fastq.gz",
+    "filesize": 4848022114,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f42415a7be584c7bc90af8ff2b7027bd",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980227",
+    "extension": "fastq.gz",
+    "filesize": 1328621842,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "01d64bfee709eeda04e182a7ba467453",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980228",
+    "extension": "fastq.gz",
+    "filesize": 4386224451,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "fb93f9529c41701cc039e416f18c565a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980229",
+    "extension": "fastq.gz",
+    "filesize": 5573465750,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "694bc8d869771ec515cd916a159d5adf",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980230",
+    "extension": "fastq.gz",
+    "filesize": 1150473550,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "9d64edef42cea3773c03bd7c75b14309",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980231",
+    "extension": "fastq.gz",
+    "filesize": 3458024137,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "349bbbd3ab0c4d73254a19e9a7fcb516",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980232",
+    "extension": "fastq.gz",
+    "filesize": 6655128098,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "49a14fd4a6d92d81cec35dffc26d2b36",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980233",
+    "extension": "fastq.gz",
+    "filesize": 5299313042,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b4c5366dcf457806a4f970ea496a0f44",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980234",
+    "extension": "fastq.gz",
+    "filesize": 5046491366,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "14451c89643a285c8d0ada4077eb0a26",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980235",
+    "extension": "fastq.gz",
+    "filesize": 6050776421,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "cf7d9ade4121f6b40a415f41281b65e3",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980236",
+    "extension": "fastq.gz",
+    "filesize": 5435125370,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "80a826f443403b4d33440b153d24c4c9",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980237",
+    "extension": "fastq.gz",
+    "filesize": 4072462155,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b9a7d1a682a3deae09b4ee3bc7523684",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980238",
+    "extension": "fastq.gz",
+    "filesize": 1552888955,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "863279dd7aae4ed03a4b8a0639137f0a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980239",
+    "extension": "fastq.gz",
+    "filesize": 6900432688,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2f70feb6a7aaec7a546b44c41e578c20",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980240",
+    "extension": "fastq.gz",
+    "filesize": 1336765974,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "17c7d14ea96986bb642b6c8cf2c8b5f1",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980241",
+    "extension": "fastq.gz",
+    "filesize": 5774128918,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "4d667ff06361f095ca2eec4a987ac86d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980242",
+    "extension": "fastq.gz",
+    "filesize": 3475085778,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b472b4c3cd07b6d1e4fd985b8529b821",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980243",
+    "extension": "fastq.gz",
+    "filesize": 3623880908,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0993b278e27903239349fd0c61b3b356",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980244",
+    "extension": "fastq.gz",
+    "filesize": 1236601895,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "9461c866524002ca7006f4e3f68f0463",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980245",
+    "extension": "fastq.gz",
+    "filesize": 2395264664,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "17481f3c75165ef46a5b1538d008b365",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980246",
+    "extension": "fastq.gz",
+    "filesize": 4405351760,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "24b37bf4f74f78272e0bced56369c464",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980247",
+    "extension": "fastq.gz",
+    "filesize": 6068672916,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "90286ca6922c0b8528b041a7b29ef465",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980248",
+    "extension": "fastq.gz",
+    "filesize": 5910063383,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0b0c18e9a7879590a63ede8b0a118f03",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980249",
+    "extension": "fastq.gz",
+    "filesize": 7497219880,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "dda71f5abf93ad355fc242751a7ec654",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980250",
+    "extension": "fastq.gz",
+    "filesize": 1401143218,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "34e368c6546bcc309f7f427561b56d5f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980251",
+    "extension": "fastq.gz",
+    "filesize": 3291005763,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "38893f2dee7fcf52993e4fb4a7f15c09",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980252",
+    "extension": "fastq.gz",
+    "filesize": 5478843925,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f14c55952973a498fe9dd57081b5fc17",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980253",
+    "extension": "fastq.gz",
+    "filesize": 1263534511,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "26a04dbb0ec70e02871248d07f03b9aa",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980254",
+    "extension": "fastq.gz",
+    "filesize": 4069193671,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "69b147da6784103141ebbfdfc6c06735",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980255",
+    "extension": "fastq.gz",
+    "filesize": 5875112789,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "fdc34f849fa1270d7fc619168a6eacea",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980256",
+    "extension": "fastq.gz",
+    "filesize": 5444166477,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "66b711e40490cf97e3ec2279cf2eb8e0",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980257",
+    "extension": "fastq.gz",
+    "filesize": 5171166647,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "843ccadd0e75bf04bbbee7870021f5f6",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980258",
+    "extension": "fastq.gz",
+    "filesize": 1297005767,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a21526c01e624863b28a46a0b70010ba",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980259",
+    "extension": "fastq.gz",
+    "filesize": 4403048255,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "baf5565f98a035d877fa1858e2ba9110",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980260",
+    "extension": "fastq.gz",
+    "filesize": 3615282452,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "9a294247dcea3b22cc829aaac8c09e45",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980261",
+    "extension": "fastq.gz",
+    "filesize": 1540567351,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "46e86005e60a82d5e83ef604003ed5c9",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980262",
+    "extension": "fastq.gz",
+    "filesize": 4132363350,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "40b5c2b9b3d0cb30c1ffd4f6d2cd0282",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980263",
+    "extension": "fastq.gz",
+    "filesize": 1289338582,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6d8a6884a196f45cbf5f7d56ba8b850d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980264",
+    "extension": "fastq.gz",
+    "filesize": 1271496102,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a3b2cf84beb2453f8f92246e85928489",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980265",
+    "extension": "fastq.gz",
+    "filesize": 1296423797,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "675e0ae3ae67bc32a2c019c641039025",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980266",
+    "extension": "fastq.gz",
+    "filesize": 5030899425,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6def0776332d72d8f08f5a5c967666be",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980267",
+    "extension": "fastq.gz",
+    "filesize": 1426614301,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0d8315b11516bea4586568ee9c307d64",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980268",
+    "extension": "fastq.gz",
+    "filesize": 5477334221,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "bc86df3a733865f541df193a6a63ed69",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980269",
+    "extension": "fastq.gz",
+    "filesize": 1311324465,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "ab9f3d20bbc07f609887ceea9de24bd3",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980270",
+    "extension": "fastq.gz",
+    "filesize": 4384390234,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0c3164556a5ca76785bb39b296390629",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980271",
+    "extension": "fastq.gz",
+    "filesize": 5349048029,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "328aa6400daae959245b003bfdb2ec3e",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980272",
+    "extension": "fastq.gz",
+    "filesize": 5219894757,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c7ed5a878d7a0d61c7540639dfe35a53",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980273",
+    "extension": "fastq.gz",
+    "filesize": 4657376423,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "d119d3bc1289877cf70d536d19219273",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980274",
+    "extension": "fastq.gz",
+    "filesize": 4642648993,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1b6226b6b98fcb85714264745bb0dd5f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980275",
+    "extension": "fastq.gz",
+    "filesize": 4513001821,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "41eeecdacae356c642059938f6ea211a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980276",
+    "extension": "fastq.gz",
+    "filesize": 5082371779,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "456f8510fc77ef3082fb85f8b42a98b3",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980277",
+    "extension": "fastq.gz",
+    "filesize": 5265343017,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "267fe570c6a5fc5edcdd9ffa63021cf6",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980278",
+    "extension": "fastq.gz",
+    "filesize": 4998292085,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "eb272639eee3f94ac357043718a5a69d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980279",
+    "extension": "fastq.gz",
+    "filesize": 5193939545,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "5c3046d5f70bee2ea2c25f1a4a79cb27",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980280",
+    "extension": "fastq.gz",
+    "filesize": 5123571012,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0b43184f89755efa1a9f55b8150ae825",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980281",
+    "extension": "fastq.gz",
+    "filesize": 5320398737,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "d16d13678f0fb960da4fc526ececaa0a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980282",
+    "extension": "fastq.gz",
+    "filesize": 4555189243,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "7dc0c7173261d88af414ac08953f9db8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980283",
+    "extension": "fastq.gz",
+    "filesize": 5126675497,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "323bf0f56c8a017e2c7ecc9ba1abc348",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980284",
+    "extension": "fastq.gz",
+    "filesize": 4858492357,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "ac90cee0c0e08f6ef43ff18ca144b4c2",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980285",
+    "extension": "fastq.gz",
+    "filesize": 1277984791,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c5117af11b34a1ccfe36643101c05f65",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980286",
+    "extension": "fastq.gz",
+    "filesize": 5983124612,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "9b100b1421dfdf9f3f24abe358f351cc",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980287",
+    "extension": "fastq.gz",
+    "filesize": 1358479545,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "7f840ba0cea36d5c45c791ec04be31b4",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980288",
+    "extension": "fastq.gz",
+    "filesize": 5110460707,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a8c5ab0a56c6c02f6c1ae00a3749a44b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980289",
+    "extension": "fastq.gz",
+    "filesize": 4172436541,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "207cb670b1fc425945c4b6e4b6497492",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980290",
+    "extension": "fastq.gz",
+    "filesize": 4202398500,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "eaf09ad6fc152666654647e37eea14ab",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980291",
+    "extension": "fastq.gz",
+    "filesize": 1339829201,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "061dab7bf0596bc7b53e2a60a8488937",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980292",
+    "extension": "fastq.gz",
+    "filesize": 5457792965,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "449a91846a9683cd55f6ce045b1fd18b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980293",
+    "extension": "fastq.gz",
+    "filesize": 4862415974,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1930a9ceb705405eb6ad3418a9a66fc5",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980294",
+    "extension": "fastq.gz",
+    "filesize": 1213816303,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "cb71a0434d05713e162e6cc732242399",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980295",
+    "extension": "fastq.gz",
+    "filesize": 1376650531,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "433708a644b533071e866c2dee174298",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980296",
+    "extension": "fastq.gz",
+    "filesize": 4968366522,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6a28494c26617b707263545da1a9c606",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980297",
+    "extension": "fastq.gz",
+    "filesize": 4738347530,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f6625e7c7ae02951abb2b1a88fdd4f76",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980298",
+    "extension": "fastq.gz",
+    "filesize": 5432814638,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "fc6112fe1a836655fcad4c8326e6d823",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980299",
+    "extension": "fastq.gz",
+    "filesize": 4402385746,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a5845266cef547faf04722c87a42cbdc",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980300",
+    "extension": "fastq.gz",
+    "filesize": 5426329993,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "d7b83ca652f7cbf4c5f29734ca58736a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980301",
+    "extension": "fastq.gz",
+    "filesize": 4560530019,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c9fe4536077adb1fa566c9f9b135abc8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980302",
+    "extension": "fastq.gz",
+    "filesize": 5759201601,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "36d077cbbea73327e9830f3c1448252f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980304",
+    "extension": "fastq.gz",
+    "filesize": 3115813587,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "cc86bbabd15b5e30b3a0c34a75ef9d07",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980306",
+    "extension": "fastq.gz",
+    "filesize": 1160432398,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "de3ba39b9937125b81d2ccae4a91ee4e",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980307",
+    "extension": "fastq.gz",
+    "filesize": 4963376710,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "73d320dd6fc388a80457d3b8506be5d5",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980308",
+    "extension": "fastq.gz",
+    "filesize": 5346797773,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "63edbac8bb53ef7937c042cbba959760",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980309",
+    "extension": "fastq.gz",
+    "filesize": 4710193908,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0b2d6b8c700eee4711830188dcc3f865",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980311",
+    "extension": "fastq.gz",
+    "filesize": 1305678371,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1782100d41abc832101a9cb9d37c2061",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980312",
+    "extension": "fastq.gz",
+    "filesize": 1251321734,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2e35257c1e0a90e87b06a1dae93b3cce",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980313",
+    "extension": "fastq.gz",
+    "filesize": 4970868589,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1099281cc55a55c299e3542cfc913de8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980314",
+    "extension": "fastq.gz",
+    "filesize": 6134616967,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "ad1018ef682aefe0540b0862ba41698c",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980315",
+    "extension": "fastq.gz",
+    "filesize": 5198227900,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f23fcd9415c7164291f0e3b174445229",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980316",
+    "extension": "fastq.gz",
+    "filesize": 5094872285,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b1422463b5274b795de732eb109bf4f7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980317",
+    "extension": "fastq.gz",
+    "filesize": 5039283945,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "681a2d138df048991c97339e6fd02d64",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980318",
+    "extension": "fastq.gz",
+    "filesize": 4428465378,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a2b6374363c21cd20716e6aea1569602",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980319",
+    "extension": "fastq.gz",
+    "filesize": 5479274542,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b7562f3f20d2edb78742a0aabb97be7e",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980320",
+    "extension": "fastq.gz",
+    "filesize": 5055991505,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "3e59833e23e67b1f7b9bd52d32715771",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980325",
+    "extension": "fastq.gz",
+    "filesize": 5169411869,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "68f0d76e0f40c3f1a9f6d8bfcb846095",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980327",
+    "extension": "fastq.gz",
+    "filesize": 4572143033,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "21df489f72864e48e32869b8a1cfcdcc",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980329",
+    "extension": "fastq.gz",
+    "filesize": 4626124646,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b9ee64be4916eed4c3b05bfc6d05acf7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980331",
+    "extension": "fastq.gz",
+    "filesize": 3353714260,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "7fc4d11b65493ba5dd3b87417e962282",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980332",
+    "extension": "fastq.gz",
+    "filesize": 5647872879,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "af6a659621bb065f38aaf70531bbd8ca",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980334",
+    "extension": "fastq.gz",
+    "filesize": 6321625850,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2a38e37a14fa21ed47f67ede66c1167d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980335",
+    "extension": "fastq.gz",
+    "filesize": 5247859234,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f5e7bbfc03f638c65b008d5532bbdc28",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980336",
+    "extension": "fastq.gz",
+    "filesize": 3288452971,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "03d53dcf1a11ca98201440ddcce216b1",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980337",
+    "extension": "fastq.gz",
+    "filesize": 5437697054,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1cd05d7433aff855ce90ceb5c60f5742",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980339",
+    "extension": "fastq.gz",
+    "filesize": 4795923593,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "4796df405c84c49fdb10cf40f9539151",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980340",
+    "extension": "fastq.gz",
+    "filesize": 5095988620,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f710d0270143d58ba3efc408389cc596",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980345",
+    "extension": "fastq.gz",
+    "filesize": 4899567872,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b1de1b1a1eacd49a89308d8ba0bd95be",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980346",
+    "extension": "fastq.gz",
+    "filesize": 6604312434,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "3e8e0c21f40834044a176fa1f4b51da3",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980347",
+    "extension": "fastq.gz",
+    "filesize": 4996394228,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e811a7cfd05a43c0d3b417aff645d443",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980348",
+    "extension": "fastq.gz",
+    "filesize": 4777728003,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c7aced9f53874854820651a72d2883b6",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980349",
+    "extension": "fastq.gz",
+    "filesize": 4970673318,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "227f527e6aecbaa7443f5c2f612b75dc",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980350",
+    "extension": "fastq.gz",
+    "filesize": 1261662440,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "160a2459725fee0d0d59ee7c111f09f0",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980351",
+    "extension": "fastq.gz",
+    "filesize": 5924331294,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "96ba8cb4ae644d092472a0711dfb6dd6",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980352",
+    "extension": "fastq.gz",
+    "filesize": 5880436584,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "bd3e5618ae73a5ab895e58b3bdf2c2af",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980356",
+    "extension": "fastq.gz",
+    "filesize": 3338565944,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "fc522437500d2447409f31dd1536a055",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980366",
+    "extension": "fastq.gz",
+    "filesize": 4132779134,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "31a265665c22666a7f83aae1cd139fbb",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980367",
+    "extension": "fastq.gz",
+    "filesize": 5288335695,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6ac230f4f66a40157a030fd5c9ff1d59",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980369",
+    "extension": "fastq.gz",
+    "filesize": 4433481261,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "8d1a6ef958cc8ab6a1926cb58200cdd6",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980370",
+    "extension": "fastq.gz",
+    "filesize": 5899279945,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "7f9c909821cd3839287d4f0b8a54c7d4",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980372",
+    "extension": "fastq.gz",
+    "filesize": 4872252236,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "48672a35301ec3e0b50b72d5563fec5f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980374",
+    "extension": "fastq.gz",
+    "filesize": 4994511398,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a572373e3e6157d261992d9627ad0378",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980375",
+    "extension": "fastq.gz",
+    "filesize": 3000021630,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "05d614fbf528a1b506f1004300a5424d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980377",
+    "extension": "fastq.gz",
+    "filesize": 1327341374,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "628901dd414ebac5d0c0d04def623e59",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980381",
+    "extension": "fastq.gz",
+    "filesize": 1188274745,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "77293941479304efedb2fc5fa6fa19a7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980384",
+    "extension": "fastq.gz",
+    "filesize": 4599299549,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2f2fb52f0219759e91b4caea2e17ed63",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980389",
+    "extension": "fastq.gz",
+    "filesize": 2721845970,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0ece8fb8bcec380a314b28a717e954c1",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980392",
+    "extension": "fastq.gz",
+    "filesize": 5279302471,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e81a92effe0cd44cd0bf22d41f342840",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980393",
+    "extension": "fastq.gz",
+    "filesize": 5306230734,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2fb23a2d84c1834fd3e5fe3271b4ca74",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980396",
+    "extension": "fastq.gz",
+    "filesize": 2789479685,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "bc15c5eeae9add79fd8dae715d783c39",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980400",
+    "extension": "fastq.gz",
+    "filesize": 4990467680,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "9c063d6c5cfcfab3067190735e5e2616",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980405",
+    "extension": "fastq.gz",
+    "filesize": 4581775611,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "7e21ee2502eecbd12fd25279b6c603a1",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980406",
+    "extension": "fastq.gz",
+    "filesize": 3946338401,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e7d54f4033eea7e34d3a06be9bcae618",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980407",
+    "extension": "fastq.gz",
+    "filesize": 4655493849,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1cfd9d28d9c9d74e8f5df488c17f28d8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980408",
+    "extension": "fastq.gz",
+    "filesize": 4832728842,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2fbdb5b663998e1b04d9fabad41fd876",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980409",
+    "extension": "fastq.gz",
+    "filesize": 4958665231,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "06a5b61b8b9020ea2d074865ea61cfda",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980413",
+    "extension": "fastq.gz",
+    "filesize": 4682694220,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "efd73ca6a1a6ce2e84935208852abecd",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980414",
+    "extension": "fastq.gz",
+    "filesize": 2983185811,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "3d8cdb4e0fea6cb8036bdde0c5e26047",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980417",
+    "extension": "fastq.gz",
+    "filesize": 2679130629,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a6e648f7ea764384aa52355c90ab580b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980418",
+    "extension": "fastq.gz",
+    "filesize": 1334227595,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f0b95573eafe0d5c53f76f0cd3e923e7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980419",
+    "extension": "fastq.gz",
+    "filesize": 4140441060,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c6e0c35582aef53749c9787e6203e1ec",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980423",
+    "extension": "fastq.gz",
+    "filesize": 4900579646,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "8bd2651e956aaf70366d7c3e7734b8d6",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980426",
+    "extension": "fastq.gz",
+    "filesize": 2906834092,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "39ab66291740d153f824492728bf442c",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980432",
+    "extension": "fastq.gz",
+    "filesize": 3177704862,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "615dc2fc4a081d2ebe04e8e5b7926f7a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980434",
+    "extension": "fastq.gz",
+    "filesize": 4934253955,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b04e4b223d20671a30c04a60bd58b8ea",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980435",
+    "extension": "fastq.gz",
+    "filesize": 2908369207,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "627842be59b6402964293fc4df33eab3",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980437",
+    "extension": "fastq.gz",
+    "filesize": 5000231027,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "8423bd5cc356230ce49fb9ffe01f8b83",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980439",
+    "extension": "fastq.gz",
+    "filesize": 4795744627,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "4828f2daa2fb6445f66ee8f0873dd5ac",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980441",
+    "extension": "fastq.gz",
+    "filesize": 3271583393,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "ee5a8f905fe25861754a53d8b7f90de2",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980443",
+    "extension": "fastq.gz",
+    "filesize": 5239355815,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2473cbfb122c77ad6fc2e01693681dbe",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980446",
+    "extension": "fastq.gz",
+    "filesize": 4726126195,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "d7d9b9792060560b0e07a550b80ae883",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980447",
+    "extension": "fastq.gz",
+    "filesize": 4525406322,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "d15621f6c4bf32d7ac7d796593fd5e33",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980452",
+    "extension": "fastq.gz",
+    "filesize": 4724060701,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "616bc5b59a9d77088bb4926647660b14",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980453",
+    "extension": "fastq.gz",
+    "filesize": 5342654694,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "b7105b5237c023550e3bcac3787be737",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980455",
+    "extension": "fastq.gz",
+    "filesize": 4292287905,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a8054f018b58e97771995877b9ae14d7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980456",
+    "extension": "fastq.gz",
+    "filesize": 1501911154,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a920ae7fbbf911b4ec86f906a23fddd6",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980459",
+    "extension": "fastq.gz",
+    "filesize": 5472539901,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "f23e50b89b50ce71fdeedc26509ab781",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980462",
+    "extension": "fastq.gz",
+    "filesize": 4638349169,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "1b84e498d9480e1febee4ebf573a9439",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980468",
+    "extension": "fastq.gz",
+    "filesize": 5143553211,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a4a07c728ef68d44f106c040bbb718f7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980471",
+    "extension": "fastq.gz",
+    "filesize": 5589500395,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "acefc3d5ef1ffb6a01a2a1a268159b19",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980472",
+    "extension": "fastq.gz",
+    "filesize": 1305729180,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c19e814223968263fe85b20d85ffb74c",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980473",
+    "extension": "fastq.gz",
+    "filesize": 1514859451,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "57be5bfa882d7eacd181d0e6173a39d8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980475",
+    "extension": "fastq.gz",
+    "filesize": 3146324911,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "7c5ed1a00084a3c61c818324b7f01f45",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980479",
+    "extension": "fastq.gz",
+    "filesize": 3328777973,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "24a42e92edf10094e17422b9f0191397",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980480",
+    "extension": "fastq.gz",
+    "filesize": 3506054380,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "34ce0c87fd937702c3fa6043da0bce5b",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980482",
+    "extension": "fastq.gz",
+    "filesize": 5485617034,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6118d264b1b6cbe563a11a668e0c7de8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980484",
+    "extension": "fastq.gz",
+    "filesize": 5071984323,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e0ca5844a88b6fa62cbbe55d413aad88",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980485",
+    "extension": "fastq.gz",
+    "filesize": 1208130202,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e9d1766629c01b4383b3cdeaabe2748e",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980494",
+    "extension": "fastq.gz",
+    "filesize": 3847308610,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "34dab04c992a844f4cc43a4343e2eb63",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980495",
+    "extension": "fastq.gz",
+    "filesize": 2712606351,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "37dccdf40017a0be0a611b9a6cbaa5a8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980499",
+    "extension": "fastq.gz",
+    "filesize": 5283672891,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "dc24cc61c39feea4beb6d779a44a9be5",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980501",
+    "extension": "fastq.gz",
+    "filesize": 5019682042,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "171a8636596d033c8c090a0387328692",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980502",
+    "extension": "fastq.gz",
+    "filesize": 4757251758,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2ec5ca3805d7fcd4fe28723e769ab21f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980503",
+    "extension": "fastq.gz",
+    "filesize": 1143965469,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e8511545b1fbf5f679c1fd8e7026860a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980504",
+    "extension": "fastq.gz",
+    "filesize": 5439616747,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "2c643aa9b37b52931437d94f03b1ba62",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980506",
+    "extension": "fastq.gz",
+    "filesize": 5335816612,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "11fedd703a9dbd617603173ed0f3c664",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980508",
+    "extension": "fastq.gz",
+    "filesize": 4899340231,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "72037c770b4dd50a785599f8b6df39b8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980509",
+    "extension": "fastq.gz",
+    "filesize": 1312730770,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "e17a07e345338a527e45de313d66a35d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980510",
+    "extension": "fastq.gz",
+    "filesize": 5216101115,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "d1904648f849b0d194db2d1979d4e5c8",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980511",
+    "extension": "fastq.gz",
+    "filesize": 4713870624,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "3f038baf0a6e2d960053407096f1dac5",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008980993",
+    "extension": "fastq.gz",
+    "filesize": 5317195065,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "0a5d0a46aa586d31ac5e65f6e6312d05",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981027",
+    "extension": "fastq.gz",
+    "filesize": 1388289678,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "6784115fbf16e4d96e6e09564acef798",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981028",
+    "extension": "fastq.gz",
+    "filesize": 1290907924,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "3c4693a3716379a94779cfc0109c589a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981032",
+    "extension": "fastq.gz",
+    "filesize": 6006689484,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "874a8409b88b44b60167468a72af2748",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981033",
+    "extension": "fastq.gz",
+    "filesize": 5064154389,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "9118d695cf9ee8655da84d58fbbd2742",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981034",
+    "extension": "fastq.gz",
+    "filesize": 5824917378,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "05b1a024ae1e71a35a790dd3283a19fa",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981035",
+    "extension": "fastq.gz",
+    "filesize": 5452717199,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "bd84f97465fc47efff08f7f0e57e0de7",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981037",
+    "extension": "fastq.gz",
+    "filesize": 1409726998,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "068d3612ee79496d17e52059d0461f70",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981038",
+    "extension": "fastq.gz",
+    "filesize": 5053673542,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "20317f341d6613afd24bd4832ae00f2d",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981039",
+    "extension": "fastq.gz",
+    "filesize": 4426223677,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "16132bd0b97dfd67f9b9680f1b62fb2a",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981041",
+    "extension": "fastq.gz",
+    "filesize": 5110494632,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "42d6f64c940f95e4f9f32c830c358c18",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981042",
+    "extension": "fastq.gz",
+    "filesize": 5582809711,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "93361e643680ed396449207ef0c49f69",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981044",
+    "extension": "fastq.gz",
+    "filesize": 5006587398,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "05516f77692af4e652338eabc270508c",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981048",
+    "extension": "fastq.gz",
+    "filesize": 4593664228,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "4a7981bf77fb7c8b097eaaa9152486bc",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981050",
+    "extension": "fastq.gz",
+    "filesize": 5393710388,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "a51dde8b66dc6bd06660972cb8c7255f",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981052",
+    "extension": "fastq.gz",
+    "filesize": 5381181431,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "03114e42d864eb0ebe497fccf6f13bbb",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981053",
+    "extension": "fastq.gz",
+    "filesize": 4699253488,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "9e017bd57076f85e0ec6868e224e3e79",
+    "unencrypted_checksum_type": "MD5"
+  },
+  {
+    "accession_id": "EGAF00008981057",
+    "extension": "fastq.gz",
+    "filesize": 1391132291,
+    "has_report": false,
+    "locations": [
+      "crg",
+      "ebi"
+    ],
+    "unencrypted_checksum": "c560f553f4781905fc7373639f6d60e6",
+    "unencrypted_checksum_type": "MD5"
+  }
+]

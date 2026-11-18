@@ -10,6 +10,7 @@ symetry = "symetry" # SymetryML, streaming ML product
 vertica = "vertica" # Vertica analytics database
 sie = "sie" # split from the SIEM(s) acronym
 ome = "ome" # Open Microscopy Environment
+cna = "cna" # copy-number alteration
 nd = "nd" # NoDerivatives token in the CC BY-NC-ND SPDX identifier
 
 [default.extend-identifiers]

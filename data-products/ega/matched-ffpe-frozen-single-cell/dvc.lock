@@ -1,0 +1,41 @@
+schema: '2.0'
+stages:
+  build_source_inventory:
+    cmd: uv run --locked ega-matched-single-cell build
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: 1595f494b92d1e3a3bd22332dc98cb66.dir
+      size: 8983
+      nfiles: 1
+    - path: pyproject.toml
+      hash: md5
+      md5: 73149a3d77756ade0102aff57693633c
+      size: 1124
+    - path: src/ega_matched_single_cell
+      hash: md5
+      md5: 2c9237db47991682118e4cfd5156dbfc.dir
+      size: 23885
+      nfiles: 4
+    - path: tests/fixtures/ega-public-metadata
+      hash: md5
+      md5: fc7b930a95c5aa65b56d1c0ae9678cea.dir
+      size: 117821
+      nfiles: 8
+    - path: uv.lock
+      hash: md5
+      md5: a0690899b24f5650d3527dffc5811460
+      size: 34619
+    outs:
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 8c54f5cb8780f8a9a781a89bf3eecc34
+      size: 508
+    - path: outputs/source-inventory.json
+      hash: md5
+      md5: f47008b4475a14cca1ea278716a0b72b
+      size: 141828

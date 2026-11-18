@@ -1,0 +1,537 @@
+[
+  {
+    "accession_id": "EGAR00004169421",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588882"
+  },
+  {
+    "accession_id": "EGAR00004169422",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588882"
+  },
+  {
+    "accession_id": "EGAR00004169423",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588882"
+  },
+  {
+    "accession_id": "EGAR00004169504",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169505",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169506",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169507",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169508",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169509",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169510",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169511",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169512",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169513",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169514",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169515",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169516",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169517",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169518",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169519",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169520",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169521",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169522",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169523",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169524",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003554075"
+  },
+  {
+    "accession_id": "EGAR00004169525",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588882"
+  },
+  {
+    "accession_id": "EGAR00004169526",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003565618"
+  },
+  {
+    "accession_id": "EGAR00004169527",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169528",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169529",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169530",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003554075"
+  },
+  {
+    "accession_id": "EGAR00004169531",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588882"
+  },
+  {
+    "accession_id": "EGAR00004169532",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003565618"
+  },
+  {
+    "accession_id": "EGAR00004169533",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169534",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169535",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169536",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003554075"
+  },
+  {
+    "accession_id": "EGAR00004169537",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588882"
+  },
+  {
+    "accession_id": "EGAR00004169538",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003565618"
+  },
+  {
+    "accession_id": "EGAR00004169539",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169540",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169541",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169542",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003554075"
+  },
+  {
+    "accession_id": "EGAR00004169543",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588882"
+  },
+  {
+    "accession_id": "EGAR00004169544",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003565618"
+  },
+  {
+    "accession_id": "EGAR00004169545",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169546",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169547",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169568",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169569",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169570",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169571",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169572",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169573",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169574",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169575",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169576",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169577",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169578",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169579",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169580",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169581",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169582",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169583",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466785"
+  },
+  {
+    "accession_id": "EGAR00004169584",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001358737"
+  },
+  {
+    "accession_id": "EGAR00004169585",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466825"
+  },
+  {
+    "accession_id": "EGAR00004169586",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004483488"
+  },
+  {
+    "accession_id": "EGAR00004169587",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001466852"
+  },
+  {
+    "accession_id": "EGAR00004169588",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003554075"
+  },
+  {
+    "accession_id": "EGAR00004169589",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421577"
+  },
+  {
+    "accession_id": "EGAR00004169590",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003565618"
+  },
+  {
+    "accession_id": "EGAR00004169591",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169592",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169593",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169594",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003554075"
+  },
+  {
+    "accession_id": "EGAR00004169595",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421577"
+  },
+  {
+    "accession_id": "EGAR00004169596",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003565618"
+  },
+  {
+    "accession_id": "EGAR00004169597",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169598",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169599",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169600",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003554075"
+  },
+  {
+    "accession_id": "EGAR00004169601",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421577"
+  },
+  {
+    "accession_id": "EGAR00004169602",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00003565618"
+  },
+  {
+    "accession_id": "EGAR00004169603",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169604",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169605",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169606",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001588905"
+  },
+  {
+    "accession_id": "EGAR00004169607",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001922864"
+  },
+  {
+    "accession_id": "EGAR00004169608",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421597"
+  },
+  {
+    "accession_id": "EGAR00004169609",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810935"
+  },
+  {
+    "accession_id": "EGAR00004169610",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810936"
+  },
+  {
+    "accession_id": "EGAR00004169611",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810935"
+  },
+  {
+    "accession_id": "EGAR00004169612",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810936"
+  },
+  {
+    "accession_id": "EGAR00004169613",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810935"
+  },
+  {
+    "accession_id": "EGAR00004169614",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810936"
+  },
+  {
+    "accession_id": "EGAR00004169615",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810937"
+  },
+  {
+    "accession_id": "EGAR00004169616",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810938"
+  },
+  {
+    "accession_id": "EGAR00004169617",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810939"
+  },
+  {
+    "accession_id": "EGAR00004169618",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810940"
+  },
+  {
+    "accession_id": "EGAR00004169619",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810941"
+  },
+  {
+    "accession_id": "EGAR00004169620",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810942"
+  },
+  {
+    "accession_id": "EGAR00004169621",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810943"
+  },
+  {
+    "accession_id": "EGAR00004169622",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810944"
+  },
+  {
+    "accession_id": "EGAR00004169624",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00004810946"
+  },
+  {
+    "accession_id": "EGAR00004169625",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421577"
+  },
+  {
+    "accession_id": "EGAR00004169626",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421577"
+  },
+  {
+    "accession_id": "EGAR00004169627",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421577"
+  },
+  {
+    "accession_id": "EGAR00004169628",
+    "run_file_type": "fastq",
+    "sample_accession_id": "EGAN00001421577"
+  }
+]

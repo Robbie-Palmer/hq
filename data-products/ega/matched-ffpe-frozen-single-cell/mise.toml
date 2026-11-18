@@ -1,0 +1,58 @@
+[tools]
+python = "3.12"
+uv = "0.12.22"
+
+[tasks.sync]
+description = "Install the locked EGA source-product environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the EGA source-product lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format EGA source-product code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint EGA source-product code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check EGA source-product code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run EGA source-product tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run EGA source-product tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the EGA source product"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.build]
+description = "Build the source-native EGA metadata inventory"
+depends = ["sync"]
+run = "uv run --locked ega-matched-single-cell build"
+
+[tasks."drift:public"]
+description = "Compare pinned fixtures with credential-free public EGA metadata"
+depends = ["sync"]
+run = "uv run --locked ega-matched-single-cell drift"
+
+[tasks.repro]
+description = "Reproduce the controlled EGA metadata product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run credential-free metadata-only EGA source-product checks"
+depends = ["lint", "typecheck", "test:coverage", "repro"]

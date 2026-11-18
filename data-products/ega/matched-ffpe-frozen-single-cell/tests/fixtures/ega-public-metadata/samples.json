@@ -1,0 +1,194 @@
+[
+  {
+    "accession_id": "EGAN00001358737",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics colon adenocarcinoma sample 23674-FF-1 from patient 23674",
+    "phenotype": "Colorectal adenocarcinoma",
+    "subject_id": "23674",
+    "title": "POG sample 23674-FF-1 from patient 23674"
+  },
+  {
+    "accession_id": "EGAN00001421577",
+    "biological_sex": "male",
+    "description": "Personalized Onco-Genomics thymic carcinoma sample 25559-FF-1 from patient 25559",
+    "phenotype": "Thymic Carcinoma",
+    "subject_id": "25559",
+    "title": "POG sample 25559-FF-1 from patient 25559"
+  },
+  {
+    "accession_id": "EGAN00001421597",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics squamous cell carcinoma of anus sample 25589-FF-1 from patient 25589",
+    "phenotype": "Squamous cell carcinoma of anus",
+    "subject_id": "25589",
+    "title": "POG sample 25589-FF-1 from patient 25589"
+  },
+  {
+    "accession_id": "EGAN00001466785",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics extraosseous osteosarcoma sample 27981-FF-1 from patient 27981",
+    "phenotype": "Extraosseous osteosarcoma",
+    "subject_id": "27981",
+    "title": "POG sample 27981-FF-1 from patient 27981"
+  },
+  {
+    "accession_id": "EGAN00001466825",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics extraosseous osteosarcoma sample 27981-FF-2 from patient 27981",
+    "phenotype": "Extraosseous osteosarcoma",
+    "subject_id": "27981",
+    "title": "POG sample 27981-FF-2 from patient 27981"
+  },
+  {
+    "accession_id": "EGAN00001466852",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics metastatic colorectal cancer sample 23674-FF-3 from patient 23674",
+    "phenotype": "Metastatic colorectal cancer",
+    "subject_id": "23674",
+    "title": "POG sample 23674-FF-3 from patient 23674"
+  },
+  {
+    "accession_id": "EGAN00001588882",
+    "biological_sex": "male",
+    "description": "Personalized Onco-Genomics melanoma of the right buccal mucosa sample 31980-OCT-1 from patient 31980",
+    "phenotype": "melanoma of the right buccal mucosa",
+    "subject_id": "31980",
+    "title": "POG sample 31980-OCT-1 from patient 31980"
+  },
+  {
+    "accession_id": "EGAN00001588905",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics pleomorphic xanthoastrocytoma sample 32353-OCT-1 from patient 32353",
+    "phenotype": "pleomorphic xanthoastrocytoma",
+    "subject_id": "32353",
+    "title": "POG sample 32353-OCT-1 from patient 32353"
+  },
+  {
+    "accession_id": "EGAN00001922864",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics squamous cell carcinoma of anus sample 25589-OCT-2 from patient 25589",
+    "phenotype": "Squamous cell carcinoma of anus",
+    "subject_id": "25589",
+    "title": "POG sample 25589-OCT-2 from patient 25589"
+  },
+  {
+    "accession_id": "EGAN00003554075",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics metastatic synovial sarcoma sample 48719-OCT-2 from patient 48719",
+    "phenotype": "Metastatic Synovial Sarcoma",
+    "subject_id": "48719",
+    "title": "POG sample 48719-OCT-2 from patient 48719"
+  },
+  {
+    "accession_id": "EGAN00003565618",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics pleomorphic xanthoastrocytoma sample 32353-OCT-2 from patient 32353",
+    "phenotype": "pleomorphic xanthoastrocytoma",
+    "subject_id": "32353",
+    "title": "POG sample 32353-OCT-2 from patient 32353"
+  },
+  {
+    "accession_id": "EGAN00004483488",
+    "biological_sex": "female",
+    "description": "Personalized Onco-Genomics metastatic colorectal cancer sample 23674-FF-4 from patient 23674",
+    "phenotype": "Metastatic colorectal cancer",
+    "subject_id": "23674",
+    "title": "POG sample 23674-FF-4 from patient 23674"
+  },
+  {
+    "accession_id": "EGAN00004810935",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics metastatic synovial sarcoma sample 48719_FFPE-OCT-2 from patient 48719",
+    "phenotype": "Metastatic Synovial Sarcoma",
+    "subject_id": null,
+    "title": "POG sample 48719_FFPE-OCT-2 from patient 48719"
+  },
+  {
+    "accession_id": "EGAN00004810936",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics pleomorphic xanthoastrocytoma sample 32353_FFPE-OCT-2 from patient 32353",
+    "phenotype": "pleomorphic xanthoastrocytoma",
+    "subject_id": null,
+    "title": "POG sample 32353_FFPE-OCT-2 from patient 32353"
+  },
+  {
+    "accession_id": "EGAN00004810937",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics metastatic colorectal cancer sample 23674_FFPE-FF-3 from patient 23674",
+    "phenotype": "Metastatic colorectal cancer",
+    "subject_id": null,
+    "title": "POG sample 23674_FFPE-FF-3 from patient 23674"
+  },
+  {
+    "accession_id": "EGAN00004810938",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics melanoma of the right buccal mucosa sample 31980_FFPE-OCT-1 from patient 31980",
+    "phenotype": "melanoma of the right buccal mucosa",
+    "subject_id": null,
+    "title": "POG sample 31980_FFPE-OCT-1 from patient 31980"
+  },
+  {
+    "accession_id": "EGAN00004810939",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics metastatic colorectal cancer sample 23674_FFPE-FF-4 from patient 23674",
+    "phenotype": "Metastatic colorectal cancer",
+    "subject_id": null,
+    "title": "POG sample 23674_FFPE-FF-4 from patient 23674"
+  },
+  {
+    "accession_id": "EGAN00004810940",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics colon adenocarcinoma sample 23674_FFPE-FF-1 from patient 23674",
+    "phenotype": "Colorectal adenocarcinoma",
+    "subject_id": null,
+    "title": "POG sample 23674_FFPE-FF-1 from patient 23674"
+  },
+  {
+    "accession_id": "EGAN00004810941",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics pleomorphic xanthoastrocytoma sample 32353_FFPE-OCT-1 from patient 32353",
+    "phenotype": "pleomorphic xanthoastrocytoma",
+    "subject_id": null,
+    "title": "POG sample 32353_FFPE-OCT-1 from patient 32353"
+  },
+  {
+    "accession_id": "EGAN00004810942",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics extraosseous osteosarcoma sample 27981_FFPE-FF-1 from patient 27981",
+    "phenotype": "Extraosseous osteosarcoma",
+    "subject_id": null,
+    "title": "POG sample 27981_FFPE-FF-1 from patient 27981"
+  },
+  {
+    "accession_id": "EGAN00004810943",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics squamous cell carcinoma of anus sample 25589_FFPE-OCT-2 from patient 25589",
+    "phenotype": "Squamous cell carcinoma of anus",
+    "subject_id": null,
+    "title": "POG sample 25589_FFPE-OCT-2 from patient 25589"
+  },
+  {
+    "accession_id": "EGAN00004810944",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics thymic carcinoma sample 25559_FFPE-FF-1 from patient 25559",
+    "phenotype": "Thymic Carcinoma",
+    "subject_id": null,
+    "title": "POG sample 25559_FFPE-FF-1 from patient 25559"
+  },
+  {
+    "accession_id": "EGAN00004810945",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics squamous cell carcinoma of anus sample 25589_FFPE-FF-1 from patient 25589",
+    "phenotype": "Squamous cell carcinoma of anus",
+    "subject_id": null,
+    "title": "POG sample 25589_FFPE-FF-1 from patient 25589"
+  },
+  {
+    "accession_id": "EGAN00004810946",
+    "biological_sex": "unknown",
+    "description": "Personalized Onco-Genomics extraosseous osteosarcoma sample 27981_FFPE-FF-2 from patient 27981",
+    "phenotype": "Extraosseous osteosarcoma",
+    "subject_id": null,
+    "title": "POG sample 27981_FFPE-FF-2 from patient 27981"
+  }
+]

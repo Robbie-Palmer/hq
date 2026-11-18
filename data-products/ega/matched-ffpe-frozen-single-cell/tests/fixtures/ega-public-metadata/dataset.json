@@ -1,0 +1,17 @@
+{
+  "access_type": "controlled",
+  "accession_id": "EGAD00001015781",
+  "dataset_types": null,
+  "description": "Testing the differences between FFPE and fresh frozen derived single cell results.",
+  "is_deprecated": false,
+  "is_in_beacon": false,
+  "is_released": true,
+  "num_samples": 4,
+  "policy_accession_id": "EGAP00001000045",
+  "released_date": "2025-11-21T20:12:08+01:00",
+  "technologies": [
+    "Illumina NovaSeq 6000",
+    "Illumina NovaSeq X Plus"
+  ],
+  "title": "Single-cell analysis of matched FFPE and frozen tissue samples reveals comparable resolution of intratumoural heterogeneity"
+}

@@ -1,0 +1,220 @@
+{
+  "schema_version": "1.0.0",
+  "product_id": "ega-egad00001015781-matched-ffpe-frozen-single-cell-v1",
+  "snapshot_date": "2026-11-11",
+  "stable_references": [
+    {
+      "reference_id": "EGAD00001015781",
+      "role": "dataset",
+      "url": "https://ega-archive.org/datasets/EGAD00001015781",
+      "locator": "dataset record, access policy, study, and public file table"
+    },
+    {
+      "reference_id": "EGAS00001001159",
+      "role": "study",
+      "url": "https://ega-archive.org/studies/EGAS00001001159",
+      "locator": "Personalized Onco-Genomics study record"
+    },
+    {
+      "reference_id": "EGAP00001000045",
+      "role": "policy",
+      "url": "https://metadata.ega-archive.org/policies/EGAP00001000045",
+      "locator": "public policy metadata"
+    },
+    {
+      "reference_id": "EGAC00000000011",
+      "role": "dac",
+      "url": "https://ega-archive.org/dacs/EGAC00000000011",
+      "locator": "PHSA TDO Data Access Committee record"
+    },
+    {
+      "reference_id": "10.3389/fgene.2026.1755978",
+      "role": "paper",
+      "url": "https://doi.org/10.3389/fgene.2026.1755978",
+      "locator": "Methods, Results, Discussion, and Data availability statement"
+    },
+    {
+      "reference_id": "PMC13055531-supplement",
+      "role": "supplement",
+      "url": "https://pmc.ncbi.nlm.nih.gov/articles/PMC13055531/",
+      "locator": "Supplementaryfile1.docx, Supplementary Tables 1 to 3"
+    }
+  ],
+  "portal": {
+    "displayed_sample_count": 4,
+    "file_count": 241,
+    "displayed_total_size": "965.8 GB",
+    "total_bytes": 965526724986,
+    "technologies": [
+      "Illumina NovaSeq 6000",
+      "Illumina NovaSeq X Plus"
+    ]
+  },
+  "access_tiers": [
+    {
+      "tier": "public_metadata",
+      "contents": [
+        "dataset, study, policy, and DAC records",
+        "sample, experiment, and run identities",
+        "241 file accessions, sizes, extensions, locations, and unencrypted MD5 checksums"
+      ],
+      "requirement": "no credential"
+    },
+    {
+      "tier": "approved_accessor_metadata",
+      "contents": [
+        "sample-to-file and other private EGA mappings",
+        "file names and any additional authorized metadata"
+      ],
+      "requirement": "EGA login and dataset authorization after the Data Access Agreement"
+    },
+    {
+      "tier": "controlled_payload",
+      "contents": [
+        "sequence file payloads"
+      ],
+      "requirement": "DAC approval, executed Data Access Agreement, and EGA authorized download tooling"
+    }
+  ],
+  "duo_terms": [
+    {
+      "identifier": "DUO:0000025",
+      "label": "time limit on use"
+    },
+    {
+      "identifier": "DUO:0000027",
+      "label": "project specific restriction"
+    }
+  ],
+  "source_object_roles": [
+    {
+      "object_type": "dataset",
+      "publisher_role": "controlled EGA dataset"
+    },
+    {
+      "object_type": "study",
+      "publisher_role": "Cancer Genomics study"
+    },
+    {
+      "object_type": "policy",
+      "publisher_role": "data access policy"
+    },
+    {
+      "object_type": "dac",
+      "publisher_role": "data access decision authority"
+    },
+    {
+      "object_type": "sample",
+      "publisher_role": "patient specimen metadata"
+    },
+    {
+      "object_type": "experiment",
+      "publisher_role": "single-cell sequencing library metadata"
+    },
+    {
+      "object_type": "run",
+      "publisher_role": "FASTQ sequencing run metadata"
+    },
+    {
+      "object_type": "file",
+      "publisher_role": "controlled FASTQ payload identity"
+    },
+    {
+      "object_type": "paper",
+      "publisher_role": "preparation and assay evidence"
+    }
+  ],
+  "repository_payload_rights": "no public redistribution license declared",
+  "paper": {
+    "doi": "10.3389/fgene.2026.1755978",
+    "publication_date": "2026-03-24",
+    "article_license": "CC-BY-4.0",
+    "cohort": {
+      "patient_count": 7,
+      "matched_pair_count": 12,
+      "specimen_count": 24,
+      "longitudinal_pair_sets": 3,
+      "cancer_context": "advanced or metastatic cancers",
+      "pair_origin": "same biopsy and surgical site",
+      "pair_sampling": "different tissue segments containing different cells",
+      "frozen_preparations": [
+        "fresh-frozen",
+        "OCT-embedded frozen"
+      ],
+      "ffpe_preparation": "formalin-fixed paraffin-embedded",
+      "age_range_years": [
+        2.5,
+        10.0
+      ],
+      "anatomical_site_count": 7
+    },
+    "assay_facts": [
+      {
+        "fact_id": "fresh-or-oct-nuclei",
+        "statement": "The frozen segment used 25 to 100 mg of fresh-frozen or OCT-embedded tissue, with excess OCT removed, for nuclei isolation and 3-prime single-cell RNA profiling.",
+        "evidence_locator": "Methods 2.2 and 2.3"
+      },
+      {
+        "fact_id": "ffpe-flex-nuclei",
+        "statement": "The FFPE segment used four to nine 20-micrometre sections, dewaxing, nuclei isolation, probe hybridization, and the 10x Genomics Chromium Fixed RNA Profiling Flex workflow.",
+        "evidence_locator": "Methods 2.3"
+      },
+      {
+        "fact_id": "single-cell-target",
+        "statement": "Both workflows targeted 10,000 nuclei. The paper reports at least 20,000 read pairs per nucleus for the 3-prime libraries and 10,000 for the Fixed RNA Flex libraries.",
+        "evidence_locator": "Methods 2.3"
+      },
+      {
+        "fact_id": "bulk-links",
+        "statement": "All participants had prior bulk whole-genome and whole-transcriptome sequencing, and the study used bulk WGS CNA calls as a reference for single-cell CNA inference.",
+        "evidence_locator": "Methods 2.2 and 2.4.2; Results 3.2"
+      },
+      {
+        "fact_id": "ega-assay-records",
+        "statement": "EGA publishes 35 experiment records: 23 RNA-Seq and 12 ATAC-seq experiments, with transcriptomic or genomic single-cell library sources.",
+        "evidence_locator": "EGA public experiment metadata snapshot"
+      }
+    ],
+    "publisher_outputs": [
+      {
+        "output_id": "called-cells",
+        "domain": "cell_recovery",
+        "statement": "Cell Ranger called a mean 5,446 cells in FFPE libraries and 5,197 cells in 3-prime libraries. After quality control, paired cell counts did not correlate significantly, with Pearson r equal to -0.17 and p equal to 0.59.",
+        "evidence_locator": "Results 3.1 and Figure 1C"
+      },
+      {
+        "output_id": "genes-and-umis",
+        "domain": "expression",
+        "statement": "FFPE Flex generally yielded fewer genes and UMIs per cell. The paper attributes part of this difference to the probe-limited Flex design, which queries fewer genes than 3-prime scRNA-seq detects.",
+        "evidence_locator": "Results 3.1; Discussion; Supplementary Table 2"
+      },
+      {
+        "output_id": "cellular-heterogeneity",
+        "domain": "heterogeneity",
+        "statement": "Both preparations recovered the same broad cell types, but matched pairs had significantly different cell-type proportions. FFPE Flex also resolved T-cell subtypes and heterogeneous PDCD1 expression; paired average PDCD1 expression did not correlate significantly.",
+        "evidence_locator": "Results 3.1, 3.2, and 3.4.1; Figures 1, 2, and 4"
+      },
+      {
+        "output_id": "malignancy-and-subclones",
+        "domain": "cna_inference",
+        "statement": "The publisher inferred CNAs from both preparations to identify candidate malignant cells, compared them with matched bulk WGS, and reported a longitudinal MYC subclone that FFPE Flex resolved in an earlier biopsy at the selected depth.",
+        "evidence_locator": "Methods 2.4.2; Results 3.2 and 3.4.2; Figures 2 and 4"
+      }
+    ],
+    "limitations": [
+      "Matched preparations came from different tissue segments and therefore contain different cells.",
+      "The study did not explicitly address gene-expression bias introduced by preservation.",
+      "Flex is probe-limited to predefined transcript regions and fewer genes than 3-prime scRNA-seq detects.",
+      "The cohort is small and heterogeneous across cancers and anatomical sites."
+    ]
+  },
+  "count_reconciliation": "The EGA portal's four-sample display, the 24 public EGA sample records that form 12 preparation pairs, the paper's 12 matched pairs across seven patients, and the 241-file manifest are separate publisher projections. This product retains all four counts. It does not reinterpret the portal count as the paper cohort size or allocate files to pairs without the authorized EGA mapping.",
+  "absent_evidence": [
+    "public whole-slide images",
+    "stain metadata",
+    "scanner metadata",
+    "operational cost evidence",
+    "diagnostic-confidence evidence"
+  ],
+  "mapping_boundary": "EGA's public responses identify samples, experiments, runs, and files, but the sample-to-file mapping requires an approved accessor. The paper uses de-identified POG labels that the public EGA records do not expose. This product preserves each identity system and makes no cross-system or file-to-pair mapping."
+}
