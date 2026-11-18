@@ -1,0 +1,157 @@
+---
+title: "ADR 017: Shared immutable image objects and bounded derivative caches"
+date: "2026-11-12"
+status: "Proposed"
+implements_product_decisions:
+  - "pathologize:009-source-native-pathology-data-mesh"
+  - "pathologize:021-reuse-each-source-image-across-pathology-products"
+---
+
+## Context
+
+[PDR 009](/projects/pathologize/pdrs/009-source-native-pathology-data-mesh)
+gives each source and derived product its own DVC graph and vocabulary. [ADR
+003](/projects/pathologize/adrs/003-on-demand-source-acquisition) acquires
+sources on demand and keeps bounded verified inputs. Those decisions prevent
+one canonical dataset from erasing source meaning, but they do not prevent
+separate DVC projects or worktrees from caching the same image several times.
+
+DVC stores data in a content-addressed cache and can point several projects at
+one cache directory. Exact files then share one cache object. Workspaces can
+still duplicate bytes when DVC falls back to copying, and garbage collection
+from one project can remove objects needed by another. DVC's site cache is
+unrelated temporary index and hash state. The current
+`core.site_cache_dir = .dvc/site-cache` settings therefore do not share data
+objects between Pathologize products.
+
+A DVC content hash also does not replace the source contract. Pathologize must
+retain the publisher identity, byte count, SHA-256 digest, rights, and access
+tier even if DVC uses another hash internally. Distinct encodings of one slide
+must remain distinct source objects with explicit provenance between them.
+
+## Proposed decision
+
+Operate three storage layers with different retention rules.
+
+### Immutable source objects
+
+Keep verified native images in a machine-owned repository outside worktrees.
+Address each object by access tier, digest algorithm, and digest. Install an
+object by streaming to a temporary path, checking its declared byte count and
+SHA-256 digest, and atomically moving it into the read-only object path. A
+digest collision, rights mismatch, or identity disagreement fails the install
+instead of replacing an existing object.
+
+Source products publish references to these objects while retaining their own
+native artifact identities and retrieval evidence. Consumers pin the source
+product revision and artifact reference. They do not treat a storage path as
+the source identity.
+
+Use separate storage roots and permissions for public data, material governed
+by accepted terms, and controlled data. An object may be physically shared
+only when every consumer is allowed to read the same bytes under the same
+access boundary.
+
+### Shared DVC object cache
+
+Point Pathologize DVC projects on this machine at one content-addressed cache
+directory. Configure `cache.dir` in machine-local DVC configuration, not in a
+committed product path. Set shared permissions only when more than one local
+account needs the cache.
+
+Choose the workspace link type from the mounted filesystems. Prefer reflinks
+when the filesystem proves support. Use protected hardlinks when worktrees and
+cache share a filesystem. Use protected symlinks when a separately mounted
+image volume must avoid workspace copies. Fall back to copies only when the
+storage budget includes the duplicate bytes. Record the selected type and run
+`dvc checkout --relink` when it changes.
+
+Each DVC project keeps its own pipeline lock and output paths. Projects may run
+concurrently, but no stage writes another product's workspace or
+materialization. Shared cache objects remain immutable.
+
+Only one repository-owned maintenance command may collect the shared cache.
+T3 feature worktrees are ephemeral execution contexts and never retention
+roots. The command checks out the configured durable ref, initially
+`origin/main`, discovers its logical DVC projects, and passes those project
+roots to DVC garbage collection. A later data release may add an explicit
+retained ref. Ad hoc `dvc gc` against the shared cache is prohibited. Remote
+collection remains a separate, explicit operation because deleting the only
+remote copy can make an old revision unrecoverable.
+
+### Bounded derivative cache
+
+Treat decoded regions, tiles, and embeddings as a separate cache. Key an entry
+by the source SHA-256 digest and every parameter that changes its bytes or
+meaning, including reader and tiler versions, coordinate bounds, pyramid
+level, physical scale, output encoding, and model revision where applicable.
+
+Apply explicit byte and age limits with least-recently-used eviction. Cache
+eviction must not remove immutable source objects, annotations, DVC metadata,
+released experiment inputs, or published results. A product that needs a
+derivative for durable reproduction promotes it to a versioned product output
+and records the source and transformation references.
+
+Store corrected annotations separately from pixels. Their records carry the
+source object, source product revision, coordinate system, ontology,
+annotator or correction provenance, and content digest. Prefer compact vector
+or columnar materializations when they preserve the native geometry and
+meaning.
+
+## Consequences
+
+Exact source files and DVC outputs can be reused across independent pipelines
+without merging their contracts. TCGA-backed products can share one retained
+slide while keeping separate native labels, cohorts, and rights evidence.
+
+The source repository, DVC cache, and derivative cache can now report separate
+capacity and retention. A cache can be cleared without pretending that source
+data or a released experiment was deleted.
+
+This design adds an operated storage service to a research project. It needs
+atomic installation, read-only enforcement, access-tier isolation, inventory,
+quotas, alerts, and restore tests. Symlinked workspaces also depend on the
+external volume being mounted. Hardlinks require the cache and workspace to
+share a filesystem.
+
+The initial external volume and filesystem remain a Home Lab deployment
+decision. Pathologize requires the object and cache interfaces, a measured
+link strategy, and enough usable capacity for the retained subset. It does not
+choose a disk model, RAID layout, backup provider, or mount point in this ADR.
+
+## Alternatives considered
+
+### Give every DVC project its own cache
+
+This is DVC's default and isolates garbage collection. It repeats identical
+slides and outputs across products and worktrees. It remains suitable for an
+untrusted project that cannot share the Pathologize access boundary.
+
+### Make one central DVC project own all images
+
+One project would simplify storage discovery. It would also take publisher
+identity, rights, and native vocabulary away from the source products defined
+by PDR 009. The storage layer should deduplicate bytes without becoming the
+semantic owner.
+
+### Permanently materialize every tile pyramid and embedding set
+
+This makes repeated experiments fast, but derivative storage can exceed the
+source corpus by a wide margin. Bounded caching plus explicit promotion keeps
+durability tied to an experiment or released product.
+
+### Depend only on publisher downloads
+
+This minimizes local storage. It repeats slow acquisitions and leaves a
+reproducible result exposed to upstream removal or change. ADR 003 already
+accepts publisher risk for unselected material while retaining verified inputs
+that active or released experiments need.
+
+## Acceptance criteria
+
+Before accepting this ADR, prove the PDR 021 evaluation with at least two DVC
+projects and one shared TCGA source object. Add a dry-run garbage-collection
+report that names every protected project and retained Git revision. Measure
+workspace bytes under the selected link type, tile-cache hit rate, rebuild
+time, and source-restore time. Record the source, DVC, and derivative cache
+quotas before attaching routine pipeline work to the repository.
