@@ -155,13 +155,6 @@ export function businessFiPlanFixture(
     unavailableCashPence: 0,
     inputRecordIds: [`liability-ledger:${period.id}`],
   }));
-  const finalPeriod = scenario.companyPeriods
-    .toSorted((left, right) =>
-      left.accountingPeriodEndsOn.localeCompare(right.accountingPeriodEndsOn),
-    )
-    .at(-1);
-  if (finalPeriod == null) throw new Error("Synthetic scenario has no periods");
-
   return {
     id: "continue-trading",
     label: "Continue trading and extract surplus",
@@ -184,10 +177,7 @@ export function businessFiPlanFixture(
       recordId: "fi-treatment:continue-trading",
       strategyId,
       periodTimings,
-      deferredExtraction: {
-        kind: "dividend",
-        availableOn: finalPeriod.accountingPeriodEndsOn,
-      },
+      deferredExtraction: { kind: "retain" },
     },
     limitedCompanyScenario: scenario,
     liquidityConstraints,

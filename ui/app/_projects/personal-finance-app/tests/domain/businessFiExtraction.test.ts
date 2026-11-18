@@ -52,10 +52,8 @@ describe("business FI extraction", () => {
       accessibleOn: "2035-04-06",
       supported: true,
     });
-    expect(result.deferredEvent).toMatchObject({
-      kind: "deferred-dividend",
-      destination: "household-cash",
-    });
+    expect(result.deferredEvent).toBeNull();
+    expect(result.company.retainedCompanyCashPence).toBeGreaterThan(0);
     expect(result.lineage).toMatchObject({
       valuationRecordIds: ["valuation:software-company"],
       constraintRecordIds: [
@@ -69,6 +67,13 @@ describe("business FI extraction", () => {
       "ownership:software-company:full",
     ]);
     expect(result.lineage.ruleIds.length).toBeGreaterThan(0);
+    expect(result.lineage.inputRecordIds).toEqual(
+      expect.arrayContaining([
+        "liability-ledger:period:2025-26",
+        "liability-ledger:period:2026-27",
+        "pension-policy:owner",
+      ]),
+    );
   });
 
   it("supports explicit exclusion while keeping company value in net worth", () => {
@@ -92,8 +97,7 @@ describe("business FI extraction", () => {
     expect(result.periods).toEqual([]);
   });
 
-  it("retains surplus behind dated operating reserves until an extraction is selected", () => {
-    const extracted = evaluateBusinessFiPlan(businessFiPlanFixture());
+  it("retains surplus behind dated operating reserves", () => {
     const retainedInput = businessFiPlanFixture();
     if (retainedInput.treatment.kind !== "limited-company-extraction") {
       throw new Error("Missing extraction treatment");
@@ -113,9 +117,6 @@ describe("business FI extraction", () => {
     expect(retained.company.retainedCompanyCashPence).toBeGreaterThan(0);
     expect(retained.company.retainedDistributableReservesPence).toBeGreaterThan(
       0,
-    );
-    expect(retained.capital.futureAccessibleCapitalPence).toBeLessThan(
-      extracted.capital.futureAccessibleCapitalPence,
     );
     expect(retained.deductions).toEqual(
       expect.arrayContaining([
@@ -186,6 +187,12 @@ describe("business FI extraction", () => {
         strategyId: "strategy:boundary",
       }),
     );
+    const immediatelyAbove = evaluateBusinessFiPlan(
+      businessFiPlanFixture({
+        scenario: corporationTaxBoundaryScenario(5_000_001),
+        strategyId: "strategy:boundary",
+      }),
+    );
     const unsupportedInput = businessFiPlanFixture({
       scenario: corporationTaxBoundaryScenario(5_000_000),
       strategyId: "strategy:boundary",
@@ -229,9 +236,14 @@ describe("business FI extraction", () => {
     const unsupported = evaluateBusinessFiPlan(unsupportedInput);
 
     expect(supported.status).toBe("available");
-    expect(supported.periods[0]?.company).toMatchObject({
-      closingDistributableReservesPence: expect.any(Number),
-    });
+    expect(
+      supported.deductions.find(({ kind }) => kind === "corporation-tax"),
+    ).toMatchObject({ amountPence: 950_000 });
+    expect(
+      immediatelyAbove.deductions.find(
+        ({ kind }) => kind === "corporation-tax",
+      ),
+    ).toMatchObject({ amountPence: 950_000 });
     expect(unsupported.status).toBe("blocked");
     expect(unsupported.issues.map(({ kind }) => kind)).toContain(
       "unsupported-tax-year",
@@ -243,6 +255,13 @@ describe("business FI extraction", () => {
 
   it("blocks unavailable cash after tax, liabilities, and a dated operating reserve", () => {
     const input = businessFiPlanFixture();
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    input.treatment.deferredExtraction = {
+      kind: "dividend",
+      availableOn: "2027-03-31",
+    };
     input.liquidityConstraints = input.liquidityConstraints?.map(
       (constraint, index) =>
         index === 1
@@ -306,6 +325,209 @@ describe("business FI extraction", () => {
         )
         .map(({ id }) => id),
     ).toEqual(reflectedIds);
+  });
+
+  it("blocks invalid calendar dates instead of throwing during pension access evaluation", () => {
+    const input = businessFiPlanFixture();
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    const firstTiming = input.treatment.periodTimings[0];
+    if (firstTiming == null) throw new Error("Missing first-period timing");
+    input.treatment.periodTimings = [
+      { ...firstTiming, employerPensionContributedOn: "2026-02-30" },
+      ...input.treatment.periodTimings.slice(1),
+    ];
+    input.treatment.deferredExtraction = {
+      kind: "dividend",
+      availableOn: "2027-03-32",
+    };
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining([
+        "invalid-extraction-date",
+        "invalid-pension-date",
+      ]),
+    );
+  });
+
+  it("preserves tax-reserve shortfalls when the released scenario floors cash at zero", () => {
+    const scenario = corporationTaxBoundaryScenario(5_000_000);
+    const period = scenario.companyPeriods[0];
+    if (period == null) throw new Error("Missing boundary period");
+    period.cash.tradeReceiptsExcludingVatPence = 1_005_001;
+
+    const result = evaluateBusinessFiPlan(
+      businessFiPlanFixture({ scenario, strategyId: "strategy:boundary" }),
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.periods[0]?.company).toMatchObject({
+      closingCashPence: 1,
+      unpaidCorporationTaxPence: 950_000,
+      liquidCashAfterConstraintsPence: -949_999,
+    });
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "unavailable-company-cash" }),
+      ]),
+    );
+  });
+
+  it("blocks a partially reflected household cash aggregate", () => {
+    const result = evaluateBusinessFiPlan(
+      businessFiPlanFixture({
+        reflectedEventIds: [
+          "business-fi:continue-trading:period:2025-26:salary",
+        ],
+      }),
+    );
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: "partial-household-cash-reflection",
+          companyPeriodId: "period:2025-26",
+        }),
+      ]),
+    );
+  });
+
+  it("applies the liquidity constraint in force on the terminal dividend date", () => {
+    const input = businessFiPlanFixture();
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    input.treatment.deferredExtraction = {
+      kind: "dividend",
+      availableOn: "2027-03-31",
+    };
+    input.liquidityConstraints = [
+      ...(input.liquidityConstraints ?? []),
+      {
+        recordId: "constraint:terminal-reserve",
+        companyPeriodId: "period:2026-27",
+        effectiveFrom: "2027-03-31",
+        acceptedAt: input.asKnownAt,
+        operatingReservePence: 100_000_000,
+        companyLiabilitiesPence: 0,
+        unavailableCashPence: 0,
+        inputRecordIds: ["board-reserve:terminal"],
+      },
+    ];
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map(({ kind }) => kind)).toContain(
+      "unavailable-later-extraction-cash",
+    );
+    expect(result.lineage.constraintRecordIds).toContain(
+      "constraint:terminal-reserve",
+    );
+    expect(result.lineage.inputRecordIds).toContain("board-reserve:terminal");
+  });
+
+  it("blocks a terminal dividend that would reuse allowances from the same tax year", () => {
+    const input = businessFiPlanFixture();
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    input.treatment.deferredExtraction = {
+      kind: "dividend",
+      availableOn: "2027-03-31",
+    };
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map(({ kind }) => kind)).toContain(
+      "unsupported-overlapping-later-extraction-tax",
+    );
+  });
+
+  it("supports a cash-only strategy without requiring a pension policy", () => {
+    const input = businessFiPlanFixture({
+      scenario: corporationTaxBoundaryScenario(5_000_000),
+      strategyId: "strategy:boundary",
+    });
+    delete input.pensionTreatment;
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    input.treatment.deferredExtraction = {
+      kind: "dividend",
+      availableOn: "2027-03-31",
+    };
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("available");
+    expect(result.pensionContributions).toEqual([]);
+    expect(result.deferredEvent).toMatchObject({
+      kind: "deferred-dividend",
+      destination: "household-cash",
+    });
+  });
+
+  it("blocks a limited-company scenario for a different company", () => {
+    const companyInput = businessFiPlanFixture();
+    companyInput.companyEntityId = "business:other-company";
+    const ownerInput = businessFiPlanFixture();
+    ownerInput.ownerPersonEntityId = "person:other-owner";
+
+    const companyResult = evaluateBusinessFiPlan(companyInput);
+    const ownerResult = evaluateBusinessFiPlan(ownerInput);
+
+    for (const result of [companyResult, ownerResult]) {
+      expect(result.status).toBe("blocked");
+      expect(result.issues.map(({ kind }) => kind)).toContain(
+        "mismatched-limited-company-scenario",
+      );
+    }
+  });
+
+  it("blocks a terminal dividend after the last established company cash date", () => {
+    const input = businessFiPlanFixture({
+      scenario: corporationTaxBoundaryScenario(5_000_000),
+      strategyId: "strategy:boundary",
+    });
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    input.treatment.deferredExtraction = {
+      kind: "dividend",
+      availableOn: "2027-04-01",
+    };
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map(({ kind }) => kind)).toContain(
+      "unsupported-later-extraction-cash-date",
+    );
+  });
+
+  it("keeps valid comparisons when another plan has invalid liquidity input", () => {
+    const valid = businessFiPlanFixture();
+    valid.id = "valid";
+    const invalid = businessFiPlanFixture();
+    invalid.id = "invalid";
+    invalid.liquidityConstraints = invalid.liquidityConstraints?.map(
+      (constraint, index) =>
+        index === 0 ? { ...constraint, operatingReservePence: -1 } : constraint,
+    );
+
+    const results = compareBusinessFiPlans([invalid, valid]);
+
+    expect(results.map(({ id }) => id)).toEqual(["valid", "invalid"]);
+    expect(results[1]?.issues.map(({ kind }) => kind)).toContain(
+      "invalid-liquidity-constraint",
+    );
   });
 
   it("compares an available plan without letting a blocked alternative contaminate it", () => {

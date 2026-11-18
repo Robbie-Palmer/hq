@@ -1,4 +1,5 @@
 import { addMonths, format, max, parseISO } from "date-fns";
+import { IsoDateSchema } from "personal-finance-contracts/side-income";
 import { type AccountAccessPolicy, AccountAccessPolicySchema } from "./account";
 
 export const BUSINESS_FI_PENSION_CALCULATION_VERSION =
@@ -6,6 +7,7 @@ export const BUSINESS_FI_PENSION_CALCULATION_VERSION =
 
 export type BusinessFiPensionIssue = {
   kind:
+    | "invalid-pension-date"
     | "pension-access-date-required"
     | "pension-spending-disabled"
     | "unsupported-pension-tax-treatment";
@@ -57,28 +59,32 @@ function accessibleOn(
   );
 }
 
-export function evaluateBusinessFiPensionContribution(input: {
-  id: string;
-  planningDate: string;
-  contributedOn: string;
-  grossPence: number;
-  treatment: BusinessFiPensionTreatment;
-  alreadyReflected: boolean;
-  inputRecordIds: readonly string[];
-}): BusinessFiPensionContribution {
-  if (!Number.isInteger(input.grossPence) || input.grossPence < 0) {
-    throw new Error(
-      "A business pension contribution must be whole non-negative pence",
-    );
-  }
-  const issues: BusinessFiPensionIssue[] = [];
-  const policy = AccountAccessPolicySchema.parse(input.treatment.accessPolicy);
-  const accessDate = accessibleOn(
-    input.planningDate,
-    input.contributedOn,
-    policy,
+function pensionDateIssues(
+  planningDate: string,
+  contributedOn: string,
+): BusinessFiPensionIssue[] {
+  return [
+    ["planning", planningDate],
+    ["contribution", contributedOn],
+  ].flatMap(([label, date]) =>
+    IsoDateSchema.safeParse(date).success
+      ? []
+      : [
+          {
+            kind: "invalid-pension-date" as const,
+            detail: `The ${label} date ${date} is not a valid YYYY-MM-DD calendar date.`,
+          },
+        ],
   );
-  if (accessDate == null) {
+}
+
+function pensionPolicyIssues(
+  policy: AccountAccessPolicy,
+  accessDate: string | null,
+  datesAreValid: boolean,
+): BusinessFiPensionIssue[] {
+  const issues: BusinessFiPensionIssue[] = [];
+  if (datesAreValid && accessDate == null) {
     issues.push({
       kind: "pension-access-date-required",
       detail:
@@ -102,6 +108,33 @@ export function evaluateBusinessFiPensionContribution(input: {
       detail: "The pension withdrawal tax treatment has not been recorded.",
     });
   }
+  return issues;
+}
+
+export function evaluateBusinessFiPensionContribution(input: {
+  id: string;
+  planningDate: string;
+  contributedOn: string;
+  grossPence: number;
+  treatment: BusinessFiPensionTreatment;
+  alreadyReflected: boolean;
+  inputRecordIds: readonly string[];
+}): BusinessFiPensionContribution {
+  if (!Number.isInteger(input.grossPence) || input.grossPence < 0) {
+    throw new Error(
+      "A business pension contribution must be whole non-negative pence",
+    );
+  }
+  const policy = AccountAccessPolicySchema.parse(input.treatment.accessPolicy);
+  const dateIssues = pensionDateIssues(input.planningDate, input.contributedOn);
+  const accessDate =
+    dateIssues.length === 0
+      ? accessibleOn(input.planningDate, input.contributedOn, policy)
+      : null;
+  const issues = [
+    ...dateIssues,
+    ...pensionPolicyIssues(policy, accessDate, dateIssues.length === 0),
+  ];
 
   const supported = issues.length === 0;
   const withdrawalTaxPence =

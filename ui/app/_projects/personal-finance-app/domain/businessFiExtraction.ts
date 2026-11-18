@@ -2,6 +2,8 @@ import {
   evaluateLimitedCompanyScenario,
   type LimitedCompanyScenarioInput,
 } from "personal-finance-contracts/limited-company-scenario";
+import { IsoDateSchema } from "personal-finance-contracts/side-income";
+import { ZodError } from "zod";
 import {
   type BusinessFiPensionContribution,
   type BusinessFiPensionTreatment,
@@ -212,6 +214,8 @@ export type BusinessFiPlanResult = {
 
 const pence = (majorUnits: number): number => Math.round(majorUnits * 100);
 
+class BusinessFiInputValidationError extends Error {}
+
 function validateCapitalPosition(position: BusinessFiCapitalPosition): void {
   for (const [name, amount] of [
     ["availableNowPence", position.availableNowPence],
@@ -220,7 +224,9 @@ function validateCapitalPosition(position: BusinessFiCapitalPosition): void {
     ["pensionFiEligiblePence", position.pensionFiEligiblePence],
   ] as const) {
     if (!Number.isInteger(amount) || amount < 0) {
-      throw new Error(`${name} must be a non-negative whole-pence amount`);
+      throw new BusinessFiInputValidationError(
+        `${name} must be a non-negative whole-pence amount`,
+      );
     }
   }
 }
@@ -343,6 +349,15 @@ function validateTiming(input: {
     ["household cash", input.timing.householdCashAvailableOn],
   ] as const;
   for (const [label, date] of dates) {
+    if (!IsoDateSchema.safeParse(date).success) {
+      input.issues.push({
+        kind: "invalid-extraction-date",
+        state: "needs-review",
+        detail: `The ${label} date ${date} is not a valid YYYY-MM-DD calendar date.`,
+        companyPeriodId: input.period.id,
+      });
+      continue;
+    }
     if (
       date < input.period.accountingPeriodStartsOn ||
       date > input.period.accountingPeriodEndsOn
@@ -355,9 +370,15 @@ function validateTiming(input: {
       });
     }
   }
+  const cashDatesAreValid = [
+    input.timing.householdCashAvailableOn,
+    input.timing.salaryPaidOn,
+    input.timing.dividendPaidOn,
+  ].every((date) => IsoDateSchema.safeParse(date).success);
   if (
-    input.timing.householdCashAvailableOn < input.timing.salaryPaidOn ||
-    input.timing.householdCashAvailableOn < input.timing.dividendPaidOn
+    cashDatesAreValid &&
+    (input.timing.householdCashAvailableOn < input.timing.salaryPaidOn ||
+      input.timing.householdCashAvailableOn < input.timing.dividendPaidOn)
   ) {
     input.issues.push({
       kind: "invalid-household-cash-date",
@@ -467,6 +488,17 @@ function missingExtractionInput(
   input: BusinessFiPlanInput,
   detail: string,
 ): BusinessFiPlanResult {
+  return blockedInput(input, {
+    kind: "missing-extraction-input",
+    state: "needs-review",
+    detail,
+  });
+}
+
+function blockedInput(
+  input: BusinessFiPlanInput,
+  issue: BusinessFiPlanIssue,
+): BusinessFiPlanResult {
   const base = baseResult(input);
   return {
     calculationVersion: BUSINESS_FI_EXTRACTION_CALCULATION_VERSION,
@@ -480,9 +512,7 @@ function missingExtractionInput(
     deferredEvent: null,
     pensionContributions: [],
     deductions: [],
-    issues: [
-      { kind: "missing-extraction-input", state: "needs-review", detail },
-    ],
+    issues: [issue],
   };
 }
 
@@ -500,7 +530,7 @@ type ExtractionContext = {
   input: BusinessFiPlanInput;
   treatment: ExtractionTreatment;
   scenario: LimitedCompanyScenarioInput;
-  pensionTreatment: BusinessFiPensionTreatment;
+  pensionTreatment?: BusinessFiPensionTreatment;
   evaluated: LimitedCompanyEvaluation;
   strategy: LimitedCompanyStrategy;
   base: ReturnType<typeof baseResult>;
@@ -526,6 +556,36 @@ type PeriodLiquidity = {
   liquidCashAfterConstraintsPence: number;
 };
 
+function constraintAmounts(
+  context: ExtractionContext,
+  constraint: BusinessFiLiquidityConstraint,
+  input: { companyPeriodId?: string; eventId?: string },
+): Pick<
+  PeriodLiquidity,
+  "operatingReservePence" | "companyLiabilitiesPence" | "unavailableCashPence"
+> {
+  const amounts = [
+    constraint.operatingReservePence,
+    constraint.companyLiabilitiesPence,
+    constraint.unavailableCashPence,
+  ];
+  if (amounts.some((amount) => !Number.isInteger(amount) || amount < 0)) {
+    context.issues.push({
+      kind: "invalid-liquidity-constraint",
+      state: "needs-review",
+      detail: `Liquidity constraint ${constraint.recordId} must use whole non-negative pence.`,
+      ...input,
+    });
+  }
+  const validAmount = (amount: number) =>
+    Number.isInteger(amount) && amount >= 0 ? amount : 0;
+  return {
+    operatingReservePence: validAmount(constraint.operatingReservePence),
+    companyLiabilitiesPence: validAmount(constraint.companyLiabilitiesPence),
+    unavailableCashPence: validAmount(constraint.unavailableCashPence),
+  };
+}
+
 function extractionIssues(
   evaluated: LimitedCompanyEvaluation,
   strategyId: string,
@@ -549,7 +609,7 @@ function createExtractionContext(input: {
   plan: BusinessFiPlanInput;
   treatment: ExtractionTreatment;
   scenario: LimitedCompanyScenarioInput;
-  pensionTreatment: BusinessFiPensionTreatment;
+  pensionTreatment?: BusinessFiPensionTreatment;
   evaluated: LimitedCompanyEvaluation;
   strategy: LimitedCompanyStrategy;
 }): ExtractionContext {
@@ -619,23 +679,26 @@ function resolvePeriodLiquidity(
     });
   } else {
     context.constraintRecordIds.add(constraint.recordId);
-    for (const amount of [
-      constraint.operatingReservePence,
-      constraint.companyLiabilitiesPence,
-      constraint.unavailableCashPence,
-    ]) {
-      if (!Number.isInteger(amount) || amount < 0) {
-        throw new Error(
-          `Liquidity constraint ${constraint.recordId} must use whole non-negative pence`,
-        );
-      }
-    }
   }
-  const operatingReservePence = constraint?.operatingReservePence ?? 0;
-  const companyLiabilitiesPence = constraint?.companyLiabilitiesPence ?? 0;
-  const unavailableCashPence = constraint?.unavailableCashPence ?? 0;
+  const amounts =
+    constraint == null
+      ? {
+          operatingReservePence: 0,
+          companyLiabilitiesPence: 0,
+          unavailableCashPence: 0,
+        }
+      : constraintAmounts(context, constraint, {
+          companyPeriodId: period.companyPeriodId,
+        });
+  const {
+    operatingReservePence,
+    companyLiabilitiesPence,
+    unavailableCashPence,
+  } = amounts;
   const liquidCashAfterConstraintsPence =
-    period.companyCash.cashAfterTaxReservesPence -
+    period.companyCash.closingCashPence -
+    period.companyCash.unpaidCorporationTaxPence -
+    period.companyCash.unpaidVatPence -
     operatingReservePence -
     companyLiabilitiesPence -
     unavailableCashPence;
@@ -711,6 +774,25 @@ function cashEvents(input: {
 }): BusinessFiExtractionEvent[] {
   const id = (kind: BusinessFiExtractionEvent["kind"]) =>
     eventId(input.context.input.id, input.period.companyPeriodId, kind);
+  const salaryId = id("salary");
+  const dividendId = id("dividend");
+  const householdCashId = id("household-cash");
+  const reflectedComponents = [
+    ...(input.period.household.salaryPence > 0 ? [salaryId] : []),
+    ...(input.period.household.dividendsPence > 0 ? [dividendId] : []),
+  ].filter((componentId) => input.context.reflectedEventIds.has(componentId));
+  if (
+    reflectedComponents.length > 0 &&
+    !input.context.reflectedEventIds.has(householdCashId)
+  ) {
+    input.context.issues.push({
+      kind: "partial-household-cash-reflection",
+      state: "needs-review",
+      detail: `${input.period.companyPeriodId} reflects individual cash transfers without the aggregate household-cash event.`,
+      companyPeriodId: input.period.companyPeriodId,
+      eventId: householdCashId,
+    });
+  }
   const shared = {
     destination: "household-cash" as const,
     reflectedEventIds: input.context.reflectedEventIds,
@@ -719,7 +801,7 @@ function cashEvents(input: {
   return [
     extractionEvent({
       ...shared,
-      id: id("salary"),
+      id: salaryId,
       kind: "salary",
       occursOn: input.timing.salaryPaidOn,
       availableOn: input.timing.householdCashAvailableOn,
@@ -729,7 +811,7 @@ function cashEvents(input: {
     }),
     extractionEvent({
       ...shared,
-      id: id("dividend"),
+      id: dividendId,
       kind: "dividend",
       occursOn: input.timing.dividendPaidOn,
       availableOn: input.timing.householdCashAvailableOn,
@@ -739,7 +821,7 @@ function cashEvents(input: {
     }),
     extractionEvent({
       ...shared,
-      id: id("household-cash"),
+      id: householdCashId,
       kind: "household-cash",
       occursOn: input.timing.householdCashAvailableOn,
       availableOn: input.timing.householdCashAvailableOn,
@@ -757,18 +839,21 @@ function pensionEvent(input: {
   period: LimitedCompanyPeriod;
   timing: BusinessFiPeriodTiming;
   inputRecordIds: readonly string[];
-}): BusinessFiExtractionEvent {
+}): BusinessFiExtractionEvent | null {
+  if (input.period.household.employerPensionContributionPence <= 0) return null;
   const id = eventId(
     input.context.input.id,
     input.period.companyPeriodId,
     "employer-pension",
   );
+  const treatment = input.context.pensionTreatment;
+  if (treatment == null) return null;
   const pension = evaluateBusinessFiPensionContribution({
     id,
     planningDate: input.context.input.planningDate,
     contributedOn: input.timing.employerPensionContributedOn,
     grossPence: input.period.household.employerPensionContributionPence,
-    treatment: input.context.pensionTreatment,
+    treatment,
     alreadyReflected: input.context.reflectedEventIds.has(id),
     inputRecordIds: input.inputRecordIds,
   });
@@ -869,7 +954,8 @@ function evaluatePeriod(
     liquidity.constraint,
   );
   const events = cashEvents({ context, period, timing, inputRecordIds });
-  events.push(pensionEvent({ context, period, timing, inputRecordIds }));
+  const pension = pensionEvent({ context, period, timing, inputRecordIds });
+  if (pension != null) events.push(pension);
   context.deductions.push(...periodDeductions(period, liquidity));
   context.periodResults.push({
     companyPeriodId: period.companyPeriodId,
@@ -922,6 +1008,147 @@ function evaluatePeriods(context: ExtractionContext): void {
   }
 }
 
+function validateDeferredTax(
+  context: ExtractionContext,
+  deferred: LimitedCompanyStrategy["deferredExtraction"],
+  eventId: string,
+): void {
+  if (
+    deferred.estimatedLaterDividendTaxPence == null ||
+    deferred.estimatedLaterHouseholdCashPence == null
+  ) {
+    context.issues.push({
+      kind: "unsupported-later-extraction-tax",
+      state: "unsupported",
+      detail:
+        "The selected later dividend has no supported personal-tax result.",
+      eventId,
+    });
+  }
+  const overlapsTaxableIncome = context.strategy.periods.some(
+    (period) =>
+      period.taxYear === deferred.taxYear &&
+      (period.household.salaryPence > 0 || period.household.dividendsPence > 0),
+  );
+  if (deferred.grossDividendPence > 0 && overlapsTaxableIncome) {
+    context.issues.push({
+      kind: "unsupported-overlapping-later-extraction-tax",
+      state: "unsupported",
+      detail: `The later dividend shares ${deferred.taxYear} with salary or dividends already modelled by the selected strategy, so its incremental tax cannot reuse the annual allowances.`,
+      eventId,
+    });
+  }
+}
+
+type DeferredPeriodState = {
+  validAvailableOn: boolean;
+  finalPeriod?: LimitedCompanyScenarioInput["companyPeriods"][number];
+  finalPeriodResult?: BusinessFiPeriodResult;
+};
+
+function deferredPeriodState(
+  context: ExtractionContext,
+  availableOn: string,
+  eventId: string,
+): DeferredPeriodState {
+  const validAvailableOn = IsoDateSchema.safeParse(availableOn).success;
+  if (!validAvailableOn) {
+    context.issues.push({
+      kind: "invalid-later-extraction-date",
+      state: "needs-review",
+      detail: `The later dividend date ${availableOn} is not a valid YYYY-MM-DD calendar date.`,
+      eventId,
+    });
+  }
+  const finalPeriod = context.scenario.companyPeriods.toSorted((left, right) =>
+    right.accountingPeriodEndsOn.localeCompare(left.accountingPeriodEndsOn),
+  )[0];
+  const finalPeriodResult = context.periodResults.find(
+    ({ companyPeriodId }) => companyPeriodId === finalPeriod?.id,
+  );
+  const finalPeriodEnd = finalPeriod?.accountingPeriodEndsOn;
+  if (
+    validAvailableOn &&
+    finalPeriodEnd != null &&
+    availableOn !== finalPeriodEnd
+  ) {
+    const precedesPeriod = availableOn < finalPeriodEnd;
+    context.issues.push({
+      kind: precedesPeriod
+        ? "invalid-later-extraction-date"
+        : "unsupported-later-extraction-cash-date",
+      state: precedesPeriod ? "needs-review" : "unsupported",
+      detail: precedesPeriod
+        ? `The later dividend date ${availableOn} precedes the final company period ending ${finalPeriodEnd}.`
+        : `Company cash is established at ${finalPeriodEnd}, not at the later dividend date ${availableOn}.`,
+      eventId,
+    });
+  }
+  return { validAvailableOn, finalPeriod, finalPeriodResult };
+}
+
+function deferredConstraint(
+  context: ExtractionContext,
+  state: DeferredPeriodState,
+  availableOn: string,
+  eventId: string,
+): BusinessFiLiquidityConstraint | null {
+  const constraint =
+    state.validAvailableOn && state.finalPeriod != null
+      ? activeConstraint(
+          context.input.liquidityConstraints ?? [],
+          state.finalPeriod.id,
+          availableOn,
+          context.input.asKnownAt,
+        )
+      : null;
+  if (constraint == null) {
+    context.issues.push({
+      kind: "missing-later-liquidity-constraint",
+      state: "needs-review",
+      detail: `The later dividend has no dated operating reserve and liability constraint for ${availableOn}.`,
+      eventId,
+    });
+    return null;
+  }
+  context.constraintRecordIds.add(constraint.recordId);
+  return constraint;
+}
+
+function deferredLiquidity(
+  context: ExtractionContext,
+  input: {
+    constraint: BusinessFiLiquidityConstraint | null;
+    eventId: string;
+    finalPeriodResult?: BusinessFiPeriodResult;
+  },
+): number {
+  const amounts =
+    input.constraint == null
+      ? {
+          operatingReservePence: 0,
+          companyLiabilitiesPence: 0,
+          unavailableCashPence: 0,
+        }
+      : constraintAmounts(context, input.constraint, {
+          eventId: input.eventId,
+        });
+  const signedCashAfterConstraints =
+    context.strategy.totals.endingCompanyCashPence -
+    (input.finalPeriodResult?.company.unpaidCorporationTaxPence ?? 0) -
+    (input.finalPeriodResult?.company.unpaidVatPence ?? 0) -
+    amounts.operatingReservePence -
+    amounts.companyLiabilitiesPence -
+    amounts.unavailableCashPence;
+  return Math.max(
+    0,
+    Math.min(
+      signedCashAfterConstraints,
+      context.strategy.totals.endingDistributableReservesPence,
+    ),
+  );
+}
+
 function deferredExtraction(context: ExtractionContext): {
   event: BusinessFiExtractionEvent | null;
   retainedCompanyCashPence: number;
@@ -939,43 +1166,20 @@ function deferredExtraction(context: ExtractionContext): {
   }
   const deferred = context.strategy.deferredExtraction;
   const id = eventId(context.input.id, "terminal", "deferred-dividend");
-  if (
-    deferred.estimatedLaterDividendTaxPence == null ||
-    deferred.estimatedLaterHouseholdCashPence == null
-  ) {
-    context.issues.push({
-      kind: "unsupported-later-extraction-tax",
-      state: "unsupported",
-      detail:
-        "The selected later dividend has no supported personal-tax result.",
-      eventId: id,
-    });
-  }
-  const supportedLiquidityPence = Math.max(
-    0,
-    Math.min(
-      context.periodResults.at(-1)?.company.liquidCashAfterConstraintsPence ??
-        0,
-      context.strategy.totals.endingDistributableReservesPence,
-    ),
-  );
+  const availableOn = context.treatment.deferredExtraction.availableOn;
+  validateDeferredTax(context, deferred, id);
+  const periodState = deferredPeriodState(context, availableOn, id);
+  const constraint = deferredConstraint(context, periodState, availableOn, id);
+  const supportedLiquidityPence = deferredLiquidity(context, {
+    constraint,
+    eventId: id,
+    finalPeriodResult: periodState.finalPeriodResult,
+  });
   if (deferred.grossDividendPence > supportedLiquidityPence) {
     context.issues.push({
       kind: "unavailable-later-extraction-cash",
       state: "unsupported",
       detail: `The later dividend needs ${deferred.grossDividendPence}p but only ${supportedLiquidityPence}p remains liquid and distributable after constraints.`,
-      eventId: id,
-    });
-  }
-  const availableOn = context.treatment.deferredExtraction.availableOn;
-  const finalPeriodEnd = context.scenario.companyPeriods
-    .map(({ accountingPeriodEndsOn }) => accountingPeriodEndsOn)
-    .toSorted((left, right) => right.localeCompare(left))[0];
-  if (finalPeriodEnd != null && availableOn < finalPeriodEnd) {
-    context.issues.push({
-      kind: "invalid-later-extraction-date",
-      state: "needs-review",
-      detail: `The later dividend date ${availableOn} precedes the final company period ending ${finalPeriodEnd}.`,
       eventId: id,
     });
   }
@@ -1006,7 +1210,9 @@ function deferredExtraction(context: ExtractionContext): {
       inputRecordIds: [
         ...context.evaluated.lineage.financialFactIds,
         ...ownershipIds,
-        ...context.constraintRecordIds,
+        ...(constraint == null
+          ? []
+          : [constraint.recordId, ...constraint.inputRecordIds]),
       ],
     }),
     retainedCompanyCashPence: Math.max(
@@ -1124,6 +1330,13 @@ function extractionResult(
           ...context.ownershipRecordIds,
           ...context.constraintRecordIds,
           ...context.evaluated.lineage.financialFactIds,
+          ...context.periodResults.flatMap(({ events }) =>
+            events.flatMap(({ inputRecordIds }) => inputRecordIds),
+          ),
+          ...(deferred.event?.inputRecordIds ?? []),
+          ...context.pensionContributions.flatMap(
+            ({ inputRecordIds }) => inputRecordIds,
+          ),
         ]),
       ],
       limitedCompanyCalculationVersion: context.evaluated.calculationVersion,
@@ -1134,12 +1347,14 @@ function extractionResult(
   };
 }
 
-export function evaluateBusinessFiPlan(
+function evaluateBusinessFiPlanInput(
   input: BusinessFiPlanInput,
 ): BusinessFiPlanResult {
   validateCapitalPosition(input.capitalPosition);
   if (input.wealth.baseCurrency !== "GBP") {
-    throw new Error("Limited-company FI extraction currently requires GBP");
+    throw new BusinessFiInputValidationError(
+      "Limited-company FI extraction currently requires GBP",
+    );
   }
   if (input.treatment.kind === "exclude") return excludedPlan(input);
   const treatment = input.treatment;
@@ -1149,11 +1364,15 @@ export function evaluateBusinessFiPlan(
       "The limited-company scenario is missing.",
     );
   }
-  if (input.pensionTreatment == null) {
-    return missingExtractionInput(
-      input,
-      "The pension access treatment is missing.",
-    );
+  if (
+    input.limitedCompanyScenario.companyId !== input.companyEntityId ||
+    input.limitedCompanyScenario.ownerPersonId !== input.ownerPersonEntityId
+  ) {
+    return blockedInput(input, {
+      kind: "mismatched-limited-company-scenario",
+      state: "needs-review",
+      detail: `Scenario ${input.limitedCompanyScenario.companyId}/${input.limitedCompanyScenario.ownerPersonId} does not match plan ${input.companyEntityId}/${input.ownerPersonEntityId}.`,
+    });
   }
   const evaluated = evaluateLimitedCompanyScenario(
     input.limitedCompanyScenario,
@@ -1167,6 +1386,15 @@ export function evaluateBusinessFiPlan(
       `Strategy ${treatment.strategyId} is not in the limited-company scenario.`,
     );
   }
+  const hasPensionContributions = strategy.periods.some(
+    ({ household }) => household.employerPensionContributionPence > 0,
+  );
+  if (hasPensionContributions && input.pensionTreatment == null) {
+    return missingExtractionInput(
+      input,
+      "The pension access treatment is missing for a positive employer contribution.",
+    );
+  }
   const context = createExtractionContext({
     plan: input,
     treatment,
@@ -1177,6 +1405,32 @@ export function evaluateBusinessFiPlan(
   });
   evaluatePeriods(context);
   return extractionResult(context, deferredExtraction(context));
+}
+
+export function evaluateBusinessFiPlan(
+  input: BusinessFiPlanInput,
+): BusinessFiPlanResult {
+  try {
+    return evaluateBusinessFiPlanInput(input);
+  } catch (error) {
+    if (
+      error instanceof BusinessFiInputValidationError ||
+      error instanceof ZodError
+    ) {
+      const detail =
+        error instanceof ZodError
+          ? error.issues
+              .map((issue) => `${issue.path.join(".")}: ${issue.message}`)
+              .join("; ")
+          : error.message;
+      return blockedInput(input, {
+        kind: "invalid-extraction-input",
+        state: "needs-review",
+        detail,
+      });
+    }
+    throw error;
+  }
 }
 
 export function compareBusinessFiPlans(

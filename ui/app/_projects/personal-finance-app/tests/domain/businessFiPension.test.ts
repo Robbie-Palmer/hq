@@ -90,4 +90,26 @@ describe("business FI pension treatment", () => {
       pensionWealthAddedPence: 0,
     });
   });
+
+  it("returns an unsupported result for an invalid contribution date", () => {
+    const result = evaluateBusinessFiPensionContribution({
+      id: "employer-pension:invalid-date",
+      planningDate: "2026-04-06",
+      contributedOn: "2027-02-30",
+      grossPence: 1_000_000,
+      treatment,
+      alreadyReflected: false,
+      inputRecordIds: [],
+    });
+
+    expect(result).toMatchObject({
+      supported: false,
+      accessibleOn: null,
+      fiEligiblePence: 0,
+      pensionWealthAddedPence: 0,
+    });
+    expect(result.issues.map(({ kind }) => kind)).toContain(
+      "invalid-pension-date",
+    );
+  });
 });
