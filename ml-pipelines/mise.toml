@@ -15,3 +15,18 @@ run = "bash {{config_root}}/scripts/doppler-pipeline-env.sh {{config_root}}/scri
 description = "Update the locked DVC tool environment"
 dir = "{{config_root}}/dvc-tool"
 run = "uv lock"
+
+[tasks."dvc-cache:status"]
+description = "Report shared DVC cache use and participating active-worktree projects"
+dir = "{{cwd}}"
+run = "bash {{config_root}}/scripts/dvc-shared-cache.sh status"
+
+[tasks."dvc-cache:prune"]
+description = "Preview shared DVC cache pruning; pass --apply to delete unreferenced objects"
+dir = "{{cwd}}"
+run = "bash {{config_root}}/scripts/dvc-shared-cache.sh prune"
+
+[tasks."dvc-cache:test"]
+description = "Test shared DVC cache retention, pruning, locking, and cleanup"
+dir = "{{config_root}}"
+run = "bash scripts/dvc-shared-cache.test.sh"

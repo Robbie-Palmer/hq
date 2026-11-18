@@ -23,6 +23,8 @@ Current products:
   TCGA slides for the fixed 24-slide pilot.
 - `colorectal/multistain-epithelium`: source-native colorectal TMA core images,
   epithelium masks, H&E, IHC markers, and ISH probes and controls.
+- `sicapv2/mendeley-v2`: source-native SICAPv2 patients, slides, patches,
+  Gleason-pattern masks, global scores, and publisher partitions.
 - `cryonuseg/frozen-he`: source-native CryoNuSeg frozen-section H&E patches,
   manual annotation rounds, auxiliary masks, and exact GDC slide lineage.
 - `proteomexchange/pxd064700`: source-native PRIDE and ProteomeXchange metadata,
