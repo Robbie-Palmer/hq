@@ -1,0 +1,116 @@
+---
+title: "PDR 021: Reuse each source image across pathology products"
+date: "2026-11-12"
+status: "Proposed"
+evidence:
+  - title: "GTEx histology source product"
+    url: "https://github.com/Robbie-Palmer/hq/pull/2205"
+  - title: "CAMELYON ROI source product"
+    url: "https://github.com/Robbie-Palmer/hq/pull/2181"
+  - title: "TCGA image-genomics source product"
+    url: "https://github.com/Robbie-Palmer/hq/pull/2186"
+---
+
+## Context
+
+Pathologize source products increasingly refer to the same pixels. AIRAQc uses
+24 TCGA slides. BCSS refers to 151 TCGA breast slides. MoNuSAC and CryoNuSeg
+retain links to their TCGA source slides. A general TCGA product now proposes
+11,901 diagnostic-slide records. Downloading a slide into every source,
+enrichment, benchmark, and model project would turn provenance boundaries into
+physical duplication.
+
+The wider image portfolio is already larger than this machine. The figures
+recorded in merged products and current pull requests give a known lower bound
+of about 12.8 decimal TB:
+
+| Source                                               | Recorded source bytes | Notes                                                                                                                        |
+| ---------------------------------------------------- | --------------------: | ---------------------------------------------------------------------------------------------------------------------------- |
+| GTEx histology                                       |              8.555 TB | One IDC DICOM representation. The roughly 8 TB AnVIL SVS corpus represents the same biological material in another encoding. |
+| CAMELYON16 and compatible CAMELYON17 training slides |            about 3 TB | The source product describes 449 whole-slide records.                                                                        |
+| Colorectal multistain epithelium                     |            470.971 GB | Eighteen image-mask archives with 13,179 pairs.                                                                              |
+| PANDA                                                |            411.900 GB | 10,616 development slides and 10,516 masks.                                                                                  |
+| SegPath                                              |            305.526 GB | 158,687 H\&E and registered-mask pairs.                                                                                      |
+| CPTAC-COAD DICOM conversion                          |             70.234 GB | Existing Pathologize registry source.                                                                                        |
+| AIRAQc public pilot                                  |             15.814 GB | Twenty-four TCGA slides and masks. These overlap the TCGA portfolio.                                                         |
+| Smaller acquired image and annotation sources        |           about 10 GB | BCSS annotations, SICAPv2, PanNuke, GrandQC, MoNuSAC, NuCLS, and CryoNuSeg.                                                  |
+
+This lower bound excludes the bytes for 11,901 TCGA diagnostic slides, 1,081
+CPTAC-LSCC slides, and 100 PAIP 2019 slides. TCGA alone likely adds 6 to 8 TB
+if the whole release is retained. That range extrapolates the mean of the
+registered 50-slide AIRAQc collection and its fixed 24-slide pilot. It is a
+capacity assumption, not a measured TCGA total. The controlled EGA single-cell
+source and the PXD064700 proteomics source add another 1.676 TB, but they do not
+belong in an image repository.
+
+Corrected annotations should not require another copy of their source image.
+Points, polygons, labels, adjudication state, and coordinate transforms can be
+stored as enrichment records that reference an immutable image. Compact
+columnar or vector encodings should keep most annotation products small beside
+whole-slide pixels. Verbose geometry can still grow into gigabytes, as the
+3.288 GB BCSS annotation snapshot demonstrates.
+
+Tiles and embeddings are the larger risk. A permanent tile pyramid can rival
+or exceed its source slide. Dense embeddings across every tile can exceed the
+entire source portfolio. Those products need explicit retention rather than an
+assumption that every intermediate result stays forever.
+
+## Proposed decision
+
+Give Pathologize one shared image repository beneath its source-native data
+products. Store each verified native image object once for each exact byte
+digest and access tier. Source products retain ownership of publisher
+identities, rights, checksums, native labels, and retrieval evidence. The
+shared repository owns storage and retrieval, not dataset meaning.
+
+Let source, enrichment, benchmark, and model products refer to an image by its
+source-product revision, native artifact identity, byte count, and content
+digest. Keep distinct encodings such as an original SVS and an IDC DICOM
+conversion as separate objects linked by provenance. Do not call them the same
+file merely because they show the same tissue.
+
+Store corrected annotations as separate enrichment products with image and
+coordinate-system references. Generate tiles, decoded regions, and embeddings
+when a consumer asks for them. Keep reusable derivatives in a bounded cache,
+and promote only experiment inputs or released products that need durable
+reproduction.
+
+Separate public, accepted-terms, and controlled material. Deduplication must
+not create a path by which a less privileged project or user can read a
+restricted object.
+
+Treat 20 to 23 TB as the current full-image catalogue estimate until TCGA,
+CPTAC-LSCC, and PAIP byte inventories replace the assumptions. A machine that
+intends to retain that catalogue should start with at least 30 TB of usable
+capacity. Smaller installations may keep bounded subsets, but they must report
+their source and derivative quotas separately.
+
+## Evaluation
+
+This proposal is ready to accept when an implementation proves all of the
+following:
+
+* two independent DVC products can resolve the same TCGA slide while the
+  storage inventory counts one physical source object;
+* an inventory reports logical bytes, unique physical bytes, retained
+  derivatives, cache bytes, and headroom by access tier;
+* deleting the tile cache does not remove source images, annotations, released
+  experiment inputs, or the information needed to regenerate a tile;
+* a corrected annotation release adds no image copy and retains its exact
+  source image and coordinate-system references;
+* cache collection preserves every object referenced by the registered DVC
+  projects and their retained revisions; and
+* a clean restore can resolve a pinned public source object by digest after its
+  workspace copy has been removed.
+
+## Consequences
+
+Several products can study one slide without paying for the same bytes in each
+worktree. Source provenance remains source-owned, while corrected annotations
+and task-specific products can change independently.
+
+The repository becomes operated infrastructure. It needs capacity monitoring,
+access controls, garbage-collection policy, and restore tests. A catalogue
+reference is not proof that the bytes are locally retained. Experiments must
+state whether they require the publisher, the shared repository, or a durable
+release remote to remain available.
