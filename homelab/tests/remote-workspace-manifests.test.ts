@@ -2127,6 +2127,7 @@ test("Vector T3 sessions can launch only bounded GPU benchmark Jobs", () => {
     "quantity('16Gi')",
     "quantity('8Gi')",
     "emptyDir",
+    "!has(object.spec.template.spec.volumes[0].emptyDir.medium)",
     "subPathExpr",
     "mountPropagation",
   ]) {
@@ -3459,6 +3460,14 @@ test("the Vector health check validates the NVIDIA runtime and browser sandbox",
   );
 
   assert.match(hostConfig, /profile t3-code-agent-browser flags=\(unconfined\)/);
+  assert.match(
+    hostConfig,
+    /systemd\.services\.vector-development-power-profile = \{[\s\S]*?wantedBy = \[ "graphical\.target" \];/,
+  );
+  assert.match(
+    healthCheck,
+    /Vector health check failed at remote line %s: %s/,
+  );
   assert.match(hostConfig, /\n\s+userns,\n/);
   assert.match(hostConfig, /packages = \[ pkgs\.apparmor-profiles \];/);
   assert.match(

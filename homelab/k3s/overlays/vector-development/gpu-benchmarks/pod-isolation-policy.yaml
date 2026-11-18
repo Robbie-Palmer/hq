@@ -57,7 +57,7 @@ spec:
         object.spec.template.spec.volumes.size() == 1 &&
         object.spec.template.spec.volumes[0].name == 'tmp' &&
         has(object.spec.template.spec.volumes[0].emptyDir) &&
-        object.spec.template.spec.volumes[0].emptyDir.medium == '' &&
+        (!has(object.spec.template.spec.volumes[0].emptyDir.medium) || object.spec.template.spec.volumes[0].emptyDir.medium == '') &&
         quantity(object.spec.template.spec.volumes[0].emptyDir.sizeLimit).isGreaterThan(quantity('0')) &&
         quantity(object.spec.template.spec.volumes[0].emptyDir.sizeLimit).compareTo(quantity('1Gi')) <= 0 &&
         object.spec.template.spec.containers[0].volumeMounts.size() == 1 &&
