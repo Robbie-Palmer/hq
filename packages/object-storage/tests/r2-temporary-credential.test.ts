@@ -247,10 +247,15 @@ describe("R2 temporary credential broker", () => {
 
   it("reclaims a same-host lock whose owner process is gone", async () => {
     const receipt = await receiptPath();
+    const staleToken = "a".repeat(32);
     await mkdir(`${receipt}.lock`);
     await writeFile(
       path.join(`${receipt}.lock`, "owner.json"),
-      JSON.stringify({ hostname: hostname(), pid: 999_999_999 }),
+      JSON.stringify({
+        hostname: hostname(),
+        pid: 999_999_999,
+        token: staleToken,
+      }),
     );
     const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
@@ -266,6 +271,41 @@ describe("R2 temporary credential broker", () => {
         runProcess,
       }),
     ).resolves.toEqual({ bucket: "hq-oci-r2-canary-0123456789" });
+    await expect(
+      readFile(`${receipt}.lock.stale-${staleToken}/owner.json`, "utf8"),
+    ).resolves.toContain(staleToken);
+  });
+
+  it("continues after a reclaimer exits with the stale lock quarantined", async () => {
+    const receipt = await receiptPath();
+    const staleToken = "b".repeat(32);
+    const stalePath = `${receipt}.lock.stale-${staleToken}`;
+    await mkdir(stalePath);
+    await writeFile(
+      path.join(stalePath, "owner.json"),
+      JSON.stringify({
+        hostname: hostname(),
+        pid: 999_999_999,
+        token: staleToken,
+      }),
+    );
+    const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
+      if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
+        return result(1, "403 Forbidden");
+      }
+      return result(0);
+    });
+
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch: successfulFetch(),
+        randomSuffix: () => "0123456789",
+        runProcess,
+      }),
+    ).resolves.toEqual({ bucket: "hq-oci-r2-canary-0123456789" });
+    await expect(readFile(path.join(stalePath, "owner.json"), "utf8")).resolves.toContain(
+      staleToken,
+    );
   });
 
   it("allows only one concurrent caller to reclaim a stale lock", async () => {
@@ -273,7 +313,11 @@ describe("R2 temporary credential broker", () => {
     await mkdir(`${receipt}.lock`);
     await writeFile(
       path.join(`${receipt}.lock`, "owner.json"),
-      JSON.stringify({ hostname: hostname(), pid: 999_999_999 }),
+      JSON.stringify({
+        hostname: hostname(),
+        pid: 999_999_999,
+        token: "c".repeat(32),
+      }),
     );
     let releaseConsumer: () => void = () => undefined;
     const consumerReleased = new Promise<void>((resolve) => {

@@ -294,7 +294,11 @@ async function acquireReceiptLock(
 ): Promise<() => Promise<void>> {
   const lockPath = `${receiptPath}.lock`;
   await mkdir(path.dirname(receiptPath), { recursive: true });
-  const owner = { hostname: hostname(), pid: process.pid };
+  const owner = {
+    hostname: hostname(),
+    pid: process.pid,
+    token: randomBytes(16).toString("hex"),
+  };
   for (let attempt = 0; attempt < 2; attempt += 1) {
     try {
       await mkdir(lockPath, { mode: 0o700 });
@@ -346,11 +350,11 @@ async function reclaimStaleReceiptLock(
   lockPath: string,
   currentHostname: string,
 ): Promise<boolean> {
-  let owner: { hostname?: unknown; pid?: unknown };
+  let owner: { hostname?: unknown; pid?: unknown; token?: unknown };
   try {
     owner = JSON.parse(
       await readFile(path.join(lockPath, "owner.json"), "utf8"),
-    ) as { hostname?: unknown; pid?: unknown };
+    ) as { hostname?: unknown; pid?: unknown; token?: unknown };
   } catch {
     return false;
   }
@@ -359,40 +363,18 @@ async function reclaimStaleReceiptLock(
     typeof owner.pid !== "number" ||
     !Number.isSafeInteger(owner.pid) ||
     owner.pid < 1 ||
+    typeof owner.token !== "string" ||
+    !/^[a-f0-9]{32}$/.test(owner.token) ||
     processIsAlive(owner.pid)
   ) {
     return false;
   }
-  try {
-    await writeFile(
-      path.join(lockPath, "reclaim.json"),
-      `${JSON.stringify({ hostname: currentHostname, pid: process.pid })}\n`,
-      { encoding: "utf8", flag: "wx", mode: 0o600 },
-    );
-  } catch {
-    return false;
-  }
-  let claimedOwner: { hostname?: unknown; pid?: unknown };
-  try {
-    claimedOwner = JSON.parse(
-      await readFile(path.join(lockPath, "owner.json"), "utf8"),
-    ) as { hostname?: unknown; pid?: unknown };
-  } catch {
-    return false;
-  }
-  if (
-    claimedOwner.hostname !== owner.hostname ||
-    claimedOwner.pid !== owner.pid
-  ) {
-    return false;
-  }
-  const stalePath = `${lockPath}.stale-${process.pid}-${randomBytes(4).toString("hex")}`;
+  const stalePath = `${lockPath}.stale-${owner.token}`;
   try {
     await rename(lockPath, stalePath);
   } catch {
     return false;
   }
-  await rm(stalePath, { recursive: true });
   return true;
 }
 
