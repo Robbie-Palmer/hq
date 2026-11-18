@@ -4,9 +4,12 @@ on:
   pull_request:
     paths:
       - "ml-pipelines/**"
+      - "data-products/airaqc/**"
+      - "data-products/grandqc/**"
       - "data-products/nucls/**"
       - "data-products/panda/**"
       - "data-products/pathologize/nucleus-analysis/**"
+      - "data-products/pathologize/slide-quality/**"
       - "packages/recipe-parsing/**"
       - "packages/recipe-domain/**"
       - "packages/ai-review-domain/**"

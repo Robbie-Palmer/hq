@@ -161,6 +161,130 @@ def test_lineage_recurses_from_source_wsi_through_derived_products(
         validate_lineage(model_input_product, resolver)
 
 
+def test_lineage_recurses_from_composed_upstream_artifact_without_new_outputs(
+    tmp_path: Path, make_artifact: ArtifactFactory
+) -> None:
+    source = ProductVersion(product="source/wsi", version="v1")
+    segmentation = ProductVersion(product="pathologize/segmentation", version="v1")
+    consumer = ProductVersion(product="pathologize/consumer", version="v1")
+    source_root = tmp_path / "source"
+    segmentation_root = tmp_path / "segmentation"
+    image = make_artifact(
+        source,
+        source_root,
+        "slides/a.svs",
+        b"slide",
+        role=ArtifactRole.SOURCE_IMAGE,
+        media_type="image/tiff",
+    )
+    mask = make_artifact(
+        segmentation,
+        segmentation_root,
+        "masks/a.png",
+        b"mask",
+        role=ArtifactRole.MASK,
+        media_type="image/png",
+    )
+    derived_mask = DerivedArtifact(
+        artifact_id="mask:a",
+        kind=DerivedArtifactKind.MASK,
+        reference=mask,
+        operation=_operation("segment"),
+        parents=(image,),
+    )
+    consumer_product = DerivedProduct(
+        identity=consumer,
+        upstream_products=(segmentation,),
+        records=(
+            ComposedRecord(
+                product=consumer,
+                record_id="consumer:a",
+                upstream_artifacts=(mask,),
+                adapter="mask-consumer",
+                partition="all",
+            ),
+        ),
+        published_artifacts=(),
+        new_artifacts=(),
+    )
+    resolver = ArtifactResolver()
+    resolver.register(source, root=source_root, source_records={"record-1"})
+    resolver.register(
+        segmentation,
+        root=segmentation_root,
+        source_records={"record-1"},
+        derived_artifacts=(derived_mask,),
+    )
+
+    validate_lineage(consumer_product, resolver)
+    (source_root / "slides/a.svs").write_bytes(b"changed source")
+    with pytest.raises(ArtifactResolutionError, match="checksum differs"):
+        validate_lineage(consumer_product, resolver)
+
+
+def test_equal_checksums_do_not_merge_distinct_derived_artifacts(
+    tmp_path: Path, make_artifact: ArtifactFactory
+) -> None:
+    source = ProductVersion(product="source/wsi", version="v1")
+    segmentation = ProductVersion(product="pathologize/segmentation", version="v1")
+    source_root = tmp_path / "source"
+    segmentation_root = tmp_path / "segmentation"
+    first_image = make_artifact(source, source_root, "slides/first.svs", b"first", record="slide-1")
+    second_image = make_artifact(
+        source, source_root, "slides/second.svs", b"second", record="slide-2"
+    )
+    first_mask = make_artifact(
+        segmentation,
+        segmentation_root,
+        "masks/first.png",
+        b"same mask bytes",
+        record="mask-1",
+    )
+    second_mask = make_artifact(
+        segmentation,
+        segmentation_root,
+        "masks/second.png",
+        b"same mask bytes",
+        record="mask-2",
+    )
+    first = DerivedArtifact(
+        artifact_id="mask:first",
+        kind=DerivedArtifactKind.MASK,
+        reference=first_mask,
+        operation=_operation("segment"),
+        parents=(first_image,),
+    )
+    second = DerivedArtifact(
+        artifact_id="mask:second",
+        kind=DerivedArtifactKind.MASK,
+        reference=second_mask,
+        operation=_operation("segment"),
+        parents=(second_image,),
+    )
+    product = DerivedProduct(
+        identity=segmentation,
+        upstream_products=(source,),
+        records=(),
+        published_artifacts=(),
+        new_artifacts=(first, second),
+    )
+    resolver = ArtifactResolver()
+    resolver.register(source, root=source_root, source_records={"slide-1", "slide-2"})
+    resolver.register(
+        segmentation,
+        root=segmentation_root,
+        source_records={"mask-1", "mask-2"},
+        derived_artifacts=(first, second),
+    )
+
+    assert resolver.derived_artifact(first_mask) == first
+    assert resolver.derived_artifact(second_mask) == second
+    validate_lineage(product, resolver)
+    (segmentation_root / "masks/second.png").write_bytes(b"changed mask")
+    with pytest.raises(ArtifactResolutionError, match="checksum differs"):
+        validate_lineage(product, resolver)
+
+
 def test_lineage_rejects_cycles(tmp_path: Path, make_artifact: ArtifactFactory) -> None:
     product = ProductVersion(product="pathologize/cycle", version="v1")
     root = tmp_path / "cycle"

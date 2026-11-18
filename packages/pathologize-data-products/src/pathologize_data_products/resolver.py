@@ -11,6 +11,21 @@ class ArtifactResolutionError(RuntimeError):
     pass
 
 
+type ArtifactReferenceKey = tuple[str, str, str, str, str, str]
+
+
+def artifact_reference_key(reference: ArtifactReference) -> ArtifactReferenceKey:
+    location = f"path:{reference.path}" if reference.path is not None else f"uri:{reference.uri}"
+    return (
+        reference.product.product,
+        reference.product.version,
+        reference.source_record,
+        reference.role.value,
+        location,
+        reference.checksum.value,
+    )
+
+
 @dataclass(frozen=True)
 class ProductRegistration:
     identity: ProductVersion
@@ -59,12 +74,10 @@ class ArtifactResolver:
         matches = [
             artifact
             for artifact in registration.derived_artifacts
-            if artifact.reference.checksum == reference.checksum
+            if artifact_reference_key(artifact.reference) == artifact_reference_key(reference)
         ]
         if len(matches) > 1:
-            raise ArtifactResolutionError(
-                "derived artifact checksum is ambiguous within its product"
-            )
+            raise ArtifactResolutionError("derived artifact reference is ambiguous within product")
         return matches[0] if matches else None
 
     def resolve(self, reference: ArtifactReference) -> ResolvedArtifact:
@@ -89,8 +102,11 @@ class ArtifactResolver:
             raise ArtifactResolutionError("artifact path escapes its registered product root")
         if not path.is_file():
             raise ArtifactResolutionError(f"artifact does not exist: {path}")
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        if digest != reference.checksum.value:
+        digest = hashlib.sha256()
+        with path.open("rb") as source:
+            while chunk := source.read(1024 * 1024):
+                digest.update(chunk)
+        if digest.hexdigest() != reference.checksum.value:
             raise ArtifactResolutionError(
                 f"artifact checksum differs for {reference.product.product}:{reference.path}"
             )

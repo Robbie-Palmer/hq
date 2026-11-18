@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from conftest import ArtifactFactory
+from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
 from pathologize_data_products import (
@@ -71,6 +72,50 @@ def test_artifact_reference_requires_one_safe_location_and_spatial_frame(
     payload["path"] = "slides/slide.svs"
     with pytest.raises(ValidationError, match="coordinate frame"):
         ArtifactReference.model_validate(payload)
+
+
+def test_artifact_reference_location_rule_matches_generated_schemas(rights: Rights) -> None:
+    base = {
+        "product": {"product": "source/records", "version": "v1"},
+        "source_record": "records-1",
+        "role": "source_records",
+        "checksum": _digest(b"records").model_dump(),
+        "media_type": "application/json",
+        "rights": rights.model_dump(mode="json"),
+        "access_tier": "public",
+    }
+    nested_schema = DerivedArtifact.model_json_schema()
+    schemas = (
+        ArtifactReference.model_json_schema(),
+        {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "$ref": "#/$defs/ArtifactReference",
+            "$defs": nested_schema["$defs"],
+        },
+    )
+    valid = (
+        {**base, "path": "records/data.json", "uri": None},
+        {**base, "path": None, "uri": "https://example.test/data.json"},
+    )
+    invalid = (
+        base,
+        {**base, "path": None, "uri": None},
+        {
+            **base,
+            "path": "records/data.json",
+            "uri": "https://example.test/data.json",
+        },
+    )
+
+    for payload in valid:
+        ArtifactReference.model_validate(payload)
+        for schema in schemas:
+            Draft202012Validator(schema).validate(payload)
+    for payload in invalid:
+        with pytest.raises(ValidationError, match="exactly one path or URI"):
+            ArtifactReference.model_validate(payload)
+        for schema in schemas:
+            assert list(Draft202012Validator(schema).iter_errors(payload))
 
 
 def test_one_source_product_owns_each_third_party_dataset(

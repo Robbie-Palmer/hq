@@ -14,6 +14,7 @@ pathologize-data-products = "pathologize_data_products.cli:main"
 
 [dependency-groups]
 dev = [
+    "jsonschema>=4.25,<5",
     "pytest>=9.0.3,<10",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",

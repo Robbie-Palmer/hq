@@ -71,6 +71,20 @@ class ArtifactRole(StrEnum):
 
 
 class ArtifactReference(StrictModel):
+    model_config = ConfigDict(
+        json_schema_extra={
+            "oneOf": [
+                {
+                    "required": ["path"],
+                    "properties": {"path": {"type": "string"}, "uri": {"type": "null"}},
+                },
+                {
+                    "required": ["uri"],
+                    "properties": {"path": {"type": "null"}, "uri": {"type": "string"}},
+                },
+            ]
+        }
+    )
     product: ProductVersion
     source_record: str = Field(min_length=1)
     role: ArtifactRole

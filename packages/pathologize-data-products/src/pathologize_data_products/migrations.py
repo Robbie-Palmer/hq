@@ -153,6 +153,7 @@ def migrate_airaqc_source(project: Path) -> SourceProduct:
     license_record = cast(dict[str, Any], collection["license"])
     rights = _rights(license_record)
     identity = ProductVersion(product=_AIRAQC_PRODUCT, version="v1")
+    asset_root = str(subset["asset_root"]).rstrip("/")
     slides = cast(list[dict[str, Any]], corpus["slides"])
     artifact_records: dict[str, tuple[str, float]] = {}
     for slide in slides:
@@ -185,7 +186,7 @@ def migrate_airaqc_source(project: Path) -> SourceProduct:
                 product=identity,
                 source_record=source_record,
                 role=role,
-                path=f"data/raw/{relative_path}",
+                path=f"{asset_root}/{relative_path}",
                 checksum=checksum,
                 media_type=_airaqc_media_type(str(asset["format"])),
                 rights=rights,

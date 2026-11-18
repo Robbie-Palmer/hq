@@ -13,7 +13,7 @@ from pathologize_data_products import (
 
 
 def test_resolver_checks_product_record_path_and_checksum(
-    tmp_path: Path, make_artifact: ArtifactFactory
+    tmp_path: Path, make_artifact: ArtifactFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     product = ProductVersion(product="source/wsi", version="v1")
     root = tmp_path / "source"
@@ -29,6 +29,10 @@ def test_resolver_checks_product_record_path_and_checksum(
     resolver = ArtifactResolver()
     resolver.register(product, root=root, source_records={"slide-a"})
 
+    def reject_whole_file_reads(_path: Path) -> bytes:
+        raise AssertionError("resolver must hash artifacts in chunks")
+
+    monkeypatch.setattr(Path, "read_bytes", reject_whole_file_reads)
     assert resolver.resolve(reference).path == root / "slides/a.svs"
     (root / "slides/a.svs").write_bytes(b"changed")
     with pytest.raises(ArtifactResolutionError, match="checksum differs"):

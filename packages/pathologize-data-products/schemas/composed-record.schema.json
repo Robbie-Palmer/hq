@@ -11,6 +11,34 @@
     },
     "ArtifactReference": {
       "additionalProperties": false,
+      "oneOf": [
+        {
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "uri": {
+              "type": "null"
+            }
+          },
+          "required": [
+            "path"
+          ]
+        },
+        {
+          "properties": {
+            "path": {
+              "type": "null"
+            },
+            "uri": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "uri"
+          ]
+        }
+      ],
       "properties": {
         "access_tier": {
           "$ref": "#/$defs/AccessTier"

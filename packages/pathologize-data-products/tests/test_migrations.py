@@ -27,6 +27,11 @@ def test_existing_source_migrations_preserve_native_ownership() -> None:
     )
     assert all(reference.coordinate_frame is not None for reference in airaqc.original_artifacts)
     assert all(reference.physical_scale is not None for reference in airaqc.original_artifacts)
+    assert all(
+        reference.path is not None
+        and reference.path.startswith("data/raw/airaqc-tcga/public-pilot-v1/")
+        for reference in airaqc.original_artifacts
+    )
 
 
 def test_existing_product_migrations_are_bounded_and_reference_only() -> None:
