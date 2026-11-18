@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
 import pytest
 
+import annotation_workbench_service.repository as repository_module
 from annotation_workbench_service.contracts import ReviewBundle, ReviewEvent
 from annotation_workbench_service.repository import ReviewRepository
 
@@ -206,3 +212,34 @@ def test_repository_revalidates_events_written_after_startup(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match="does not supersede"):
         repository.session()
+
+
+def test_repository_reader_waits_for_exclusive_writer_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = ReviewRepository(_bundle(tmp_path))
+    event = repository.append(_event())
+    shared_lock_attempted = threading.Event()
+    real_flock = fcntl.flock
+
+    def tracked_flock(descriptor: int, operation: int) -> None:
+        if operation == fcntl.LOCK_SH:
+            shared_lock_attempted.set()
+        real_flock(descriptor, operation)
+
+    descriptor = os.open(repository.events_path, os.O_RDONLY)
+    with (
+        os.fdopen(descriptor, encoding="utf-8") as writer,
+        ThreadPoolExecutor(max_workers=1) as executor,
+    ):
+        real_flock(writer.fileno(), fcntl.LOCK_EX)
+        try:
+            monkeypatch.setattr(repository_module.fcntl, "flock", tracked_flock)
+            read = executor.submit(repository.read_events)
+            assert shared_lock_attempted.wait(timeout=1)
+            with pytest.raises(FutureTimeoutError):
+                read.result(timeout=0.05)
+        finally:
+            real_flock(writer.fileno(), fcntl.LOCK_UN)
+        assert read.result(timeout=1) == [event]
