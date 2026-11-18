@@ -1,10 +1,15 @@
 import hashlib
+import io
 import json
+import threading
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import cast
+from zipfile import ZIP_STORED, ZipFile
 
 import pytest
 from pydantic import ValidationError
+from remotezip import RangeNotSupported
 
 from colorectal_multistain_source.cli import Application
 from colorectal_multistain_source.models import (
@@ -350,6 +355,108 @@ def test_remote_zip_reads_only_member_names(monkeypatch: pytest.MonkeyPatch) -> 
         "HE/Cancer/HE__A001-4.jpg",
         "HE/Cancer/HE__A001-4.png",
     ]
+
+
+def test_remote_zip_uses_bounded_ranges_and_rejects_full_responses(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    manifest = _manifest()
+    artifact = _artifact(manifest, "he")
+    archive_buffer = io.BytesIO()
+    with ZipFile(archive_buffer, "w", compression=ZIP_STORED) as archive:
+        archive.writestr("HE/Cancer/HE__A001-4.jpg", b"j" * (8 * 1024 * 1024))
+        archive.writestr("HE/Cancer/HE__A001-4.png", b"mask")
+    payload = archive_buffer.getvalue()
+    ignored_headers_sent = threading.Event()
+    allow_ignored_body = threading.Event()
+    ignored_response_finished = threading.Event()
+    state: dict[str, object] = {
+        "ignore_ranges": False,
+        "requested_ranges": [],
+        "transferred_bytes": [],
+    }
+
+    class ArchiveHandler(BaseHTTPRequestHandler):
+        protocol_version = "HTTP/1.0"
+
+        def do_GET(self) -> None:
+            range_header = self.headers.get("Range")
+            requested_ranges = cast(list[str | None], state["requested_ranges"])
+            transferred_bytes = cast(list[int], state["transferred_bytes"])
+            requested_ranges.append(range_header)
+            if state["ignore_ranges"]:
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                ignored_headers_sent.set()
+                allow_ignored_body.wait(timeout=2)
+                transferred = 0
+                try:
+                    for offset in range(0, len(payload), 16 * 1024):
+                        chunk = payload[offset : offset + 16 * 1024]
+                        self.wfile.write(chunk)
+                        self.wfile.flush()
+                        transferred += len(chunk)
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
+                finally:
+                    transferred_bytes.append(transferred)
+                    ignored_response_finished.set()
+                return
+            assert range_header is not None
+            range_spec = range_header.removeprefix("bytes=")
+            start_text, end_text = range_spec.split("-", maxsplit=1)
+            if not start_text:
+                start = max(0, len(payload) - int(end_text))
+                end = len(payload) - 1
+            else:
+                start = int(start_text)
+                end = int(end_text) if end_text else len(payload) - 1
+            body = payload[start : end + 1]
+            self.send_response(206)
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Content-Range", f"bytes {start}-{end}/{len(payload)}")
+            self.end_headers()
+            self.wfile.write(body)
+            transferred_bytes.append(len(body))
+
+        def log_message(self, format: str, *_args: object) -> None:  # noqa: A002
+            del format
+            return None
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), ArchiveHandler)
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        url = f"http://127.0.0.1:{server.server_port}/archive.zip"
+        monkeypatch.setattr(
+            "colorectal_multistain_source.source._artifact_url", lambda _artifact: url
+        )
+
+        assert _remote_zip_names(artifact) == [
+            "HE/Cancer/HE__A001-4.jpg",
+            "HE/Cancer/HE__A001-4.png",
+        ]
+        requested_ranges = cast(list[str | None], state["requested_ranges"])
+        transferred_bytes = cast(list[int], state["transferred_bytes"])
+        assert requested_ranges == ["bytes=-65536"]
+        assert sum(transferred_bytes) == 65536
+
+        state["ignore_ranges"] = True
+        requested_ranges.clear()
+        transferred_bytes.clear()
+        with pytest.raises(RangeNotSupported, match="doesn't support range requests"):
+            _remote_zip_names(artifact)
+        assert ignored_headers_sent.wait(timeout=2)
+        allow_ignored_body.set()
+        assert ignored_response_finished.wait(timeout=2)
+        assert requested_ranges == ["bytes=-65536"]
+        assert sum(transferred_bytes) <= 65536
+    finally:
+        allow_ignored_body.set()
+        server.shutdown()
+        server.server_close()
+        thread.join()
 
 
 def test_acquire_streams_one_explicit_artifact_and_verifies_it(

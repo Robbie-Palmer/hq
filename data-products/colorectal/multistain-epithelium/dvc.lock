@@ -3,6 +3,15 @@ stages:
   verify_metadata:
     cmd: uv run --locked colorectal-multistain-source verify-metadata
     deps:
+    - path: ../../../packages/data-artifacts/pyproject.toml
+      hash: md5
+      md5: 46ffb461099f8a1fa39d761c481b6f5b
+      size: 1429
+    - path: ../../../packages/data-artifacts/src/data_artifacts
+      hash: md5
+      md5: 471f2cdeb7c9a67cba055b2eb031cb77.dir
+      size: 25966
+      nfiles: 8
     - path: .python-version
       hash: md5
       md5: 61939823fbcc7e8de3b61ab105331baf
@@ -17,8 +26,8 @@ stages:
       size: 1297
     - path: src/colorectal_multistain_source
       hash: md5
-      md5: e002b9822cb807582b827869e64d8f7a.dir
-      size: 24382
+      md5: 7c7a9d0d8268b70aa8b578dc0a0f1518.dir
+      size: 26510
       nfiles: 4
     - path: uv.lock
       hash: md5
@@ -32,6 +41,15 @@ stages:
   index_native_references:
     cmd: uv run --locked colorectal-multistain-source index
     deps:
+    - path: ../../../packages/data-artifacts/pyproject.toml
+      hash: md5
+      md5: 46ffb461099f8a1fa39d761c481b6f5b
+      size: 1429
+    - path: ../../../packages/data-artifacts/src/data_artifacts
+      hash: md5
+      md5: 471f2cdeb7c9a67cba055b2eb031cb77.dir
+      size: 25966
+      nfiles: 8
     - path: manifest.json
       hash: md5
       md5: eb84fc25468447f925947077b77e43fa
@@ -42,8 +60,8 @@ stages:
       size: 1297
     - path: src/colorectal_multistain_source
       hash: md5
-      md5: e002b9822cb807582b827869e64d8f7a.dir
-      size: 24382
+      md5: 7c7a9d0d8268b70aa8b578dc0a0f1518.dir
+      size: 26510
       nfiles: 4
     - path: uv.lock
       hash: md5

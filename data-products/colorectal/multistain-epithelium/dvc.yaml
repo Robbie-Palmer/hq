@@ -3,6 +3,8 @@ stages:
     cmd: uv run --locked colorectal-multistain-source verify-metadata
     deps:
       - .python-version
+      - ../../../packages/data-artifacts/pyproject.toml
+      - ../../../packages/data-artifacts/src/data_artifacts
       - manifest.json
       - pyproject.toml
       - src/colorectal_multistain_source
@@ -13,6 +15,8 @@ stages:
   index_native_references:
     cmd: uv run --locked colorectal-multistain-source index
     deps:
+      - ../../../packages/data-artifacts/pyproject.toml
+      - ../../../packages/data-artifacts/src/data_artifacts
       - manifest.json
       - pyproject.toml
       - src/colorectal_multistain_source
