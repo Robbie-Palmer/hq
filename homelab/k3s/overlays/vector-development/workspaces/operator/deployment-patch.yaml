@@ -191,7 +191,7 @@ spec:
             - name: AGENT_COORDINATOR_POLICY_DIRECTORY
               value: /etc/agent-coordinator
             - name: AGENT_COORDINATOR_PROJECT_ROOT
-              value: /data/workspaces/personal-site
+              value: /data/workspaces/hq
             - name: T3_ORIGIN
               value: http://127.0.0.1:3773
             - name: GH_TOKEN

@@ -2510,6 +2510,12 @@ test("the Vector vulnerability reconciler mounts policy and launches workers thr
     )?.value,
     "http://127.0.0.1:3773",
   );
+  assert.equal(
+    controllerContainer.env.find(
+      ({ name }: { name: string }) => name === "AGENT_COORDINATOR_PROJECT_ROOT",
+    )?.value,
+    "/data/workspaces/hq",
+  );
   assert.deepEqual(
     controllerContainer.envFrom.map(
       ({ secretRef }: { secretRef: { name: string } }) => secretRef.name,
