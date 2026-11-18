@@ -1,9 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { hostname } from "node:os";
 import path from "node:path";
 
 const cloudflareApiOrigin = "https://api.cloudflare.com";
 const temporaryCredentialTtlMaximum = 604_800;
+const unsafeExternalCleanupExitCode = 75;
 const bucketPrefixPattern = /^[a-z0-9](?:[a-z0-9-]{2,38}[a-z0-9])$/;
 
 export type R2ParentCredentials = {
@@ -292,27 +294,83 @@ async function acquireReceiptLock(
 ): Promise<() => Promise<void>> {
   const lockPath = `${receiptPath}.lock`;
   await mkdir(path.dirname(receiptPath), { recursive: true });
+  const owner = { hostname: hostname(), pid: process.pid };
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      await mkdir(lockPath, { mode: 0o700 });
+      await writeFile(
+        path.join(lockPath, "owner.json"),
+        `${JSON.stringify(owner)}\n`,
+        { encoding: "utf8", flag: "wx", mode: 0o600 },
+      );
+      let released = false;
+      return async () => {
+        if (released) return;
+        released = true;
+        await rm(lockPath, { recursive: true });
+      };
+    } catch (error) {
+      if (
+        typeof error !== "object" ||
+        error === null ||
+        !("code" in error) ||
+        error.code !== "EEXIST"
+      ) {
+        throw error;
+      }
+      if (attempt > 0 || !(await reclaimStaleReceiptLock(lockPath, owner.hostname))) {
+        throw new Error(
+          "The R2 broker receipt is locked by another run; refusing concurrent recovery",
+        );
+      }
+    }
+  }
+  throw new Error("The R2 broker receipt lock could not be acquired");
+}
+
+function processIsAlive(pid: number): boolean {
   try {
-    await mkdir(lockPath, { mode: 0o700 });
+    process.kill(pid, 0);
+    return true;
   } catch (error) {
-    if (
+    return !(
       typeof error === "object" &&
       error !== null &&
       "code" in error &&
-      error.code === "EEXIST"
-    ) {
-      throw new Error(
-        "The R2 broker receipt is locked by another run; refusing concurrent recovery",
-      );
-    }
-    throw error;
+      error.code === "ESRCH"
+    );
   }
-  let released = false;
-  return async () => {
-    if (released) return;
-    released = true;
-    await rm(lockPath, { recursive: true });
-  };
+}
+
+async function reclaimStaleReceiptLock(
+  lockPath: string,
+  currentHostname: string,
+): Promise<boolean> {
+  let owner: { hostname?: unknown; pid?: unknown };
+  try {
+    owner = JSON.parse(
+      await readFile(path.join(lockPath, "owner.json"), "utf8"),
+    ) as { hostname?: unknown; pid?: unknown };
+  } catch {
+    return false;
+  }
+  if (
+    owner.hostname !== currentHostname ||
+    typeof owner.pid !== "number" ||
+    !Number.isSafeInteger(owner.pid) ||
+    owner.pid < 1 ||
+    processIsAlive(owner.pid)
+  ) {
+    return false;
+  }
+  const stalePath = `${lockPath}.stale-${process.pid}-${randomBytes(4).toString("hex")}`;
+  try {
+    await rename(lockPath, stalePath);
+  } catch {
+    return false;
+  }
+  await rm(stalePath, { recursive: true });
+  return true;
 }
 
 async function removeReceipt(receiptPath: string): Promise<void> {
@@ -477,6 +535,7 @@ export async function runR2CredentialBroker(
   );
   const endpoint = `https://${input.accountId}.r2.cloudflarestorage.com`;
   let operationFailure: unknown;
+  let externalCleanupSafe = true;
   try {
     await client.createBucket(allowedBucket);
     receipt = { ...receipt, ownedBuckets: [allowedBucket] };
@@ -508,6 +567,7 @@ export async function runR2CredentialBroker(
       ),
       inheritOutput: true,
     });
+    externalCleanupSafe = consumer.exitCode !== unsafeExternalCleanupExitCode;
     if (consumer.exitCode !== 0) {
       throw new Error(`R2 broker consumer failed with exit code ${consumer.exitCode}`);
     }
@@ -515,18 +575,24 @@ export async function runR2CredentialBroker(
     operationFailure = error;
   }
   let cleanupFailure: unknown;
-  try {
-    await destroyBuckets(
-      client,
-      dependencies.runProcess,
-      input.helperCommand,
-      endpoint,
-      receipt,
-      input.parentCredentials,
+  if (!externalCleanupSafe) {
+    cleanupFailure = new Error(
+      "R2 broker cleanup was blocked because consumer containers may still be active; receipt retained",
     );
-    await removeReceipt(input.receiptPath);
-  } catch (error) {
-    cleanupFailure = error;
+  } else {
+    try {
+      await destroyBuckets(
+        client,
+        dependencies.runProcess,
+        input.helperCommand,
+        endpoint,
+        receipt,
+        input.parentCredentials,
+      );
+      await removeReceipt(input.receiptPath);
+    } catch (error) {
+      cleanupFailure = error;
+    }
   }
   if (cleanupFailure) throw cleanupFailure;
   if (operationFailure) throw operationFailure;

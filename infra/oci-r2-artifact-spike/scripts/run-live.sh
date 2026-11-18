@@ -43,6 +43,7 @@ fixture_root="$run_root/fixtures"
 results_file="$run_root/results.ndjson"
 request_log="$run_root/direct-r2-request-classes.log"
 container_name=oci-r2-artifact-spike-zot
+scrub_container_name=oci-r2-artifact-spike-scrub
 registry_endpoint="localhost:$ZOT_PORT"
 registry_url="http://$registry_endpoint" # NOSONAR: loopback-only disposable registry.
 bucket="$R2_BUCKET"
@@ -139,9 +140,9 @@ blob_key_for() {
 }
 
 emergency_cleanup() {
-  docker rm --force "$container_name" >/dev/null 2>&1 || true
-  docker ps --all --quiet --filter "label=$docker_run_label" \
-    | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
+  if ! bash scripts/stop-consumer-containers.sh; then
+    echo "Canary container cleanup could not be verified" >&2
+  fi
   unset registry_password
   unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
   rm -rf "$state_root/auth" "$state_root/helm" "$state_root/oras"
@@ -187,7 +188,7 @@ printf 'conditional write A\n' > "$fixture_root/direct/a.txt"
 printf 'conditional write B\n' > "$fixture_root/direct/b.txt"
 assert_precondition_failure() {
   local error_file="$1"
-  if ! grep -Eqi '(412|PreconditionFailed)' "$error_file"; then
+  if ! grep -Eq '^An error occurred \(PreconditionFailed\) when calling the PutObject operation:' "$error_file"; then
     cat "$error_file" >&2
     echo "Conditional write failed without the expected 412 PreconditionFailed response" >&2
     return 1
@@ -300,6 +301,8 @@ recovery_hex="$(sha256sum "$fixture_root/recovery/payload.txt" | cut -d' ' -f1)"
 recovery_key="$(blob_key_for "$recovery_hex")"
 [[ -n "$recovery_key" ]]
 docker run --rm \
+  --name "$scrub_container_name" \
+  --label "$docker_run_label" \
   --user 65532:65532 \
   --env AWS_ACCESS_KEY_ID \
   --env AWS_SECRET_ACCESS_KEY \

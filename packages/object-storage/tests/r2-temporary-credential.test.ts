@@ -1,5 +1,5 @@
 import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
+import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
@@ -243,6 +243,57 @@ describe("R2 temporary credential broker", () => {
       }),
     ).rejects.toThrow("locked by another run");
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("reclaims a same-host lock whose owner process is gone", async () => {
+    const receipt = await receiptPath();
+    await mkdir(`${receipt}.lock`);
+    await writeFile(
+      path.join(`${receipt}.lock`, "owner.json"),
+      JSON.stringify({ hostname: hostname(), pid: 999_999_999 }),
+    );
+    const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
+      if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
+        return result(1, "403 Forbidden");
+      }
+      return result(0);
+    });
+
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch: successfulFetch(),
+        randomSuffix: () => "0123456789",
+        runProcess,
+      }),
+    ).resolves.toEqual({ bucket: "hq-oci-r2-canary-0123456789" });
+  });
+
+  it("retains owned buckets when the consumer cannot verify container cleanup", async () => {
+    const receipt = await receiptPath();
+    const requests: BrokerProcessRequest[] = [];
+    const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
+      requests.push(request);
+      if (request.command === "consumer") return result(75);
+      if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
+        return result(1, "403 Forbidden");
+      }
+      return result(0);
+    });
+
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch: successfulFetch(),
+        randomSuffix: () => "0123456789",
+        runProcess,
+      }),
+    ).rejects.toThrow("containers may still be active; receipt retained");
+    expect(requests.some(({ arguments: args }) => args[0] === "purge")).toBe(false);
+    expect(JSON.parse(await readFile(receipt, "utf8"))).toMatchObject({
+      ownedBuckets: [
+        "hq-oci-r2-canary-0123456789",
+        "hq-oci-r2-canary-0123456789-scope",
+      ],
+    });
   });
 
   it("recovers only the exact buckets recorded by the broker", async () => {
