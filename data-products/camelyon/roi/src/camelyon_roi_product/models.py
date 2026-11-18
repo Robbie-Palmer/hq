@@ -19,7 +19,13 @@ class MetadataSource(StrictModel):
     source_id: str
     url: AnyHttpUrl
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    role: Literal["checksums", "readme", "slide_labels", "patient_and_slide_labels"]
+    role: Literal[
+        "checksums",
+        "readme",
+        "slide_labels",
+        "patient_and_slide_labels",
+        "file_listing",
+    ]
 
 
 class AnnotationArchive(StrictModel):
@@ -53,8 +59,8 @@ class SourceContract(StrictModel):
 
     @model_validator(mode="after")
     def require_complete_contract(self) -> Self:
-        if len(self.metadata_sources) != 6:
-            raise ValueError("source contract must pin six official metadata records")
+        if len(self.metadata_sources) != 7:
+            raise ValueError("source contract must pin seven official metadata records")
         if len(self.annotation_archives) != 3:
             raise ValueError("source contract must pin three XML annotation archives")
         expected_scope = {

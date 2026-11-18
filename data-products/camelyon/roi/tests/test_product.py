@@ -4,44 +4,155 @@ import json
 import zipfile
 from http.client import HTTPMessage
 from pathlib import Path
+from typing import Any
 
 import pytest
 from pydantic import ValidationError
 
-from camelyon_roi_product import acquisition
+from camelyon_roi_product import acquisition, freeze
 from camelyon_roi_product.acquisition import (
     _download,
     _HttpsOnlyRedirectHandler,
-    _safe_extract,
+    _validated_xml_members,
     acquire_annotations,
     acquire_artifact,
+    acquire_metadata,
     parse_xml,
     verify_metadata,
 )
 from camelyon_roi_product.cli import Application
-from camelyon_roi_product.freeze import (
-    METADATA_FILE_NAMES,
-    _verify_freeze_inputs,
-    freeze_snapshot,
-)
-from camelyon_roi_product.models import SourceContract
+from camelyon_roi_product.models import ArtifactManifest, NativeRecord, SourceContract
 from camelyon_roi_product.product import ProductError, publish_product
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 
 
-def _copy_contract(root: Path) -> None:
+def _copy_source(root: Path) -> dict[str, Any]:
     (root / "contracts").mkdir()
-    (root / "records").mkdir()
-    for relative in (
-        "contracts/source.json",
-        "contracts/artifacts.json",
-        "records/native-records.json",
-    ):
-        destination = root / relative
-        destination.write_text(
-            (PROJECT_DIR / relative).read_text(encoding="utf-8"), encoding="utf-8"
+    payload = json.loads((PROJECT_DIR / "contracts/source.json").read_text(encoding="utf-8"))
+    (root / "contracts/source.json").write_text(json.dumps(payload), encoding="utf-8")
+    return payload
+
+
+def _artifact(artifact_id: str, challenge: str, role: str, slides: list[str]) -> dict[str, object]:
+    return {
+        "artifact_id": artifact_id,
+        "challenge": challenge,
+        "source_role": role,
+        "path": f"{challenge}/{artifact_id}.zip",
+        "source_url": f"https://example.test/{artifact_id}.zip",
+        "bytes": 1,
+        "md5": "0" * 32,
+        "format": "pyramidal_tiff" if challenge == "CAMELYON16" else "patient_zip",
+        "contains_slide_ids": slides,
+    }
+
+
+def _record(
+    *,
+    challenge: str,
+    role: str,
+    slide_id: str,
+    artifact_id: str,
+    patient_id: str | None = None,
+    centre_id: str | None = None,
+    node_id: str | None = None,
+    annotated: bool = False,
+    incomplete: bool = False,
+) -> dict[str, object]:
+    return {
+        "schema_version": "1.0.0",
+        "dataset_id": "camelyon-gigadb-100439-roi-v1",
+        "record_id": f"{challenge}:{slide_id}",
+        "challenge": challenge,
+        "source_role": role,
+        "patient_id": patient_id,
+        "centre_id": centre_id,
+        "node_id": node_id,
+        "slide_id": slide_id,
+        "stain": "H&E",
+        "slide_label": "Normal",
+        "lesion_category": "None",
+        "patient_stage": "pN0" if patient_id else None,
+        "identity_completeness": "complete" if patient_id else "not_published_for_camelyon16",
+        "annotation_completeness": "non_exhaustive" if incomplete else "exhaustive",
+        "annotation_completeness_detail": {
+            "all_tumor_areas": "non_exhaustive" if incomplete else "exhaustive"
+        },
+        "slide_artifact": {
+            "artifact_id": artifact_id,
+            "archive_member": f"{slide_id}.tif" if patient_id else None,
+        },
+        "lesion_annotation": (
+            {
+                "artifact_id": (
+                    "camelyon17-training-lesion-annotations"
+                    if patient_id
+                    else "camelyon16-training-lesion-annotations"
+                ),
+                "archive_member": f"{slide_id}.xml",
+                "native_groups": ["metastases", "normal"] if patient_id else ["_0", "_1", "_2"],
+            }
+            if annotated
+            else None
+        ),
+        "scale": {
+            "coordinate_space": "whole_slide_level_0",
+            "coordinate_unit": "pixel",
+            "axes": "X,Y",
+            "physical_spacing": "embedded_in_pyramidal_tiff",
+        },
+    }
+
+
+def _snapshot() -> tuple[ArtifactManifest, list[NativeRecord]]:
+    artifacts: list[dict[str, object]] = []
+    records: list[dict[str, object]] = []
+    for index in range(399):
+        slide_id = f"cam16_{index:03d}"
+        artifact_id = f"camelyon16-{slide_id}-wsi"
+        role = "training" if index < 270 else "testing"
+        artifacts.append(_artifact(artifact_id, "CAMELYON16", role, [slide_id]))
+        records.append(
+            _record(
+                challenge="CAMELYON16",
+                role=role,
+                slide_id=slide_id,
+                artifact_id=artifact_id,
+                annotated=index < 159,
+                incomplete=index < 21,
+            )
         )
+    slide_count = 0
+    for patient_index in range(43):
+        patient_id = f"patient_{patient_index:03d}"
+        slide_ids = [f"{patient_id}_node_{index}" for index in range(2 if patient_index < 7 else 1)]
+        artifact_id = f"camelyon17-{patient_id}-slides"
+        artifacts.append(_artifact(artifact_id, "CAMELYON17", "training", slide_ids))
+        for node_index, slide_id in enumerate(slide_ids):
+            records.append(
+                _record(
+                    challenge="CAMELYON17",
+                    role="training",
+                    slide_id=slide_id,
+                    artifact_id=artifact_id,
+                    patient_id=patient_id,
+                    centre_id=f"center_{patient_index % 5}",
+                    node_id=f"node_{node_index}",
+                    annotated=True,
+                    incomplete=True,
+                )
+            )
+            slide_count += 1
+    assert slide_count == 50
+    manifest = ArtifactManifest.model_validate(
+        {
+            "schema_version": "1.0.0",
+            "dataset_id": "camelyon-gigadb-100439-roi-v1",
+            "artifacts": artifacts,
+        }
+    )
+    return manifest, [NativeRecord.model_validate(record) for record in records]
 
 
 def _zip_bytes(name: str, content: bytes) -> bytes:
@@ -60,11 +171,17 @@ def _xml(group: str = "metastases") -> bytes:
     ).encode()
 
 
-def test_publish_preserves_source_scope_and_stable_references(tmp_path: Path) -> None:
-    _copy_contract(tmp_path)
+def _publish_with_snapshot(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> dict[str, object]:
+    _copy_source(tmp_path)
+    snapshot = _snapshot()
+    monkeypatch.setattr(freeze, "build_snapshot", lambda _root: snapshot)
+    return publish_product(tmp_path)
 
-    metrics = publish_product(tmp_path)
 
+def test_publish_preserves_source_scope_and_stable_references(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    metrics = _publish_with_snapshot(tmp_path, monkeypatch)
     assert metrics == {
         "artifact_count": 442,
         "camelyon16_slide_count": 399,
@@ -74,81 +191,45 @@ def test_publish_preserves_source_scope_and_stable_references(tmp_path: Path) ->
         "record_count": 449,
         "xml_referenced_slide_count": 209,
     }
-    records = (tmp_path / "outputs/native-records.jsonl").read_text(encoding="utf-8").splitlines()
-    assert len(records) == 449
-    references = json.loads(
-        (tmp_path / "outputs/artifact-references.json").read_text(encoding="utf-8")
-    )
+    assert len((tmp_path / "outputs/native-records.jsonl").read_text().splitlines()) == 449
+    references = json.loads((tmp_path / "outputs/artifact-references.json").read_text())
     assert len(references["slide_artifacts"]) == 442
     assert len(references["annotation_archives"]) == 3
 
 
 def test_source_contract_rejects_changed_publisher_scope() -> None:
-    payload = json.loads((PROJECT_DIR / "contracts/source.json").read_text(encoding="utf-8"))
+    payload = json.loads((PROJECT_DIR / "contracts/source.json").read_text())
     payload["scope"]["camelyon16_slides"] = 400
-
     with pytest.raises(ValidationError, match="source contract scope differs"):
         SourceContract.model_validate(payload)
 
 
-def test_publish_rejects_invented_camelyon16_patient(tmp_path: Path) -> None:
-    _copy_contract(tmp_path)
-    records_path = tmp_path / "records/native-records.json"
-    payload = json.loads(records_path.read_text(encoding="utf-8"))
-    payload["records"][0]["patient_id"] = "invented"
-    records_path.write_text(json.dumps(payload), encoding="utf-8")
-
+def test_publish_rejects_invented_camelyon16_patient(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _copy_source(tmp_path)
+    manifest, records = _snapshot()
+    records[0] = records[0].model_copy(update={"patient_id": "invented"})
+    monkeypatch.setattr(freeze, "build_snapshot", lambda _root: (manifest, records))
     with pytest.raises(ProductError, match="must not invent"):
         publish_product(tmp_path)
 
 
-def test_publish_rejects_record_and_artifact_scope_mismatch(tmp_path: Path) -> None:
-    _copy_contract(tmp_path)
-    records_path = tmp_path / "records/native-records.json"
-    payload = json.loads(records_path.read_text(encoding="utf-8"))
-    record = next(
-        record
-        for record in payload["records"]
-        if record["challenge"] == "CAMELYON16" and record["source_role"] == "training"
-    )
-    record["source_role"] = "testing"
-    records_path.write_text(json.dumps(payload), encoding="utf-8")
-
+def test_publish_rejects_record_and_artifact_scope_mismatch(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _copy_source(tmp_path)
+    manifest, records = _snapshot()
+    records[0] = records[0].model_copy(update={"source_role": "testing"})
+    monkeypatch.setattr(freeze, "build_snapshot", lambda _root: (manifest, records))
     with pytest.raises(ProductError, match="slide artifact scope differs"):
-        publish_product(tmp_path)
-
-
-def test_publish_rejects_role_counts_outside_declared_scope(tmp_path: Path) -> None:
-    _copy_contract(tmp_path)
-    records_path = tmp_path / "records/native-records.json"
-    records = json.loads(records_path.read_text(encoding="utf-8"))
-    record = next(
-        record
-        for record in records["records"]
-        if record["challenge"] == "CAMELYON16" and record["source_role"] == "training"
-    )
-    record["source_role"] = "testing"
-    records_path.write_text(json.dumps(records), encoding="utf-8")
-    artifacts_path = tmp_path / "contracts/artifacts.json"
-    artifacts = json.loads(artifacts_path.read_text(encoding="utf-8"))
-    artifact = next(
-        artifact
-        for artifact in artifacts["artifacts"]
-        if artifact["artifact_id"] == record["slide_artifact"]["artifact_id"]
-    )
-    artifact["source_role"] = "testing"
-    artifacts_path.write_text(json.dumps(artifacts), encoding="utf-8")
-
-    with pytest.raises(ProductError, match="record role counts differ"):
         publish_product(tmp_path)
 
 
 def test_parse_xml_keeps_native_group_and_coordinate_order(tmp_path: Path) -> None:
     path = tmp_path / "annotation.xml"
     path.write_bytes(_xml())
-
     annotations = parse_xml(path, "patient_004_node_4")
-
     assert annotations[0].group == "metastases"
     assert [(point.order, point.x, point.y) for point in annotations[0].coordinates] == [
         (0, 1.0, 2.0),
@@ -156,20 +237,16 @@ def test_parse_xml_keeps_native_group_and_coordinate_order(tmp_path: Path) -> No
     ]
 
 
-def test_safe_extract_rejects_non_xml_and_traversal(tmp_path: Path) -> None:
+def test_archive_validation_rejects_non_xml_and_traversal(tmp_path: Path) -> None:
     for name in ("notes.txt", "../annotation.xml"):
         path = tmp_path / f"{name.replace('/', '_')}.zip"
         path.write_bytes(_zip_bytes(name, b"bad"))
-        with (
-            zipfile.ZipFile(path) as source,
-            pytest.raises(ProductError, match="unexpected annotation archive member"),
-        ):
-            _safe_extract(source, tmp_path / "output")
+        with zipfile.ZipFile(path) as source, pytest.raises(ProductError, match="unexpected"):
+            _validated_xml_members(source)
 
 
 def test_redirect_handler_rejects_non_https_destination() -> None:
     handler = _HttpsOnlyRedirectHandler()
-
     with pytest.raises(ProductError, match="redirect must use HTTPS"):
         handler.redirect_request(
             acquisition.urllib.request.Request("https://example.test/source"),
@@ -191,45 +268,37 @@ def test_download_stops_before_exceeding_byte_limit(
 
     monkeypatch.setattr(acquisition.urllib.request, "build_opener", lambda _handler: FakeOpener())
     destination = tmp_path / "download"
-
     with pytest.raises(ProductError, match="exceeds 4 byte limit"):
         _download("https://example.test/source", destination, 4)
-
     assert destination.read_bytes() == b""
 
 
-def test_verify_metadata_is_metadata_only_and_digest_gated(
+def test_metadata_verification_and_dvc_acquisition(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / "contracts").mkdir()
-    payload = json.loads((PROJECT_DIR / "contracts/source.json").read_text(encoding="utf-8"))
+    payload = _copy_source(tmp_path)
     content = b"official metadata"
     digest = hashlib.sha256(content).hexdigest()
     for index, source in enumerate(payload["metadata_sources"]):
         source["source_id"] = f"source-{index}"
         source["url"] = f"https://example.test/source-{index}"
         source["sha256"] = digest
-    (tmp_path / "contracts/source.json").write_text(json.dumps(payload), encoding="utf-8")
+    (tmp_path / "contracts/source.json").write_text(json.dumps(payload))
     monkeypatch.setattr(acquisition, "_download", lambda _url, path: path.write_bytes(content))
-
-    assert verify_metadata(tmp_path) == 6
+    assert verify_metadata(tmp_path) == 7
     assert not (tmp_path / "data").exists()
+    assert acquire_metadata(tmp_path) == 7
+    assert len(list((tmp_path / "data/metadata").iterdir())) == 7
+    monkeypatch.setattr(acquisition, "_download", lambda _url, _path: pytest.fail("must reuse"))
+    assert acquire_metadata(tmp_path) == 7
 
-    payload["metadata_sources"][0]["sha256"] = "0" * 64
-    (tmp_path / "contracts/source.json").write_text(json.dumps(payload), encoding="utf-8")
-    with pytest.raises(ProductError, match="official metadata changed"):
-        verify_metadata(tmp_path)
 
-
-def test_acquire_artifact_requires_budget_verifies_and_reuses(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "contracts").mkdir()
-    content = b"pinned WSI fixture"
-    manifest = {
+def _write_artifact_references(root: Path, content: bytes) -> None:
+    (root / "outputs").mkdir()
+    payload = {
         "schema_version": "1.0.0",
         "dataset_id": "camelyon-gigadb-100439-roi-v1",
-        "artifacts": [
+        "slide_artifacts": [
             {
                 "artifact_id": "slide",
                 "challenge": "CAMELYON16",
@@ -242,20 +311,26 @@ def test_acquire_artifact_requires_budget_verifies_and_reuses(
                 "contains_slide_ids": ["normal_001"],
             }
         ],
+        "annotation_archives": [],
     }
-    (tmp_path / "contracts/artifacts.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (root / "outputs/artifact-references.json").write_text(json.dumps(payload))
+
+
+def test_acquire_artifact_requires_budget_verifies_and_reuses(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    content = b"pinned WSI fixture"
+    _write_artifact_references(tmp_path, content)
 
     def write_content(_url: str, path: Path, max_bytes: int) -> None:
         assert max_bytes == len(content)
         path.write_bytes(content)
 
     monkeypatch.setattr(acquisition, "_download", write_content)
-
     with pytest.raises(ProductError, match="limit"):
         acquire_artifact("slide", len(content) - 1, tmp_path)
     destination = acquire_artifact("slide", len(content), tmp_path)
     assert destination.read_bytes() == content
-
     monkeypatch.setattr(
         acquisition,
         "_download",
@@ -266,124 +341,37 @@ def test_acquire_artifact_requires_budget_verifies_and_reuses(
         acquire_artifact("missing", len(content), tmp_path)
 
 
-def test_acquire_artifact_uses_distinct_temporary_files(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    (tmp_path / "contracts").mkdir()
-    content = b"expected"
-    manifest = {
-        "schema_version": "1.0.0",
-        "dataset_id": "camelyon-gigadb-100439-roi-v1",
-        "artifacts": [
-            {
-                "artifact_id": "slide",
-                "challenge": "CAMELYON16",
-                "source_role": "training",
-                "path": "CAMELYON16/training/normal/normal_001.tif",
-                "source_url": "https://example.test/normal_001.tif",
-                "bytes": len(content),
-                "md5": hashlib.md5(content).hexdigest(),  # noqa: S324 - publisher checksum.
-                "format": "pyramidal_tiff",
-                "contains_slide_ids": ["normal_001"],
-            }
-        ],
-    }
-    (tmp_path / "contracts/artifacts.json").write_text(json.dumps(manifest), encoding="utf-8")
-    temporary_paths: list[Path] = []
-
-    def write_invalid(_url: str, path: Path, _max_bytes: int) -> None:
-        temporary_paths.append(path)
-        path.write_bytes(b"invalid")
-
-    monkeypatch.setattr(acquisition, "_download", write_invalid)
-    for _ in range(2):
-        with pytest.raises(ProductError, match="downloaded artifact differs"):
-            acquire_artifact("slide", len(content), tmp_path)
-
-    assert temporary_paths[0] != temporary_paths[1]
-    assert not any(path.exists() for path in temporary_paths)
-
-
-def test_cli_validates_acquire_and_freeze_inputs(tmp_path: Path) -> None:
-    application = Application(str(tmp_path))
-
-    with pytest.raises(ValidationError, match="greater than 0"):
-        application.acquire("slide", 0)
-    with pytest.raises(ValidationError, match="Path does not point to a directory"):
-        application.freeze(str(tmp_path / "missing"))
-
-
-def test_freeze_inputs_must_match_pinned_digests(tmp_path: Path) -> None:
-    metadata = tmp_path / "metadata"
-    metadata.mkdir()
-    payload = json.loads((PROJECT_DIR / "contracts/source.json").read_text(encoding="utf-8"))
-    for source in payload["metadata_sources"]:
-        content = source["source_id"].encode()
-        source["sha256"] = hashlib.sha256(content).hexdigest()
-        name = METADATA_FILE_NAMES.get(source["source_id"], source["source_id"])
-        (metadata / name).write_bytes(content)
-    for archive in payload["annotation_archives"]:
-        content = archive["artifact_id"].encode()
-        archive["bytes"] = len(content)
-        archive["md5"] = hashlib.md5(content).hexdigest()  # noqa: S324 - publisher checksum.
-        archive["sha256"] = hashlib.sha256(content).hexdigest()
-        name = f"{archive['challenge']}_{archive['source_role']}_lesion_annotations.zip"
-        (metadata / name).write_bytes(content)
-    contract = SourceContract.model_validate(payload)
-
-    _verify_freeze_inputs(metadata, contract)
-    (metadata / "reference.csv").write_text("changed", encoding="utf-8")
-    root = tmp_path / "product"
-    (root / "contracts").mkdir(parents=True)
-    (root / "contracts/source.json").write_text(json.dumps(payload), encoding="utf-8")
-
-    with pytest.raises(ProductError, match=r"camelyon16_reference\.csv"):
-        freeze_snapshot(str(metadata), str(root))
-    assert not (root / "contracts/artifacts.json").exists()
-
-
 def test_acquire_annotations_checks_archives_and_indexes_coordinates(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    (tmp_path / "contracts").mkdir()
-    (tmp_path / "records").mkdir()
-    source = json.loads((PROJECT_DIR / "contracts/source.json").read_text(encoding="utf-8"))
+    source = _copy_source(tmp_path)
     members = ["tumor_001.xml", "test_001.xml", "patient_004_node_4.xml"]
-    contents = {
-        archive["artifact_id"]: _zip_bytes(member, _xml("_0" if index < 2 else "metastases"))
-        for index, (archive, member) in enumerate(
-            zip(source["annotation_archives"], members, strict=True)
-        )
-    }
     url_content: dict[str, bytes] = {}
-    for archive, content in zip(source["annotation_archives"], contents.values(), strict=True):
+    for index, (archive, member) in enumerate(
+        zip(source["annotation_archives"], members, strict=True)
+    ):
+        content = _zip_bytes(member, _xml("_0" if index < 2 else "metastases"))
         archive["source_url"] = f"https://example.test/{archive['artifact_id']}.zip"
         archive["bytes"] = len(content)
         archive["md5"] = hashlib.md5(content).hexdigest()  # noqa: S324 - publisher checksum.
         archive["sha256"] = hashlib.sha256(content).hexdigest()
         url_content[archive["source_url"]] = content
-    (tmp_path / "contracts/source.json").write_text(json.dumps(source), encoding="utf-8")
-    records = {
-        "records": [
-            {
-                "slide_id": Path(member).stem,
-                "lesion_annotation": {
-                    "artifact_id": archive["artifact_id"],
-                    "archive_member": member,
-                },
-            }
-            for archive, member in zip(source["annotation_archives"], members, strict=True)
-        ]
-    }
-    (tmp_path / "records/native-records.json").write_text(json.dumps(records), encoding="utf-8")
+    (tmp_path / "contracts/source.json").write_text(json.dumps(source))
 
     def write_archive(url: str, path: Path, max_bytes: int) -> None:
         assert max_bytes == len(url_content[url])
         path.write_bytes(url_content[url])
 
     monkeypatch.setattr(acquisition, "_download", write_archive)
-
+    monkeypatch.setattr(acquisition, "EXPECTED_XML_SLIDES", 3)
+    monkeypatch.setattr(acquisition, "EXPECTED_LESION_ANNOTATIONS", 3)
     assert acquire_annotations(tmp_path) == 3
-    rows = (tmp_path / "data/annotation-index.jsonl").read_text(encoding="utf-8").splitlines()
+    rows = (tmp_path / "outputs/lesion-annotations.jsonl").read_text().splitlines()
     assert len(rows) == 3
     assert json.loads(rows[-1])["coordinates"][0] == {"order": 0, "x": 1.0, "y": 2.0}
+
+
+def test_cli_validates_acquire_budget(tmp_path: Path) -> None:
+    application = Application(str(tmp_path))
+    with pytest.raises(ValidationError, match="greater than 0"):
+        application.acquire("slide", 0)

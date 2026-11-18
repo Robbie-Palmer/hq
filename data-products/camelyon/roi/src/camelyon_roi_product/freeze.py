@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any, cast
 
 from camelyon_roi_product.acquisition import _digest
-from camelyon_roi_product.models import SourceContract
-from camelyon_roi_product.product import PROJECT_DIR, ProductError, _read_json, _write_json
+from camelyon_roi_product.models import ArtifactManifest, NativeRecord, SourceContract
+from camelyon_roi_product.product import PROJECT_DIR, ProductError, _read_json
 
 DATASET_ID = "camelyon-gigadb-100439-roi-v1"
 SCALE = {
@@ -19,28 +19,24 @@ SCALE = {
     "physical_spacing": "embedded_in_pyramidal_tiff",
 }
 
-METADATA_FILE_NAMES = {
-    "camelyon16_reference.csv": "reference.csv",
-    "camelyon17_stage_labels.csv": "stage_labels.csv",
-}
 
-
-def _verify_freeze_inputs(metadata: Path, contract: SourceContract) -> None:
+def _verify_snapshot_inputs(root: Path, contract: SourceContract) -> None:
+    metadata = root / "data/metadata"
     for source in contract.metadata_sources:
-        name = METADATA_FILE_NAMES.get(source.source_id, source.source_id)
-        path = metadata / name
+        path = metadata / source.source_id
         if not path.is_file() or _digest(path, "sha256") != source.sha256:
-            raise ProductError(f"freeze metadata differs from pinned source: {source.source_id}")
+            raise ProductError(f"publisher metadata differs from pinned source: {source.source_id}")
     for archive in contract.annotation_archives:
-        name = f"{archive.challenge}_{archive.source_role}_lesion_annotations.zip"
-        path = metadata / name
+        path = root / "data/raw" / archive.path
         if (
             not path.is_file()
             or path.stat().st_size != archive.bytes
             or _digest(path, "md5") != archive.md5
             or _digest(path, "sha256") != archive.sha256
         ):
-            raise ProductError(f"freeze archive differs from pinned source: {archive.artifact_id}")
+            raise ProductError(
+                f"publisher archive differs from pinned source: {archive.artifact_id}"
+            )
 
 
 def _checksums(path: Path) -> dict[str, str]:
@@ -91,22 +87,26 @@ def _artifact(
 
 
 def _camelyon16(
-    metadata: Path, files: list[dict[str, Any]]
+    metadata: Path, annotation_root: Path, files: list[dict[str, Any]]
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     checksums = _checksums(metadata / "camelyon16_checksums.md5")
-    annotations = {
+    annotation_links = {
         **{
             Path(name).stem: ("camelyon16-training-lesion-annotations", name)
-            for name in _annotation_members(metadata / "CAMELYON16_training_lesion_annotations.zip")
+            for name in _annotation_members(
+                annotation_root / "CAMELYON16/training/lesion_annotations.zip"
+            )
         },
         **{
             Path(name).stem: ("camelyon16-testing-lesion-annotations", name)
-            for name in _annotation_members(metadata / "CAMELYON16_testing_lesion_annotations.zip")
+            for name in _annotation_members(
+                annotation_root / "CAMELYON16/testing/lesion_annotations.zip"
+            )
         },
     }
     test_labels = {
         row[0]: {"slide_label": row[1], "lesion_category": row[3]}
-        for row in _csv_rows(metadata / "reference.csv")
+        for row in _csv_rows(metadata / "camelyon16_reference.csv")
     }
     non_exhaustive = set(
         re.findall(
@@ -145,7 +145,7 @@ def _camelyon16(
                 slide_ids=[slide_id],
             )
         )
-        annotation = annotations.get(slide_id)
+        annotation = annotation_links.get(slide_id)
         incomplete = slide_id in non_exhaustive
         records.append(
             {
@@ -183,15 +183,17 @@ def _camelyon16(
 
 
 def _camelyon17(
-    metadata: Path, files: list[dict[str, Any]]
+    metadata: Path, annotations: Path, files: list[dict[str, Any]]
 ) -> tuple[list[dict[str, object]], list[dict[str, object]]]:
     checksums = _checksums(metadata / "camelyon17_checksums.md5")
     annotation_members = sorted(
-        _annotation_members(metadata / "CAMELYON17_training_lesion_annotations.zip")
+        _annotation_members(annotations / "CAMELYON17/training/lesion_annotations.zip")
     )
     slide_ids = [Path(name).stem for name in annotation_members]
     patient_ids = sorted({slide_id.rsplit("_node_", maxsplit=1)[0] for slide_id in slide_ids})
-    labels = {Path(row[0]).stem: row[1] for row in _csv_rows(metadata / "stage_labels.csv")[1:]}
+    labels = {
+        Path(row[0]).stem: row[1] for row in _csv_rows(metadata / "camelyon17_stage_labels.csv")[1:]
+    }
     patient_files = {
         Path(file["file_name"]).stem: file
         for file in files
@@ -257,23 +259,21 @@ def _camelyon17(
     return artifacts, records
 
 
-def freeze_snapshot(metadata_dir: str, root: str | None = None) -> None:
-    metadata = Path(metadata_dir).resolve()
-    target = Path(root).resolve() if root is not None else PROJECT_DIR
-    contract = SourceContract.model_validate(_read_json(target / "contracts/source.json"))
-    _verify_freeze_inputs(metadata, contract)
+def build_snapshot(
+    root: Path = PROJECT_DIR,
+) -> tuple[ArtifactManifest, list[NativeRecord]]:
+    contract = SourceContract.model_validate(_read_json(root / "contracts/source.json"))
+    _verify_snapshot_inputs(root, contract)
+    metadata = root / "data/metadata"
+    annotations = root / "data/raw"
     files = _api_files(metadata / "gigadb_files.json")
-    cam16_artifacts, cam16_records = _camelyon16(metadata, files)
-    cam17_artifacts, cam17_records = _camelyon17(metadata, files)
+    cam16_artifacts, cam16_records = _camelyon16(metadata, annotations, files)
+    cam17_artifacts, cam17_records = _camelyon17(metadata, annotations, files)
     artifacts = cam16_artifacts + cam17_artifacts
     records = cam16_records + cam17_records
     if len(artifacts) != 442 or len(records) != 449:
         raise ProductError("official metadata produced unexpected CAMELYON scope")
-    _write_json(
-        target / "contracts/artifacts.json",
-        {"schema_version": "1.0.0", "dataset_id": DATASET_ID, "artifacts": artifacts},
+    manifest = ArtifactManifest.model_validate(
+        {"schema_version": "1.0.0", "dataset_id": DATASET_ID, "artifacts": artifacts}
     )
-    _write_json(
-        target / "records/native-records.json",
-        {"schema_version": "1.0.0", "dataset_id": DATASET_ID, "records": records},
-    )
+    return manifest, [NativeRecord.model_validate(record) for record in records]

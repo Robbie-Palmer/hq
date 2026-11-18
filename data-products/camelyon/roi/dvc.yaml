@@ -1,11 +1,42 @@
 stages:
+  acquire_publisher_metadata:
+    cmd: uv run --locked camelyon-roi-product acquire_metadata
+    deps:
+      - .python-version
+      - contracts/source.json
+      - pyproject.toml
+      - src/camelyon_roi_product/acquisition.py
+      - src/camelyon_roi_product/cli.py
+      - src/camelyon_roi_product/models.py
+      - src/camelyon_roi_product/product.py
+      - uv.lock
+    outs:
+      - data/metadata
+  acquire_annotation_archives:
+    cmd: uv run --locked camelyon-roi-product acquire_annotation_archives
+    deps:
+      - .python-version
+      - contracts/source.json
+      - pyproject.toml
+      - src/camelyon_roi_product/acquisition.py
+      - src/camelyon_roi_product/cli.py
+      - src/camelyon_roi_product/models.py
+      - src/camelyon_roi_product/product.py
+      - uv.lock
+    outs:
+      - data/raw/CAMELYON16/training/lesion_annotations.zip
+      - data/raw/CAMELYON16/testing/lesion_annotations.zip
+      - data/raw/CAMELYON17/training/lesion_annotations.zip
   publish_native_contract:
     cmd: uv run --locked camelyon-roi-product publish
     deps:
       - .python-version
-      - contracts
+      - contracts/source.json
+      - data/metadata
+      - data/raw/CAMELYON16/training/lesion_annotations.zip
+      - data/raw/CAMELYON16/testing/lesion_annotations.zip
+      - data/raw/CAMELYON17/training/lesion_annotations.zip
       - pyproject.toml
-      - records
       - src/camelyon_roi_product
       - uv.lock
     outs:
@@ -13,3 +44,21 @@ stages:
       - outputs/artifact-references.json
     metrics:
       - outputs/metrics.json
+  index_native_annotations:
+    cmd: uv run --locked camelyon-roi-product index_annotations
+    deps:
+      - .python-version
+      - contracts/source.json
+      - data/raw/CAMELYON16/training/lesion_annotations.zip
+      - data/raw/CAMELYON16/testing/lesion_annotations.zip
+      - data/raw/CAMELYON17/training/lesion_annotations.zip
+      - pyproject.toml
+      - src/camelyon_roi_product/acquisition.py
+      - src/camelyon_roi_product/cli.py
+      - src/camelyon_roi_product/models.py
+      - src/camelyon_roi_product/product.py
+      - uv.lock
+    outs:
+      - outputs/lesion-annotations.jsonl
+    metrics:
+      - outputs/annotation-metrics.json

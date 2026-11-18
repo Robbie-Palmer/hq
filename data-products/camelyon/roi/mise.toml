@@ -43,15 +43,25 @@ description = "Publish stable source-native CAMELYON references"
 depends = ["sync"]
 run = "uv run --locked camelyon-roi-product publish"
 
-[tasks.freeze]
-description = "Refresh committed CAMELYON contracts from a reviewed metadata snapshot"
-depends = ["sync"]
-run = "uv run --locked camelyon-roi-product freeze"
-
 [tasks."verify-metadata"]
 description = "Verify the pinned official CAMELYON metadata without dataset bytes"
 depends = ["sync"]
 run = "uv run --locked camelyon-roi-product verify_metadata"
+
+[tasks."acquire-metadata"]
+description = "Acquire the pinned official CAMELYON metadata for DVC reproduction"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product acquire_metadata"
+
+[tasks."acquire-annotation-archives"]
+description = "Acquire the pinned CAMELYON XML archives for DVC reproduction"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product acquire_annotation_archives"
+
+[tasks."index-annotations"]
+description = "Index pinned publisher-native XML coordinates"
+depends = ["sync"]
+run = "uv run --locked camelyon-roi-product index_annotations"
 
 [tasks."acquire-annotations"]
 description = "Acquire and index the pinned CAMELYON XML annotations"
@@ -64,7 +74,7 @@ depends = ["sync"]
 run = "uv run --locked camelyon-roi-product acquire"
 
 [tasks.repro]
-description = "Reproduce the metadata-only CAMELYON source product through DVC"
+description = "Reproduce the CAMELYON source product from pinned metadata and XML through DVC"
 run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
 
 [tasks.check]

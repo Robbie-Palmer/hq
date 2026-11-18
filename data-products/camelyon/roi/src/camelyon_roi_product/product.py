@@ -27,14 +27,6 @@ def _write_json(path: Path, value: object) -> None:
     artifact_files.write_json(path, value)
 
 
-def _load_records(path: Path) -> list[NativeRecord]:
-    payload = _read_json(path)
-    raw_records = payload.get("records")
-    if not isinstance(raw_records, list):
-        raise ProductError("native record contract must contain a records list")
-    return [NativeRecord.model_validate(value) for value in raw_records]
-
-
 def _validate_links(
     records: list[NativeRecord], artifacts: ArtifactManifest, source: SourceContract
 ) -> None:
@@ -96,9 +88,10 @@ def _validate_scope_counts(records: list[NativeRecord], source: SourceContract) 
 
 
 def publish_product(root: Path = PROJECT_DIR) -> dict[str, object]:
+    from camelyon_roi_product.freeze import build_snapshot
+
     source = SourceContract.model_validate(_read_json(root / "contracts/source.json"))
-    artifacts = ArtifactManifest.model_validate(_read_json(root / "contracts/artifacts.json"))
-    records = _load_records(root / "records/native-records.json")
+    artifacts, records = build_snapshot(root)
     if source.dataset_id != artifacts.dataset_id:
         raise ProductError("source and artifact dataset identifiers differ")
     _validate_links(records, artifacts, source)

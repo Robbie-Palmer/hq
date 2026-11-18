@@ -1,9 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import os
-import shutil
 import urllib.request
 import zipfile
 from contextlib import closing
@@ -13,6 +11,8 @@ from tempfile import TemporaryDirectory, mkstemp
 from typing import IO, override
 from urllib.parse import urlsplit
 from xml.etree import ElementTree
+
+from data_artifacts import files as artifact_files
 
 from camelyon_roi_product.models import (
     AnnotationArchive,
@@ -24,6 +24,9 @@ from camelyon_roi_product.models import (
     SourceContract,
 )
 from camelyon_roi_product.product import PROJECT_DIR, ProductError, _read_json
+
+EXPECTED_XML_SLIDES = 209
+EXPECTED_LESION_ANNOTATIONS = 4865
 
 
 def _digest(path: Path, algorithm: str) -> str:
@@ -95,17 +98,36 @@ def verify_metadata(root: Path = PROJECT_DIR) -> int:
     return len(contract.metadata_sources)
 
 
-def _safe_extract(source: zipfile.ZipFile, destination: Path) -> None:
+def acquire_metadata(root: Path = PROJECT_DIR) -> int:
+    contract = SourceContract.model_validate(_read_json(root / "contracts/source.json"))
+    directory = root / "data/metadata"
+    directory.mkdir(parents=True, exist_ok=True)
+    for source in contract.metadata_sources:
+        destination = directory / source.source_id
+        if destination.is_file():
+            if _digest(destination, "sha256") == source.sha256:
+                continue
+            raise ProductError(f"existing publisher metadata differs: {source.source_id}")
+        temporary = _temporary_download_path(destination)
+        try:
+            _verify_metadata_file(source, temporary)
+            temporary.replace(destination)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
+    return len(contract.metadata_sources)
+
+
+def _validated_xml_members(source: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
+    members: list[zipfile.ZipInfo] = []
     for member in source.infolist():
         path = PurePosixPath(member.filename)
         if member.is_dir():
             continue
         if path.is_absolute() or ".." in path.parts or path.suffix.lower() != ".xml":
             raise ProductError(f"unexpected annotation archive member: {member.filename}")
-        target = destination / Path(*path.parts)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        with source.open(member) as input_stream, target.open("wb") as output_stream:
-            shutil.copyfileobj(input_stream, output_stream)
+        members.append(member)
+    return members
 
 
 def _acquire_archive(archive: AnnotationArchive, root: Path) -> Path:
@@ -139,6 +161,13 @@ def _require_archive_matches(path: Path, archive: AnnotationArchive) -> None:
         raise ProductError(f"annotation archive SHA-256 differs: {archive.path}")
 
 
+def acquire_annotation_archives(root: Path = PROJECT_DIR) -> int:
+    contract = SourceContract.model_validate(_read_json(root / "contracts/source.json"))
+    for archive in contract.annotation_archives:
+        _acquire_archive(archive, root)
+    return len(contract.annotation_archives)
+
+
 def _artifact_matches(path: Path, artifact: ArtifactReference) -> bool:
     return (
         path.is_file()
@@ -154,7 +183,14 @@ def _require_artifact_matches(path: Path, artifact: ArtifactReference) -> None:
 
 
 def acquire_artifact(artifact_id: str, max_bytes: int, root: Path = PROJECT_DIR) -> Path:
-    manifest = ArtifactManifest.model_validate(_read_json(root / "contracts/artifacts.json"))
+    payload = _read_json(root / "outputs/artifact-references.json")
+    manifest = ArtifactManifest.model_validate(
+        {
+            "schema_version": payload["schema_version"],
+            "dataset_id": payload["dataset_id"],
+            "artifacts": payload["slide_artifacts"],
+        }
+    )
     artifacts = {artifact.artifact_id: artifact for artifact in manifest.artifacts}
     artifact = artifacts.get(artifact_id)
     if artifact is None:
@@ -178,8 +214,7 @@ def acquire_artifact(artifact_id: str, max_bytes: int, root: Path = PROJECT_DIR)
     return destination
 
 
-def parse_xml(path: Path, slide_id: str) -> list[LesionAnnotation]:
-    root = ElementTree.parse(path).getroot()  # noqa: S314 - publisher XML contains no DTD.
+def _parse_xml_root(root: ElementTree.Element, slide_id: str) -> list[LesionAnnotation]:
     annotations: list[LesionAnnotation] = []
     for element in root.findall(".//Annotation"):
         coordinates = [
@@ -203,34 +238,39 @@ def parse_xml(path: Path, slide_id: str) -> list[LesionAnnotation]:
     return annotations
 
 
-def acquire_annotations(root: Path = PROJECT_DIR) -> int:
+def parse_xml(path: Path, slide_id: str) -> list[LesionAnnotation]:
+    root = ElementTree.parse(path).getroot()  # noqa: S314 - publisher XML contains no DTD.
+    return _parse_xml_root(root, slide_id)
+
+
+def index_annotations(root: Path = PROJECT_DIR) -> int:
     contract = SourceContract.model_validate(_read_json(root / "contracts/source.json"))
-    records_payload = _read_json(root / "records/native-records.json")
-    annotation_by_member = {
-        record["lesion_annotation"]["archive_member"]: record["slide_id"]
-        for record in records_payload["records"]
-        if record["lesion_annotation"] is not None
-    }
-    extracted = root / "data/annotations"
-    shutil.rmtree(extracted, ignore_errors=True)
     parsed: list[LesionAnnotation] = []
+    xml_count = 0
     for archive in contract.annotation_archives:
-        archive_path = _acquire_archive(archive, root)
-        archive_root = extracted / archive.artifact_id
+        archive_path = root / "data/raw" / archive.path
+        _require_archive_matches(archive_path, archive)
         with zipfile.ZipFile(archive_path) as source:
-            _safe_extract(source, archive_root)
-        for path in sorted(archive_root.rglob("*.xml")):
-            member = path.relative_to(archive_root).as_posix()
-            slide_id = annotation_by_member.get(member)
-            if slide_id is None:
-                raise ProductError(f"unreferenced publisher annotation: {member}")
-            parsed.extend(parse_xml(path, slide_id))
-    output = root / "data/annotation-index.jsonl"
-    output.write_text(
-        "".join(
-            json.dumps(annotation.model_dump(mode="json"), sort_keys=True) + "\n"
-            for annotation in parsed
-        ),
-        encoding="utf-8",
+            for member in sorted(_validated_xml_members(source), key=lambda value: value.filename):
+                xml_count += 1
+                document = ElementTree.fromstring(  # noqa: S314 - pinned publisher XML has no DTD.
+                    source.read(member)
+                )
+                parsed.extend(_parse_xml_root(document, Path(member.filename).stem))
+    if xml_count != EXPECTED_XML_SLIDES or len(parsed) != EXPECTED_LESION_ANNOTATIONS:
+        raise ProductError("publisher XML produced unexpected annotation scope")
+    output = artifact_files.resolve_under(root, "outputs")
+    artifact_files.write_jsonl(
+        artifact_files.resolve_under(output, "lesion-annotations.jsonl"),
+        (annotation.model_dump(mode="json") for annotation in parsed),
+    )
+    artifact_files.write_json(
+        artifact_files.resolve_under(output, "annotation-metrics.json"),
+        {"lesion_annotation_count": len(parsed), "xml_annotated_slide_count": xml_count},
     )
     return len(parsed)
+
+
+def acquire_annotations(root: Path = PROJECT_DIR) -> int:
+    acquire_annotation_archives(root)
+    return index_annotations(root)
