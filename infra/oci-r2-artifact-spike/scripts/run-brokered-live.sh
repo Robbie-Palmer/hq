@@ -8,6 +8,6 @@ mise run //packages/object-storage:r2:broker -- run \
   --helper "$project_root/scripts/r2-broker-s3.sh" \
   --bucket-prefix hq-oci-r2-canary \
   --ttl-seconds 1800 \
-  -- timeout --foreground --kill-after=30s 25m bash "$project_root/scripts/run-live.sh"
+  -- timeout --kill-after=30s 25m bash "$project_root/scripts/run-live.sh"
 
 bash "$project_root/scripts/finalize-evidence.sh"

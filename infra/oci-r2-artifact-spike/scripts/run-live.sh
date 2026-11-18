@@ -48,6 +48,7 @@ registry_url="http://$registry_endpoint" # NOSONAR: loopback-only disposable reg
 bucket="$R2_BUCKET"
 registry_username=spike
 registry_password="$(openssl rand -hex 24)"
+docker_run_label="hq.oci-r2-canary.run=$(openssl rand -hex 8)"
 
 [[ "$run_root" == "$project_root/.artifacts/run" ]]
 rm -rf "$run_root"
@@ -57,12 +58,16 @@ mkdir -p "$run_root/logs" "$fixture_root" "$state_root/auth" "$state_root/config
 : > "$request_log"
 
 r2() {
-  case "$1:$2" in
-    s3api:head-*|s3api:get-*) printf 'B\n' >> "$request_log" ;;
-    s3:rm) printf 'A\nA\n' >> "$request_log" ;;
-    *) printf 'A\n' >> "$request_log" ;;
-  esac
+  if [[ "${R2_COUNT_REQUEST:-1}" -eq 1 ]]; then
+    case "$1:$2" in
+      s3api:delete-*|s3api:abort-*) ;;
+      s3api:head-*|s3api:get-*) printf 'B\n' >> "$request_log" ;;
+      s3:rm) printf 'A\n' >> "$request_log" ;;
+      *) printf 'A\n' >> "$request_log" ;;
+    esac
+  fi
   docker run --rm \
+    --label "$docker_run_label" \
     --env AWS_ACCESS_KEY_ID \
     --env AWS_SECRET_ACCESS_KEY \
     --env AWS_SESSION_TOKEN \
@@ -135,6 +140,8 @@ blob_key_for() {
 
 emergency_cleanup() {
   docker rm --force "$container_name" >/dev/null 2>&1 || true
+  docker ps --all --quiet --filter "label=$docker_run_label" \
+    | xargs --no-run-if-empty docker rm --force >/dev/null 2>&1 || true
   unset registry_password
   unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
   rm -rf "$state_root/auth" "$state_root/helm" "$state_root/oras"
@@ -142,7 +149,8 @@ emergency_cleanup() {
 trap emergency_cleanup EXIT
 
 invalid_secret=invalid
-if AWS_SECRET_ACCESS_KEY=${invalid_secret} r2 s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
+if R2_COUNT_REQUEST=0 AWS_SECRET_ACCESS_KEY=${invalid_secret} \
+  r2 s3api head-bucket --bucket "$bucket" >/dev/null 2>&1; then
   echo "R2 accepted an invalid secret" >&2
   exit 1
 fi
@@ -177,24 +185,41 @@ record upgrade "zot current read an artifact written by the pinned previous vers
 mkdir -p "$fixture_root/direct"
 printf 'conditional write A\n' > "$fixture_root/direct/a.txt"
 printf 'conditional write B\n' > "$fixture_root/direct/b.txt"
+assert_precondition_failure() {
+  local error_file="$1"
+  if ! grep -Eqi '(412|PreconditionFailed)' "$error_file"; then
+    cat "$error_file" >&2
+    echo "Conditional write failed without the expected 412 PreconditionFailed response" >&2
+    return 1
+  fi
+}
 r2 s3api put-object --bucket "$bucket" --key direct/conditional \
   --body /work/fixtures/direct/a.txt --if-none-match '*' >/dev/null
+sequential_error="$run_root/logs/conditional-sequential.log"
 if r2 s3api put-object --bucket "$bucket" --key direct/conditional \
-  --body /work/fixtures/direct/b.txt --if-none-match '*' >/dev/null 2>&1; then
+  --body /work/fixtures/direct/b.txt --if-none-match '*' >/dev/null 2>"$sequential_error"; then
   echo "A repeated If-None-Match write succeeded" >&2
   exit 1
 fi
+assert_precondition_failure "$sequential_error"
 set +e
+concurrent_error_a="$run_root/logs/conditional-concurrent-a.log"
+concurrent_error_b="$run_root/logs/conditional-concurrent-b.log"
 r2 s3api put-object --bucket "$bucket" --key direct/concurrent \
-  --body /work/fixtures/direct/a.txt --if-none-match '*' >/dev/null 2>&1 &
+  --body /work/fixtures/direct/a.txt --if-none-match '*' >/dev/null 2>"$concurrent_error_a" &
 pid_a=$!
 r2 s3api put-object --bucket "$bucket" --key direct/concurrent \
-  --body /work/fixtures/direct/b.txt --if-none-match '*' >/dev/null 2>&1 &
+  --body /work/fixtures/direct/b.txt --if-none-match '*' >/dev/null 2>"$concurrent_error_b" &
 pid_b=$!
 wait "$pid_a"; status_a=$?
 wait "$pid_b"; status_b=$?
 set -e
 [[ "$status_a" -eq 0 && "$status_b" -ne 0 || "$status_a" -ne 0 && "$status_b" -eq 0 ]]
+if [[ "$status_a" -ne 0 ]]; then
+  assert_precondition_failure "$concurrent_error_a"
+else
+  assert_precondition_failure "$concurrent_error_b"
+fi
 record conditional-and-concurrent-writes "R2 returned one atomic winner for both sequential and concurrent If-None-Match writes"
 
 dd if=/dev/zero of="$fixture_root/direct/part-1.bin" bs=1M count=5 status=none
@@ -223,6 +248,10 @@ dd if=/dev/zero of="$fixture_root/model/model.bin" bs=1M count=16 status=none
 (cd "$fixture_root/model" && oras push "${oras_auth[@]}" \
   --artifact-type application/vnd.cncf.model.file.v1 \
   "$registry_endpoint/spike/model:v1" model.bin:application/octet-stream)
+mkdir -p "$fixture_root/model/pull"
+oras pull "${oras_auth[@]}" --output "$fixture_root/model/pull" \
+  "$registry_endpoint/spike/model:v1"
+cmp "$fixture_root/model/model.bin" "$fixture_root/model/pull/model.bin"
 helm package fixtures/chart --destination "$fixture_root/chart" >/dev/null
 export HELM_REGISTRY_CONFIG="$state_root/helm/config.json"
 printf '%s' "$registry_password" | helm registry login "$registry_endpoint" \

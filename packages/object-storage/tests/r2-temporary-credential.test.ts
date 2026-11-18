@@ -1,4 +1,4 @@
-import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -228,6 +228,20 @@ describe("R2 temporary credential broker", () => {
         runProcess: vi.fn(),
       }),
     ).rejects.toThrow("recover it before starting another run");
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("refuses a concurrent run while the receipt path is locked", async () => {
+    const receipt = await receiptPath();
+    await mkdir(`${receipt}.lock`);
+    const fetch = successfulFetch();
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch,
+        randomSuffix: () => "0123456789",
+        runProcess: vi.fn(),
+      }),
+    ).rejects.toThrow("locked by another run");
     expect(fetch).not.toHaveBeenCalled();
   });
 

@@ -81,7 +81,7 @@ async function runProcess(
       });
     }
     child.once("error", reject);
-    child.once("exit", (code, signal) => {
+    child.once("close", (code, signal) => {
       resolve({
         exitCode: code ?? (signal ? 1 : 0),
         stdout,

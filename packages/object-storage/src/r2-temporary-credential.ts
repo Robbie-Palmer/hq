@@ -287,6 +287,34 @@ async function replaceReceipt(
   await rename(nextPath, receiptPath);
 }
 
+async function acquireReceiptLock(
+  receiptPath: string,
+): Promise<() => Promise<void>> {
+  const lockPath = `${receiptPath}.lock`;
+  await mkdir(path.dirname(receiptPath), { recursive: true });
+  try {
+    await mkdir(lockPath, { mode: 0o700 });
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "EEXIST"
+    ) {
+      throw new Error(
+        "The R2 broker receipt is locked by another run; refusing concurrent recovery",
+      );
+    }
+    throw error;
+  }
+  let released = false;
+  return async () => {
+    if (released) return;
+    released = true;
+    await rm(lockPath, { recursive: true });
+  };
+}
+
 async function removeReceipt(receiptPath: string): Promise<void> {
   const retiredPath = `${receiptPath}.retired`;
   await rename(receiptPath, retiredPath);
@@ -426,6 +454,8 @@ export async function runR2CredentialBroker(
   dependencies: R2CredentialBrokerDependencies,
 ): Promise<{ bucket: string }> {
   validateInput(input);
+  const releaseReceiptLock = await acquireReceiptLock(input.receiptPath);
+  try {
   const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
   const suffix = (dependencies.randomSuffix ?? (() => randomBytes(5).toString("hex")))();
   if (!/^[a-f0-9]{10}$/.test(suffix)) throw new Error("Broker suffix must be 10 lowercase hex characters");
@@ -501,6 +531,9 @@ export async function runR2CredentialBroker(
   if (cleanupFailure) throw cleanupFailure;
   if (operationFailure) throw operationFailure;
   return { bucket: allowedBucket };
+  } finally {
+    await releaseReceiptLock();
+  }
 }
 
 export async function recoverR2CredentialBroker(
@@ -510,22 +543,27 @@ export async function recoverR2CredentialBroker(
   >,
   dependencies: Pick<R2CredentialBrokerDependencies, "fetch" | "runProcess">,
 ): Promise<void> {
-  const receipt = parseReceipt(await readFile(input.receiptPath, "utf8"));
-  if (receipt.accountId !== input.accountId) {
-    throw new Error("R2 broker receipt belongs to a different Cloudflare account");
+  const releaseReceiptLock = await acquireReceiptLock(input.receiptPath);
+  try {
+    const receipt = parseReceipt(await readFile(input.receiptPath, "utf8"));
+    if (receipt.accountId !== input.accountId) {
+      throw new Error("R2 broker receipt belongs to a different Cloudflare account");
+    }
+    const client = new CloudflareR2AdminClient(
+      input.accountId,
+      input.parentCredentials.apiToken,
+      dependencies.fetch ?? globalThis.fetch,
+    );
+    await destroyBuckets(
+      client,
+      dependencies.runProcess,
+      input.helperCommand,
+      `https://${input.accountId}.r2.cloudflarestorage.com`,
+      receipt,
+      input.parentCredentials,
+    );
+    await removeReceipt(input.receiptPath);
+  } finally {
+    await releaseReceiptLock();
   }
-  const client = new CloudflareR2AdminClient(
-    input.accountId,
-    input.parentCredentials.apiToken,
-    dependencies.fetch ?? globalThis.fetch,
-  );
-  await destroyBuckets(
-    client,
-    dependencies.runProcess,
-    input.helperCommand,
-    `https://${input.accountId}.r2.cloudflarestorage.com`,
-    receipt,
-    input.parentCredentials,
-  );
-  await removeReceipt(input.receiptPath);
 }
