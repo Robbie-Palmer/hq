@@ -15,6 +15,7 @@ from tissue_segmentation_dataset.product import (
     ProductError,
     _default_source_paths,
     _production_blockers,
+    _segpath_organ,
     build_product,
 )
 
@@ -80,10 +81,9 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
     assert metrics["group_leakage_count"] == 0
     assert metrics["organs"] == [
         "breast",
-        "colorectal cancer",
         "colorectum",
-        "gastric cancer",
-        "lung cancer",
+        "lung",
+        "stomach",
     ]
     assert metrics["image_assay_techniques"] == ["H&E", "IHC"]
     assert metrics["annotation_evidence_techniques"] == ["IF"]
@@ -98,13 +98,21 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
     assert all("source_image" not in record for record in records)
 
     segpath = next(
-        record for record in records if record["source_dataset_id"].startswith("segpath")
+        record
+        for record in records
+        if record["source_dataset_id"].startswith("segpath")
+        and record["source_payload"]["published_tumour_type"]
+        == "Colorectal adenocarcinoma"
     )
     assert segpath["image_assay"]["technique"] == "H&E"
     assert segpath["annotation_provenance"]["evidence_assay"]["technique"] == "IF"
     assert segpath["coverage_semantics"] == "positive_binary_only"
     assert segpath["image_artifact"]["artifact_ref"].startswith("segpath://")
     assert segpath["image_artifact"]["checksum"] is None
+    assert segpath["organ"] == "colorectum"
+    assert segpath["source_payload"]["published_tumour_type"] == (
+        "Colorectal adenocarcinoma"
+    )
     validation_record = next(
         record
         for record in records
@@ -133,6 +141,11 @@ def test_build_product_publishes_references_partitions_and_reports(tmp_path: Pat
     assert lineage["source_artifact_reference_fields"] == ["image_artifact", "mask_artifact"]
     assert "adapters/segpath-public-v1.json" in lineage["adapters"]
     assert "adapters/segpath-2022-registered-if-masks.json" not in lineage["adapters"]
+
+
+def test_segpath_organ_mapping_rejects_unknown_published_tumour_type() -> None:
+    with pytest.raises(ProductError, match="unmapped SegPath tumour type"):
+        _segpath_organ("New publisher diagnosis")
 
 
 def test_build_is_deterministic(tmp_path: Path) -> None:

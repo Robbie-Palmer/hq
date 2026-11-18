@@ -26,6 +26,51 @@ PROJECT_DIR = Path(__file__).resolve().parents[2]
 SOURCE_MANIFEST_MODELS: dict[str, type[BaseModel]] = {
     "segpath-2022-registered-if-masks": SegPathSourceManifest,
 }
+SEGPATH_TUMOUR_TYPE_TO_ORGAN = {
+    "Benign breast tumour": "breast",
+    "Bladder cancer": "bladder",
+    "Bone and soft tissue tumour": "bone_and_soft_tissue",
+    "Breast cancer": "breast",
+    "Cervical squamous cell carcinoma": "cervix",
+    "Colorectal adenocarcinoma": "colorectum",
+    "Colorectal adenoma": "colorectum",
+    "Endometrial cancer": "uterus",
+    "Ependymoma": "central_nervous_system",
+    "Esophagogastric junction adenocarcinoma": "gastroesophageal_junction",
+    "Esophagus squamous cell carcinoma": "esophagus",
+    "Extrahepatic cholangiocarcinoma": "bile_duct",
+    "Gastric adenocarcinoma": "stomach",
+    "Gastric adenocarcinoma with dffuse type": "stomach",
+    "Glioblastoma": "central_nervous_system",
+    "Glioma": "central_nervous_system",
+    "Hepatocellular carcinoma": "liver",
+    "Intraductal papillary mucinous neoplasm of the pancreas": "pancreas",
+    "Intrahepatic cholangiocarcinoma": "liver",
+    "Laryngeal and pharyngeal squamous cell carcinoma": "larynx_and_pharynx",
+    "Liver（Hepatocellular carcinoma）": "liver",  # noqa: RUF001
+    "Lung adenocarcinoma": "lung",
+    "Lung squamous cell carcinoma": "lung",
+    "Lymph node metastases (Gastric adenocarcinoma)": "lymph_node",
+    "Medulloblastoma": "central_nervous_system",
+    "Melanoma": "skin",
+    "Meningioma": "central_nervous_system",
+    "Oesophagogastric junction adenocarcinoma": "gastroesophageal_junction",
+    "Oesophagus squamous cell carcinoma": "esophagus",
+    "Oral tongue cancer": "tongue",
+    "Osteosarcoma": "bone",
+    "Ovarian cancer": "ovary",
+    "Ovarian dysgerminoma": "ovary",
+    "Ovarian mucinous cystic neoplasm": "ovary",
+    "Ovarian sex cord stromal tumour": "ovary",
+    "Ovarian sex cord-stromal tumour and mesenchymal tumour": "ovary",
+    "Pancreatic cancer": "pancreas",
+    "Pancreatic neuroendocrine tumour": "pancreas",
+    "Prostate cancer": "prostate",
+    "Renal tumour": "kidney",
+    "Testicular tumour": "testis",
+    "Thymoma": "thymus",
+    "Urothelial tumour": "urinary_tract",
+}
 
 
 class ProductError(RuntimeError):
@@ -118,6 +163,15 @@ def _mapped_labels(source_labels: list[str], adapter: Adapter) -> tuple[list[str
     )
     statuses = {source_label: mappings[source_label].status for source_label in source_labels}
     return targets, statuses
+
+
+def _segpath_organ(published_tumour_type: str) -> str:
+    try:
+        return SEGPATH_TUMOUR_TYPE_TO_ORGAN[published_tumour_type]
+    except KeyError as error:
+        raise ProductError(
+            f"unmapped SegPath tumour type: {published_tumour_type!r}"
+        ) from error
 
 
 def _artifact(
@@ -278,7 +332,7 @@ def _adapt_segpath(
                 source_record_id=source.record_id,
                 source_group_id=source.source_slide_id,
                 source_role=source.source_role,
-                organ=source.published_tumour_type,
+                organ=_segpath_organ(source.published_tumour_type),
                 source_tissue_role=None,
                 assets=RecordAssets(
                     image=_artifact(
