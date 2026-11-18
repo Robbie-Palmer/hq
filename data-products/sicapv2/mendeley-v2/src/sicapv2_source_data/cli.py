@@ -5,7 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
-from pydantic import ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from sicapv2_source_data.source import (
     PROJECT_DIR,
@@ -16,9 +16,16 @@ from sicapv2_source_data.source import (
 )
 
 
+class ApplicationArguments(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    root: Path | None = None
+
+
 class Application:
     def __init__(self, root: str | None = None) -> None:
-        self.root = Path(root).resolve() if root is not None else PROJECT_DIR
+        arguments = ApplicationArguments.model_validate({"root": root})
+        self.root = arguments.root.resolve() if arguments.root is not None else PROJECT_DIR
 
     def verify_metadata(self) -> None:
         evidence = verify_publisher_metadata(self.root)
