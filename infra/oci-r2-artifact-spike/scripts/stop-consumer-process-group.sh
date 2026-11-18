@@ -48,11 +48,17 @@ if [[ "$process_group" == "$current_group" ]]; then
   exit 1
 fi
 
-group_members() {
-  ps -eo pid=,pgid= | awk -v group="$process_group" '$2 == group { print $1 }'
+snapshot_group_members() {
+  local snapshot
+  if ! snapshot="$(ps -eo pid=,pgid= | awk -v group="$process_group" '$2 == group { print $1 }')"; then
+    echo "Could not inspect the R2 consumer process group; refusing bucket recovery" >&2
+    return 1
+  fi
+  members="$snapshot"
 }
 
-members="$(group_members)"
+members=""
+snapshot_group_members
 if [[ -z "$members" ]]; then
   rm "$group_file"
   exit 0
@@ -71,17 +77,21 @@ done
 
 kill -TERM -- "-$process_group" 2>/dev/null || true
 for _ in $(seq 1 50); do
-  [[ -z "$(group_members)" ]] && break
+  snapshot_group_members
+  [[ -z "$members" ]] && break
   sleep 0.2
 done
-if [[ -n "$(group_members)" ]]; then
+snapshot_group_members
+if [[ -n "$members" ]]; then
   kill -KILL -- "-$process_group" 2>/dev/null || true
   for _ in $(seq 1 50); do
-    [[ -z "$(group_members)" ]] && break
+    snapshot_group_members
+    [[ -z "$members" ]] && break
     sleep 0.2
   done
 fi
-if [[ -n "$(group_members)" ]]; then
+snapshot_group_members
+if [[ -n "$members" ]]; then
   echo "The R2 consumer process group remains active; refusing bucket recovery" >&2
   exit 1
 fi
