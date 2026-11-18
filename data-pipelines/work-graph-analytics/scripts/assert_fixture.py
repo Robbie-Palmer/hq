@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 
 import duckdb
@@ -10,6 +9,15 @@ from work_graph_analytics.reporting import operational_report
 
 ACCESS_CAUSE = "attention:access"
 REVIEW_CAUSE = "attention:review"
+
+
+def fixture_directory(value: str, root: Path) -> Path:
+    resolved = Path(value).resolve(strict=True)
+    if not resolved.is_relative_to(root):
+        raise ValueError(f"fixture directory {value!r} is outside {root}")
+    if not resolved.is_dir():
+        raise ValueError(f"fixture path {value!r} is not a directory")
+    return resolved
 
 
 def metric(version: Path, project: str, cause: str) -> tuple[int, ...]:
@@ -34,9 +42,10 @@ def metric(version: Path, project: str, cause: str) -> tuple[int, ...]:
 
 
 def main() -> None:
-    first = Path(sys.argv[1])
-    second = Path(sys.argv[2])
-    retry = Path(sys.argv[3])
+    root = Path.cwd().resolve()
+    first = fixture_directory("published/fixture-v1", root)
+    second = fixture_directory("published/fixture-v2", root)
+    retry = fixture_directory("retry-published/fixture-v2", root)
     assert metric(first, "project-old", ACCESS_CAUSE) == (
         2,
         1,
