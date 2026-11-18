@@ -76,6 +76,7 @@ type BusinessFiPlanBase = {
   shareOwnershipInterests: readonly ShareOwnershipInterest[];
   treatment: BusinessFiTreatment;
   reflectedEventIds?: readonly string[];
+  reflectedCashAvailabilityIds?: readonly string[];
 };
 
 export type BusinessFiPlanInput = BusinessFiPlanBase & {
@@ -90,22 +91,30 @@ export type BusinessFiPlanIssue = {
   detail: string;
   companyPeriodId?: string;
   eventId?: string;
+  cashAvailabilityId?: string;
 };
 
 export type BusinessFiExtractionEvent = {
   id: string;
-  kind:
-    | "salary"
-    | "dividend"
-    | "household-cash"
-    | "employer-pension"
-    | "deferred-dividend";
+  kind: "salary" | "dividend" | "employer-pension" | "deferred-dividend";
   occursOn: string;
   availableOn: string;
   destination: "household-cash" | "pension";
   grossPence: number;
   deductionsPence: number;
   netHouseholdValuePence: number;
+  alreadyReflected: boolean;
+  countedInFiCapital: boolean;
+  inputRecordIds: string[];
+};
+
+export type BusinessFiCashAvailability = {
+  id: string;
+  sourceEventIds: string[];
+  availableOn: string;
+  grossPence: number;
+  personalTaxPence: number;
+  spendableCashPence: number;
   alreadyReflected: boolean;
   countedInFiCapital: boolean;
   inputRecordIds: string[];
@@ -153,6 +162,7 @@ export type BusinessFiPeriodResult = {
     met: boolean;
   };
   events: BusinessFiExtractionEvent[];
+  cashAvailability: BusinessFiCashAvailability;
 };
 
 export type BusinessFiDeduction = {
@@ -239,7 +249,8 @@ function uniqueIssues(issues: readonly BusinessFiPlanIssue[]) {
           candidate.kind === issue.kind &&
           candidate.detail === issue.detail &&
           candidate.companyPeriodId === issue.companyPeriodId &&
-          candidate.eventId === issue.eventId,
+          candidate.eventId === issue.eventId &&
+          candidate.cashAvailabilityId === issue.cashAvailabilityId,
       ) === index,
   );
 }
@@ -273,6 +284,10 @@ function eventId(
   kind: BusinessFiExtractionEvent["kind"],
 ): string {
   return `business-fi:${planId}:${companyPeriodId}:${kind}`;
+}
+
+function cashAvailabilityId(planId: string, companyPeriodId: string): string {
+  return `business-fi:${planId}:${companyPeriodId}:cash-availability`;
 }
 
 function eventOwnership(input: {
@@ -604,6 +619,7 @@ type ExtractionContext = {
   base: ReturnType<typeof baseResult>;
   issues: BusinessFiPlanIssue[];
   reflectedEventIds: ReadonlySet<string>;
+  reflectedCashAvailabilityIds: ReadonlySet<string>;
   timings: ReadonlyMap<string, BusinessFiPeriodTiming>;
   scenarioPeriods: ReadonlyMap<
     string,
@@ -717,6 +733,9 @@ function createExtractionContext(input: {
     base,
     issues,
     reflectedEventIds: new Set(input.plan.reflectedEventIds ?? []),
+    reflectedCashAvailabilityIds: new Set(
+      input.plan.reflectedCashAvailabilityIds ?? [],
+    ),
     timings: new Map(
       input.treatment.periodTimings.map((timing) => [
         timing.companyPeriodId,
@@ -841,31 +860,40 @@ function periodInputRecordIds(
   ];
 }
 
-function cashEvents(input: {
+function periodCash(input: {
   context: ExtractionContext;
   period: LimitedCompanyPeriod;
   timing: BusinessFiPeriodTiming;
   inputRecordIds: readonly string[];
-}): BusinessFiExtractionEvent[] {
+}): {
+  events: BusinessFiExtractionEvent[];
+  cashAvailability: BusinessFiCashAvailability;
+} {
   const id = (kind: BusinessFiExtractionEvent["kind"]) =>
     eventId(input.context.input.id, input.period.companyPeriodId, kind);
   const salaryId = id("salary");
   const dividendId = id("dividend");
-  const householdCashId = id("household-cash");
-  const reflectedComponents = [
+  const availabilityId = cashAvailabilityId(
+    input.context.input.id,
+    input.period.companyPeriodId,
+  );
+  const sourceEventIds = [
     ...(input.period.household.salaryPence > 0 ? [salaryId] : []),
     ...(input.period.household.dividendsPence > 0 ? [dividendId] : []),
-  ].filter((componentId) => input.context.reflectedEventIds.has(componentId));
+  ];
+  const reflectedSources = sourceEventIds.filter((sourceEventId) =>
+    input.context.reflectedEventIds.has(sourceEventId),
+  );
   if (
-    reflectedComponents.length > 0 &&
-    !input.context.reflectedEventIds.has(householdCashId)
+    reflectedSources.length > 0 &&
+    !input.context.reflectedCashAvailabilityIds.has(availabilityId)
   ) {
     input.context.issues.push({
-      kind: "partial-household-cash-reflection",
+      kind: "partial-cash-availability-reflection",
       state: "needs-review",
-      detail: `${input.period.companyPeriodId} reflects individual cash transfers without the aggregate household-cash event.`,
+      detail: `${input.period.companyPeriodId} reflects extraction events without their derived cash availability.`,
       companyPeriodId: input.period.companyPeriodId,
-      eventId: householdCashId,
+      cashAvailabilityId: availabilityId,
     });
   }
   const shared = {
@@ -873,40 +901,46 @@ function cashEvents(input: {
     reflectedEventIds: input.context.reflectedEventIds,
     inputRecordIds: input.inputRecordIds,
   };
-  return [
-    extractionEvent({
-      ...shared,
-      id: salaryId,
-      kind: "salary",
-      occursOn: input.timing.salaryPaidOn,
-      availableOn: input.timing.householdCashAvailableOn,
-      grossPence: input.period.household.salaryPence,
-      deductionsPence: 0,
-      netHouseholdValuePence: 0,
-    }),
-    extractionEvent({
-      ...shared,
-      id: dividendId,
-      kind: "dividend",
-      occursOn: input.timing.dividendPaidOn,
-      availableOn: input.timing.householdCashAvailableOn,
-      grossPence: input.period.household.dividendsPence,
-      deductionsPence: 0,
-      netHouseholdValuePence: 0,
-    }),
-    extractionEvent({
-      ...shared,
-      id: householdCashId,
-      kind: "household-cash",
-      occursOn: input.timing.householdCashAvailableOn,
+  const alreadyReflected =
+    input.context.reflectedCashAvailabilityIds.has(availabilityId);
+  return {
+    events: [
+      extractionEvent({
+        ...shared,
+        id: salaryId,
+        kind: "salary",
+        occursOn: input.timing.salaryPaidOn,
+        availableOn: input.timing.householdCashAvailableOn,
+        grossPence: input.period.household.salaryPence,
+        deductionsPence: 0,
+        netHouseholdValuePence: 0,
+      }),
+      extractionEvent({
+        ...shared,
+        id: dividendId,
+        kind: "dividend",
+        occursOn: input.timing.dividendPaidOn,
+        availableOn: input.timing.householdCashAvailableOn,
+        grossPence: input.period.household.dividendsPence,
+        deductionsPence: 0,
+        netHouseholdValuePence: 0,
+      }),
+    ],
+    cashAvailability: {
+      id: availabilityId,
+      sourceEventIds,
       availableOn: input.timing.householdCashAvailableOn,
       grossPence:
         input.period.household.salaryPence +
         input.period.household.dividendsPence,
-      deductionsPence: input.period.household.incrementalPersonalTaxPence,
-      netHouseholdValuePence: input.period.household.spendableCashPence,
-    }),
-  ];
+      personalTaxPence: input.period.household.incrementalPersonalTaxPence,
+      spendableCashPence: input.period.household.spendableCashPence,
+      alreadyReflected,
+      countedInFiCapital:
+        !alreadyReflected && input.period.household.spendableCashPence > 0,
+      inputRecordIds: [...new Set(input.inputRecordIds)],
+    },
+  };
 }
 
 function pensionEvent(input: {
@@ -1034,9 +1068,9 @@ function evaluatePeriod(
     ownershipIds,
     liquidity.constraint,
   );
-  const events = cashEvents({ context, period, timing, inputRecordIds });
+  const cash = periodCash({ context, period, timing, inputRecordIds });
   const pension = pensionEvent({ context, period, timing, inputRecordIds });
-  if (pension != null) events.push(pension);
+  if (pension != null) cash.events.push(pension);
   context.deductions.push(...periodDeductions(period, liquidity));
   context.periodResults.push({
     companyPeriodId: period.companyPeriodId,
@@ -1079,7 +1113,8 @@ function evaluatePeriod(
         liquidity.liquidCashAfterConstraintsPence,
     },
     goalAssessment: period.goalAssessment,
-    events,
+    events: cash.events,
+    cashAvailability: cash.cashAvailability,
   });
 }
 
@@ -1329,26 +1364,41 @@ function capitalAdditions(input: {
     ...input.context.periodResults.flatMap(({ events }) => events),
     ...(input.deferredEvent == null ? [] : [input.deferredEvent]),
   ];
+  const cashAvailabilities = input.context.periodResults.map(
+    ({ cashAvailability }) => cashAvailability,
+  );
   if (input.blocked) {
     for (const event of events) event.countedInFiCapital = false;
+    for (const availability of cashAvailabilities) {
+      availability.countedInFiCapital = false;
+    }
   }
   const valueEvents = events.filter(
-    ({ kind }) =>
-      kind === "household-cash" ||
-      kind === "employer-pension" ||
-      kind === "deferred-dividend",
+    ({ kind }) => kind === "employer-pension" || kind === "deferred-dividend",
   );
-  const counted = valueEvents.filter(({ countedInFiCapital }) =>
+  const values = [
+    ...cashAvailabilities.map((availability) => ({
+      availableOn: availability.availableOn,
+      valuePence: availability.spendableCashPence,
+      countedInFiCapital: availability.countedInFiCapital,
+    })),
+    ...valueEvents.map((event) => ({
+      availableOn: event.availableOn,
+      valuePence: event.netHouseholdValuePence,
+      countedInFiCapital: event.countedInFiCapital,
+    })),
+  ];
+  const counted = values.filter(({ countedInFiCapital }) =>
     Boolean(countedInFiCapital),
   );
   const availableNowPence = counted
     .filter(
       ({ availableOn }) => availableOn <= input.context.input.planningDate,
     )
-    .reduce((total, event) => total + event.netHouseholdValuePence, 0);
+    .reduce((total, value) => total + value.valuePence, 0);
   const futurePence = counted
     .filter(({ availableOn }) => availableOn > input.context.input.planningDate)
-    .reduce((total, event) => total + event.netHouseholdValuePence, 0);
+    .reduce((total, value) => total + value.valuePence, 0);
   return {
     availableNowPence,
     futurePence,
@@ -1359,10 +1409,15 @@ function capitalAdditions(input: {
           (total, contribution) => total + contribution.pensionWealthAddedPence,
           0,
         ),
-    strategyNetPence: valueEvents.reduce(
-      (total, event) => total + event.netHouseholdValuePence,
-      0,
-    ),
+    strategyNetPence:
+      cashAvailabilities.reduce(
+        (total, availability) => total + availability.spendableCashPence,
+        0,
+      ) +
+      valueEvents.reduce(
+        (total, event) => total + event.netHouseholdValuePence,
+        0,
+      ),
   };
 }
 
@@ -1429,6 +1484,9 @@ function extractionResult(
           ...context.evaluated.lineage.financialFactIds,
           ...context.periodResults.flatMap(({ events }) =>
             events.flatMap(({ inputRecordIds }) => inputRecordIds),
+          ),
+          ...context.periodResults.flatMap(
+            ({ cashAvailability }) => cashAvailability.inputRecordIds,
           ),
           ...(deferred.event?.inputRecordIds ?? []),
           ...context.pensionContributions.flatMap(

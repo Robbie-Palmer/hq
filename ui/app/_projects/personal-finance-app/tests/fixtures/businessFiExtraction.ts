@@ -127,6 +127,7 @@ export function businessFiPlanFixture(
     scenario?: LimitedCompanyScenarioInput;
     strategyId?: string;
     reflectedEventIds?: readonly string[];
+    reflectedCashAvailabilityIds?: readonly string[];
   } = {},
 ): BusinessFiPlanInput {
   const scenario = input.scenario ?? multiPeriodLimitedCompanyScenario;
@@ -193,5 +194,6 @@ export function businessFiPlanFixture(
       inputRecordIds: ["pension-policy:owner"],
     },
     reflectedEventIds: input.reflectedEventIds,
+    reflectedCashAvailabilityIds: input.reflectedCashAvailabilityIds,
   };
 }

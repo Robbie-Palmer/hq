@@ -48,6 +48,26 @@ describe("business FI extraction", () => {
         pensionExcessPence: 0,
       },
     });
+    const firstPeriod = result.periods[0];
+    if (firstPeriod == null) throw new Error("Missing first period");
+    expect(firstPeriod.events.map(({ kind }) => kind)).toEqual([
+      "salary",
+      "dividend",
+      "employer-pension",
+    ]);
+    expect(firstPeriod.cashAvailability).toMatchObject({
+      id: "business-fi:continue-trading:period:2025-26:cash-availability",
+      sourceEventIds: [
+        "business-fi:continue-trading:period:2025-26:salary",
+        "business-fi:continue-trading:period:2025-26:dividend",
+      ],
+      availableOn: "2026-03-31",
+      grossPence:
+        firstPeriod.household.salaryPence +
+        firstPeriod.household.dividendsPence,
+      personalTaxPence: firstPeriod.household.incrementalPersonalTaxPence,
+      spendableCashPence: firstPeriod.household.spendableCashPence,
+    });
     expect(result.pensionContributions[0]).toMatchObject({
       accessibleOn: "2035-04-06",
       supported: true,
@@ -291,16 +311,19 @@ describe("business FI extraction", () => {
 
   it("does not count cash or pension transfers already present in household balances", () => {
     const baseline = evaluateBusinessFiPlan(businessFiPlanFixture());
-    const reflectedIds = [
-      "business-fi:continue-trading:period:2025-26:household-cash",
+    const reflectedEventIds = [
       "business-fi:continue-trading:period:2025-26:employer-pension",
     ];
+    const reflectedCashAvailabilityIds = [
+      "business-fi:continue-trading:period:2025-26:cash-availability",
+    ];
     const reflected = evaluateBusinessFiPlan(
-      businessFiPlanFixture({ reflectedEventIds: reflectedIds }),
+      businessFiPlanFixture({
+        reflectedEventIds,
+        reflectedCashAvailabilityIds,
+      }),
     );
-    const firstCash = baseline.periods[0]?.events.find(
-      ({ kind }) => kind === "household-cash",
-    );
+    const firstCash = baseline.periods[0]?.cashAvailability;
     const firstPension = baseline.periods[0]?.events.find(
       ({ kind }) => kind === "employer-pension",
     );
@@ -312,19 +335,23 @@ describe("business FI extraction", () => {
     expect(
       baseline.capital.incrementalFiEligibleCapitalPence -
         reflected.capital.incrementalFiEligibleCapitalPence,
-    ).toBe(
-      firstCash.netHouseholdValuePence + firstPension.netHouseholdValuePence,
-    );
+    ).toBe(firstCash.spendableCashPence + firstPension.netHouseholdValuePence);
     expect(reflected.strategyNetHouseholdValuePence).toBe(
       baseline.strategyNetHouseholdValuePence,
     );
     expect(
       reflected.periods[0]?.events
         .filter(
-          (event) => event.alreadyReflected && reflectedIds.includes(event.id),
+          (event) =>
+            event.alreadyReflected && reflectedEventIds.includes(event.id),
         )
         .map(({ id }) => id),
-    ).toEqual(reflectedIds);
+    ).toEqual(reflectedEventIds);
+    expect(reflected.periods[0]?.cashAvailability).toMatchObject({
+      id: reflectedCashAvailabilityIds[0],
+      alreadyReflected: true,
+      countedInFiCapital: false,
+    });
   });
 
   it("blocks invalid calendar dates instead of throwing during pension access evaluation", () => {
@@ -431,7 +458,7 @@ describe("business FI extraction", () => {
     );
   });
 
-  it("blocks a partially reflected household cash aggregate", () => {
+  it("blocks extraction events reflected without their cash availability", () => {
     const result = evaluateBusinessFiPlan(
       businessFiPlanFixture({
         reflectedEventIds: [
@@ -444,8 +471,10 @@ describe("business FI extraction", () => {
     expect(result.issues).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
-          kind: "partial-household-cash-reflection",
+          kind: "partial-cash-availability-reflection",
           companyPeriodId: "period:2025-26",
+          cashAvailabilityId:
+            "business-fi:continue-trading:period:2025-26:cash-availability",
         }),
       ]),
     );
