@@ -418,6 +418,74 @@ describe("severe vulnerability reconciliation", () => {
     expect(launchWorker).toHaveBeenCalledOnce();
   });
 
+  it("counts a live lease while an incident is waiting for attention", async () => {
+    const waitingId = "github:repository:123:dependabot-alert:7";
+    const graph = workGraph(
+      [
+        {
+          ...workItem(waitingId, {
+            expiresAt: "2026-11-18T19:15:00.000Z",
+            endedAt: null,
+          }),
+          stage: "needs_attention",
+        },
+      ],
+      [
+        transitionNote(waitingId, "admitted"),
+        transitionNote(waitingId, "worker-linked"),
+      ],
+    );
+    const launchWorker = vi.fn();
+
+    const result = await reconcileSevereVulnerabilities({
+      authorizer,
+      github: githubWithoutRenovate([7, 8]),
+      launchWorker,
+      now: () => new Date(NOW),
+      policy,
+      workGraph: graph.client,
+    });
+
+    expect(result).toEqual({ admitted: [], launched: [], observed: 2 });
+    expect(launchWorker).not.toHaveBeenCalled();
+  });
+
+  it("does not rewrite a saved worker link when retrying a stale incident", async () => {
+    const incidentId = "github:repository:123:dependabot-alert:7";
+    const graph = workGraph(
+      [
+        {
+          ...workItem(incidentId, {
+            expiresAt: "2026-11-18T18:59:59.000Z",
+            endedAt: null,
+          }),
+          stage: "stale",
+        },
+      ],
+      [
+        transitionNote(incidentId, "admitted"),
+        transitionNote(incidentId, "worker-linked"),
+      ],
+    );
+    const launchWorker = vi.fn(async () => ({
+      threadId: vulnerabilityWorkerThreadId(incidentId),
+      url: "https://t3.example/environment/thread",
+    }));
+
+    const result = await reconcileSevereVulnerabilities({
+      authorizer,
+      github: githubWithoutRenovate([7]),
+      launchWorker,
+      now: () => new Date(NOW),
+      policy,
+      workGraph: graph.client,
+    });
+
+    expect(result).toEqual({ admitted: [], launched: [incidentId], observed: 1 });
+    expect(launchWorker).toHaveBeenCalledOnce();
+    expect(graph.notes).toHaveLength(2);
+  });
+
   it("does not count an expired lease against worker concurrency", async () => {
     const staleId = "github:repository:123:dependabot-alert:7";
     const stale = {

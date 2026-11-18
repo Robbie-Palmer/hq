@@ -194,12 +194,11 @@ async function incidentTransitions(
   throw new Error(`Incident notes for ${incidentId} exceeded the page limit`);
 }
 
-function hasActiveWorkerLease(
+function hasLiveLease(
   item: z.infer<typeof WorkItemPageSchema>["items"][number],
   evaluatedAt: number,
 ): boolean {
   return (
-    item.stage === "in_progress" &&
     item.currentLease !== null &&
     item.currentLease.endedAt === null &&
     Date.parse(item.currentLease.expiresAt) > evaluatedAt
@@ -215,7 +214,7 @@ function currentIncidentCount(
     (item) =>
       item.id !== candidateId &&
       INCIDENT_ID_PATTERN.test(item.id) &&
-      hasActiveWorkerLease(item, evaluatedAt),
+      hasLiveLease(item, evaluatedAt),
   ).length;
 }
 
@@ -336,7 +335,7 @@ async function reconcileAlert(
   if (
     existing !== undefined &&
     transitions.has("worker-linked") &&
-    hasActiveWorkerLease(existing, evaluatedAt.getTime())
+    hasLiveLease(existing, evaluatedAt.getTime())
   ) {
     return true;
   }
@@ -374,13 +373,15 @@ async function reconcileAlert(
   });
   if (launchAuthorization.decision !== "allow") return true;
   const worker = await dependencies.launchWorker(correlation);
-  await recordWorker(
-    ledger,
-    policy,
-    correlation,
-    worker,
-    evaluatedAt.toISOString(),
-  );
+  if (!transitions.has("worker-linked")) {
+    await recordWorker(
+      ledger,
+      policy,
+      correlation,
+      worker,
+      evaluatedAt.toISOString(),
+    );
+  }
   input.result.launched.push(incidentId);
   return true;
 }
