@@ -11,16 +11,6 @@
 My monorepo for [robbiepalmer.me](https://robbiepalmer.me), software projects, experiments,
 writing, infrastructure, and homelab configuration.
 
-## CI reports
-
-Codecov [Tests](https://app.codecov.io/github/Robbie-Palmer/hq/tests) tracks per-test durations and
-failures, while [Bundles](https://app.codecov.io/github/Robbie-Palmer/hq/bundles/main/personal-site-ui)
-shows JavaScript bundle changes. The [coverage report](https://app.codecov.io/github/Robbie-Palmer/hq)
-reuses the same monorepo coverage run as SonarQube: Codecov discovers supported reports recursively,
-while SonarQube imports explicitly configured paths and a dedicated C++ report.
-
-[![Codecov icicle graph](https://codecov.io/github/Robbie-Palmer/hq/graphs/icicle.svg)](https://app.codecov.io/github/Robbie-Palmer/hq)
-
 Things you can visit:
 
 - [Recipe Site](https://robbiepalmer.me/recipes), with its [project notes](https://robbiepalmer.me/projects/recipe-site)

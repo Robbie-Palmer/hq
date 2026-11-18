@@ -718,6 +718,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/cryonuseg-frozen-he-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/cryonuseg/frozen-he" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/pannuke-published-folds-data-product"
     project: "project:pathologize"
     paths: [ "data-products/pannuke/published-folds" ]
@@ -729,6 +737,14 @@ components:
   - id: "component:pathologize/airaqc-tcga-data-product"
     project: "project:pathologize"
     paths: [ "data-products/airaqc/tcga-public-pilot" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/sicapv2-mendeley-v2-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/sicapv2/mendeley-v2" ]
     toolchains: [ "python" ]
     profile: null
     receipt: null
@@ -769,6 +785,14 @@ components:
   - id: "component:pathologize/nucleus-analysis-data-product"
     project: "project:pathologize"
     paths: [ "data-products/pathologize/nucleus-analysis" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
+  - id: "component:pathologize/pxd064700-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/proteomexchange/pxd064700" ]
     toolchains: [ "python" ]
     profile: null
     receipt: null
