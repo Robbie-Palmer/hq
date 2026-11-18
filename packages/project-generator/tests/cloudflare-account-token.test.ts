@@ -81,7 +81,7 @@ function plan() {
   });
 }
 
-function r2Plan() {
+function r2Plan(expiresOn?: string) {
   const base = plan();
   return secretBootstrapPlanSchema.parse({
     ...base,
@@ -111,6 +111,7 @@ function r2Plan() {
             id: R2_PERMISSION_ID,
             name: "Workers R2 Storage Write",
           },
+          ...(expiresOn ? { expires_on: expiresOn } : {}),
         },
       },
     ],
@@ -231,7 +232,7 @@ describe("Cloudflare account-token provisioner", () => {
   });
 
   it("creates and verifies one R2 parent credential bundle", async () => {
-    const currentPlan = r2Plan();
+    const currentPlan = r2Plan("2027-01-01T00:00:00Z");
     const secret = currentPlan.secrets[0];
     if (!secret) throw new Error("missing R2 parent test secret");
     const base = conformantFetch();
@@ -290,30 +291,78 @@ describe("Cloudflare account-token provisioner", () => {
           },
         },
       ],
+      expires_on: "2027-01-01T00:00:00Z",
     });
   });
 
-  it("rejects a created R2 parent token with the wrong identity or scope", async () => {
+  it("rejects an incompatible secret for R2 parent provisioning", async () => {
+    const currentPlan = plan();
+    const secret = currentPlan.secrets[0];
+    if (!secret) throw new Error("missing test secret");
+
+    await expect(
+      createCloudflareR2ParentCredentials({
+        plan: currentPlan,
+        secret,
+        environment,
+        fetch: vi.fn(),
+      }),
+    ).rejects.toThrow(/incompatible secret/);
+  });
+
+  it("rejects a created R2 parent token with the wrong identity or policy", async () => {
     const currentPlan = r2Plan();
     const secret = currentPlan.secrets[0];
     if (!secret) throw new Error("missing R2 parent test secret");
     const cases: readonly {
       readonly verifyId: string;
-      readonly resources: Record<string, unknown>;
+      readonly policies: readonly Record<string, unknown>[];
       readonly expected: RegExp;
     }[] = [
       {
         verifyId: "other-token-id",
-        resources: {
-          "com.cloudflare.api.account.account-123": {
-            "com.cloudflare.edge.r2.bucket.*": "*",
+        policies: [
+          {
+            effect: "allow",
+            permission_groups: [{ id: R2_PERMISSION_ID }],
+            resources: {
+              "com.cloudflare.api.account.account-123": {
+                "com.cloudflare.edge.r2.bucket.*": "*",
+              },
+            },
           },
-        },
+        ],
         expected: /wrong token/,
       },
       {
         verifyId: "created-token-id",
-        resources: { "com.cloudflare.api.account.account-123": "*" },
+        policies: [],
+        expected: /exactly one policy/,
+      },
+      {
+        verifyId: "created-token-id",
+        policies: [
+          {
+            effect: "allow",
+            permission_groups: [{ id: DOWNSTREAM_PERMISSION_ID }],
+            resources: {
+              "com.cloudflare.api.account.account-123": {
+                "com.cloudflare.edge.r2.bucket.*": "*",
+              },
+            },
+          },
+        ],
+        expected: /grant only/,
+      },
+      {
+        verifyId: "created-token-id",
+        policies: [
+          {
+            effect: "allow",
+            permission_groups: [{ id: R2_PERMISSION_ID }],
+            resources: { "com.cloudflare.api.account.account-123": "*" },
+          },
+        ],
         expected: /all R2 buckets/,
       },
     ];
@@ -328,15 +377,7 @@ describe("Cloudflare account-token provisioner", () => {
           return jsonResponse({ id: testCase.verifyId, status: "active" });
         }
         if (url.pathname.endsWith("/tokens/created-token-id")) {
-          return jsonResponse({
-            policies: [
-              {
-                effect: "allow",
-                permission_groups: [{ id: R2_PERMISSION_ID }],
-                resources: testCase.resources,
-              },
-            ],
-          });
+          return jsonResponse({ policies: testCase.policies });
         }
         return base.fetchCredential(url, init);
       };
