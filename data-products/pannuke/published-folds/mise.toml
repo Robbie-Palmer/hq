@@ -1,0 +1,62 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked PanNuke source-data environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the PanNuke source-data lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format PanNuke source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint PanNuke source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check PanNuke source-data code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run PanNuke source-data tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run PanNuke source-data tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the PanNuke source-data project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks."verify-metadata"]
+description = "Verify pinned PanNuke publisher metadata without downloading archives"
+depends = ["sync"]
+run = "uv run --locked pannuke-source-data verify-metadata"
+
+[tasks.acquire]
+description = "Acquire and verify the three native PanNuke fold archives"
+depends = ["sync"]
+run = "uv run --locked pannuke-source-data acquire"
+
+[tasks.index]
+description = "Index PanNuke in its source-native language"
+depends = ["sync"]
+run = "uv run --locked pannuke-source-data index"
+
+[tasks.repro]
+description = "Reproduce the PanNuke source data product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic PanNuke source-data checks"
+depends = ["lint", "typecheck", "test:coverage"]

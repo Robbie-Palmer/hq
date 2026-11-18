@@ -73,6 +73,11 @@ The initial proposals define the intended research boundary:
   workload improvement before GPU pixel decoding becomes a default.
 * [PDR 009](/projects/pathologize/pdrs/009-source-native-pathology-data-mesh) proposes reusable,
   source-native DVC projects feeding consumer-owned reconciled products through versioned adapters.
+* [PDR 010](/projects/pathologize/pdrs/010-ingest-skin-frozen-ffpe-preview) rejects the current
+  Zenodo skin frozen and FFPE preview because its deposited files contain no usable whole-slide pixels.
+* [PDR 021](/projects/pathologize/pdrs/021-reuse-each-source-image-across-pathology-products) proposes
+  one shared image repository beneath source-native products, with corrected annotations stored separately
+  and tiles or embeddings retained only under explicit cache and release rules.
 
 # Architecture decisions
 
@@ -112,6 +117,9 @@ One architecture evaluation remains open:
 * [ADR 012](/projects/pathologize/adrs/012-evaluate-openlineage-end-to-end-lineage) proposes a bounded
   OpenLineage spike across DVC artifacts, training, evaluation, deployment, and production observations
   before deciding whether a persistent cross-system lineage service earns adoption.
+* [ADR 017](/projects/pathologize/adrs/017-shared-immutable-image-objects-and-bounded-derivative-caches)
+  proposes immutable shared image objects, one machine-local DVC cache, and a separately bounded cache for
+  tiles, decoded regions, and embeddings.
 
 # Research programme
 

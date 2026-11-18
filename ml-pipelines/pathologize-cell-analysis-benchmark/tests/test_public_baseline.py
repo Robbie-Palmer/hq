@@ -11,6 +11,13 @@ from nucls_source_data.models import SourceManifest
 from PIL import Image, ImageDraw
 
 import pathologize_cell_analysis.experiment as public_experiment
+from pathologize_cell_analysis.annotation_foundation_models import (
+    _clip_to_box,
+    _render_workbench_mask,
+    _segment_cellsam_box,
+    load_comparison_config,
+)
+from pathologize_cell_analysis.annotation_pilot import propose_box_mask
 from pathologize_cell_analysis.data import Annotation, load_annotations
 from pathologize_cell_analysis.experiment import report, run
 from pathologize_cell_analysis.instance_segmentation import (
@@ -25,6 +32,98 @@ from pathologize_cell_analysis.localization import (
 from pathologize_cell_analysis.methods import PredictedNucleus, segment_nuclei
 
 CLASSES = ["nonTIL_stromal", "sTIL", "tumor_any"]
+
+
+def test_box_prompt_mask_selects_the_central_nucleus() -> None:
+    image = Image.new("RGB", (64, 64), "white")
+    draw = ImageDraw.Draw(image)
+    draw.ellipse((20, 18, 44, 46), fill=(65, 35, 85))
+    draw.ellipse((5, 5, 12, 12), fill=(45, 25, 70))
+
+    proposal = propose_box_mask(np.asarray(image), (16, 14, 48, 50))
+
+    assert proposal.pixel_count > 300
+    assert proposal.candidate_components == 1
+    assert proposal.mask[18, 16]
+    assert not proposal.mask[0, 0]
+
+
+def test_box_prompt_mask_never_extends_past_the_clipped_source_box() -> None:
+    image = Image.new("RGB", (32, 32), (80, 40, 90))
+
+    proposal = propose_box_mask(np.asarray(image), (-4, -3, 10, 12))
+
+    assert proposal.bbox == (0, 0, 11, 13)
+    assert proposal.mask.shape == (13, 11)
+
+
+def test_foundation_mask_is_clipped_to_the_source_box() -> None:
+    mask = np.ones((12, 14), dtype=np.bool_)
+    annotation = Annotation(
+        "tumor_any",
+        "rectangle",
+        3,
+        2,
+        8,
+        7,
+        (3, 8, 8, 3),
+        (2, 2, 7, 7),
+    )
+
+    clipped = _clip_to_box(mask, annotation)
+
+    assert np.count_nonzero(clipped) == 36
+    assert clipped[2, 3]
+    assert clipped[7, 8]
+    assert not clipped[1, 3]
+    assert not clipped[2, 9]
+
+
+def test_workbench_mask_is_a_transparent_aligned_overlay() -> None:
+    mask = np.zeros((20, 20), dtype=np.bool_)
+    mask[5:15, 6:14] = True
+
+    overlay = _render_workbench_mask(mask, (2, 3, 18, 19), 64)
+    values = np.asarray(overlay)
+
+    assert overlay.mode == "RGBA"
+    assert overlay.size == (64, 64)
+    assert np.count_nonzero(values[:, :, 3]) > 0
+    assert values[0, 0, 3] == 0
+
+
+def test_cellsam_no_prediction_becomes_an_empty_proposal() -> None:
+    class EmptyModel:
+        def eval(self) -> EmptyModel:
+            return self
+
+        def to(self, _device: str) -> EmptyModel:
+            return self
+
+        def predict(self, *_args: object, **_kwargs: object) -> tuple[None, None, None, None]:
+            return None, None, None, None
+
+    image = np.full((32, 32, 3), 127, dtype=np.uint8)
+
+    mask = _segment_cellsam_box(image, EmptyModel(), [[5.0, 5.0, 20.0, 20.0]], "cpu")
+
+    assert mask.shape == (32, 32)
+    assert not np.any(mask)
+
+
+def test_annotation_foundation_model_pins_validate() -> None:
+    project = Path(__file__).parents[1]
+
+    config = load_comparison_config(project / "params/nucls-annotation-pilot.yaml")
+
+    assert config.models["sam2"].weights_bytes == 184_305_280
+    assert config.gated_models["cellsam"].repository == "vanvalenlab/cellsam"
+    assert config.gated_models["cellsam"].license == "Modified-Apache-2.0-NonCommercial"
+    assert config.gated_models["cellsam"].member_bytes == 1_158_786_941
+    assert config.gated_models["cellsam"].member_sha256 == (
+        "e3e3b5ab41cd35fa80d7442fa83f0c092ddffabe2468c016590b9dfc1b5ddd3e"
+    )
+    assert config.workbench.batch_id == "nucls-box-mask-pilot-20261110"
 
 
 def _source_manifest() -> SourceManifest:

@@ -1,0 +1,20 @@
+# Managed by Copier; product logic and secret values do not belong in this file.
+schema_version: 1
+component:
+  id: "annotation-workbench-service"
+  stable_id: "component:annotation-workbench/annotation-workbench-service"
+  name: "Annotation Workbench local service"
+  kind: "python-pipeline"
+  path: "ml-pipelines/annotation-workbench-service"
+  project: "project:annotation-workbench"
+ownership:
+  template_files:
+    - "generated-component.yaml"
+    - "mise.toml"
+  project_extensions: []
+
+  product_logic: "project"
+  secrets: "external"
+rollout:
+  operational_checks: []
+  migration_checkpoints: []
