@@ -25,7 +25,8 @@ mise run test
 2. Change the portable core without importing Arduino or operating-system headers.
 3. Run `mise run test`, `mise run sanitize`, and `mise run coverage`.
 4. If an adapter changed, compile both firmware targets.
-5. Run `mise run check` before opening a pull request.
+5. Review the advisory output from `mise run analyze:safe-buffers` and `mise run analyze:ctu`.
+6. Run `mise run check` before opening a pull request.
 
 Hardware compilation is not proof of hardware behavior. Record the board, wiring, library versions,
 observations, and repeatable procedure when physical integration testing becomes possible.

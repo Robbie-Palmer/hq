@@ -115,7 +115,12 @@ function PlanningCaseChecklist({
 }
 
 function PlanningCaseChecklists() {
-  const { planningCases, setPlanningChecklistItemStatus } = useAssetTracker();
+  const { planningCases, setPlanningChecklistItemStatus } = useAssetTracker(
+    ({ planningCases, setPlanningChecklistItemStatus }) => ({
+      planningCases,
+      setPlanningChecklistItemStatus,
+    }),
+  );
   const [error, setError] = useState<string | null>(null);
   if (!planningCases?.length) return null;
   const updateStatus =

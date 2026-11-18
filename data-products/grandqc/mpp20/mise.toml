@@ -1,0 +1,57 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked GrandQC source-data environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the GrandQC source-data lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format GrandQC source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint GrandQC source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check GrandQC source-data code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run GrandQC source-data tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run GrandQC source-data tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the GrandQC source-data project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.acquire]
+description = "Acquire and verify the native GrandQC MPP20 archive"
+depends = ["sync"]
+run = "uv run --locked grandqc-source-data acquire"
+
+[tasks.index]
+description = "Extract and index GrandQC in its source-native language"
+depends = ["sync"]
+run = "uv run --locked grandqc-source-data index"
+
+[tasks.repro]
+description = "Reproduce the GrandQC source registry through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic GrandQC source-data checks"
+depends = ["lint", "typecheck", "test:coverage"]

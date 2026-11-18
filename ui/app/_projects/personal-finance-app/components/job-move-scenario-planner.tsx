@@ -27,7 +27,10 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useAssetTracker } from "./asset-tracker-provider";
+import {
+  type AssetTrackerContextValue,
+  useAssetTracker,
+} from "./asset-tracker-provider";
 import { JobMoveScenarioCharts } from "./job-move-scenario-charts";
 import { ReplacementIncomeThresholdPlanner } from "./replacement-income-threshold-planner";
 
@@ -113,7 +116,42 @@ function Field({
   );
 }
 
-type Tracker = ReturnType<typeof useAssetTracker>;
+function selectJobMoveTracker(tracker: AssetTrackerContextValue) {
+  const {
+    accountDetails,
+    baseCurrency,
+    compareJobMoveScenario,
+    currentSalaryHistory,
+    deleteJobMoveScenario,
+    duplicateJobMoveScenario,
+    financialIndependence,
+    futureCashFlows,
+    household,
+    jobMoveScenarios,
+    recurringFlowOwnership,
+    recurringFlows,
+    saveJobMoveScenario,
+    valuationDate,
+  } = tracker;
+  return {
+    accountDetails,
+    baseCurrency,
+    compareJobMoveScenario,
+    currentSalaryHistory,
+    deleteJobMoveScenario,
+    duplicateJobMoveScenario,
+    financialIndependence,
+    futureCashFlows,
+    household,
+    jobMoveScenarios,
+    recurringFlowOwnership,
+    recurringFlows,
+    saveJobMoveScenario,
+    valuationDate,
+  };
+}
+
+type Tracker = ReturnType<typeof selectJobMoveTracker>;
 
 function recurringFlowOwnership(tracker: Tracker, flowId: string) {
   return (
@@ -269,7 +307,7 @@ function useScenarioForm(
   editing: JobMoveScenario | null,
   onSaved: (id?: string) => void,
 ) {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(selectJobMoveTracker);
   const defaultMemberId =
     tracker.household.activeScope.kind === "member"
       ? tracker.household.activeScope.memberId
@@ -1391,7 +1429,13 @@ function assumptionRows(
 function AssumptionSummary({
   scenario,
 }: Readonly<{ scenario: JobMoveScenario }>) {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({ recurringFlows, household, futureCashFlows }) => ({
+      recurringFlows,
+      household,
+      futureCashFlows,
+    }),
+  );
   const flowNames = new Map(
     tracker.recurringFlows.map(({ id, name }) => [id, name]),
   );
@@ -1755,7 +1799,13 @@ function useJobLossTimingModel({
   setAlternativeDate,
   setPrimaryDate,
 }: JobLossTimingComparisonProps) {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({ compareJobMoveScenario, valuationDate, baseCurrency }) => ({
+      compareJobMoveScenario,
+      valuationDate,
+      baseCurrency,
+    }),
+  );
   const commonEndDate = addMonths(parseISO(primaryDate), horizonYears * 12);
   const alternativeHorizonMonths = Math.max(
     1,
@@ -1844,7 +1894,7 @@ function JobLossTimingComparison({
 }
 
 function useComparisonModel(scenario: JobMoveScenario) {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(selectJobMoveTracker);
   const [horizonYears, setHorizonYears] = useState(
     scenario.employmentStatus === "unemployed" ? 10 : 5,
   );
@@ -1956,7 +2006,7 @@ function Comparison({ scenario }: Readonly<{ scenario: JobMoveScenario }>) {
 }
 
 function useJobMoveScenarioControls() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(selectJobMoveTracker);
   const defaultScenario = useMemo<JobMoveScenario>(() => {
     const valuationDate = jobLossAnchorDate(tracker.valuationDate);
     const transitionDate = format(

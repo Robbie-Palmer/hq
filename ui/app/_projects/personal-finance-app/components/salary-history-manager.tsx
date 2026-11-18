@@ -78,7 +78,9 @@ function SalaryDeleteControls({
 function SalaryRecordActions({
   record,
 }: Readonly<{ record: SalaryHistoryRecord }>) {
-  const { deleteSalaryRecord } = useAssetTracker();
+  const { deleteSalaryRecord } = useAssetTracker(({ deleteSalaryRecord }) => ({
+    deleteSalaryRecord,
+  }));
   const [confirming, setConfirming] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -372,7 +374,12 @@ function SalaryTable({
 }
 
 export function SalaryHistoryManager() {
-  const { currentSalaryHistory, salaryHistory } = useAssetTracker();
+  const { currentSalaryHistory, salaryHistory } = useAssetTracker(
+    ({ currentSalaryHistory, salaryHistory }) => ({
+      currentSalaryHistory,
+      salaryHistory,
+    }),
+  );
   const currentIds = new Set(currentSalaryHistory.map((record) => record.id));
   const prior = salaryHistory.filter((record) => !currentIds.has(record.id));
 

@@ -68,10 +68,11 @@ credentials:
         name: Workers Scripts Write
         scope: account
     consumer_verification:
-      - mise //:project:secret-bootstrap:conformance
+      - mise //:project:secret-bootstrap:handoff:conformance
+      - mise //:project:secret-bootstrap:handoff:proof
     rotation_order: 20
-    recovery_path: docs/runbooks/project-secret-bootstrap.md#cloudflare-token-checks
-    bootstrap_plan_status: planned
+    recovery_path: docs/runbooks/project-secret-bootstrap.md#worker-secret-handoff-rotation-and-recovery
+    bootstrap_plan_status: committed
     bootstrap_plan_path: infra/account-foundation/cloudflare-token-plans/worker-secret-handoff.yaml
 
   - id: cloudflare-access-plan

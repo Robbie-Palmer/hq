@@ -13,7 +13,7 @@ source "${script_dir}/remote-development-ssh.sh"
 remote_development_prepare_ssh "${target}"
 
 cleanup() {
-  if [ -f "${temporary}" ]; then
+  if [[ -f "${temporary}" ]]; then
     shred --remove "${temporary}" 2>/dev/null || rm -f "${temporary}"
   fi
 }
@@ -46,22 +46,22 @@ client_key=$(KUBECONFIG="${temporary}" kubectl config view \
   --raw \
   --output=jsonpath='{.users[0].user.client-key-data}')
 
-if [ "${actual_server}" != "${api_server}" ] \
-  || [ -z "${new_ca}" ] \
-  || [ -z "${client_certificate}" ] \
-  || [ -z "${client_key}" ]; then
+if [[ "${actual_server}" != "${api_server}" ]] \
+  || [[ -z "${new_ca}" ]] \
+  || [[ -z "${client_certificate}" ]] \
+  || [[ -z "${client_key}" ]]; then
   echo "downloaded kubeconfig failed endpoint or credential validation" >&2
   exit 1
 fi
 
-if [ -f "${kubeconfig}" ]; then
+if [[ -f "${kubeconfig}" ]]; then
   previous_ca=$(KUBECONFIG="${kubeconfig}" kubectl config view \
     --minify \
     --raw \
     --output=jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-  if [ -n "${previous_ca}" ] \
-    && [ "${previous_ca}" != "${new_ca}" ] \
-    && [ "${REMOTE_DEVELOPMENT_ACCEPT_NEW_KUBE_CA:-0}" != 1 ]; then
+  if [[ -n "${previous_ca}" ]] \
+    && [[ "${previous_ca}" != "${new_ca}" ]] \
+    && [[ "${REMOTE_DEVELOPMENT_ACCEPT_NEW_KUBE_CA:-0}" != 1 ]]; then
     echo "remote-development Kubernetes CA changed; refusing to replace kubeconfig" >&2
     echo "verify the cluster rebuild, then retry with REMOTE_DEVELOPMENT_ACCEPT_NEW_KUBE_CA=1" >&2
     exit 1

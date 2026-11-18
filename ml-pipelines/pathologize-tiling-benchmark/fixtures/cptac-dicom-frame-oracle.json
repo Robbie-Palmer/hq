@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0.0",
+  "source_instance_sha256": "675ddd4dd43ed48994bacd331f5d9bec2d3b585f1d3b36141eecaa64719569ba",
+  "logical_level": 0,
+  "tile_coordinate": [28, 28],
+  "frame_index": 1624,
+  "rgb_samples": [
+    {
+      "position": [0, 0],
+      "value": [76, 71, 112]
+    },
+    {
+      "position": [128, 128],
+      "value": [235, 207, 222]
+    }
+  ],
+  "rgb_channel_means": [139.27388, 123.56644, 157.89465],
+  "sample_absolute_tolerance": 1,
+  "mean_absolute_tolerance": 0.1,
+  "oracle": "OpenJPEG 2.5 through wsidicom and pylibjpeg-openjpeg, cross-checked against nvImageCodec nvJPEG2000 with maximum channel error 1"
+}

@@ -1,0 +1,22 @@
+{
+  "name": "wedding-planner-api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Server-side application boundary for Wedding Planner",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "wedding-planner-data": "workspace:*",
+    "wedding-planner-domain": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "@vitest/coverage-v8": "^5.0.0",
+    "typescript": "^6.0.0",
+    "vitest": "^5.0.0"
+  }
+}

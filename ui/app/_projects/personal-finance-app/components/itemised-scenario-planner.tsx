@@ -209,7 +209,23 @@ function itemisedScenarios(
 }
 
 function useItemisedScenarioPlanner() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({
+      futureCashFlows,
+      accounts,
+      baseCurrency,
+      addCashFlowDecision,
+      updateCashFlowDecision,
+      recordActualCashFlow,
+    }) => ({
+      futureCashFlows,
+      accounts,
+      baseCurrency,
+      addCashFlowDecision,
+      updateCashFlowDecision,
+      recordActualCashFlow,
+    }),
+  );
   const scenarios = itemisedScenarios(tracker.futureCashFlows);
   const [selectedId, setSelectedId] = useState(
     () => scenarios[0]?.id ?? NEW_SCENARIO,

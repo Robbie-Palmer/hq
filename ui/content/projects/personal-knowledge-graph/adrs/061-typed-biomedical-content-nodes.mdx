@@ -1,0 +1,206 @@
+---
+title: "ADR 061: Model biomedical knowledge as typed content graph nodes"
+date: "2026-11-11"
+status: "Accepted"
+implements_product_decisions:
+  - "personal-knowledge-graph:009-typed-biomedical-knowledge"
+---
+
+## Context
+
+[PDR 009](/projects/personal-knowledge-graph/pdrs/009-typed-biomedical-knowledge)
+requires biomedical pages to distinguish scientific fields, specimen
+preparations, assays, data types, biomarkers, and grading systems. It also
+keeps general analysis techniques in the existing idea vocabulary.
+
+The `ContentGraph` already uses a discriminated `NodeType` union and typed
+forward and reverse indexes. [ADR 060](/projects/personal-knowledge-graph/adrs/060-typed-financial-and-business-subjects)
+extends that approach to financial and business entities and rejects a generic
+subject node. Biomedical content needs the same compile-time distinction while
+remaining connected to projects, blog posts, ideas, and later dataset pages.
+
+The public route is intentionally simpler than the type system. Readers can
+find a definition without knowing its storage class. The loader still rejects
+duplicate identities and invalid relationships.
+
+## Decision
+
+Extend the existing `ContentGraph` with concrete biomedical node types. Keep
+one public graph and one biomedical route namespace.
+
+### Use concrete node types
+
+Add the following initial node-type union:
+
+```typescript
+type BiomedicalNodeType =
+  | "biomedical-field"
+  | "specimen-preparation"
+  | "assay-method"
+  | "biomedical-data-type"
+  | "biomarker"
+  | "grading-system";
+```
+
+`BiomedicalNodeType` groups the concrete types at compile time. The runtime
+union contains only its concrete members. A `biomedicine`,
+`biomedical-subject`, or `reference` node whose meaning depends on a tag or
+free-form `kind` property is invalid.
+
+Add an image or spatial concept type only when a published page needs one and
+its allowed relationships are understood. Spatial analysis itself remains an
+idea because it is a general analysis technique.
+
+Each concrete type has its own Zod source schema and branded slug. A shared
+base schema may own these editorial fields:
+
+```typescript
+interface BiomedicalPageBase {
+  title: string;
+  description: string;
+  aliases?: string[];
+  reviewed_on: string;
+  sources: Array<{
+    title: string;
+    url: string;
+    publisher?: string;
+    publication_date?: string;
+    accessed?: string;
+  }>;
+  external_mappings?: Array<{
+    vocabulary: string;
+    identifier: string;
+    url?: string;
+  }>;
+}
+```
+
+Concrete schemas own domain fields and relationship targets. The shared base
+does not make the records interchangeable. A page with no sources or review
+date fails validation.
+
+### Keep local identity stable
+
+Store source files below directories that identify their concrete class:
+
+```text
+ui/content/biomedicine/
+  fields/
+  specimen-preparations/
+  assays/
+  data-types/
+  biomarkers/
+  grading-systems/
+```
+
+The canonical graph identity is `<node-type>:<slug>`. The canonical reader
+route is `/biomedicine/<slug>`, with `/biomedicine/<slug>.md` as its Markdown
+twin. A route registry must enforce unique slugs across every biomedical
+class, since the public route does not include the class.
+
+The local identity remains canonical when a title, preferred external term, or
+ontology version changes. `external_mappings` records equivalence or alignment
+with an external vocabulary. A mapping does not import the external
+vocabulary's hierarchy and does not replace local editorial content.
+
+### Constrain biomedical relationships
+
+Use named edges with constrained sources and targets. The initial relationship
+vocabulary will include:
+
+| Edge                        | Source           | Target                      |
+| --------------------------- | ---------------- | --------------------------- |
+| `SUBFIELD_OF`               | Biomedical field | Biomedical field            |
+| `STUDIES`                   | Biomedical field | Supported concrete entity   |
+| `USES_PREPARATION`          | Assay method     | Specimen preparation method |
+| `PRODUCES_DATA_TYPE`        | Assay method     | Biomedical data type        |
+| `MEASURES_BIOMARKER`        | Assay method     | Biomarker                   |
+| `APPLIES_TO_DATA_TYPE`      | Grading system   | Biomedical data type        |
+| `USES_BIOMEDICAL_FIELD`     | Project          | Biomedical field            |
+| `USES_SPECIMEN_PREPARATION` | Project          | Specimen preparation method |
+| `USES_ASSAY_METHOD`         | Project          | Assay method                |
+| `USES_BIOMEDICAL_DATA`      | Project          | Biomedical data type        |
+| `USES_BIOMARKER`            | Project          | Biomarker                   |
+| `USES_GRADING_SYSTEM`       | Project          | Grading system              |
+| `EXPLAINS_BIOMEDICAL_NODE`  | Blog             | Biomedical node union       |
+
+`STUDIES` may target only a concrete class admitted to its endpoint union. It
+does not justify a generic subject node. If pages for diseases, anatomical
+structures, biological processes, or molecular entities are added later, each
+class must define whether it is a valid `STUDIES` target.
+
+The builder maintains reverse indexes for every edge. Queries name the endpoint
+type they return. Code that projects the full node union must match
+exhaustively, so a new class exposes every route, search, graph, and display
+decision that still needs work.
+
+Projects continue to use `REFERENCES_IDEA` for multiple-instance learning,
+spatial analysis, multi-omics, and other general techniques. Biomedical node
+types do not duplicate those ideas. A project may link to both a biomedical
+data type and the idea used to analyse or combine it.
+
+### Keep evidence media separate from ontology identity
+
+A biomedical page may attach images and whole-slide viewers as evidence. This
+association does not create another biomedical entity. Media records carry
+their source, licence, attribution, caption, alternative text, and review date.
+A tiled slide record also carries the tile location, bounds, zoom limits,
+physical scale when known, initial viewport, optional overlays, and a static
+fallback.
+
+The first viewer can reuse the site's licensed CPTAC H\&E tile pyramid. Its
+component should become reusable rather than leaving biomedical pages coupled
+to the technology demo that first hosted it.
+
+Dataset revisions, object versions, or OpenLineage runs may later point to the
+same biomedical nodes. They identify data artifacts and lineage. They do not
+own the definition, route, or prose of a biomedical entity.
+
+## Consequences
+
+The compiler and content validator can distinguish a field from its data and
+methods. Invalid relationships fail before publication, and projects can state
+their domain context without turning analysis techniques into biomedical
+entities.
+
+The flat reader route keeps navigation simple but requires global slug
+uniqueness across biomedical classes. Adding a class also requires schema,
+loader, route, search, Markdown export, graph projection, and test updates.
+
+Source and review metadata become mandatory for biomedical pages. That makes
+stale or weakly sourced content visible, but it also creates ongoing review
+work. Evidence media adds licence and accessibility checks beyond ordinary
+prose validation.
+
+The in-memory graph remains suitable while the site loads public content at
+build time. Revisit storage only if runtime writes, private records, or query
+volume make the static repository an actual constraint.
+
+## Alternatives considered
+
+### Add a single biomedical node with a class property
+
+A strict enum would be safer than free text, but relationships and queries
+would still accept one broad node and inspect its class at runtime. Rejected
+because the concrete union can enforce those distinctions directly.
+
+### Put biomedical content in a separate graph
+
+This would isolate the domain schemas. It was rejected for the public read
+model because ordinary project, blog, idea, and future dataset navigation would
+require cross-graph joins. Source modules may keep a domain boundary before
+the builder combines their validated records.
+
+### Use external ontology identifiers as canonical IDs
+
+This would make alignment explicit. It was rejected because external
+vocabularies have different scopes, release cycles, and editorial goals. The
+site needs stable routes and can map to more than one vocabulary without
+ceding its identity to any one of them.
+
+### Place analysis techniques under biomedicine
+
+This would make a project's local vocabulary easier to browse. It was rejected
+because multiple-instance learning and spatial analysis also apply outside
+biomedicine. Existing idea nodes preserve that broader meaning while typed
+edges show where biomedical projects use them.

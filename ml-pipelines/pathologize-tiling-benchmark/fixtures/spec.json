@@ -8,6 +8,7 @@
     {"case_id": "synthetic-train-fold", "split": "train", "variant": "fold_like"},
     {"case_id": "synthetic-validation-clean", "split": "validation", "variant": "clean"},
     {"case_id": "synthetic-validation-mark", "split": "validation", "variant": "mark_like"},
+    {"case_id": "synthetic-test-clean", "split": "test", "variant": "clean"},
     {"case_id": "synthetic-test-fold", "split": "test", "variant": "fold_like"},
     {"case_id": "synthetic-test-mark", "split": "test", "variant": "mark_like"}
   ]

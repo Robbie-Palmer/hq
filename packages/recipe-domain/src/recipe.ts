@@ -106,7 +106,7 @@ export const RecipeContentSchema = ParsedRecipeSchema.extend({
     .regex(/^recipes\/[a-z0-9_-]+-\d{4}-\d{2}-\d{2}$/)
     .optional(),
   imageAlt: z.string().min(1).optional(),
-  canonical: z.string().url().optional(),
+  canonical: z.url().optional(),
 });
 
 export type RecipeContent = z.infer<typeof RecipeContentSchema>;

@@ -1,0 +1,43 @@
+{
+  "PersonalFinance": {
+    "entityTypes": {
+      "User": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "userId": { "type": "String" }
+          }
+        }
+      },
+      "Household": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "ownerUserId": { "type": "String" },
+            "syntheticOnly": { "type": "Boolean" }
+          }
+        }
+      }
+    },
+    "actions": {
+      "household.create": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Household"]
+        }
+      },
+      "household.read": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Household"]
+        }
+      },
+      "household.delete": {
+        "appliesTo": {
+          "principalTypes": ["User"],
+          "resourceTypes": ["Household"]
+        }
+      }
+    }
+  }
+}

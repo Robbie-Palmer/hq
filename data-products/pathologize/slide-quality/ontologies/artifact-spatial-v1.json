@@ -1,0 +1,18 @@
+{
+  "concepts": [
+    {"id": "ignore", "kind": "ignore", "parents": []},
+    {"id": "background", "kind": "anatomy", "parents": []},
+    {"id": "artifact_free_tissue", "kind": "anatomy", "parents": []},
+    {"id": "fold", "kind": "artifact", "parents": []},
+    {"id": "dark_spot_or_foreign_object", "kind": "artifact_union", "parents": []},
+    {"id": "pen_mark", "kind": "artifact", "parents": []},
+    {"id": "air_bubble", "kind": "artifact", "parents": ["air_bubble_or_slide_edge"]},
+    {"id": "slide_edge", "kind": "artifact", "parents": ["air_bubble_or_slide_edge"]},
+    {"id": "air_bubble_or_slide_edge", "kind": "artifact_union", "parents": []},
+    {"id": "out_of_focus", "kind": "artifact", "parents": []},
+    {"id": "unlabelled", "kind": "unknown", "parents": []}
+  ],
+  "description": "A task ontology that retains fine and union concepts instead of claiming that merged source labels are separable.",
+  "ontology_id": "pathologize.artifact-spatial/v1",
+  "schema_version": "1.0.0"
+}

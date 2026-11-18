@@ -281,7 +281,7 @@ describe("project profile contracts", () => {
       opentelemetry,
       deploymentMaturity,
     });
-    expect(currentContracts.layout.schema_version).toBe(1);
+    expect(currentContracts.layout.schema_version).toBe(2);
 
     const blueprint = resolveProjectProfile(
       parseProjectProfile(agenticCodeReview),

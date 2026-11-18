@@ -1,0 +1,24 @@
+stages:
+  acquire_publisher_metadata:
+    cmd: uv run --locked segpath-source-data acquire-metadata
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/segpath_source_data
+      - uv.lock
+    outs:
+      - data/metadata
+
+  index_native_records:
+    cmd: uv run --locked segpath-source-data index
+    deps:
+      - data/metadata
+      - manifest.json
+      - pyproject.toml
+      - src/segpath_source_data
+      - uv.lock
+    outs:
+      - outputs/native-records.jsonl
+    metrics:
+      - outputs/source-metrics.json

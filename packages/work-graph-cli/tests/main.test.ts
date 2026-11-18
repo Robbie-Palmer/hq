@@ -543,6 +543,7 @@ describe("Given agent-facing Work Graph commands", () => {
   it("writes and reads typed work-item context", async () => {
     const brief = harness();
     const decision = harness();
+    const removedDecision = harness();
     const reference = harness();
     const resolvedPullRequest = {
       kind: "pull_request",
@@ -576,6 +577,15 @@ describe("Given agent-facing Work Graph commands", () => {
       "--role",
       "governing",
     ]);
+    await removedDecision.run([
+      "context",
+      "remove-adr",
+      "work/a b",
+      "--url",
+      "https://example.test/adrs/context-ordering",
+      "--idempotency-key",
+      UUID,
+    ]);
     await reference.run([
       "reference",
       "put",
@@ -607,6 +617,15 @@ describe("Given agent-facing Work Graph commands", () => {
         role: "governing",
       },
     });
+    expect(removedDecision.requests[0]).toMatchObject({
+      method: "DELETE",
+      body: {
+        url: "https://example.test/adrs/context-ordering",
+      },
+    });
+    expect(removedDecision.requests[0]?.headers.get("Idempotency-Key")).toBe(
+      UUID,
+    );
     expect(reference.requests[0]).toMatchObject({
       method: "PUT",
       body: {
@@ -619,6 +638,9 @@ describe("Given agent-facing Work Graph commands", () => {
     );
     expect(decision.requests[0]?.url.pathname).toBe(
       "/root/api/work-items/work%2Fa%20b/contexts",
+    );
+    expect(removedDecision.requests[0]?.url.pathname).toBe(
+      "/root/api/work-items/work%2Fa%20b/contexts/architecture-decisions",
     );
     expect(reference.requests[0]?.url.pathname).toBe(
       "/root/api/work-items/work%2Fa%20b/references",

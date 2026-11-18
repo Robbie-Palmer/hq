@@ -1,6 +1,15 @@
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
+  plugins: [
+    {
+      name: "cedar-policy-text",
+      transform(source, id) {
+        if (!id.endsWith(".cedar")) return undefined;
+        return `export default ${JSON.stringify(source)};`;
+      },
+    },
+  ],
   test: {
     coverage: {
       provider: "v8",

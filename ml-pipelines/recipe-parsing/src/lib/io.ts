@@ -149,7 +149,7 @@ const ImageParamsSchema = z.object({
   image_jpeg_quality: z.number().int().min(1).max(100),
 });
 
-const ExtractParamsSchema = StageRetryParamsSchema.merge(ImageParamsSchema).extend({
+const ExtractParamsSchema = StageRetryParamsSchema.extend(ImageParamsSchema.shape).extend({
   model: z.string().min(1),
 });
 

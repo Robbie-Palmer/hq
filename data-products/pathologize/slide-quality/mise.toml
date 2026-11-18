@@ -1,0 +1,52 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked slide-quality dataset environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the slide-quality dataset lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format slide-quality dataset code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint slide-quality dataset code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check slide-quality dataset code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run slide-quality dataset tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run slide-quality dataset tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the slide-quality dataset project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.reconcile]
+description = "Build the reconciled slide-quality data product"
+depends = ["sync"]
+run = "uv run --locked slide-quality-data build"
+
+[tasks.repro]
+description = "Reproduce the slide-quality data mesh node through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic slide-quality dataset checks"
+depends = ["lint", "typecheck", "test:coverage"]

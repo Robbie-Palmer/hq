@@ -140,6 +140,7 @@ def _render_case(
     return FixtureItem(
         item_id=case.case_id,
         split=case.split,
+        variant=case.variant,
         synthetic=True,
         image_path=(relative_dir / "image.ppm").as_posix(),
         tissue_mask_path=(relative_dir / "tissue-mask.pgm").as_posix(),
@@ -159,7 +160,9 @@ def _render_case(
             block_id=f"synthetic-block-{suffix}",
             slide_id=f"synthetic-slide-{suffix}",
             acquisition_id=f"synthetic-acquisition-{suffix}",
-            site_id=f"synthetic-site-{1 + case_index % 2}",
+            site_id=f"synthetic-site-{case.split.value}",
+            scanner_id=f"synthetic-scanner-{case.split.value}",
+            stain_protocol_id="synthetic-stain-v1",
         ),
     )
 

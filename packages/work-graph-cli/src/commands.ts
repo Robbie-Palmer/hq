@@ -42,6 +42,9 @@ import {
   zCreateWorkItemNoteBody,
   zCreateWorkItemNoteHeaders,
   zCreateWorkItemReleaseBody,
+  zDeleteWorkItemArchitectureDecisionBody,
+  zDeleteWorkItemArchitectureDecisionHeaders,
+  zDeleteWorkItemArchitectureDecisionPath,
   zExpediteWorkItemBody,
   zExpediteWorkItemHeaders,
   zGetCriticalPathQuery,
@@ -445,6 +448,21 @@ const contextArchitectureDecisionInput = z.object({
   ),
   idempotencyKey: described(
     zPutWorkItemContextHeaders.shape["idempotency-key"],
+    "Client-generated UUID used to replay a mutation safely",
+  ),
+});
+
+const contextArchitectureDecisionRemoveInput = z.object({
+  workItemId: positional(
+    zDeleteWorkItemArchitectureDecisionPath.shape.workItemId,
+    "Ticket ID",
+  ),
+  url: described(
+    zDeleteWorkItemArchitectureDecisionBody.shape.url,
+    "Architecture decision URL",
+  ),
+  idempotencyKey: described(
+    zDeleteWorkItemArchitectureDecisionHeaders.shape["idempotency-key"],
     "Client-generated UUID used to replay a mutation safely",
   ),
 });
@@ -1587,6 +1605,16 @@ export const workGraphRouter = t.router({
             url: input.url,
             role: input.role,
           },
+          input.idempotencyKey,
+        ),
+      ),
+    removeAdr: command
+      .meta({ description: "Remove an architecture-decision link" })
+      .input(contextArchitectureDecisionRemoveInput)
+      .mutation(({ ctx, input }) =>
+        resolveClient(ctx).removeWorkItemArchitectureDecision(
+          input.workItemId,
+          { url: input.url },
           input.idempotencyKey,
         ),
       ),

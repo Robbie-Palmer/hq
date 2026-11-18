@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/drawer";
 import { Input } from "@/components/ui/input";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 
 function MemberNameEditor({
   memberId,
@@ -73,6 +74,15 @@ function MemberNameEditor({
   );
 }
 
+const selectHouseholdScopeControl = selectAssetTrackerFields(
+  "household",
+  "householdAccounts",
+  "addHouseholdMember",
+  "renameHouseholdMember",
+  "setAccountOwnership",
+  "setActiveHouseholdScope",
+);
+
 export function HouseholdScopeControl() {
   const {
     household,
@@ -81,7 +91,7 @@ export function HouseholdScopeControl() {
     renameHouseholdMember,
     setAccountOwnership,
     setActiveHouseholdScope,
-  } = useAssetTracker();
+  } = useAssetTracker(selectHouseholdScopeControl);
   const [newMemberName, setNewMemberName] = useState("");
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState<string | null>(null);

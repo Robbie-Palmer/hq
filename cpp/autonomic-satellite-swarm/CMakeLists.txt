@@ -13,8 +13,20 @@ option(SATELLITE_SWARM_BUILD_SIMULATION "Build the deterministic host simulation
 option(SATELLITE_SWARM_BUILD_BROWSER "Build the Emscripten browser adapter" OFF)
 option(SATELLITE_SWARM_ENABLE_COVERAGE "Enable gcov-compatible coverage instrumentation" OFF)
 option(SATELLITE_SWARM_ENABLE_SANITIZERS "Enable address and undefined-behavior sanitizers" OFF)
+option(SATELLITE_SWARM_ENABLE_SAFE_BUFFER_DIAGNOSTICS
+       "Enable Clang's unsafe-buffer diagnostics for maintained host targets" OFF)
 set(SATELLITE_SWARM_SOURCE_REVISION "unknown" CACHE STRING
     "Full Git revision used to build the browser module")
+
+function(satellite_swarm_enable_safe_buffer_diagnostics target)
+  if(NOT SATELLITE_SWARM_ENABLE_SAFE_BUFFER_DIAGNOSTICS)
+    return()
+  endif()
+  if(NOT CMAKE_CXX_COMPILER_ID MATCHES "Clang")
+    message(FATAL_ERROR "Safe-buffer diagnostics require Clang")
+  endif()
+  target_compile_options(${target} PRIVATE -Wunsafe-buffer-usage)
+endfunction()
 
 add_library(
   satellite_swarm
@@ -29,6 +41,7 @@ add_library(
   src/satellite_swarm/types.cpp
   src/satellite_swarm/wire_codec.cpp)
 add_library(satellite_swarm::coordination ALIAS satellite_swarm)
+satellite_swarm_enable_safe_buffer_diagnostics(satellite_swarm)
 
 target_include_directories(
   satellite_swarm
@@ -69,10 +82,12 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
     satellite_swarm_simulation
     simulation/src/browser_simulation.cpp
     simulation/src/fair_allocation_simulation.cpp
+    simulation/src/maneuver.cpp
     simulation/src/network_laboratory.cpp
     simulation/src/orbit.cpp
     simulation/src/simulation.cpp)
   add_library(satellite_swarm::simulation ALIAS satellite_swarm_simulation)
+  satellite_swarm_enable_safe_buffer_diagnostics(satellite_swarm_simulation)
   target_include_directories(
     satellite_swarm_simulation
     PUBLIC $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/simulation/include>)
@@ -88,10 +103,21 @@ if(SATELLITE_SWARM_BUILD_SIMULATION)
   endif()
 
   add_executable(autonomic-satellite-swarm-simulation examples/simulation/main.cpp)
+  satellite_swarm_enable_safe_buffer_diagnostics(autonomic-satellite-swarm-simulation)
   target_link_libraries(autonomic-satellite-swarm-simulation PRIVATE satellite_swarm::simulation)
   add_executable(autonomic-satellite-swarm-resource-profile examples/resource_profile/main.cpp)
+  satellite_swarm_enable_safe_buffer_diagnostics(autonomic-satellite-swarm-resource-profile)
   target_link_libraries(autonomic-satellite-swarm-resource-profile
                         PRIVATE satellite_swarm::coordination)
+  if(SATELLITE_SWARM_ENABLE_SAFE_BUFFER_DIAGNOSTICS)
+    add_library(satellite_swarm_browser_audit OBJECT browser/src/browser_api.cpp)
+    target_include_directories(
+      satellite_swarm_browser_audit
+      PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/browser/include)
+    target_link_libraries(satellite_swarm_browser_audit PRIVATE satellite_swarm::simulation)
+    target_compile_features(satellite_swarm_browser_audit PRIVATE cxx_std_20)
+    satellite_swarm_enable_safe_buffer_diagnostics(satellite_swarm_browser_audit)
+  endif()
   if(SATELLITE_SWARM_SOURCE_REVISION STREQUAL "")
     set(SATELLITE_SWARM_SOURCE_REVISION "unknown")
   endif()
@@ -193,6 +219,7 @@ if(SATELLITE_SWARM_BUILD_BROWSER)
   endif()
 
   add_executable(satellite_swarm_browser browser/src/browser_api.cpp)
+  satellite_swarm_enable_safe_buffer_diagnostics(satellite_swarm_browser)
   target_include_directories(
     satellite_swarm_browser
     PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/browser/include)
@@ -237,6 +264,7 @@ if(BUILD_TESTING)
     tests/controller_test.cpp
     tests/historical_orbital_scorer_test.cpp
     tests/invariant_test.cpp
+    tests/maneuver_test.cpp
     tests/orbit_test.cpp
     tests/protocol_evolution_test.cpp
     tests/resource_observer_test.cpp

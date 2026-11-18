@@ -1,0 +1,77 @@
+{
+  "asset_paths": [
+    "slides/TCGA-78-7152-01Z-00-DX1.a04f9d84-3304-402c-9c0c-f64545c14781.svs",
+    "annotations/TCGA-78-7152-01Z-00-DX1.a04f9d84-3304-402c-9c0c-f64545c14781.png"
+  ],
+  "collection_id": "airaqc-tcga",
+  "identity": {
+    "case_id": "b56dad1e-2fd5-47d8-9cc7-a54be9a1bae2",
+    "identity_basis": "A domain-separated SHA-256 key derived from the public TCGA submitter ID preserves patient grouping; the pinned source index retains the mapping. The GDC case UUID, TCGA slide barcode, and GDC file UUID identify the slide asset.",
+    "patient_id": "tcga-patient-sha256-46c5f96feaa01cf5209b685701d4e8851e9359dbb9404ae41245cff885b48c13",
+    "series_instance_uid": null,
+    "slide_container_id": "TCGA-78-7152-01Z-00-DX1",
+    "specimen_id": "TCGA-78-7152-01Z-00-DX1",
+    "specimen_uid": null,
+    "study_instance_uid": null
+  },
+  "label_limitations": "A clean label means no pixel matches the four released AIRAQc palette classes. It does not prove that the slide has no unannotated defect.",
+  "physical_resolution": {
+    "micrometres_per_pixel_x": 0.252,
+    "micrometres_per_pixel_y": 0.252,
+    "source_instance_path": "slides/TCGA-78-7152-01Z-00-DX1.a04f9d84-3304-402c-9c0c-f64545c14781.svs",
+    "total_pixel_matrix_columns": 114150,
+    "total_pixel_matrix_rows": 84520
+  },
+  "scanner": {
+    "conversion_note": "Native GDC Aperio SVS; no registry conversion.",
+    "device_serial_number": "SS1302",
+    "manufacturer": "Leica Biosystems",
+    "model": "Aperio ScanScope",
+    "objective_power": 40.0
+  },
+  "schema_version": 1,
+  "slide_id": "airaqc-tcga:tcga-patient-sha256-46c5f96feaa01cf5209b685701d4e8851e9359dbb9404ae41245cff885b48c13:2cc62ceb-4bea-4663-ae3b-63a8e8c7f1f4",
+  "source_native_labels": [
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "project_id",
+      "provenance": "NCI GDC files API",
+      "value": "TCGA-LUAD"
+    },
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "artifact_status",
+      "provenance": "AIRAQc annotation palette decoded by the predeclared rule",
+      "value": "defect"
+    },
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "artifact_type",
+      "provenance": "AIRAQc annotation palette decoded by the predeclared rule",
+      "value": "out_of_focus"
+    },
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "artifact_type",
+      "provenance": "AIRAQc annotation palette decoded by the predeclared rule",
+      "value": "fold"
+    },
+    {
+      "code": null,
+      "coding_scheme": null,
+      "coding_scheme_version": null,
+      "name": "artifact_type",
+      "provenance": "AIRAQc annotation palette decoded by the predeclared rule",
+      "value": "penmark"
+    }
+  ],
+  "subset_id": "airaqc-tcga-public-pilot-v1"
+}

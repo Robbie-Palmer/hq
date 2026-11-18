@@ -3,51 +3,15 @@ import {
   FieldAccessSchema,
   GuestChangeActorSchema,
   type CustomFieldValue,
-  type FieldAccess,
   type GuestAccessRole,
   type GuestChangeActor,
 } from "./core/guest-profile";
 import { type WeddingGuest, weddingGuestSchema } from "./core/guests";
-
-const ownerRoles: GuestAccessRole[] = ["couple"];
-const allRoles: GuestAccessRole[] = [
-  ...ownerRoles,
-  "guest",
-  "export_recipient",
-];
-const selfEditableRoles: GuestAccessRole[] = [...ownerRoles, "guest"];
-
-export const builtInGuestFieldAccess = {
-  id: { view: allRoles, edit: [] },
-  name: { view: allRoles, edit: selfEditableRoles },
-  title: { view: allRoles, edit: selfEditableRoles },
-  first_name: { view: allRoles, edit: selfEditableRoles },
-  last_name: { view: allRoles, edit: selfEditableRoles },
-  suffix: { view: allRoles, edit: selfEditableRoles },
-  email: { view: allRoles, edit: selfEditableRoles },
-  phone: { view: allRoles, edit: selfEditableRoles },
-  source_party: { view: allRoles, edit: ownerRoles },
-  attendance: { view: allRoles, edit: selfEditableRoles },
-  wedding_roles: { view: allRoles, edit: ownerRoles },
-  household_id: { view: allRoles, edit: ownerRoles },
-  invitation_party_id: { view: allRoles, edit: ownerRoles },
-  plus_one_of_guest_id: { view: allRoles, edit: ownerRoles },
-  plus_one_allowance: { view: allRoles, edit: ownerRoles },
-  is_child: { view: allRoles, edit: ownerRoles },
-  requires_high_chair: { view: allRoles, edit: selfEditableRoles },
-  relationship_groups: { view: ownerRoles, edit: ownerRoles },
-  dietary_needs: { view: allRoles, edit: selfEditableRoles },
-  allergies: { view: allRoles, edit: selfEditableRoles },
-  accessibility_needs: { view: allRoles, edit: selfEditableRoles },
-  transport: { view: allRoles, edit: selfEditableRoles },
-  accommodation_details: { view: allRoles, edit: selfEditableRoles },
-  seating_constraints: { view: ownerRoles, edit: selfEditableRoles },
-  event_responses: { view: allRoles, edit: selfEditableRoles },
-  custom_fields: { view: ownerRoles, edit: ownerRoles },
-  private_notes: { view: ownerRoles, edit: ownerRoles },
-  source_records: { view: ownerRoles, edit: [] },
-  field_provenance: { view: ownerRoles, edit: [] },
-} satisfies Record<keyof WeddingGuest, FieldAccess>;
+import {
+  guestFieldAuthorizer,
+  type GuestFieldAction,
+  type GuestFieldAuthorizer,
+} from "./guest-authorization";
 
 export const householdSchema = z.object({
   id: z.string().trim().min(1),
@@ -154,6 +118,16 @@ export type GuestActor = {
   role: GuestAccessRole;
   id?: string;
   guest_id?: string;
+};
+
+export type UpdateGuestCustomFieldOptions = {
+  guestId: string;
+  fieldId: string;
+  value: CustomFieldValue;
+  actor: GuestActor;
+  changedAt: string;
+  provenance?: string;
+  authorizer?: GuestFieldAuthorizer;
 };
 
 export function validateGuestDirectory(directory: GuestDirectory): void {
@@ -286,8 +260,16 @@ export function canViewGuestField(
   guestId: string,
   field: string,
   actor: GuestActor,
+  authorizer: GuestFieldAuthorizer = guestFieldAuthorizer,
 ): boolean {
-  return canAccessGuestField(directory, guestId, field, actor, "view");
+  return canAccessGuestField(
+    directory,
+    guestId,
+    field,
+    actor,
+    "view",
+    authorizer,
+  );
 }
 
 export function canEditGuestField(
@@ -295,8 +277,16 @@ export function canEditGuestField(
   guestId: string,
   field: string,
   actor: GuestActor,
+  authorizer: GuestFieldAuthorizer = guestFieldAuthorizer,
 ): boolean {
-  return canAccessGuestField(directory, guestId, field, actor, "edit");
+  return canAccessGuestField(
+    directory,
+    guestId,
+    field,
+    actor,
+    "edit",
+    authorizer,
+  );
 }
 
 function canAccessGuestField(
@@ -304,15 +294,21 @@ function canAccessGuestField(
   guestId: string,
   field: string,
   actor: GuestActor,
-  access: keyof FieldAccess,
+  access: GuestFieldAction,
+  authorizer: GuestFieldAuthorizer,
 ): boolean {
-  if (actor.role === "guest" && actor.guest_id !== guestId) return false;
-  const policy = field.startsWith("custom_fields.")
+  const customAccess = field.startsWith("custom_fields.")
     ? directory.guest_directory.custom_fields.find(
         (item) => item.id === field.slice("custom_fields.".length),
       )?.access
-    : builtInGuestFieldAccess[field as keyof WeddingGuest];
-  return policy?.[access].includes(actor.role) ?? false;
+    : undefined;
+  return authorizer.authorize({
+    action: access,
+    actor,
+    customAccess,
+    field,
+    guestId,
+  });
 }
 
 export function updateGuest(
@@ -322,6 +318,7 @@ export function updateGuest(
   actor: GuestActor,
   changedAt: string,
   provenance = "manual",
+  authorizer: GuestFieldAuthorizer = guestFieldAuthorizer,
 ): WeddingGuest {
   const actorType = changeActorType(actor);
   const draft = structuredClone(directory);
@@ -337,7 +334,7 @@ export function updateGuest(
         !sameValue(current[field as keyof WeddingGuest], value),
     )
     .map(([field, value]) => {
-      if (!canEditGuestField(draft, guestId, field, actor))
+      if (!canEditGuestField(draft, guestId, field, actor, authorizer))
         throw new Error(`${actor.role} cannot edit ${field}`);
       return {
         field,
@@ -367,16 +364,19 @@ export function updateGuest(
 
 export function updateGuestCustomField(
   directory: GuestDirectory,
-  guestId: string,
-  fieldId: string,
-  value: CustomFieldValue,
-  actor: GuestActor,
-  changedAt: string,
-  provenance = "manual",
+  {
+    guestId,
+    fieldId,
+    value,
+    actor,
+    changedAt,
+    provenance = "manual",
+    authorizer = guestFieldAuthorizer,
+  }: UpdateGuestCustomFieldOptions,
 ): WeddingGuest {
   const actorType = changeActorType(actor);
   const field = `custom_fields.${fieldId}`;
-  if (!canEditGuestField(directory, guestId, field, actor))
+  if (!canEditGuestField(directory, guestId, field, actor, authorizer))
     throw new Error(`${actor.role} cannot edit ${field}`);
   const guest = directory.guests.find((item) => item.id === guestId);
   if (!guest) throw new Error(`Guest ${guestId} does not exist`);
@@ -412,16 +412,23 @@ export function visibleGuest(
   directory: GuestDirectory,
   guestId: string,
   actor: GuestActor,
+  authorizer: GuestFieldAuthorizer = guestFieldAuthorizer,
 ): Partial<WeddingGuest> {
   const guest = directory.guests.find((item) => item.id === guestId);
   if (!guest) throw new Error(`Guest ${guestId} does not exist`);
   const visible = Object.entries(guest).filter(([field]) =>
-    canViewGuestField(directory, guestId, field, actor),
+    canViewGuestField(directory, guestId, field, actor, authorizer),
   );
   const projected = Object.fromEntries(visible) as Partial<WeddingGuest>;
   projected.custom_fields = Object.fromEntries(
     Object.entries(guest.custom_fields).filter(([field]) =>
-      canViewGuestField(directory, guestId, `custom_fields.${field}`, actor),
+      canViewGuestField(
+        directory,
+        guestId,
+        `custom_fields.${field}`,
+        actor,
+        authorizer,
+      ),
     ),
   );
   return projected;

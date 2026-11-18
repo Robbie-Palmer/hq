@@ -57,6 +57,15 @@
           "title": "Tissue Mask Path",
           "type": "string"
         },
+        "variant": {
+          "enum": [
+            "clean",
+            "fold_like",
+            "mark_like"
+          ],
+          "title": "Variant",
+          "type": "string"
+        },
         "width": {
           "exclusiveMinimum": 0,
           "title": "Width",
@@ -66,6 +75,7 @@
       "required": [
         "item_id",
         "split",
+        "variant",
         "synthetic",
         "image_path",
         "tissue_mask_path",
@@ -94,6 +104,11 @@
           "title": "Block Id",
           "type": "string"
         },
+        "scanner_id": {
+          "minLength": 1,
+          "title": "Scanner Id",
+          "type": "string"
+        },
         "site_id": {
           "minLength": 1,
           "title": "Site Id",
@@ -109,6 +124,11 @@
           "title": "Specimen Id",
           "type": "string"
         },
+        "stain_protocol_id": {
+          "minLength": 1,
+          "title": "Stain Protocol Id",
+          "type": "string"
+        },
         "subject_id": {
           "minLength": 1,
           "title": "Subject Id",
@@ -121,7 +141,9 @@
         "block_id",
         "slide_id",
         "acquisition_id",
-        "site_id"
+        "site_id",
+        "scanner_id",
+        "stain_protocol_id"
       ],
       "title": "LeakageKeys",
       "type": "object"

@@ -24,6 +24,7 @@ spec:
         has(object.metadata.labels) &&
         object.metadata.labels['app.kubernetes.io/name'] == 'gpu-benchmark' &&
         object.metadata.labels['app.kubernetes.io/managed-by'] == 't3-code' &&
+        object.metadata.labels['gpu-benchmark.homelab.dev/mode'] in ['benchmark', 'profile', 'smoke'] &&
         'gpu-benchmark.homelab.dev/run-id' in object.metadata.labels &&
         object.metadata.labels['gpu-benchmark.homelab.dev/run-id'].matches('^[a-z0-9]([-a-z0-9]{0,38}[a-z0-9])?$') &&
         object.metadata.name == 'gpu-' + object.metadata.labels['gpu-benchmark.homelab.dev/run-id'] &&
@@ -35,6 +36,7 @@ spec:
         has(object.spec.template.metadata.labels) &&
         object.spec.template.metadata.labels['app.kubernetes.io/name'] == 'gpu-benchmark' &&
         object.spec.template.metadata.labels['app.kubernetes.io/managed-by'] == 't3-code' &&
+        object.spec.template.metadata.labels['gpu-benchmark.homelab.dev/mode'] == object.metadata.labels['gpu-benchmark.homelab.dev/mode'] &&
         object.spec.template.metadata.labels['gpu-benchmark.homelab.dev/run-id'] == object.metadata.labels['gpu-benchmark.homelab.dev/run-id']
       message: Benchmark pod labels must preserve the Job run identity for DCGM attribution.
     - expression: >-

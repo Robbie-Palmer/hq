@@ -61,7 +61,7 @@ function ScenarioSelector({
   onSelect: (id: string) => void;
   scenarios: HouseholdSoleTraderScenarioView[];
 }>) {
-  const { household } = useAssetTracker();
+  const { household } = useAssetTracker(({ household }) => ({ household }));
   return (
     <fieldset className="grid gap-3 lg:grid-cols-3">
       <legend className="sr-only">Sole-trader demo cases</legend>
@@ -300,7 +300,7 @@ function PaymentSchedule({
 function ScenarioSummaryHeader({
   scenario,
 }: Readonly<{ scenario: HouseholdSoleTraderScenarioView }>) {
-  const { household } = useAssetTracker();
+  const { household } = useAssetTracker(({ household }) => ({ household }));
   const member = household.members.find(({ id }) => id === scenario.memberId);
   const { result } = scenario;
   return (
@@ -409,7 +409,12 @@ function ScenarioPanel({
 }
 
 export function SoleTraderScenarios() {
-  const { household, soleTraderScenarios = [] } = useAssetTracker();
+  const { household, soleTraderScenarios = [] } = useAssetTracker(
+    ({ household, soleTraderScenarios }) => ({
+      household,
+      soleTraderScenarios,
+    }),
+  );
   const visibleScenarios = soleTraderScenarios
     .filter(
       ({ memberId }) =>

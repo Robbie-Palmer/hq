@@ -1,0 +1,15 @@
+stages:
+  publish_source_contract:
+    cmd: uv run --locked panda-source-data publish
+    deps:
+      - .python-version
+      - evidence
+      - manifest.json
+      - pyproject.toml
+      - src/panda_source_data
+      - uv.lock
+    outs:
+      - outputs/artifact-reference-contract.json
+      - outputs/source-contract.json
+    metrics:
+      - outputs/source-metrics.json

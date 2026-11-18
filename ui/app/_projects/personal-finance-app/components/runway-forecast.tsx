@@ -298,7 +298,13 @@ function MonthlyBreakdown({
 
 export function RunwayForecast() {
   const { baseCurrency, financialIndependence, futureCashFlows } =
-    useAssetTracker();
+    useAssetTracker(
+      ({ baseCurrency, financialIndependence, futureCashFlows }) => ({
+        baseCurrency,
+        financialIndependence,
+        futureCashFlows,
+      }),
+    );
   const {
     essentialOnlyRunwayForecast,
     representativeAnnualExpenditure,

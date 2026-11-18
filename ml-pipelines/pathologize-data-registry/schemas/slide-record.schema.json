@@ -104,9 +104,17 @@
           "type": "string"
         },
         "series_instance_uid": {
-          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
-          "title": "Series Instance Uid",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Series Instance Uid"
         },
         "slide_container_id": {
           "minLength": 1,
@@ -119,24 +127,37 @@
           "type": "string"
         },
         "specimen_uid": {
-          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
-          "title": "Specimen Uid",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Specimen Uid"
         },
         "study_instance_uid": {
-          "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
-          "title": "Study Instance Uid",
-          "type": "string"
+          "anyOf": [
+            {
+              "pattern": "^[0-9]+(?:\\.[0-9]+)+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Study Instance Uid"
         }
       },
       "required": [
         "patient_id",
         "case_id",
         "specimen_id",
-        "specimen_uid",
         "slide_container_id",
-        "study_instance_uid",
-        "series_instance_uid",
         "identity_basis"
       ],
       "title": "SourceIdentity",

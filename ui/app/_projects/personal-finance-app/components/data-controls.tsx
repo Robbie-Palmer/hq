@@ -64,7 +64,33 @@ function useDataControlActions() {
     restoreBackup,
     clearData,
     resetData,
-  } = useAssetTracker();
+  } = useAssetTracker(
+    ({
+      hasLocalChanges,
+      inflation,
+      baseCurrency,
+      setInflation,
+      setBaseCurrency,
+      downloadBackup,
+      exportCsv,
+      previewBackup,
+      restoreBackup,
+      clearData,
+      resetData,
+    }) => ({
+      hasLocalChanges,
+      inflation,
+      baseCurrency,
+      setInflation,
+      setBaseCurrency,
+      downloadBackup,
+      exportCsv,
+      previewBackup,
+      restoreBackup,
+      clearData,
+      resetData,
+    }),
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);

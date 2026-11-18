@@ -4,6 +4,7 @@ uv = "0.12.22"
 
 [env]
 PYTHONDONTWRITEBYTECODE = "1"
+UV_PYTHON = "3.12"
 
 [tasks.sync]
 description = "Install the locked ML evaluation environment"

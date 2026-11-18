@@ -1,0 +1,44 @@
+schema: '2.0'
+stages:
+  publish_source_contract:
+    cmd: uv run --locked panda-source-data publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: evidence
+      hash: md5
+      md5: 170c807ca01f5c756d495cff23b398b9.dir
+      size: 3188
+      nfiles: 2
+    - path: manifest.json
+      hash: md5
+      md5: 6099efb3c22fa735f3813a11f706c89e
+      size: 6202
+    - path: pyproject.toml
+      hash: md5
+      md5: 916b76dcb5683dba396c5032cf42d312
+      size: 1070
+    - path: src/panda_source_data
+      hash: md5
+      md5: 090da63fac48c29f0e6f21130159ca50.dir
+      size: 20405
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 2152a33966fc59a1b817eaa74ce2be44
+      size: 34613
+    outs:
+    - path: outputs/artifact-reference-contract.json
+      hash: md5
+      md5: a88c203417e801ff2784827f7e970bb8
+      size: 542
+    - path: outputs/source-contract.json
+      hash: md5
+      md5: 71bdccaedf1b53e94dda5ab4b2a75355
+      size: 6425
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: d2f78cbb61889483ce9c36a0bbb3484d
+      size: 342

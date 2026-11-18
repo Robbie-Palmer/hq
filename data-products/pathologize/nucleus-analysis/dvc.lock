@@ -1,0 +1,78 @@
+schema: '2.0'
+stages:
+  build_nucls_public:
+    cmd: uv run --locked nucleus-analysis-data build
+    deps:
+    - path: ../../nucls/corrected-single-rater/dvc.lock
+      hash: md5
+      md5: aa6b5b7d94273dcbd439cbcbc00ab45e
+      size: 1666
+    - path: ../../nucls/corrected-single-rater/manifest.json
+      hash: md5
+      md5: 3661264a0edfaacfc7819860bb797acb
+      size: 2211
+    - path: ../../nucls/corrected-single-rater/outputs/native-index.jsonl
+      hash: md5
+      md5: 0e22e80e839a4dff031c36bd3079075a
+      size: 1661716
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: adapters
+      hash: md5
+      md5: 9355f3ecbb02e5c8b4543f92e4512f14.dir
+      size: 853
+      nfiles: 1
+    - path: imports.json
+      hash: md5
+      md5: a403fc2f511fe10be78c94359b39f09c
+      size: 289
+    - path: ontologies
+      hash: md5
+      md5: dffe747f08accb541e3b0f37a91aeeeb.dir
+      size: 551
+      nfiles: 1
+    - path: products
+      hash: md5
+      md5: 021a191f76c27077feaff0885ae0bd29.dir
+      size: 513
+      nfiles: 1
+    - path: pyproject.toml
+      hash: md5
+      md5: bfb34e0c4f157249e464672b00179886
+      size: 1222
+    - path: src/nucleus_analysis_dataset
+      hash: md5
+      md5: a7f809d0823b7eccae45e51aaf69e9c1.dir
+      size: 15515
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: c835a0fd73aa978533b2cc342259c9d0
+      size: 35294
+    outs:
+    - path: outputs/cohort.json
+      hash: md5
+      md5: 6c6100087f354963a81a922be5ad588e
+      size: 2675862
+    - path: outputs/lineage.json
+      hash: md5
+      md5: 5a5d1fe79362c7ba98bc51f5b7fe1c4c
+      size: 701
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 0d13a343c9ff16dc261b25e5218da4c2
+      size: 838
+    - path: outputs/partitions.json
+      hash: md5
+      md5: 01b69eefce9d7e05465acb5db2075538
+      size: 171015
+    - path: outputs/reconciliation.json
+      hash: md5
+      md5: 3d19adc9ef856667dda0922520be3e4e
+      size: 892
+    - path: outputs/records.jsonl
+      hash: md5
+      md5: 32a8928cbe26e40e0b1c6d4affb894f1
+      size: 2035255

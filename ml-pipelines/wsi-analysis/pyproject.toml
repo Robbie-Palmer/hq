@@ -6,13 +6,16 @@ readme = "README.md"
 requires-python = ">=3.12,<3.15"
 dependencies = [
     "fire>=0.7.1",
-    "openslide-bin>=4.0.0.11",
-    "openslide-python>=1.4.3",
+    "pathologize-tiler",
     "pillow>=13.0.0",
     "pydantic>=2.12.5",
     "pydantic-settings>=2.12.0",
     "pyyaml>=6.0.2",
 ]
+
+[tool.uv.sources]
+pathologize-tiler = { path = "../../packages/pathologize-tiler", editable = true }
+pytest-cases = { git = "https://github.com/smarie/python-pytest-cases.git", rev = "37c72c1350899d45bc80e92b4b4168b5f7a7af7c" }
 
 [project.scripts]
 wsi-analysis = "wsi_analysis.cli:main"
@@ -25,10 +28,6 @@ dev = [
     "ruff>=0.14.14",
     "ty>=0.0.75",
 ]
-
-[tool.uv.sources]
-# Remove when https://github.com/smarie/python-pytest-cases/pull/386 is released.
-pytest-cases = { git = "https://github.com/smarie/python-pytest-cases.git", rev = "37c72c1350899d45bc80e92b4b4168b5f7a7af7c" }
 
 [build-system]
 requires = ["uv_build>=0.12.5,<0.13.0"]

@@ -1,0 +1,66 @@
+schema: '2.0'
+stages:
+  acquire_publisher_metadata:
+    cmd: uv run --locked segpath-source-data acquire-metadata
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: a29ef5a294173fac1fe0abc96db628cc
+      size: 11902
+    - path: pyproject.toml
+      hash: md5
+      md5: 81aa1878026e26935e16fcd4a814926c
+      size: 1131
+    - path: src/segpath_source_data
+      hash: md5
+      md5: db480b1301a2aba9b0394f4d61a58a29.dir
+      size: 25710
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 2a9daf5f73e0a4a79bfc46297f7e27c1
+      size: 35401
+    outs:
+    - path: data/metadata
+      hash: md5
+      md5: 712c6bf3ea1cf5a49f2e293340409a08.dir
+      size: 22365834
+      nfiles: 9
+  index_native_records:
+    cmd: uv run --locked segpath-source-data index
+    deps:
+    - path: data/metadata
+      hash: md5
+      md5: 712c6bf3ea1cf5a49f2e293340409a08.dir
+      size: 22365834
+      nfiles: 9
+    - path: manifest.json
+      hash: md5
+      md5: a29ef5a294173fac1fe0abc96db628cc
+      size: 11902
+    - path: pyproject.toml
+      hash: md5
+      md5: 81aa1878026e26935e16fcd4a814926c
+      size: 1131
+    - path: src/segpath_source_data
+      hash: md5
+      md5: db480b1301a2aba9b0394f4d61a58a29.dir
+      size: 25710
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 2a9daf5f73e0a4a79bfc46297f7e27c1
+      size: 35401
+    outs:
+    - path: outputs/native-records.jsonl
+      hash: md5
+      md5: fe05fc2c37f012ce64b7607ebbb3321f
+      size: 205922097
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: 7c2b171d0e2d5ecdcf98c53c50bcac4c
+      size: 2255

@@ -1,0 +1,130 @@
+{
+  "schema_version": "pathologize.wsi-decoder-fixture-probes.v1",
+  "generated_at": "2026-11-08T09:03:46Z",
+  "timing_method": "time.perf_counter_ns around one cold call followed by the median of five warm calls; wall time includes container lookup and one boundary tile CPU decode; OS page cache is uncontrolled",
+  "environment": {
+    "kernel": "6.18.57",
+    "machine": "x86_64",
+    "processor": "unknown",
+    "cpu_model": "13th Gen Intel(R) Core(TM) i9-13950HX",
+    "logical_cpus": 32,
+    "memory_bytes": 67106783232,
+    "gpu": "NVIDIA GeForce RTX 4080 Laptop GPU, 595.71.05, 12282 MiB, 8.9",
+    "dependencies": {
+      "openslide-bin": "4.0.1.2",
+      "openslide-python": "1.4.7",
+      "Pillow": "13.0.0",
+      "pydicom": "3.0.2",
+      "pylibjpeg": "2.1.0",
+      "pylibjpeg-openjpeg": "2.6.0",
+      "wsidicom": "0.36.1",
+      "Pillow/libjpeg-turbo": "3.2.0",
+      "Pillow/OpenJPEG": "2.5.4"
+    }
+  },
+  "anisotropic_level_selection_passed": true,
+  "results": [
+    {
+      "fixture_id": "aperio-cmu-1-small-jpeg",
+      "status": "passed",
+      "backend": "openslide",
+      "detected_format": "aperio",
+      "selected_level": 0,
+      "boundary_size": [
+        240,
+        240
+      ],
+      "fallback_reason": "no optional TIFF accelerator is installed in the CPU fixture environment",
+      "timing": {
+        "cold_milliseconds": 4.730474,
+        "warm_median_milliseconds": 4.379027,
+        "warm_repetitions": 5
+      }
+    },
+    {
+      "fixture_id": "aperio-cmu-1-jpeg2000",
+      "status": "passed",
+      "backend": "openslide",
+      "detected_format": "aperio",
+      "selected_level": 2,
+      "boundary_size": [
+        240,
+        240
+      ],
+      "fallback_reason": "no optional TIFF accelerator is installed in the CPU fixture environment",
+      "timing": {
+        "cold_milliseconds": 3.422813,
+        "warm_median_milliseconds": 3.385662,
+        "warm_repetitions": 5
+      }
+    },
+    {
+      "fixture_id": "leica-1-scn-jpeg",
+      "status": "passed",
+      "backend": "openslide",
+      "detected_format": "leica",
+      "selected_level": 4,
+      "boundary_size": [
+        512,
+        512
+      ],
+      "fallback_reason": "no optional TIFF accelerator is installed in the CPU fixture environment",
+      "timing": {
+        "cold_milliseconds": 1.20332,
+        "warm_median_milliseconds": 1.04506,
+        "warm_repetitions": 5
+      }
+    },
+    {
+      "fixture_id": "generic-cmu-1-tiff-jpeg",
+      "status": "passed",
+      "backend": "openslide",
+      "detected_format": "generic-tiff",
+      "selected_level": 8,
+      "boundary_size": [
+        256,
+        256
+      ],
+      "fallback_reason": "no optional TIFF accelerator is installed in the CPU fixture environment",
+      "timing": {
+        "cold_milliseconds": 1.842935,
+        "warm_median_milliseconds": 1.626653,
+        "warm_repetitions": 5
+      }
+    },
+    {
+      "fixture_id": "dicom-leica-4-jpeg-sparse",
+      "status": "passed",
+      "backend": "wsidicom/PillowDecoder",
+      "detected_format": "dicom_wsi",
+      "selected_level": 2,
+      "boundary_size": [
+        180,
+        99
+      ],
+      "fallback_reason": "nvImageCodec is unavailable: No module named 'nvidia'",
+      "timing": {
+        "cold_milliseconds": 915.358186,
+        "warm_median_milliseconds": 622.295068,
+        "warm_repetitions": 5
+      }
+    },
+    {
+      "fixture_id": "dicom-cptac-coad-jpeg2000",
+      "status": "passed",
+      "backend": "wsidicom/PyLibJpegOpenJpegDecoder",
+      "detected_format": "dicom_wsi",
+      "selected_level": 2,
+      "boundary_size": [
+        8,
+        54
+      ],
+      "fallback_reason": "nvImageCodec is unavailable: No module named 'nvidia'",
+      "timing": {
+        "cold_milliseconds": 16.681827,
+        "warm_median_milliseconds": 17.054874,
+        "warm_repetitions": 5
+      }
+    }
+  ]
+}

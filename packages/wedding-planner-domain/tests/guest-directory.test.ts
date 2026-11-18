@@ -168,14 +168,13 @@ describe("guest directory model", () => {
       }),
     ).not.toHaveProperty("private_notes");
 
-    updateGuestCustomField(
-      wedding,
-      "alex",
-      "meal",
-      "Chicken",
-      { role: "guest", guest_id: "alex" },
-      "2026-10-17T11:00:00.000Z",
-    );
+    updateGuestCustomField(wedding, {
+      guestId: "alex",
+      fieldId: "meal",
+      value: "Chicken",
+      actor: { role: "guest", guest_id: "alex" },
+      changedAt: "2026-10-17T11:00:00.000Z",
+    });
     expect(wedding.guests[0]?.custom_fields.meal).toBe("Chicken");
     expect(wedding.guest_directory.history.at(-1)?.changes[0]?.field).toBe(
       "custom_fields.meal",

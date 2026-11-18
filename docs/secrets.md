@@ -33,6 +33,8 @@ its database and recovery access outside the personal-site credential boundary.
 Cloudflare token-management authority is the narrowest exception. Its one
 operations config lives in Doppler project `cloudflare-token-bootstrap`, apart
 from every deployment and infrastructure credential it can create or replace.
+That config also holds the separate Worker-secret handoff token. The handoff
+token cannot create API tokens and never enters a runtime or Terraform config.
 
 ## Config Layout
 
@@ -42,6 +44,7 @@ Configs are split by environment and runtime/control boundary:
 | --- | --- | --- |
 | `dev_pages_env` | Shared local Cloudflare Pages env vars | None |
 | `dev_agent` | Preview-only credentials consumed by local agents and the remote operator workspace | None |
+| `dev_agent_observability` | Query-only PostHog access for T3 Code on Vector | None |
 | `dev_recipe_api` | Local recipe Worker/API/DB/OAuth config | None |
 | `dev_infra` | Local Terraform/provider credentials | None |
 | `dev_bootstrap_infra` | Local bootstrap Terraform credentials | None |
@@ -49,7 +52,7 @@ Configs are split by environment and runtime/control boundary:
 | `stg_site_ui` | PR preview UI deploy credentials | `preview-site-ui` |
 | `stg_recipe_api` | PR preview Worker/API automation config | `preview-recipe-api` |
 | `ops_preview_agent_access` | Access credential rotation and preview Playwright QA | `preview-agent-access` |
-| `cloudflare-token-bootstrap/ops_provisioner` | Account-owned Cloudflare API token provisioning authority | `production-cloudflare-token-bootstrap` |
+| `cloudflare-token-bootstrap/ops_provisioner` | Separate account-token provisioning and Worker-secret handoff credentials | `production-cloudflare-token-bootstrap` |
 | `prd_pages_env` | Shared production runtime env vars | `production-site-ui`, `production-recipe-api`, `production-recipe-ingest` |
 | `prd_site_ui` | Production UI deploy credentials | `production-site-ui`, `production-recipe-api`, `production-recipe-ingest` |
 | `prd_recipe_api` | Production Worker/API/DB/OAuth config | `production-recipe-api` |
@@ -84,6 +87,7 @@ an individual Cloudflare user. Keep these boundaries separate:
 | `ai-review-staging-deploy` | `ai-review/stg` | Staging AI-review Worker deployment and read-only R2 access |
 | `ai-review-production-deploy` | `ai-review/prd` | Production AI-review Worker deployment and read-only R2 access |
 | `cloudflare-account-token-provisioner` | `cloudflare-token-bootstrap/ops_provisioner` | Account API Tokens Write for one account; creates downstream tokens but cannot deploy or change account settings |
+| `cloudflare-worker-secret-handoff` | `cloudflare-token-bootstrap/ops_provisioner` | Workers Scripts Write for one account; writes only to Worker names in a reviewed bootstrap plan |
 
 Never copy the Terraform token into UI, Worker, AI-review, preview, or legacy
 configs. Roll each token independently, update its owning Doppler config, sync
@@ -271,6 +275,15 @@ this config only for the documented preview command. The remote operator
 workspace injects it through its own read-only Doppler token and managed
 Kubernetes Secret; the pilot workspace does not receive it. Agents must not
 receive `dev_infra` or deployment credentials.
+
+`dev_agent_observability` contains only `POSTHOG_PERSONAL_API_KEY`,
+`POSTHOG_PROJECT_ID`, and `POSTHOG_QUERY_HOST`. Use a project secret API key
+only after PostHog supports `query:read` and `tracing:read` for that key type.
+Until then, use a dedicated personal API key restricted to this project and
+those two read scopes. Do not copy the administrative `POSTHOG_API_KEY` from
+`dev_infra` into this config. Set `POSTHOG_QUERY_HOST` to the private API
+origin, `https://eu.posthog.com` for the current project, not the
+`eu.i.posthog.com` ingestion origin.
 
 ## Preview Values
 

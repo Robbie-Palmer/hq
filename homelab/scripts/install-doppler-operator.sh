@@ -10,7 +10,7 @@ operator_sha256=ef448ad54b37c122fff753fa3dfc5a218c13be9b67ff6866dc25dacea82b5f8c
 operator_file=
 
 cleanup() {
-  if [ -n "${operator_file}" ]; then
+  if [[ -n "${operator_file}" ]]; then
     rm -f "${operator_file}"
   fi
 }
@@ -34,7 +34,7 @@ kubectl wait \
   --timeout=180s \
   deployment/doppler-operator-controller-manager
 
-if [ "$#" -eq 0 ]; then
+if [[ "$#" -eq 0 ]]; then
   set -- \
     "t3-code:doppler-token:homelab:prd_remote_development" \
     "t3-code:doppler-agent-token:personal-site:dev_agent" \
@@ -59,7 +59,7 @@ for target in "$@"; do
   fi
 
   if kubectl --namespace "${namespace}" get secret "${token_secret}" >/dev/null 2>&1 \
-    && [ "${ROTATE_DOPPLER_TOKEN:-0}" != "1" ]; then
+    && [[ "${ROTATE_DOPPLER_TOKEN:-0}" != "1" ]]; then
     echo "Doppler service token ${namespace}/${token_secret} already exists"
     continue
   fi

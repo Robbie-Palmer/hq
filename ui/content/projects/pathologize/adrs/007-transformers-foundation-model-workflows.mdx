@@ -1,0 +1,93 @@
+---
+title: "ADR 007: Transformers foundation-model workflows"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["Hugging Face", "Transformers"]
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:006-task-native-pathology-model-development"
+---
+
+## Context
+
+Pathology encoders and general vision models increasingly publish weights,
+processor configuration, model cards, and task heads through the Hugging Face
+Hub. Timm covers many image backbones, but it does not provide every
+foundation, multimodal, zero-shot, detection, or semantic-segmentation
+workflow. Transformers documents maintained recipes for
+[classification](https://huggingface.co/docs/transformers/tasks/image_classification),
+[object detection](https://huggingface.co/docs/transformers/tasks/object_detection),
+and [semantic segmentation](https://huggingface.co/docs/transformers/tasks/semantic_segmentation),
+along with other vision tasks.
+
+Hub convenience creates reproducibility and execution risks. A mutable model
+name can resolve to different files. Some repositories require custom Python
+code. A model card's library licence does not necessarily grant the same rights
+for its weights or training data.
+
+[ADR 004](/projects/pathologize/adrs/004-framework-native-training-result-contracts)
+keeps training framework-native and standardizes the resulting evidence.
+
+## Decision
+
+Use Hugging Face Transformers directly for pretrained models whose processor,
+model class, or task head helps a Pathologize experiment. Prefer it for
+foundation encoders, semantic segmentation, multimodal or zero-shot studies,
+and models published primarily in Transformers format. It may also supply a
+detection candidate when that model does not fit the Ultralytics workflow.
+
+Acquire every Hub model by repository ID and immutable revision. Record the
+resolved files, digests, model card, licence evidence, processor configuration,
+class mapping, expected physical scale, and any gated-access terms. Store
+Pathologize's acquisition record separately from the local Hub cache.
+
+Keep `trust_remote_code` disabled by default. An experiment may enable it only
+after reviewing the pinned source revision, recording the code digest, and
+running it in an isolated environment without secrets or network access. A
+moving branch is never acceptable evidence for reviewed remote code.
+
+Use the model's processor and native model class in the experiment code.
+Transformers `Trainer` or Accelerate may run training when they are useful.
+Write the resulting predictions into the task-specific Pathologize schema
+before evaluation. Do not wrap Transformers models in a shared Pathologize
+training API.
+
+Do not mirror every Hub model or make Transformers the universal image
+trainer. Fastai and timm remain the first supervised image and patch choice.
+Ultralytics remains the first detection and instance-segmentation choice.
+
+## Consequences
+
+Pathologize can use models in the format their publishers support and retain
+processor and model metadata beside the weight revision. It gains access to
+modern task heads without copying their implementations into the repository.
+
+Model-specific processors and output types increase experiment variation.
+Gated weights can prevent unattended runs, and model cards can contain
+incomplete licence or training-data evidence. Such a model may be referenced
+without being eligible for a public reproducibility claim.
+
+Reviewed remote code adds a source dependency outside the package lock. Each
+approved revision needs its own security and provenance record. Isolated
+execution reduces the impact of malicious or accidental code but does not make
+an unreviewed repository safe.
+
+## Alternatives considered
+
+### Convert every model to timm
+
+Conversion would give image encoders a common API. It can lose processor,
+task-head, multimodal, or publisher-supported behavior and creates a new weight
+artifact that Pathologize must validate.
+
+### Use each publisher's repository directly
+
+Native repositories are sometimes the only working implementation and remain
+available to a project that needs them. Making them the default creates a
+different environment, invocation, and output contract for every model.
+
+### Use Transformers for all training
+
+One trainer and Hub format would look simpler. It would give up fastai's short
+supervised experiment loop, timm's broader backbone catalog, and Ultralytics'
+task-specific detection workflow.

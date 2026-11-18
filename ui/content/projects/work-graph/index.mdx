@@ -6,6 +6,7 @@ updated: "2026-11-01"
 status: "in_progress"
 repo_url: "https://github.com/Robbie-Palmer/hq"
 tech_stack:
+  - "Cedar"
   - "Cloudflare Access"
   - "Cloudflare Queues"
   - "Drizzle"
@@ -72,6 +73,17 @@ platform_layers:
       - slot: "backend-api.relational-connection"
         adopted: "2026-10-19T00:00:00Z"
         decision: "work-graph:001-postgresql-coordination-boundary"
+  - layer: "identity"
+    adopted: "2026-11-07T00:00:00Z"
+    tracking: true
+    decision: "work-graph:013-cedar-client-authorization"
+    slots:
+      - slot: "identity.authorization-policy"
+        adopted: "2026-11-07T00:00:00Z"
+        decision: "work-graph:013-cedar-client-authorization"
+      - slot: "identity.authorization-engine"
+        adopted: "2026-11-07T00:00:00Z"
+        decision: "work-graph:013-cedar-client-authorization"
   - layer: "database"
     adopted: "2026-09-13T00:00:00Z"
     tracking: true

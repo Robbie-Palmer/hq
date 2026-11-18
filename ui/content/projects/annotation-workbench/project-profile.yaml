@@ -1,0 +1,41 @@
+schema_version: 1
+
+project:
+  id: "annotation-workbench"
+  name: "Annotation Workbench"
+  kind: "application"
+
+components:
+  - id: "web"
+    name: "Annotation Workbench"
+    kind: "project-ui"
+    mount_path: "/annotation-workbench"
+  - id: "annotation-workbench-service"
+    name: "Annotation Workbench local service"
+    kind: "python-pipeline"
+    template_ownership: "structure-only"
+
+layers:
+  - layer: "governance"
+  - layer: "base"
+  - layer: "typescript"
+  - layer: "web-app"
+    slots:
+      - "web-app.host"
+  - layer: "data"
+    slots:
+      - "data.artifact-versioning"
+
+requirements:
+  - "data-classification"
+  - "git-repository"
+  - "external-blob-remote"
+
+reconciliation:
+  mode: "tracking"
+
+nix:
+  boundary: "none"
+
+opentelemetry:
+  enabled: false

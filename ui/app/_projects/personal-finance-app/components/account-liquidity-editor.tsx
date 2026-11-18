@@ -25,7 +25,9 @@ const OPTIONS = Object.entries(LIQUIDITY_TIER_LABELS) as [
 export function AccountLiquidityEditor({
   account,
 }: Readonly<{ account: AccountDetailView }>) {
-  const { setAccountLiquidity } = useAssetTracker();
+  const { setAccountLiquidity } = useAssetTracker(
+    ({ setAccountLiquidity }) => ({ setAccountLiquidity }),
+  );
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const liquidity = accountLiquidity(account);

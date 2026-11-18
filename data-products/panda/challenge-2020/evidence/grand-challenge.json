@@ -1,0 +1,32 @@
+{
+  "record_id": "panda-grand-challenge-data",
+  "record_url": "https://panda.grand-challenge.org/data/",
+  "retrieved_at": "2026-11-11",
+  "title": "PANDA challenge data",
+  "facts": {
+    "development_biopsies": 10616,
+    "development_patients": 2113,
+    "institutions": [
+      "Radboud University Medical Center",
+      "Karolinska Institutet"
+    ],
+    "stain": "hematoxylin and eosin",
+    "license_name_as_published": "CC BY-SA-NC 4.0",
+    "license_spdx_id": "CC-BY-NC-SA-4.0",
+    "paper_doi": "10.1038/s41591-021-01620-2"
+  },
+  "imaging": {
+    "radboud": {
+      "source_scan_magnification": "20x",
+      "source_scan_micrometres_per_pixel": [0.24],
+      "published_tiff_micrometres_per_pixel": [0.48]
+    },
+    "karolinska": {
+      "source_scan_magnification": "20x",
+      "source_scan_micrometres_per_pixel": [0.45202, 0.5032],
+      "scanner_vendors": ["Hamamatsu", "Aperio"]
+    },
+    "distribution_format": "multi-level TIFF"
+  },
+  "provenance_note": "The challenge paper and official challenge specification provide the cohort, stain, institution, scanner, and scale facts recorded here. The Kaggle record provides the distributed artifact names and label semantics."
+}

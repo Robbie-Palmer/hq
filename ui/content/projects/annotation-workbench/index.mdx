@@ -1,0 +1,34 @@
+---
+title: "Annotation Workbench"
+description: "A local-first review app for correcting model-assisted image annotations"
+date: "2026-11-10"
+updated: "2026-11-10"
+tech_stack:
+  - "Next.js"
+  - "React"
+  - "TypeScript"
+  - "FastAPI"
+  - "OpenAPI"
+  - "DVC"
+status: "in_progress"
+repo_url: "https://github.com/Robbie-Palmer/hq/tree/main/ui/app/_projects/annotation-workbench"
+---
+
+# Vision
+
+Make model-assisted annotation quick to inspect, correct, and repeat without
+turning one model output or one reviewer decision into an irreversible label.
+
+# First use case
+
+The first adapter reviews NuCLS nucleus boxes and mask proposals. Reviewers
+decide whether a box contains a valid nucleus before judging its mask. CellSAM
+provides the primary mask proposal and SAM 2.1 provides a faster independent
+alternative when the models disagree.
+
+# Boundary
+
+The app owns generic review contracts, review events, and the browser workflow.
+Dataset projects own source access, frozen splits, ontology semantics,
+coordinate conversion, and model inference. Review bundles contain derived
+assets and provenance. They do not replace source manifests.

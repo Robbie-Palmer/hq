@@ -1,12 +1,12 @@
 import type { Context } from "hono";
-import { type ZodIssue, type ZodType, z } from "zod";
+import { type ZodType, z } from "zod";
 
 type ValidationDetail = {
   path: Array<string | number>;
   message: string;
 };
 
-function detailsFromIssues(issues: ZodIssue[]): ValidationDetail[] {
+function detailsFromIssues(issues: z.core.$ZodIssue[]): ValidationDetail[] {
   return issues.map((issue) => ({
     path: issue.path.map((segment) =>
       typeof segment === "symbol" ? segment.toString() : segment,
@@ -15,7 +15,7 @@ function detailsFromIssues(issues: ZodIssue[]): ValidationDetail[] {
   }));
 }
 
-export function validationErrorResponse(c: Context, issues: ZodIssue[]) {
+export function validationErrorResponse(c: Context, issues: z.core.$ZodIssue[]) {
   return c.json(
     {
       error: "Invalid request body",

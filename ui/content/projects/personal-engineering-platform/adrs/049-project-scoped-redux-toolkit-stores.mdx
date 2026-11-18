@@ -1,0 +1,219 @@
+---
+title: "ADR 049: Project-scoped Redux Toolkit stores"
+date: "2026-11-04"
+status: "Proposed"
+tech_stack: ["Redux Toolkit"]
+---
+
+## Context
+
+[ADR 021](/projects/personal-engineering-platform/adrs/021-tanstack-query-for-client-server-state)
+assigns remote-data synchronization to TanStack Query. [ADR
+048](/projects/personal-engineering-platform/adrs/048-xstate-for-complex-client-workflows)
+proposes XState for control flow whose valid events depend on its current
+phase. Neither record decides how projects should own mutable client state that
+must span components, survive route changes, or support selective
+subscriptions.
+
+The repository has enough shared-state code to make that decision. On
+2026-11-04, Recipe Site had two module-level stores consumed through
+`useSyncExternalStore`: a 395-line cooking-timer store with 15 direct tests and
+a 625-line shopping-list store with 18 direct tests. They implement
+subscriptions, snapshots, identity-scoped persistence, hydration, and browser
+synchronization by hand. Personal Finance has a different pressure point. Its
+`AssetTrackerProvider` exposes a 116-member context consumed in 47 production
+files, so a new context value reaches components that may only need one field.
+
+Much of the custom-store code is product logic that a library will not remove.
+Timers still need clock, wake-lock, audio, and visibility adapters. The shopping
+list still needs runtime validation, revisions, optimistic commands, database
+reconciliation, and cross-tab rules. Personal Finance still needs its domain
+commands and browser repository. A shared-state library is worthwhile only if
+it standardizes update boundaries, selectors, diagnostics, and tests without
+claiming ownership of those rules.
+
+The agent-first criteria are stricter than convenient React bindings. The
+chosen approach should provide named and replayable changes, development-time
+mutation and serialization failures, selective subscriptions, framework-neutral
+reducer tests, and a useful action trace. Persisted data must retain explicit
+runtime validation and version migration. The Next.js App Router also rules out
+one module-level store shared by server requests.
+
+## Decision
+
+Add `web-app.client-state-store` as a proposed Personal Engineering Platform
+capability. Select Redux Toolkit for shared mutable client state and React Redux
+for its React binding. Scope each store to one product experience or narrower
+feature boundary. Do not add a site-wide Redux store to the shared Next.js host.
+
+Use this ownership order:
+
+* TanStack Query owns remote snapshots, request status, invalidation, and cache
+  lifetime.
+* Route and search parameters own state that users must navigate, refresh, or
+  share.
+* React state owns values used by one component subtree and ordinary form
+  drafts.
+* ADR 048 assigns complex workflow control state to XState when that proposed
+  capability is active.
+* A project-scoped Redux Toolkit store owns mutable client state that crosses
+  otherwise independent component branches, must outlive a component, or needs
+  selectors and an event history.
+
+Sharing alone is not enough. React context remains appropriate for a stable
+dependency or a small value with consumers that should update together. Do not
+move values into Redux to avoid passing one prop, and do not mirror TanStack
+Query data in Redux. A persisted offline working copy may reference a canonical
+server revision, but its reconciliation contract must name which copy wins.
+
+Create stores with a factory inside a client provider at the owning project or
+route layout. The provider must create one store instance for its rendered
+tree. Server components must not read or mutate it, and server requests must
+never share it. This follows Redux's
+[Next.js App Router guidance](https://redux.js.org/usage/nextjs) while keeping
+unrelated projects out of one state tree.
+
+Each adopting store will:
+
+* use `configureStore`, typed hooks, feature slices, and selectors;
+* describe domain events rather than exposing generic field setters;
+* keep reducers deterministic and leave Redux Toolkit's mutation and
+  serializability checks enabled without ignored state paths;
+* keep state and reducer actions JSON-serializable so an action sequence can be
+  logged and replayed;
+* test reducers and selectors directly with Vitest, including invariant and
+  rejected-event cases;
+* enable Redux DevTools with action stack traces in development and disable it
+  in production;
+* isolate storage, clocks, browser events, analytics, network calls, and other
+  effects in named adapters or listener middleware; and
+* validate and version data at every persistence boundary instead of treating
+  a deserialized TypeScript cast as validation.
+
+Listener middleware may coordinate persistence, cross-tab input, or another
+adapter around store events. It must not become a second workflow convention.
+Use XState when ordered phases, interruption, cancellation, or actor lifecycles
+drive the feature. Do not add RTK Query; TanStack Query remains the server-state
+client.
+
+Run two pilots before accepting this ADR:
+
+1. Move the cooking-timer state and transitions into a Recipe Site store. Keep
+   clock ticks, storage, wake locks, audio, visibility changes, and analytics in
+   adapters. Preserve the current persistence and identity-isolation tests.
+2. Replace the mutable data and status core of Personal Finance's
+   `AssetTrackerProvider` with a project-scoped store. Migrate consumers to
+   selectors without changing the browser repository or domain command API.
+
+Each pilot must retain its existing behavior tests and add direct reducer and
+selector tests. The development checks must run with no exceptions. A React
+test must show that a component subscribed to an unchanged selector result does
+not rerender when another slice changes. A transition failure must print its
+replayable action sequence. Record implementation size, test runtime,
+action-log usefulness, persistence code retained, and defects found during
+migration.
+
+Accept the ADR only if both pilots produce clearer failure evidence without a
+site-wide provider, duplicated server state, or new hydration warnings. Defer
+the shopping-list migration until the pilots establish the boundary between a
+Redux offline working copy and TanStack Query's canonical server snapshot.
+
+## Ecosystem review
+
+| Candidate              | Update model and diagnostics                                                                                     | Persistence and React fit                                                                                      | Migration effort | Assessment                                                                                                                              |
+| ---------------------- | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Redux Toolkit          | Typed event actions, pure reducers, default mutation and serializability checks, Redux DevTools and stack traces | Explicit persistence adapters; official App Router and React 19 guidance; selector subscriptions               | High             | Best agent feedback and clearest boundary across both pilot projects                                                                    |
+| Zustand                | Direct actions or optional reducer style; Redux DevTools middleware when actions are named                       | Vanilla and React stores, selectors, persistence, SSR controls; persisted JSON needs custom runtime validation | Low              | Best incremental migration, but important event and validation rules remain local conventions                                           |
+| XState Store           | Typed event transitions, selectors, inspection, optional schema validation                                       | React adapter plus persistence, reset, and undo extensions                                                     | Medium           | Strong event model and XState alignment, but version 4 changed the React package boundary and has fewer established project conventions |
+| Jotai                  | Fine-grained atoms and derived atoms; separate DevTools with time travel                                         | React-first, provider optional, storage and cross-tab utilities                                                | High             | Good for independent reactive values; distributes ownership across atoms and weakens one domain action history                          |
+| TanStack Store         | Framework-neutral signals, derived stores, batching, and selectors                                               | React adapter; persistence and product diagnostics remain application work                                     | Medium           | Small fit with the existing TanStack ecosystem, but optimizes reactive propagation rather than event auditability                       |
+| MobX                   | Observable state, declared transactional actions, automatic dependency tracking                                  | Mature React binding; persistence remains application work                                                     | High             | Productive for mutable domain models, but implicit subscriptions and non-reducer updates are harder to replay and audit                 |
+| Native external stores | Whatever contract each project builds                                                                            | Already works with `useSyncExternalStore`; all persistence and SSR rules are custom                            | None             | Avoids migration but keeps duplicating subscription, selector, trace, and development-check infrastructure                              |
+
+### Redux Toolkit
+
+Redux Toolkit's
+[`configureStore`](https://redux-toolkit.js.org/api/configurestore/) enables
+Redux DevTools and development checks for mutations and non-serializable data.
+Its [`createSlice`](https://redux-toolkit.js.org/api/createslice/) API generates
+typed action creators, exposes reducers for direct tests, and supports
+co-located selectors. Redux's
+[style guide](https://redux.js.org/style-guide/) recommends event-shaped
+actions, minimal state, derived selectors, serializable values, and local React
+state for ordinary forms. Those defaults match the feedback this platform
+wants from shared state.
+
+The tradeoff is deliberate structure. Providers, dispatch hooks, slices,
+actions, selectors, and effect adapters make a small store longer than Zustand.
+Moving the existing module stores also requires separating transitions from
+browser effects. That work only pays off for state that crosses real ownership
+boundaries, which is why this ADR does not apply to most of the 166 files using
+`useState`.
+
+### Zustand
+
+[Zustand](https://zustand.docs.pmnd.rs/reference/index) is the most direct
+replacement for the current stores. It has standalone stores, React selectors,
+`subscribeWithSelector`, Redux DevTools integration, and persistence
+middleware. The timer store could keep its existing imperative actions and shed
+most hand-written subscription code.
+
+That flexibility is also its weakness here. Zustand does not require reducers,
+serializable state, event-shaped actions, named DevTools entries, or a stable
+effect boundary. Its
+[persistence documentation](https://zustand.docs.pmnd.rs/reference/middlewares/persist)
+warns that deserialized JSON is cast to the state type without runtime
+validation. The platform could impose all of those rules, but agents would then
+need to learn a local architecture that the library does not check.
+
+### XState Store
+
+[XState Store](https://prod.stately.ai/docs/xstate-store) is the strongest
+runner-up under the event-first criteria. It provides typed event transitions,
+selectors, inspection events, and extensions for persistence, reset, undo, and
+schema validation. It also interoperates with XState actors, which would give
+the platform one event vocabulary for stores and workflows.
+
+The store API is younger and has changed its React package boundary in version
+4\. Its inspection support is useful, but Redux Toolkit has a more established
+action-log, middleware, selector, and project-structure ecosystem. Reconsider
+XState Store if the pilots show that Redux's project setup costs more than its
+development checks return.
+
+### Atomic and reactive stores
+
+[Jotai](https://jotai.org/docs) is a strong option when independent values and
+fine-grained derived subscriptions dominate. Its storage utility includes
+cross-tab synchronization, and its separate DevTools can record snapshots and
+time travel. The repository's large stores instead expose domain operations
+whose order and source matter. Splitting them into atoms would make the full
+change history harder to read.
+
+[TanStack Store](https://tanstack.com/store/latest/docs/overview) supplies
+framework-neutral signals, derived stores, and React bindings. It does not
+standardize domain events, persistence validation, or a replayable action log.
+Its shared vendor name with TanStack Query is not enough reason to choose a tool
+aimed at a different problem.
+
+[MobX](https://mobx.js.org/actions.html) provides observable models and
+transactional actions. Its implicit dependency tracking is useful for rich
+mutable models, but this decision values pure reducers and serializable event
+replay more highly.
+
+## Consequences
+
+Shared client state gains one event protocol, direct reducer tests, selective
+subscriptions, development checks, and an action trace with dispatch call
+sites. Project-scoped providers prevent Recipe Site and Personal Finance from
+becoming coupled through a site-wide store.
+
+The platform adds Redux Toolkit and React Redux concepts alongside TanStack
+Query and XState. Boundaries matter more after this decision because all three
+can represent loading or cached data if used carelessly. Reviews must reject
+query-cache copies in Redux and multi-phase workflows rebuilt in listener
+middleware.
+
+The two current Recipe Site stores remain supported until a pilot replaces
+them. Their validation, persistence, ownership, and browser synchronization
+rules remain product code after migration. Redux Toolkit standardizes how
+state changes and how agents observe it; it does not make those rules disappear.

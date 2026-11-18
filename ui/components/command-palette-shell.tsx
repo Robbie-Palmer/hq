@@ -23,12 +23,19 @@ import type {
 } from "@/components/command-palette-types";
 import { Button } from "@/components/ui/button";
 import { useIsMac } from "@/hooks/use-is-mac";
+import { recoverFromStaleChunk } from "@/lib/browser/stale-chunk-recovery";
 import { cn } from "@/lib/generic/styles";
 
 const CommandPaletteDialog = lazy(() =>
-  import("./command-palette").then((module) => ({
-    default: module.CommandPaletteDialog,
-  })),
+  import("./command-palette").then(
+    (module) => ({ default: module.CommandPaletteDialog }),
+    (error: unknown) => {
+      // Keep the Suspense fallback while the page reloads, so the error does
+      // not remove the app tree.
+      if (recoverFromStaleChunk(error)) return new Promise<never>(() => {});
+      throw error;
+    },
+  ),
 );
 
 export type {

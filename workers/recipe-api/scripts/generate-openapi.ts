@@ -28,6 +28,7 @@ const document = app.getOpenAPIDocument({
   },
   servers: [{ url: "https://robbiepalmer.me", "x-internal": false }],
   tags: [
+    "admin",
     "agent-auth",
     "auth",
     "households",

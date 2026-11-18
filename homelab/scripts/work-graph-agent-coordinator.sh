@@ -38,35 +38,35 @@ require_positive_integer WORK_GRAPH_COORDINATOR_RELAUNCH_AFTER_SECONDS "${relaun
 require_positive_integer WORK_GRAPH_COORDINATOR_MEMORY_LIMIT_PERCENT "${memory_usage_limit_percent}"
 require_positive_integer WORK_GRAPH_COORDINATOR_MEMORY_PRESSURE_LIMIT "${memory_pressure_limit}"
 require_positive_integer WORK_GRAPH_COORDINATOR_IO_PRESSURE_LIMIT "${io_pressure_limit}"
-if [ "${max_tickets}" -gt 100 ]; then
+if [[ "${max_tickets}" -gt 100 ]]; then
   echo "WORK_GRAPH_COORDINATOR_MAX_TICKETS must not exceed 100" >&2
   exit 2
 fi
-if [ "${max_total_admissions}" -gt 100 ]; then
+if [[ "${max_total_admissions}" -gt 100 ]]; then
   echo "WORK_GRAPH_COORDINATOR_MAX_TOTAL_ADMISSIONS must not exceed 100" >&2
   exit 2
 fi
-if [ "${max_launches_per_cycle}" -gt "${max_tickets}" ]; then
+if [[ "${max_launches_per_cycle}" -gt "${max_tickets}" ]]; then
   echo "WORK_GRAPH_COORDINATOR_MAX_LAUNCHES_PER_CYCLE must not exceed the ticket limit" >&2
   exit 2
 fi
-if [ "${memory_usage_limit_percent}" -ge 100 ]; then
+if [[ "${memory_usage_limit_percent}" -ge 100 ]]; then
   echo "WORK_GRAPH_COORDINATOR_MEMORY_LIMIT_PERCENT must be less than 100" >&2
   exit 2
 fi
-if [ "${run_once}" != true ] && [ "${run_once}" != false ]; then
+if [[ "${run_once}" != true ]] && [[ "${run_once}" != false ]]; then
   echo "WORK_GRAPH_COORDINATOR_RUN_ONCE must be true or false" >&2
   exit 2
 fi
-if [ "${skip_bootstrap}" != true ] && [ "${skip_bootstrap}" != false ]; then
+if [[ "${skip_bootstrap}" != true ]] && [[ "${skip_bootstrap}" != false ]]; then
   echo "WORK_GRAPH_COORDINATOR_SKIP_BOOTSTRAP must be true or false" >&2
   exit 2
 fi
-if [ "${skip_provider_refresh}" != true ] && [ "${skip_provider_refresh}" != false ]; then
+if [[ "${skip_provider_refresh}" != true ]] && [[ "${skip_provider_refresh}" != false ]]; then
   echo "WORK_GRAPH_COORDINATOR_SKIP_PROVIDER_REFRESH must be true or false" >&2
   exit 2
 fi
-if [ "${exclude_documentation}" != true ] && [ "${exclude_documentation}" != false ]; then
+if [[ "${exclude_documentation}" != true ]] && [[ "${exclude_documentation}" != false ]]; then
   echo "WORK_GRAPH_COORDINATOR_EXCLUDE_DOCUMENTATION must be true or false" >&2
   exit 2
 fi
@@ -82,23 +82,23 @@ process_start_ticks() {
   awk '{ print $22 }' "/proc/${pid}/stat" 2>/dev/null || true
 }
 
-if [ -r "${process_file}" ]; then
+if [[ -r "${process_file}" ]]; then
   read -r previous_pod_uid previous_pid previous_start_ticks <"${process_file}" || true
-  if [ "${previous_pod_uid:-}" = "${pod_uid}" ] \
+  if [[ "${previous_pod_uid:-}" = "${pod_uid}" ]] \
     && [[ ${previous_pid:-} =~ ^[1-9][0-9]*$ ]] \
     && [[ ${previous_start_ticks:-} =~ ^[1-9][0-9]*$ ]] \
-    && [ "$(process_start_ticks "${previous_pid}")" = "${previous_start_ticks}" ] \
-    && [ "${previous_pid}" -ne "$$" ]; then
+    && [[ "$(process_start_ticks "${previous_pid}")" = "${previous_start_ticks}" ]] \
+    && [[ "${previous_pid}" -ne "$$" ]]; then
     kill -TERM -- "-${previous_pid}" 2>/dev/null \
       || kill -TERM "${previous_pid}" 2>/dev/null \
       || true
     for _ in $(seq 1 20); do
-      if [ "$(process_start_ticks "${previous_pid}")" != "${previous_start_ticks}" ]; then
+      if [[ "$(process_start_ticks "${previous_pid}")" != "${previous_start_ticks}" ]]; then
         break
       fi
       sleep 0.5
     done
-    if [ "$(process_start_ticks "${previous_pid}")" = "${previous_start_ticks}" ]; then
+    if [[ "$(process_start_ticks "${previous_pid}")" = "${previous_start_ticks}" ]]; then
       kill -KILL -- "-${previous_pid}" 2>/dev/null \
         || kill -KILL "${previous_pid}" 2>/dev/null \
         || true
@@ -120,11 +120,11 @@ chmod 600 "${process_temporary}"
 mv -- "${process_temporary}" "${process_file}"
 cleanup_process_file() {
   local recorded_pod_uid recorded_pid recorded_start_ticks
-  if [ -r "${process_file}" ]; then
+  if [[ -r "${process_file}" ]]; then
     read -r recorded_pod_uid recorded_pid recorded_start_ticks <"${process_file}" || true
-    if [ "${recorded_pod_uid:-}" = "${pod_uid}" ] \
-      && [ "${recorded_pid:-}" = "$$" ] \
-      && [ "${recorded_start_ticks:-}" = "${current_start_ticks}" ]; then
+    if [[ "${recorded_pod_uid:-}" = "${pod_uid}" ]] \
+      && [[ "${recorded_pid:-}" = "$$" ]] \
+      && [[ "${recorded_start_ticks:-}" = "${current_start_ticks}" ]]; then
       rm -f -- "${process_file}"
     fi
   fi
@@ -142,7 +142,7 @@ find_main_worktree() {
 }
 
 worktree=${WORK_GRAPH_COORDINATOR_WORKTREE:-$(find_main_worktree)}
-if [ -z "${worktree}" ] || [ ! -d "${worktree}" ]; then
+if [[ -z "${worktree}" ]] || [[ ! -d "${worktree}" ]]; then
   echo "the personal-site main worktree is unavailable" >&2
   exit 1
 fi
@@ -155,7 +155,7 @@ for command in git jq mise pnpm t3; do
   fi
 done
 
-if [ "${skip_bootstrap}" = false ]; then
+if [[ "${skip_bootstrap}" = false ]]; then
   mise run //:install
   if ! mise which work-graph >/dev/null 2>&1; then
     mise run //packages/work-graph-cli:install:global
@@ -164,11 +164,11 @@ fi
 
 project_root=${WORK_GRAPH_COORDINATOR_PROJECT_ROOT:-$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")}
 base_branch=${T3_WORK_GRAPH_BASE_BRANCH:-}
-if [ -z "${base_branch}" ]; then
+if [[ -z "${base_branch}" ]]; then
   remote_head=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
   base_branch=${remote_head#origin/}
 fi
-if [ -z "${base_branch}" ]; then
+if [[ -z "${base_branch}" ]]; then
   base_branch=$(git config --get init.defaultBranch || true)
 fi
 base_branch=${base_branch:-main}
@@ -188,7 +188,7 @@ atomic_json() {
   mv -- "${temporary}" "${destination}"
 }
 
-if [ ! -e "${state_file}" ]; then
+if [[ ! -e "${state_file}" ]]; then
   jq -n \
     --arg now "$(now_iso)" \
     --argjson max_tickets "${max_tickets}" \
@@ -266,10 +266,10 @@ refresh_resource_admission() {
   memory_pressure_avg10=0
   io_pressure_avg10=0
 
-  if [ ! -r "${memory_current_file}" ] \
-    || [ ! -r "${memory_max_file}" ] \
-    || [ ! -r "${memory_pressure_file}" ] \
-    || [ ! -r "${io_pressure_file}" ]; then
+  if [[ ! -r "${memory_current_file}" ]] \
+    || [[ ! -r "${memory_max_file}" ]] \
+    || [[ ! -r "${memory_pressure_file}" ]] \
+    || [[ ! -r "${io_pressure_file}" ]]; then
     return
   fi
 
@@ -285,7 +285,7 @@ refresh_resource_admission() {
   fi
 
   memory_usage_percent=$((memory_current * 100 / memory_max))
-  if [ "${memory_usage_percent}" -ge "${memory_usage_limit_percent}" ]; then
+  if [[ "${memory_usage_percent}" -ge "${memory_usage_limit_percent}" ]]; then
     admission_reason=memory_usage
     return
   fi
@@ -310,7 +310,7 @@ work_graph() {
 
 classify_documentation_ticket_ids() {
   local tickets=$1
-  if [ "${exclude_documentation}" != true ]; then
+  if [[ "${exclude_documentation}" != true ]]; then
     printf '[]\n'
     return
   fi
@@ -329,7 +329,7 @@ is_documentation_ticket_id() {
 total_admission_available() {
   local total_admissions
   total_admissions=$(jq -r '.totalAdmissions' "${state_file}")
-  [ "${total_admissions}" -lt "${max_total_admissions}" ]
+  [[ "${total_admissions}" -lt "${max_total_admissions}" ]]
 }
 
 load_ticket_context() {
@@ -339,13 +339,13 @@ load_ticket_context() {
 
   for attempt in 1 2 3; do
     if context=$(work_graph context show "${ticket_id}") \
-      && [ -n "${context}" ] \
+      && [[ -n "${context}" ]] \
       && jq -e '.items | type == "array"' <<<"${context}" >/dev/null 2>&1; then
       printf '%s\n' "${context}"
       return 0
     fi
     echo "invalid Work Graph context for ${ticket_id} on attempt ${attempt}" >&2
-    if [ "${attempt}" -lt 3 ]; then
+    if [[ "${attempt}" -lt 3 ]]; then
       sleep 2
     fi
   done
@@ -442,12 +442,12 @@ launch_due() {
   local current_epoch
 
   last_attempt=$(jq -r --arg ticket_id "${ticket_id}" '.tickets[$ticket_id].lastLaunchAttemptAt // empty' "${state_file}")
-  if [ -z "${last_attempt}" ]; then
+  if [[ -z "${last_attempt}" ]]; then
     return 0
   fi
   last_attempt_epoch=$(date --date="${last_attempt}" +%s 2>/dev/null || printf '0')
   current_epoch=$(date +%s)
-  [ $((current_epoch - last_attempt_epoch)) -ge "${relaunch_after_seconds}" ]
+  [[ $((current_epoch - last_attempt_epoch)) -ge "${relaunch_after_seconds}" ]]
 }
 
 launch_ticket() {
@@ -491,7 +491,7 @@ launch_ticket() {
     --label work-graph-agent-coordinator \
     --token-only)
 
-  if [ "${skip_provider_refresh}" = false ] \
+  if [[ "${skip_provider_refresh}" = false ]] \
     && ! refresh_t3_providers "${access_token}"; then
     update_state \
       --arg ticket_id "${ticket_id}" \
@@ -544,16 +544,16 @@ write_health() {
   needs_attention_count=$(jq '[.tickets[] | select(.stage == "needs_attention")] | length' "${state_file}")
   total_admissions=$(jq '.totalAdmissions' "${state_file}")
   remaining_admissions=$((max_total_admissions - total_admissions))
-  if [ "${remaining_admissions}" -lt 0 ]; then
+  if [[ "${remaining_admissions}" -lt 0 ]]; then
     remaining_admissions=0
   fi
-  if [ "${tracked_count}" -gt "${max_tickets}" ]; then
+  if [[ "${tracked_count}" -gt "${max_tickets}" ]]; then
     status=draining
-  elif [ "${remaining_admissions}" -eq 0 ]; then
+  elif [[ "${remaining_admissions}" -eq 0 ]]; then
     status=pilot_exhausted
   fi
   refresh_resource_admission
-  if [ "${remaining_admissions}" -eq 0 ]; then
+  if [[ "${remaining_admissions}" -eq 0 ]]; then
     admission_open=false
     admission_reason=pilot_exhausted
   fi
@@ -613,16 +613,16 @@ reconcile() {
   local pilot_exhaustion_logged=false
 
   launch_permitted() {
-    if [ "${launch_attempts}" -ge "${max_launches_per_cycle}" ]; then
-      if [ "${launch_deferred_logged}" = false ]; then
+    if [[ "${launch_attempts}" -ge "${max_launches_per_cycle}" ]]; then
+      if [[ "${launch_deferred_logged}" = false ]]; then
         echo "deferred further launches after reaching the per-cycle limit"
         launch_deferred_logged=true
       fi
       return 1
     fi
     refresh_resource_admission
-    if [ "${admission_open}" != true ]; then
-      if [ "${launch_deferred_logged}" = false ]; then
+    if [[ "${admission_open}" != true ]]; then
+      if [[ "${launch_deferred_logged}" = false ]]; then
         echo "deferred launches because resource admission is ${admission_reason}"
         launch_deferred_logged=true
       fi
@@ -640,7 +640,7 @@ reconcile() {
     ticket_json=$(jq -c --arg ticket_id "${ticket_id}" \
       'first(.items[] | select(.id == $ticket_id)) // empty' \
       <<<"${queue}")
-    if [ -z "${ticket_json}" ]; then
+    if [[ -z "${ticket_json}" ]]; then
       ticket_json=$(work_graph show "${ticket_id}")
     fi
     title=$(jq -er '.title' <<<"${ticket_json}")
@@ -655,7 +655,7 @@ reconcile() {
         if is_documentation_ticket_id "${ticket_id}"; then
           excluded_documentation_count=$((excluded_documentation_count + 1))
           echo "did not relaunch documentation ticket ${ticket_id}: ${title}"
-        elif { [ "${stage}" = ready ] || [ "${stage}" = stale ]; } \
+        elif { [[ "${stage}" = ready ]] || [[ "${stage}" = stale ]]; } \
           && launch_due "${ticket_id}" \
           && launch_permitted; then
           launch_attempts=$((launch_attempts + 1))
@@ -666,7 +666,7 @@ reconcile() {
   done
 
   tracked_count=$(jq '.tickets | length' "${state_file}")
-  if [ "${tracked_count}" -lt "${max_tickets}" ]; then
+  if [[ "${tracked_count}" -lt "${max_tickets}" ]]; then
     ready=$(work_graph ready --limit 100)
     while IFS= read -r ticket_json; do
       ticket_id=$(jq -er '.id' <<<"${ticket_json}")
@@ -680,7 +680,7 @@ reconcile() {
         continue
       fi
       if ! total_admission_available; then
-        if [ "${pilot_exhaustion_logged}" = false ]; then
+        if [[ "${pilot_exhaustion_logged}" = false ]]; then
           echo "deferred new tickets after exhausting the ${max_total_admissions}-ticket pilot budget"
           pilot_exhaustion_logged=true
         fi
@@ -693,7 +693,7 @@ reconcile() {
       launch_attempts=$((launch_attempts + 1))
       launch_ticket "${ticket_json}" || true
       tracked_count=$(jq '.tickets | length' "${state_file}")
-      if [ "${tracked_count}" -ge "${max_tickets}" ]; then
+      if [[ "${tracked_count}" -ge "${max_tickets}" ]]; then
         break
       fi
     done < <(jq -c '.items[]' <<<"${ready}")
@@ -704,7 +704,7 @@ reconcile() {
 
 while true; do
   reconcile
-  if [ "${run_once}" = true ]; then
+  if [[ "${run_once}" = true ]]; then
     break
   fi
   sleep "${poll_seconds}"

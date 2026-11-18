@@ -1,0 +1,78 @@
+---
+title: "PDR 006: Match pathology model development to each task's supervision"
+date: "2026-11-07"
+status: "Proposed"
+evidence:
+  - title: "Patho-Bench public pathology tasks and evaluation methods"
+    url: "https://github.com/mahmoodlab/patho-bench"
+  - title: "Attention-based deep multiple instance learning"
+    url: "https://proceedings.mlr.press/v80/ilse18a.html"
+  - title: "Panoptic quality analysis for computational pathology"
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC10224986/"
+---
+
+## Context
+
+[PDR 003](/projects/pathologize/pdrs/003-independent-pathology-benchmark-families)
+separates quality, tiling, tissue, cell, representation, and slide-level
+benchmarks. Those families still contain different learning problems. Patch
+classification, continuous regression, object detection, semantic and instance
+segmentation, and slide-level multiple instance learning do not share one
+label shape or useful error measure.
+
+Forcing every problem into image classification would discard location,
+boundaries, counts, continuous values, or the distinction between instance and
+bag supervision. Forcing them through one model framework would make the
+framework's supported tasks define the research programme.
+
+## Proposed decision
+
+Match each benchmark question to the supervision and prediction type that
+expresses it directly. Pathologize will support:
+
+* single-label, multilabel, and ordinal image or patch classification;
+* continuous image, region, or slide regression;
+* object and nucleus detection;
+* semantic, instance, and panoptic segmentation;
+* multiple instance learning over variable-size bags of patch features, with
+  optional coordinates and more than one slide per subject; and
+* later task types when they add a typed prediction contract, leakage policy,
+  baseline, metrics, resource limits, and inspectable failures.
+
+Keep these as task-specific benchmark contracts. A common run envelope may
+record model identity, inputs, resources, failures, and artifacts, but it must
+not erase the task's native predictions. A slide-level result may consume a
+pinned patch encoder or cell model without turning either upstream output into
+ground truth.
+
+Compare models through Pathologize metrics and fixed project splits. Framework
+metrics and default dataset splits are diagnostic only. Do not require one
+training library to support every task.
+
+Choose model and training approaches by development-set quality, robustness,
+compute cost, iteration time, and implementation burden. Keep final test and
+external cohorts sealed. A published paper's setup is one candidate among
+several and has no privileged status.
+
+## Consequences
+
+Pathologize can choose a productive library for each task without changing the
+meaning of a benchmark. Classification and regression can use transfer
+learning, dense tasks can preserve spatial outputs, and weak slide labels can
+remain bags rather than fabricated patch labels.
+
+The project must maintain several prediction schemas, metrics, and
+framework-specific experiment entrypoints.
+Cross-task comparisons need explicit dependency versions and cannot collapse
+into one leaderboard score. Some models will produce several useful outputs
+and need evaluation in more than one contract.
+
+## Evaluation
+
+Accept the proposal when library-native experiments produce one image or patch
+prediction baseline, one spatial detection or segmentation baseline, and one
+slide-level multiple instance baseline from pinned Pathologize splits.
+Each run must publish its native prediction records, resource measurements,
+failure slices, and model provenance. Reject the proposal if adding a framework
+requires its dataset format, split policy, or native score to become the
+benchmark contract.

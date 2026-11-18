@@ -206,7 +206,12 @@ interface AccountHistoryImportDrawerProps {
 }
 
 function useAccountHistoryImport(fixedAccount?: AccountDetailView) {
-  const { accountDetails, importAccountHistory } = useAssetTracker();
+  const { accountDetails, importAccountHistory } = useAssetTracker(
+    ({ accountDetails, importAccountHistory }) => ({
+      accountDetails,
+      importAccountHistory,
+    }),
+  );
   const availableAccounts = fixedAccount
     ? [fixedAccount]
     : (accountDetails ?? []);

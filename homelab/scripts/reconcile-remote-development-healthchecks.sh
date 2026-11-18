@@ -36,7 +36,7 @@ api_key=$(
     --config "${doppler_config}" \
     --plain
 )
-if [ -z "${api_key}" ]; then
+if [[ -z "${api_key}" ]]; then
   echo "HEALTHCHECKS_API_KEY is empty" >&2
   exit 1
 fi

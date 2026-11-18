@@ -2,7 +2,9 @@ import json
 import shutil
 from pathlib import Path
 
+import numpy as np
 import pytest
+import tifffile
 from pydantic import ValidationError
 
 from pathologize_data_registry.models import (
@@ -13,7 +15,12 @@ from pathologize_data_registry.models import (
     SubsetManifest,
     source_url_is_allowlisted,
 )
-from pathologize_data_registry.repository import load_registry, validate_file, validate_registry
+from pathologize_data_registry.repository import (
+    load_registry,
+    validate_aperio,
+    validate_file,
+    validate_registry,
+)
 
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 
@@ -21,7 +28,12 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 def test_committed_registry_has_complete_references() -> None:
     registry = load_registry(PROJECT_DIR)
 
-    assert set(registry.collections) == {"camelyon16", "cptac-coad-idc", "panda"}
+    assert set(registry.collections) == {
+        "airaqc-tcga",
+        "camelyon16",
+        "cptac-coad-idc",
+        "panda",
+    }
     assert validate_registry(registry, require_assets=False) == []
     assert registry.collections["panda"].access.authentication_required is True
     assert registry.collections["camelyon16"].registration_status == "manifest_only"
@@ -124,14 +136,19 @@ def test_validation_reports_cross_reference_and_missing_asset_errors(tmp_path: P
     linked_asset.symlink_to(PROJECT_DIR / subset.asset_root / first_asset.relative_path)
     missing = validate_registry(unmaterialized, require_assets=True)
     assert any("must not be a symbolic link" in issue for issue in missing)
-    assert len([issue for issue in missing if "required source asset is missing" in issue]) == 5
+    asset_count = sum(len(manifest.assets) for manifest in unmaterialized.asset_manifests.values())
+    assert len([issue for issue in missing if "required source asset is missing" in issue]) == (
+        asset_count - 1
+    )
 
 
 def test_validation_reports_unknown_slide_asset_without_crashing() -> None:
     source = load_registry(PROJECT_DIR)
     slide = next(iter(source.slides.values()))
     broken_slide = slide.model_copy(update={"asset_paths": [*slide.asset_paths, "unknown.dcm"]})
-    broken = source.model_copy(update={"slides": {broken_slide.slide_id: broken_slide}})
+    broken = source.model_copy(
+        update={"slides": {**source.slides, broken_slide.slide_id: broken_slide}}
+    )
 
     issues = validate_registry(broken, require_assets=False)
 
@@ -140,12 +157,63 @@ def test_validation_reports_unknown_slide_asset_without_crashing() -> None:
 
 def test_file_validation_reports_size_and_digest(tmp_path: Path) -> None:
     registry = load_registry(PROJECT_DIR)
-    asset_manifest = next(iter(registry.asset_manifests.values()))
+    asset_manifest = registry.asset_manifests["cptac-coad-idc-v23-smallest-series-assets"]
     asset = asset_manifest.assets[0]
     path = tmp_path / asset.relative_path
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(b"not the source asset")
 
     issues = validate_file(path, asset)
 
     assert any("expected 795484 bytes" in issue for issue in issues)
     assert any("expected SHA-256" in issue for issue in issues)
+
+
+def test_aperio_validation_checks_native_scanner_and_scale(tmp_path: Path) -> None:
+    source = load_registry(PROJECT_DIR)
+    slide = next(iter(source.slides.values()))
+    path = tmp_path / "synthetic.svs"
+    tifffile.imwrite(
+        path,
+        np.zeros((4, 5, 3), dtype=np.uint8),
+        description=("Aperio Image Library|AppMag = 40|ScanScope ID = SS1302|MPP = 0.25"),
+    )
+    matching = slide.model_copy(
+        update={
+            "scanner": slide.scanner.model_copy(
+                update={
+                    "device_serial_number": "SS1302",
+                    "objective_power": 40.0,
+                }
+            ),
+            "physical_resolution": slide.physical_resolution.model_copy(
+                update={
+                    "micrometres_per_pixel_x": 0.25,
+                    "micrometres_per_pixel_y": 0.25,
+                    "total_pixel_matrix_columns": 5,
+                    "total_pixel_matrix_rows": 4,
+                }
+            ),
+        }
+    )
+
+    assert validate_aperio(path, matching) == []
+
+    mismatched = matching.model_copy(
+        update={
+            "scanner": matching.scanner.model_copy(
+                update={"device_serial_number": "OTHER", "objective_power": 20.0}
+            ),
+            "physical_resolution": matching.physical_resolution.model_copy(
+                update={"micrometres_per_pixel_x": 0.5, "total_pixel_matrix_columns": 6}
+            ),
+        }
+    )
+    issues = validate_aperio(path, mismatched)
+    assert any("ScanScope ID" in issue for issue in issues)
+    assert any("AppMag" in issue for issue in issues)
+    assert any("physical resolution" in issue for issue in issues)
+    assert any("TIFF dimensions" in issue for issue in issues)
+
+    path.write_bytes(b"not a TIFF")
+    assert any("invalid Aperio TIFF" in issue for issue in validate_aperio(path, matching))

@@ -4,10 +4,9 @@ ML projects in this directory use [DVC](https://dvc.org/) to version data,
 with a shared private Cloudflare R2 bucket (`dvc`) as remote storage.
 Each project stores data under its own prefix (e.g. `s3://dvc/recipe-parsing`).
 
-The `pathologize-data-registry` is the exception: it reconstructs its bounded
-raw subset from allowlisted public sources and has no R2 remote. Use its
-`acquire` or `repro` task; do not run the shared `pull` or `push` workflow for
-that project.
+The `pathologize-data-registry` is a transitional aggregate. Product-owned
+source acquisition and derived datasets now live under `../data-products/`.
+Those projects have their own DVC and remote policies.
 
 Current projects:
 
@@ -22,8 +21,9 @@ Current projects:
 - `pathologize-tiling-benchmark`: tissue-aware tiling and physical-scale policy.
 - `pathologize-cell-analysis-benchmark`: nucleus detection, instance
   segmentation, and synthetic cell classification.
-- `pathologize-data-registry`: public computational-pathology source assets,
-  provenance, licences, identities, scanner metadata, and source-native labels.
+- `pathologize-data-registry`: the transitional aggregate of earlier public
+  computational-pathology sources. Existing sources can move into independent
+  data products as consumers update.
 - `recipe-parsing`: image extraction, normalization, canonicalization, and
   evaluation.
 - `recipe-dataset`: acquisition and preparation of reusable recipe text
@@ -93,3 +93,16 @@ mise run //ml-pipelines:dvc -- status   # from ml-pipelines/recipe-dataset
 
 When adding data, `dvc add` autostages the tracking file; commit it, then push
 the data to R2.
+
+## Git and DVC boundary
+
+- Keep compact, human-reviewable text contracts in Git: source and licence
+  manifests, schemas, parameters, predeclarations, and concise reports.
+- Keep raw source data, private evidence, binary artifacts, models, and large or
+  high-cardinality generated outputs in the DVC cache and configured remote.
+- Declare every generated artifact in its producing DVC stage. For compact text
+  that must remain visible in Git, use a non-cached DVC output or metric so the
+  lockfile still detects drift. Do not leave generated evidence undeclared.
+- Public availability does not make source bytes suitable for Git. Record their
+  stable identities, rights, byte counts, and checksums in Git-tracked manifests
+  and keep the bytes in DVC.

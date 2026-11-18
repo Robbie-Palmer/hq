@@ -1,0 +1,50 @@
+{
+  "WeddingPlanner": {
+    "entityTypes": {
+      "Actor": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "guestId": { "type": "String" },
+            "role": { "type": "String" }
+          }
+        }
+      },
+      "GuestField": {
+        "shape": {
+          "type": "Record",
+          "attributes": {
+            "coupleCanEdit": { "type": "Boolean" },
+            "coupleCanView": { "type": "Boolean" },
+            "custom": { "type": "Boolean" },
+            "exportRecipientCanEdit": { "type": "Boolean" },
+            "exportRecipientCanView": { "type": "Boolean" },
+            "guestCanEdit": { "type": "Boolean" },
+            "guestCanView": { "type": "Boolean" },
+            "guestId": { "type": "String" },
+            "name": { "type": "String" }
+          }
+        }
+      }
+    },
+    "actions": {
+      "field": {
+        "appliesTo": { "principalTypes": [], "resourceTypes": [] }
+      },
+      "field.view": {
+        "memberOf": [{ "id": "field" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["GuestField"]
+        }
+      },
+      "field.edit": {
+        "memberOf": [{ "id": "field" }],
+        "appliesTo": {
+          "principalTypes": ["Actor"],
+          "resourceTypes": ["GuestField"]
+        }
+      }
+    }
+  }
+}

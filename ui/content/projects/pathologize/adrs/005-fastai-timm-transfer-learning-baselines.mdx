@@ -1,0 +1,102 @@
+---
+title: "ADR 005: fastai and timm transfer-learning baselines"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["fastai", "timm"]
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:006-task-native-pathology-model-development"
+---
+
+## Context
+
+Pathologize needs strong image and patch baselines without maintaining a
+training loop for each pretrained encoder. Classification includes
+single-label, multilabel, and ordinal targets. Some quality, morphology, and
+representation probes use continuous regression.
+
+[ADR 004](/projects/pathologize/adrs/004-framework-native-training-result-contracts)
+keeps training framework-native and standardizes the resulting evidence.
+Fastai's `vision_learner` accepts a string architecture and constructs a timm
+model. It also supplies data inspection, transfer-learning heads, mixed
+precision, learning-rate search,
+fine-tuning schedules, callbacks, and prediction interpretation. The current
+[timm model catalog](https://huggingface.co/docs/timm/models) includes
+convolutional, transformer, hybrid, self-supervised, and vision-language
+pretrained encoders.
+
+Fastai's generic head, optimizer, freezing policy, and fine-tuning schedule are
+useful defaults in their own right, as documented by
+[`vision_learner`](https://docs.fast.ai/vision.learner.html) and
+[`fine_tune`](https://docs.fast.ai/callback.schedule.html).
+
+## Decision
+
+Use fastai directly for the first supervised image and patch experiments, with
+timm as its primary pretrained model catalog. Apply it to classification,
+multilabel classification, ordinal prediction, and bounded continuous
+regression. A benchmark may also use a simple fastai segmentation baseline,
+but dense-task framework selection remains independent.
+
+Build fastai data loaders from a pinned Pathologize split manifest. Do not use
+fastai's random split helpers for a published run. Select explicit timm
+architecture and pretrained-weight tags. Record the resolved
+[`pretrained_cfg`](https://huggingface.co/docs/timm/main/model_api), weight
+source, licence, digest, normalization, interpolation, crop policy, and input
+resolution.
+
+Treat `lr_find`, one-cycle scheduling, discriminative learning rates, freezing,
+and unfreezing as the default training policy. Keep those defaults when they
+produce the best measured quality, cost, and iteration time. Change them when a
+controlled comparison shows a useful gain. A paper's optimizer and augmentation
+settings receive no special priority.
+
+Save model weights and explicit inference metadata. Do not make fastai's
+pickled `Learner` export the long-lived inference or benchmark boundary.
+
+Every new task starts with a cheap encoder that validates labels, metrics, and
+the split. Compare larger convolutional and transformer encoders only after
+that baseline passes the evidence contract.
+
+## Consequences
+
+An experiment can compare modern pretrained encoders with little task-specific
+training code. The same fastai workflow supports common image-level target
+shapes, and the project retains normal PyTorch models underneath fastai.
+
+Fastai's dynamic dispatch, callbacks, and tensor subclasses can make failures
+harder to trace than a small native loop. Generic fine-tuning defaults can also
+underperform another tested policy. The experiment needs tests for input
+normalization, target shapes, frozen parameter groups, checkpoint reload, and
+prediction parity.
+
+The model catalog changes faster than fastai. A newly published timm weight may
+load before Pathologize has checked its licence, processor assumptions, or
+fine-tuning behavior. An explicit allowlist is therefore part of each
+benchmark, not a global promise that every timm model is supported.
+
+## Alternatives considered
+
+### Use timm training scripts by default
+
+Timm's scripts expose more architecture-specific options. They require more
+experiment glue and have not yet shown a measured advantage for Pathologize's
+small supervised baselines.
+
+### Use Transformers for every image model
+
+Transformers has strong task recipes and hub integration, especially for
+models published in that format. Timm has broader image-backbone coverage, and
+fastai provides the faster supervised experiment loop for this boundary.
+
+### Maintain a native PyTorch trainer
+
+A native trainer gives complete control. It adds routine scheduling,
+checkpoint, mixed-precision, interpretation, and callback work before a
+benchmark has established that those details are the research question.
+
+### Match each publication's training setup
+
+Published settings can suggest experiments, especially when a model has an
+unusual constraint. Matching them consumes time without guaranteeing better
+quality or lower cost on Pathologize data. The benchmark result decides.

@@ -65,6 +65,28 @@ function formatSimulationTime(timeMs: number): string {
     : `${minutes}m ${String(seconds).padStart(2, "0")}s`;
 }
 
+function describeMissionOrbit(
+  missionOrbit: SimulationData["missionOrbit"],
+  scenarioEpochUnixMilliseconds: number,
+  frameTimeMs: number,
+): string {
+  const authorizationTimeMs =
+    missionOrbit.authorizationEpochUnixMilliseconds === null
+      ? null
+      : missionOrbit.authorizationEpochUnixMilliseconds -
+        scenarioEpochUnixMilliseconds;
+  const waitingForAuthorization =
+    authorizationTimeMs !== null && frameTimeMs < authorizationTimeMs;
+  if (waitingForAuthorization) return "Waiting for an accepted assignment.";
+  if (missionOrbit.status === "executed") {
+    return `Node ${missionOrbit.selectedNodeId} accepted the assignment. C++ recorded the departure burn, transfer, arrival burn, and target orbit.`;
+  }
+  if (missionOrbit.status === "assignment-not-received") {
+    return `Node ${missionOrbit.selectedNodeId} did not receive the assignment. No maneuver executed.`;
+  }
+  return `Node ${missionOrbit.selectedNodeId} became unavailable before departure. No maneuver executed.`;
+}
+
 export function SatelliteSwarmSimulation({
   data,
   executionMode = "recorded",
@@ -91,10 +113,6 @@ export function SatelliteSwarmSimulation({
   const replayAction = getReplayAction(playing, frameIndex, stopAt);
   const primaryEvent = currentEvents[0];
   const additionalEventCount = Math.max(0, currentEvents.length - 1);
-  const activeNode = frame?.nodes.find(
-    (node) => node.state === "active" && node.assignedNode === node.id,
-  );
-
   useEffect(() => {
     if (reducedMotion) {
       setPlaying(false);
@@ -210,9 +228,11 @@ export function SatelliteSwarmSimulation({
             </div>
             <p>
               <span className="font-medium text-zinc-100">Mission orbit:</span>{" "}
-              {activeNode
-                ? `Node ${activeNode.id} accepted the assignment. Its orbit is unchanged because this simulation does not model maneuvers.`
-                : "Waiting for an accepted assignment. This simulation does not model maneuvers or a target orbit."}
+              {describeMissionOrbit(
+                data.missionOrbit,
+                data.scenarioEpochUnixMilliseconds,
+                frame.timeMs,
+              )}
             </p>
             {primaryEvent && (
               <p aria-live="polite">

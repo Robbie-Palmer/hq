@@ -1,0 +1,11 @@
+{
+  "accuracy": 0.5,
+  "balanced_accuracy": 0.4571428571428572,
+  "false_negative": 4,
+  "false_positive": 8,
+  "sensitivity": 0.7142857142857143,
+  "slides": 24,
+  "specificity": 0.2,
+  "true_negative": 2,
+  "true_positive": 10
+}

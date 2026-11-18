@@ -601,7 +601,11 @@ export interface ProjectProfileContracts {
     | "component_kinds"
     | "task_contract"
     | "knowledge_graph"
-  >;
+  > & {
+    readonly enforcement?: "migration" | "final";
+    readonly migration_knowledge_graph?:
+      RepositoryLayoutContract["knowledge_graph"];
+  };
   platform: PlatformManifestSource;
   nix: {
     schema_version: NixFlakeContract["schema_version"];
@@ -1039,10 +1043,43 @@ function substitutePath(template: string, values: Record<string, string>): strin
   });
 }
 
+function activeComponentDirectory(
+  layout: ProjectProfileContracts["layout"],
+  componentKind: RepositoryLayoutContract["component_kinds"][number],
+): string {
+  if (
+    layout.enforcement === "final" &&
+    "migration_only" in componentKind &&
+    componentKind.migration_only
+  ) {
+    throw new Error(
+      `Component kind '${componentKind.id}' is available only during layout migration`,
+    );
+  }
+  if (
+    layout.enforcement === "migration" &&
+    "migration_directories" in componentKind &&
+    componentKind.migration_directories.length > 0
+  ) {
+    return componentKind.migration_directories[0] ?? componentKind.directory;
+  }
+  return componentKind.directory;
+}
+
+function activeKnowledgeGraph(
+  layout: ProjectProfileContracts["layout"],
+): RepositoryLayoutContract["knowledge_graph"] {
+  if (layout.enforcement === "migration" && layout.migration_knowledge_graph) {
+    return layout.migration_knowledge_graph;
+  }
+  return layout.knowledge_graph;
+}
+
 function resolveComponentTask(
   name: z.infer<typeof taskNameSchema>,
   componentKind: RepositoryLayoutContract["component_kinds"][number],
   exceptionReason: string | undefined,
+  layout: ProjectProfileContracts["layout"],
 ): ResolvedProjectBlueprint["components"][number]["tasks"][number] {
   if (exceptionReason !== undefined) {
     return { name, disposition: "not-applicable", reason: exceptionReason };
@@ -1051,7 +1088,13 @@ function resolveComponentTask(
     return { name, disposition: "inherited" };
   }
   if (componentKind.task_ownership === "delegated") {
-    if (!componentKind.delegated_task_project) {
+    const target =
+      layout.enforcement === "migration" &&
+      "migration_delegated_task_project" in componentKind
+        ? componentKind.migration_delegated_task_project ??
+          componentKind.delegated_task_project
+        : componentKind.delegated_task_project;
+    if (!target) {
       throw new Error(
         `Component kind '${componentKind.id}' delegates tasks without a target project`,
       );
@@ -1060,7 +1103,7 @@ function resolveComponentTask(
     return {
       name,
       disposition: "delegated",
-      target: `${componentKind.delegated_task_project}:${taskName}`,
+      target: `${target}:${taskName}`,
     };
   }
   return { name, disposition: "generated" };
@@ -1097,10 +1140,13 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
         `No directory template for component kind '${component.kind}'`,
       );
     }
-    const componentPath = substitutePath(componentKind.directory, {
-      component: component.id,
-      project: profile.project.id,
-    });
+    const componentPath = substitutePath(
+      activeComponentDirectory(contracts.layout, componentKind),
+      {
+        component: component.id,
+        project: profile.project.id,
+      },
+    );
     const exceptions = new Map(component.task_exceptions.map((exception) => [exception.task, exception.reason]));
     return {
       id: component.id,
@@ -1120,7 +1166,12 @@ function resolveComponents(profile: ProjectProfile, contracts: ProjectProfileCon
       tasks: requiredTasks
         .toSorted(compareStrings)
         .map((name) =>
-          resolveComponentTask(name, componentKind, exceptions.get(name)),
+          resolveComponentTask(
+            name,
+            componentKind,
+            exceptions.get(name),
+            contracts.layout,
+          ),
         ),
     };
   }).toSorted((left, right) => left.id.localeCompare(right.id, "en"));
@@ -1578,7 +1629,7 @@ export function resolveProjectProfile(
   const { selections, checkpoints } = resolveSelections(profile, contracts, instant);
   validateStatefulOperations(profile, components, selections);
   assertAuthenticatedWorkerStack(components, selections);
-  const paths = contracts.layout.knowledge_graph;
+  const paths = activeKnowledgeGraph(contracts.layout);
   const substituteProject = (template: string) => substitutePath(template, { project: profile.project.id, sequence: "{sequence}", slug: "{slug}" });
   const componentRecords = components.map((component) => ({
     id: component.stable_id,

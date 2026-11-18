@@ -7,6 +7,8 @@ from pydantic import BaseModel, ConfigDict, ValidationError
 
 from .pipeline import (
     aggregate_scorecards,
+    compare_experiment,
+    compare_only_experiment,
     evaluate_experiment,
     evaluate_only_experiment,
     generate,
@@ -43,6 +45,12 @@ class PathologizeBenchmark:
     def evaluate_only(self) -> None:
         evaluate_only_experiment()
 
+    def compare(self, experiment_id: str) -> None:
+        compare_experiment(experiment_id)
+
+    def compare_only(self) -> None:
+        compare_only_experiment()
+
     def aggregate(self) -> None:
         aggregate_scorecards()
 
@@ -65,6 +73,8 @@ def main(command: Sequence[str] | None = None) -> int:
                 "run-adapters": application.run_adapters,
                 "eval": application.evaluate,
                 "eval-only": application.evaluate_only,
+                "compare": application.compare,
+                "compare-only": application.compare_only,
                 "aggregate": application.aggregate,
                 "schemas": application.schemas,
                 "verify": application.verify,

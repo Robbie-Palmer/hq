@@ -16,6 +16,20 @@ export const technologies: TechnologyContent[] = [
     type: "library",
   },
   {
+    name: "XState",
+    added: "2026-11-04",
+    description: "State machines and actor orchestration for TypeScript apps",
+    website: "https://stately.ai/docs",
+    type: "library",
+  },
+  {
+    name: "Redux Toolkit",
+    added: "2026-11-04",
+    description: "Typed Redux state management with development checks",
+    website: "https://redux-toolkit.js.org",
+    type: "library",
+  },
+  {
     name: "Next.js",
     added: "2026-01-04",
     description: "Full-stack web development built on React",
@@ -932,6 +946,14 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "Transformers",
+    added: "2026-11-07",
+    description:
+      "Hugging Face library for pretrained model loading, processing, training, and inference",
+    website: "https://huggingface.co/docs/transformers/",
+    type: "library",
+  },
+  {
     name: "Jenkins",
     added: "2026-01-04",
     description:
@@ -1058,6 +1080,36 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     type: "library",
   },
   {
+    name: "fastai",
+    added: "2026-11-07",
+    description:
+      "High-level PyTorch library for transfer learning and model training",
+    website: "https://docs.fast.ai/",
+    type: "library",
+  },
+  {
+    name: "timm",
+    added: "2026-11-07",
+    description: "PyTorch image models and pretrained weight catalog",
+    website: "https://huggingface.co/docs/timm/",
+    type: "library",
+  },
+  {
+    name: "torchmil",
+    added: "2026-11-07",
+    description: "PyTorch library for deep multiple instance learning",
+    website: "https://torchmil.readthedocs.io/",
+    type: "library",
+  },
+  {
+    name: "Ultralytics",
+    added: "2026-11-07",
+    description:
+      "Computer vision training library for detection, segmentation, classification, and pose models",
+    website: "https://docs.ultralytics.com/",
+    type: "library",
+  },
+  {
     name: "RabbitMQ",
     added: "2026-01-04",
     description: "A broker for asynchronous messaging and task distribution",
@@ -1136,6 +1188,29 @@ a state machine, a cyclic state graph, or another processing model entirely.`,
     added: "2026-01-04",
     description: "An SDK for reading pathology image formats",
     website: "https://github.com/openslide/openslide-python",
+    type: "library",
+  },
+  {
+    name: "cuCIM",
+    added: "2026-11-07",
+    description:
+      "GPU-accelerated readers and image operations for large biomedical images",
+    website: "https://github.com/rapidsai/cucim",
+    type: "library",
+  },
+  {
+    name: "nvImageCodec",
+    added: "2026-11-07",
+    description: "NVIDIA codec framework for CPU and GPU image decoding",
+    website: "https://docs.nvidia.com/cuda/nvimagecodec/",
+    type: "library",
+  },
+  {
+    name: "wsidicom",
+    added: "2026-11-07",
+    description:
+      "Python library for reading and writing DICOM whole-slide images",
+    website: "https://github.com/imi-bigpicture/wsidicom",
     type: "library",
   },
   {
@@ -1721,5 +1796,13 @@ Timers can also have names. For example, \`~pasta{10%minutes}\` creates a ten-mi
       "Open source API for current and historical reference exchange rates from official sources",
     website: "https://frankfurter.dev",
     type: "platform",
+  },
+  {
+    name: "Cedar",
+    added: "2026-11-07",
+    description:
+      "Policy language and evaluation engine for application authorization",
+    website: "https://www.cedarpolicy.com/",
+    type: "library",
   },
 ];

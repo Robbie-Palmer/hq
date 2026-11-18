@@ -1,0 +1,57 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked NuCLS source-data environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the NuCLS source-data lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format NuCLS source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint NuCLS source-data code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check NuCLS source-data code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run NuCLS source-data tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run NuCLS source-data tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the NuCLS source-data project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.acquire]
+description = "Acquire and verify the native NuCLS distribution"
+depends = ["sync"]
+run = "uv run --locked nucls-source-data acquire"
+
+[tasks.index]
+description = "Index NuCLS in its source-native language"
+depends = ["sync"]
+run = "uv run --locked nucls-source-data index"
+
+[tasks.repro]
+description = "Reproduce the NuCLS source data product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic NuCLS source-data checks"
+depends = ["lint", "typecheck", "test:coverage"]

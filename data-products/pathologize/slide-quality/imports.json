@@ -1,0 +1,19 @@
+{
+  "imports": [
+    {
+      "dataset_id": "grandqc-test-mpp20-v1",
+      "dvc_lock": "../../grandqc/mpp20/dvc.lock",
+      "kind": "local_dvc_project",
+      "manifest": "../../grandqc/mpp20/manifest.json",
+      "records": "../../grandqc/mpp20/outputs/native-index.jsonl"
+    },
+    {
+      "dataset_id": "airaqc-tcga-public-pilot-v1",
+      "dvc_lock": "../../airaqc/tcga-public-pilot/dvc.lock",
+      "kind": "local_dvc_project",
+      "manifest": "../../airaqc/tcga-public-pilot/contracts/subset.json",
+      "records": "../../airaqc/tcga-public-pilot/outputs/native-corpus.json"
+    }
+  ],
+  "schema_version": "1.0.0"
+}

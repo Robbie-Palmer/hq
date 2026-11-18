@@ -13,6 +13,7 @@ import {
   applyCreateForecastAssumptionSet,
   applyCreatePlanningCase,
   applyDeleteCapitalFlow,
+  applyDeleteForecastAssumption,
   applyDeletePlannedExpenditure,
   applyDeleteRecurringFlow,
   applyDeleteSnapshot,
@@ -22,10 +23,13 @@ import {
   applyRecordActualCashFlow,
   applyRecordBalance,
   applyRecordTransfer,
+  applySaveMortgageScenario,
   applySetAccountLiquidity,
+  applySetBaseCurrency,
   applySetCashFlowDecisionStatus,
   applySetCommitmentStatus,
   applySetExpectedReturn,
+  applySetInflation,
   applySetNetWorthTarget,
   applySetWithdrawalRate,
   applyUpdateCashFlowDecision,
@@ -2141,5 +2145,222 @@ describe("applyClearAccountHistory", () => {
     expect(next.capitalFlows).toEqual([
       { accountId: "savings", date: "2024-06-01", amount: 100 },
     ]);
+  });
+});
+
+describe("decision input invariants", () => {
+  it("rejects amount and date ranges that cannot describe a coherent forecast", () => {
+    expect(() =>
+      applyAddCashFlowDecision(
+        baseData(),
+        {
+          name: "Incoherent decision",
+          currency: "GBP",
+          stages: [
+            {
+              fromAccountId: "savings",
+              earliestDate: "2099-06-01",
+              expectedDate: "2099-05-01",
+              latestDate: "2099-04-01",
+              minimumAmount: 2_000,
+              expectedAmount: 1_500,
+              maximumAmount: 1_000,
+            },
+          ],
+        },
+        TEST_AS_OF_DATE,
+      ),
+    ).toThrow(/Decision amounts must run from minimum to expected to maximum/);
+  });
+
+  it("rejects duplicate stage group identities", () => {
+    expect(() =>
+      applyAddCashFlowDecision(
+        baseData(),
+        {
+          name: "Grouped decision",
+          currency: "GBP",
+          groups: [
+            { id: "venue", name: "Venue", status: "considering" },
+            {
+              id: "venue",
+              name: "Venue alternative",
+              status: "considering",
+            },
+          ],
+          stages: [
+            {
+              groupId: "venue",
+              fromAccountId: "savings",
+              expectedDate: "2099-05-01",
+              minimumAmount: 1_000,
+              expectedAmount: 1_000,
+              maximumAmount: 1_000,
+            },
+          ],
+        },
+        TEST_AS_OF_DATE,
+      ),
+    ).toThrow(/Decision stage group IDs must be unique/);
+  });
+});
+
+describe("forecast assumption deletion", () => {
+  it("deletes only an assumption from the active version", () => {
+    const created = applyCreateForecastAssumptionSet(
+      baseData(),
+      { name: "Household baseline" },
+      "2026-01-01T12:00:00Z",
+    );
+    const withAssumption = applyAddForecastAssumption(created, {
+      setId: "household-baseline-v1",
+      name: "Reduced working hours",
+      kind: "income",
+      startDate: "2027-01-01",
+      monthlyChange: { minimum: -500, expected: -400, maximum: -300 },
+      currency: "GBP",
+      ownership: { kind: "personal", memberId: "primary" },
+      accountId: "savings",
+      source: { kind: "manual-take-home" },
+    });
+
+    const deleted = applyDeleteForecastAssumption(withAssumption, {
+      setId: "household-baseline-v1",
+      assumptionId: "reduced-working-hours",
+    });
+
+    expect(deleted.forecastAssumptionSets[0]?.assumptions).toEqual([]);
+    expect(withAssumption.forecastAssumptionSets[0]?.assumptions).toHaveLength(
+      1,
+    );
+    expect(() =>
+      applyDeleteForecastAssumption(deleted, {
+        setId: "household-baseline-v1",
+        assumptionId: "missing-assumption",
+      }),
+    ).toThrow(/No forecast assumption found/);
+  });
+
+  it("keeps superseded versions immutable", () => {
+    const created = applyCreateForecastAssumptionSet(
+      baseData(),
+      { name: "Household baseline" },
+      "2026-01-01T12:00:00Z",
+    );
+    const withAssumption = applyAddForecastAssumption(created, {
+      setId: "household-baseline-v1",
+      name: "Reduced working hours",
+      kind: "income",
+      startDate: "2027-01-01",
+      monthlyChange: { minimum: -500, expected: -400, maximum: -300 },
+      currency: "GBP",
+      ownership: { kind: "personal", memberId: "primary" },
+      accountId: "savings",
+      source: { kind: "manual-take-home" },
+    });
+    const versioned = applyVersionForecastAssumptionSet(
+      withAssumption,
+      { id: "household-baseline-v1" },
+      "2026-02-01T12:00:00Z",
+    );
+
+    expect(() =>
+      applyDeleteForecastAssumption(versioned, {
+        setId: "household-baseline-v1",
+        assumptionId: "reduced-working-hours",
+      }),
+    ).toThrow(/Superseded assumption sets are read-only/);
+  });
+});
+
+describe("settings commands", () => {
+  it("updates planning assumptions without rewriting account currencies", () => {
+    const original = baseData();
+    const inflation = applySetInflation(original, { rate: 0.035 });
+    const converted = applySetBaseCurrency(inflation, { currency: "EUR" });
+
+    expect(converted.settings.expectedAnnualInflation).toBe(0.035);
+    expect(converted.settings.baseCurrency).toBe("EUR");
+    expect(converted.accounts.map(({ currency }) => currency)).toEqual(
+      original.accounts.map(({ currency }) => currency),
+    );
+    expect(original.settings).toMatchObject({
+      expectedAnnualInflation: 0.025,
+      baseCurrency: "GBP",
+    });
+  });
+});
+
+describe("applySaveMortgageScenario", () => {
+  const assumptions = {
+    purchasePrice: 400_000,
+    availableFunds: 120_000,
+    depositAmount: 80_000,
+    initialAnnualRate: 0.04,
+    termMonths: 300,
+    repaymentType: "repayment" as const,
+    firstPaymentDate: "2026-02-01",
+    fixedPeriodEnd: "2031-01-01",
+    followOnAnnualRate: 0.05,
+    refinanceFee: 999,
+    purchaseFees: 1_500,
+    taxes: 7_500,
+    transactionCosts: 2_000,
+    monthlyOverpayment: 100,
+    overpaymentAllowance: 32_000,
+    overpaymentChargeRate: 0.01,
+  };
+
+  it("links a recorded decision to each uniquely named scenario", () => {
+    const first = applySaveMortgageScenario(
+      baseData(),
+      {
+        name: "Home purchase",
+        assumptions,
+        source: {},
+        recordDecision: true,
+      },
+      "2026-01-01",
+    );
+    const second = applySaveMortgageScenario(
+      first,
+      {
+        name: "Home purchase",
+        assumptions,
+        source: {},
+        recordDecision: true,
+      },
+      "2026-01-02",
+    );
+
+    expect(second.mortgageScenarios).toMatchObject([
+      {
+        id: "home-purchase",
+        decisionRecordId: "home-purchase-decision",
+      },
+      {
+        id: "home-purchase-2",
+        decisionRecordId: "home-purchase-2-decision",
+      },
+    ]);
+    expect(second.decisionRecords).toMatchObject([
+      { id: "home-purchase-decision", scenarioId: "home-purchase" },
+      { id: "home-purchase-2-decision", scenarioId: "home-purchase-2" },
+    ]);
+  });
+
+  it("rejects scenario sources that are no longer in the portfolio", () => {
+    expect(() =>
+      applySaveMortgageScenario(
+        baseData(),
+        {
+          name: "Stale source",
+          assumptions,
+          source: { mortgageAccountId: "missing-mortgage" },
+          recordDecision: false,
+        },
+        "2026-01-01",
+      ),
+    ).toThrow(/Account not found: missing-mortgage/);
   });
 });

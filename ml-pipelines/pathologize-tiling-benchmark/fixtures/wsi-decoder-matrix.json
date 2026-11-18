@@ -1,0 +1,356 @@
+{
+  "schema_version": "pathologize.wsi-decoder-fixture-matrix.v1",
+  "catalog_url": "https://openslide.cs.cmu.edu/download/openslide-testdata/index.json",
+  "catalog_retrieved_at": "2026-11-08",
+  "timing_method": "time.perf_counter_ns around one cold call followed by the median of five warm calls; wall time includes container lookup and one boundary tile CPU decode; OS page cache is uncontrolled",
+  "anisotropic_probe": {
+    "base_mpp": [0.5, 0.75],
+    "level_downsamples": [[1.0, 1.0], [2.0, 2.0], [4.0, 4.0]],
+    "target_mpp": [1.0, 1.5],
+    "expected_level": 1
+  },
+  "fixtures": [
+    {
+      "fixture_id": "aperio-cmu-1-small-jpeg",
+      "acquisition_profile": "smoke",
+      "family": "aperio",
+      "container": "Aperio SVS TIFF",
+      "compression": "jpeg",
+      "tiling": "one tiled image directory",
+      "color_model": "RGB",
+      "packaging": "file",
+      "materialized_path": "CMU-1-Small-Region.svs",
+      "sources": [
+        {
+          "path": "CMU-1-Small-Region.svs",
+          "url": "https://openslide.cs.cmu.edu/download/openslide-testdata/Aperio/CMU-1-Small-Region.svs",
+          "bytes": 1938955,
+          "sha256": "ed92d5a9f2e86df67640d6f92ce3e231419ce127131697fbbce42ad5e002c8a7"
+        }
+      ],
+      "total_bytes": 1938955,
+      "license": {
+        "name": "Creative Commons Zero 1.0 Universal",
+        "spdx_id": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution": "OpenSlide publishes this fixture under CC0-1.0.",
+        "attribution": null
+      },
+      "levels": [
+        {
+          "logical_level": 0,
+          "dimensions": [2220, 2967],
+          "downsample": [1.0, 1.0],
+          "mpp": [0.499, 0.499],
+          "tile_size": [240, 240],
+          "frame_count": null
+        }
+      ],
+      "associated_images": [
+        {"role": "label", "dimensions": [387, 463], "compression": "lzw", "color_model": "RGB"},
+        {"role": "macro", "dimensions": [1280, 431], "compression": "jpeg", "color_model": "RGB"},
+        {"role": "thumbnail", "dimensions": [574, 768], "compression": "jpeg", "color_model": "RGB"}
+      ],
+      "backends": [
+        {
+          "backend": "OpenSlide 4.0.1",
+          "status": "supported",
+          "output_residences": ["host"],
+          "reason": "Content detection returns aperio and CPU boundary reads pass."
+        },
+        {
+          "backend": "cuCIM",
+          "status": "not_tested",
+          "output_residences": ["host", "cuda"],
+          "reason": "Public cuCIM documentation claims Aperio SVS, but this CPU-safe matrix run does not install cuCIM."
+        }
+      ],
+      "gpu_trial": {
+        "status": "blocked",
+        "candidate": "cuCIM TIFF reader",
+        "reason": "The fixture is public and small, but the repository has no optional cuCIM reader or packaging trial yet."
+      }
+    },
+    {
+      "fixture_id": "aperio-cmu-1-jpeg2000",
+      "acquisition_profile": "extended",
+      "family": "aperio",
+      "container": "Aperio SVS TIFF",
+      "compression": "jpeg2000",
+      "tiling": "three tiled pyramid image directories",
+      "color_model": "RGB after Aperio JPEG 2000 ICT decode",
+      "packaging": "file",
+      "materialized_path": "CMU-1-JP2K-33005.svs",
+      "sources": [
+        {
+          "path": "CMU-1-JP2K-33005.svs",
+          "url": "https://openslide.cs.cmu.edu/download/openslide-testdata/Aperio/CMU-1-JP2K-33005.svs",
+          "bytes": 132565343,
+          "sha256": "9a1923cd9bcb260ba4d99d64f8d6e32550648c332ba48817f920662f3a513420"
+        }
+      ],
+      "total_bytes": 132565343,
+      "license": {
+        "name": "Creative Commons Zero 1.0 Universal",
+        "spdx_id": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution": "OpenSlide publishes this fixture under CC0-1.0.",
+        "attribution": null
+      },
+      "levels": [
+        {"logical_level": 0, "dimensions": [46000, 32893], "downsample": [1.0, 1.0], "mpp": [0.499, 0.499], "tile_size": [240, 240], "frame_count": null},
+        {"logical_level": 1, "dimensions": [11500, 8223], "downsample": [4.0, 4.0001216101179615], "mpp": [1.996, 1.9960606834488628], "tile_size": [240, 240], "frame_count": null},
+        {"logical_level": 2, "dimensions": [2875, 2055], "downsample": [16.0, 16.00632603406326], "mpp": [7.984, 7.987156690997566], "tile_size": [240, 240], "frame_count": null}
+      ],
+      "associated_images": [
+        {"role": "label", "dimensions": [387, 463], "compression": "lzw", "color_model": "RGB"},
+        {"role": "macro", "dimensions": [1280, 431], "compression": "jpeg", "color_model": "RGB"},
+        {"role": "thumbnail", "dimensions": [1024, 732], "compression": "jpeg", "color_model": "RGB"}
+      ],
+      "backends": [
+        {
+          "backend": "OpenSlide 4.0.1/OpenJPEG",
+          "status": "supported",
+          "output_residences": ["host"],
+          "reason": "Content detection returns aperio and OpenSlide decodes the JPEG 2000 tiles on CPU."
+        },
+        {
+          "backend": "cuCIM",
+          "status": "not_tested",
+          "output_residences": ["host", "cuda"],
+          "reason": "cuCIM claims Aperio and JPEG 2000 TIFF support, but no repository reader extracts this fixture's tiles."
+        }
+      ],
+      "gpu_trial": {
+        "status": "blocked",
+        "candidate": "cuCIM or TIFF tile extraction plus nvJPEG2000",
+        "reason": "The public fixture and codec exist, but the repository only exposes encoded frames for DICOM containers."
+      }
+    },
+    {
+      "fixture_id": "leica-1-scn-jpeg",
+      "acquisition_profile": "extended",
+      "family": "leica",
+      "container": "Leica SCN BigTIFF",
+      "compression": "jpeg",
+      "tiling": "single brightfield ROI projected into a five-level slide pyramid",
+      "color_model": "YCbCr JPEG decoded to RGB/RGBA",
+      "packaging": "file",
+      "materialized_path": "Leica-1.scn",
+      "sources": [
+        {
+          "path": "Leica-1.scn",
+          "url": "https://openslide.cs.cmu.edu/download/openslide-testdata/Leica/Leica-1.scn",
+          "bytes": 291812870,
+          "sha256": "63a3c00fef5215497a9725cf19092a93f7f5ff855ce8561af74b087631831a97"
+        }
+      ],
+      "total_bytes": 291812870,
+      "license": {
+        "name": "OpenSlide test-data redistribution grant",
+        "spdx_id": null,
+        "url": "https://openslide.cs.cmu.edu/download/openslide-testdata/Leica/",
+        "redistribution": "The source page says the fixture is free to use and distribute, with or without modification.",
+        "attribution": "Yves Sucaet"
+      },
+      "levels": [
+        {"logical_level": 0, "dimensions": [53130, 153470], "downsample": [1.0, 1.0], "mpp": [0.5, 0.5], "tile_size": [512, 512], "frame_count": null},
+        {"logical_level": 1, "dimensions": [13283, 38368], "downsample": [3.9998494316043063, 3.99994787322769], "mpp": [1.9999247158021531, 1.999973936613845], "tile_size": [512, 512], "frame_count": null},
+        {"logical_level": 2, "dimensions": [3321, 9592], "downsample": [15.998193315266485, 15.99979149291076], "mpp": [7.999096657633243, 7.99989574645538], "tile_size": [512, 512], "frame_count": null},
+        {"logical_level": 3, "dimensions": [831, 2401], "downsample": [63.935018050541515, 63.9192003331945], "mpp": [31.967509025270758, 31.95960016659725], "tile_size": [512, 512], "frame_count": null},
+        {"logical_level": 4, "dimensions": [208, 601], "downsample": [255.43269230769232, 255.3577371048253], "mpp": [127.71634615384616, 127.67886855241265], "tile_size": [512, 512], "frame_count": null}
+      ],
+      "associated_images": [
+        {"role": "macro", "dimensions": [1616, 4668], "compression": "jpeg", "color_model": "YCbCr"}
+      ],
+      "backends": [
+        {
+          "backend": "OpenSlide 4.0.1",
+          "status": "supported",
+          "output_residences": ["host"],
+          "reason": "Content detection returns leica and CPU boundary reads pass across the projected pyramid."
+        },
+        {
+          "backend": "cuCIM",
+          "status": "unsupported",
+          "output_residences": ["host", "cuda"],
+          "reason": "cuCIM's published format list does not claim Leica SCN."
+        }
+      ],
+      "gpu_trial": {
+        "status": "blocked",
+        "candidate": "future Leica-aware container reader plus nvJPEG",
+        "reason": "No installed accelerator claims Leica SCN container and pyramid semantics. OpenSlide remains the CPU backend."
+      }
+    },
+    {
+      "fixture_id": "generic-cmu-1-tiff-jpeg",
+      "acquisition_profile": "extended",
+      "family": "tiled_tiff",
+      "container": "generic pyramidal tiled TIFF",
+      "compression": "jpeg",
+      "tiling": "nine reduced-resolution tiled image directories",
+      "color_model": "YCbCr JPEG decoded to RGB/RGBA",
+      "packaging": "file",
+      "materialized_path": "CMU-1.tiff",
+      "sources": [
+        {
+          "path": "CMU-1.tiff",
+          "url": "https://openslide.cs.cmu.edu/download/openslide-testdata/Generic-TIFF/CMU-1.tiff",
+          "bytes": 204117846,
+          "sha256": "73a7e89bc15576587c3d68e55d9bf92f09690280166240b48ff4b48230b13bcd"
+        }
+      ],
+      "total_bytes": 204117846,
+      "license": {
+        "name": "Creative Commons Zero 1.0 Universal",
+        "spdx_id": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution": "OpenSlide publishes this fixture under CC0-1.0.",
+        "attribution": null
+      },
+      "levels": [
+        {"logical_level": 0, "dimensions": [46000, 32914], "downsample": [1.0, 1.0], "mpp": [1000.0, 1000.0], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 1, "dimensions": [23000, 16457], "downsample": [2.0, 2.0], "mpp": [2000.0, 2000.0], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 2, "dimensions": [11500, 8228], "downsample": [4.0, 4.000243072435586], "mpp": [4000.0, 4000.243072435586], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 3, "dimensions": [5750, 4114], "downsample": [8.0, 8.000486144871171], "mpp": [8000.0, 8000.486144871172], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 4, "dimensions": [2875, 2057], "downsample": [16.0, 16.000972289742343], "mpp": [16000.0, 16000.972289742343], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 5, "dimensions": [1437, 1028], "downsample": [32.011134307585245, 32.01750972762646], "mpp": [32011.134307585246, 32017.50972762646], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 6, "dimensions": [718, 514], "downsample": [64.06685236768803, 64.03501945525292], "mpp": [64066.85236768803, 64035.01945525292], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 7, "dimensions": [359, 257], "downsample": [128.13370473537606, 128.07003891050584], "mpp": [128133.70473537606, 128070.03891050584], "tile_size": [256, 256], "frame_count": null},
+        {"logical_level": 8, "dimensions": [179, 128], "downsample": [256.98324022346367, 257.140625], "mpp": [256983.24022346365, 257140.625], "tile_size": [256, 256], "frame_count": null}
+      ],
+      "associated_images": [],
+      "backends": [
+        {
+          "backend": "OpenSlide 4.0.1",
+          "status": "supported",
+          "output_residences": ["host"],
+          "reason": "Geometry and pixels decode, but the source TIFF resolution tags imply an implausible 1000 x 1000 micrometres per pixel and must not drive physical-scale reads."
+        },
+        {
+          "backend": "cuCIM",
+          "status": "not_tested",
+          "output_residences": ["host", "cuda"],
+          "reason": "cuCIM claims generic tiled multiresolution RGB TIFF with JPEG compression."
+        }
+      ],
+      "gpu_trial": {
+        "status": "blocked",
+        "candidate": "cuCIM generic TIFF reader",
+        "reason": "A public fixture is available, but cuCIM is not packaged and its geometry, boundary, color, and implausible-MPP behavior have not been compared with OpenSlide."
+      }
+    },
+    {
+      "fixture_id": "dicom-leica-4-jpeg-sparse",
+      "acquisition_profile": "extended",
+      "family": "dicom_wsi",
+      "container": "DICOM VL Whole Slide Microscopy series",
+      "compression": "jpeg",
+      "tiling": "TILED_SPARSE with logical levels 0, 2, and 4",
+      "color_model": "YBR_FULL_422 decoded to RGB",
+      "packaging": "zip",
+      "materialized_path": ".",
+      "sources": [
+        {
+          "path": "Leica-4.zip",
+          "url": "https://openslide.cs.cmu.edu/download/openslide-testdata/DICOM/Leica-4.zip",
+          "bytes": 85348848,
+          "sha256": "71bd6db778d8565b28aa358d1abce0c55985c149183630c2ed31d1f8757185bb"
+        }
+      ],
+      "total_bytes": 85348848,
+      "license": {
+        "name": "Creative Commons Zero 1.0 Universal",
+        "spdx_id": "CC0-1.0",
+        "url": "https://creativecommons.org/publicdomain/zero/1.0/",
+        "redistribution": "OpenSlide publishes this Leica-provided fixture under CC0-1.0.",
+        "attribution": "Leica"
+      },
+      "levels": [
+        {"logical_level": 0, "dimensions": [23374, 22079], "downsample": [1.0, 1.0], "mpp": [1.05105387047, 1.05105387047], "tile_size": [256, 256], "frame_count": 8004},
+        {"logical_level": 2, "dimensions": [5843, 5519], "downsample": [4.0, 4.0], "mpp": [4.20421548188, 4.20421548188], "tile_size": [256, 256], "frame_count": 506},
+        {"logical_level": 4, "dimensions": [1460, 1379], "downsample": [16.0, 16.0], "mpp": [16.816861927509997, 16.816861927509997], "tile_size": [256, 256], "frame_count": 36}
+      ],
+      "associated_images": [
+        {"role": "overview", "dimensions": [1491, 605], "compression": "jpeg", "color_model": "RGB"},
+        {"role": "label", "dimensions": [608, 547], "compression": "uncompressed", "color_model": "RGB"}
+      ],
+      "backends": [
+        {
+          "backend": "wsidicom 0.36.1/Pillow",
+          "status": "supported",
+          "output_residences": ["host"],
+          "reason": "The CPU reader preserves sparse logical levels and decodes transfer syntax 1.2.840.10008.1.2.4.50."
+        },
+        {
+          "backend": "nvImageCodec 0.10.0.9/nvJPEG 12.4.0.76",
+          "status": "not_tested",
+          "output_residences": ["cuda"],
+          "reason": "The repository accepts this transfer syntax, but no pixel-agreement or sparse-frame GPU run exists for this fixture."
+        }
+      ],
+      "gpu_trial": {
+        "status": "possible_now",
+        "candidate": "DICOM encoded-frame seam plus nvImageCodec nvJPEG",
+        "reason": "The fixture is public, the DICOM reader exposes encoded JPEG frames, and the optional decoder accepts transfer syntax 1.2.840.10008.1.2.4.50. A trial still needs sparse-coordinate sampling and a CPU pixel oracle."
+      }
+    },
+    {
+      "fixture_id": "dicom-cptac-coad-jpeg2000",
+      "acquisition_profile": "extended",
+      "family": "dicom_wsi",
+      "container": "DICOM VL Whole Slide Microscopy series",
+      "compression": "jpeg2000",
+      "tiling": "TILED_FULL with logical levels 0, 2, and 3",
+      "color_model": "YBR_ICT decoded to RGB",
+      "packaging": "dicom_series",
+      "materialized_path": ".",
+      "sources": [
+        {"path": "0192795d-4378-4ad3-8301-05a619500b52.dcm", "url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/0192795d-4378-4ad3-8301-05a619500b52.dcm", "bytes": 795484, "sha256": "39a11a53cf9d4297259fbc76a3528ff24d156a90c359f6196e16a727995dc391"},
+        {"path": "6356f91d-ceba-44fe-b3fd-34c157c12b29.dcm", "url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/6356f91d-ceba-44fe-b3fd-34c157c12b29.dcm", "bytes": 2376984, "sha256": "29e507d6312f98103e16298754b3529d13c0445ca2fd9ce762f311b83d42bc47"},
+        {"path": "82975e65-0e70-4439-a39e-df9785708f94.dcm", "url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/82975e65-0e70-4439-a39e-df9785708f94.dcm", "bytes": 972276, "sha256": "c92f1bb52c4c2f7dd5d544d5974a138181d5f13b3dfd1674a39c15e895847a42"},
+        {"path": "a75b39af-d0bc-490b-95ae-d569650ace66.dcm", "url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/a75b39af-d0bc-490b-95ae-d569650ace66.dcm", "bytes": 2013034, "sha256": "40e41c8d99415d2e03cacbcfe6ff6221f0bbba00485e6c6f42d5b86caa4997d7"},
+        {"path": "ccc0f1f8-6b8b-474b-9490-a0bbf5b9b5dd.dcm", "url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/ccc0f1f8-6b8b-474b-9490-a0bbf5b9b5dd.dcm", "bytes": 10600048, "sha256": "675ddd4dd43ed48994bacd331f5d9bec2d3b585f1d3b36141eecaa64719569ba"},
+        {"path": "eb3e0b2b-932b-4e6d-8176-59dc0a1575eb.dcm", "url": "https://idc-open-data.s3.amazonaws.com/b117aabf-c225-432e-95af-8ee9247a1ad6/eb3e0b2b-932b-4e6d-8176-59dc0a1575eb.dcm", "bytes": 1944136, "sha256": "5eb4588b1433b79b7aea8973eb4a2e44cf53c15398d91bf77d1a76233b9681b8"}
+      ],
+      "total_bytes": 18701962,
+      "license": {
+        "name": "Creative Commons Attribution 3.0 Unported",
+        "spdx_id": "CC-BY-3.0",
+        "url": "https://creativecommons.org/licenses/by/3.0/",
+        "redistribution": "Redistribution requires attribution and a license notice.",
+        "attribution": "Clunie, Clifford, Pot, Wagner, Farahani, Kim, and Fedorov, DICOM converted Slide Microscopy images for the CPTAC-COAD collection, 2024, doi:10.5281/zenodo.13351625"
+      },
+      "levels": [
+        {"logical_level": 0, "dimensions": [14400, 14770], "downsample": [1.0, 1.0], "mpp": [0.2501, 0.2501], "tile_size": [256, 256], "frame_count": 3306},
+        {"logical_level": 2, "dimensions": [3600, 3692], "downsample": [4.0, 4.0], "mpp": [1.0004, 1.0004], "tile_size": [256, 256], "frame_count": 225},
+        {"logical_level": 3, "dimensions": [1800, 1846], "downsample": [8.0, 8.0], "mpp": [2.0008, 2.0008], "tile_size": [256, 256], "frame_count": 64}
+      ],
+      "associated_images": [
+        {"role": "label", "dimensions": [376, 449], "compression": "uncompressed", "color_model": "RGB"},
+        {"role": "thumbnail", "dimensions": [748, 768], "compression": "uncompressed", "color_model": "RGB"},
+        {"role": "overview", "dimensions": [1280, 431], "compression": "uncompressed", "color_model": "RGB"}
+      ],
+      "backends": [
+        {
+          "backend": "wsidicom 0.36.1/pylibjpeg-openjpeg 2.6.0",
+          "status": "supported",
+          "output_residences": ["host"],
+          "reason": "The CPU reader preserves sparse logical-level numbering and decodes transfer syntax 1.2.840.10008.1.2.4.91."
+        },
+        {
+          "backend": "nvImageCodec 0.10.0.9/nvJPEG2000 0.12.0.58",
+          "status": "supported",
+          "output_residences": ["cuda"],
+          "reason": "PR #2158 measured this exact public series and found maximum absolute channel error 1 against OpenJPEG."
+        }
+      ],
+      "gpu_trial": {
+        "status": "possible_now",
+        "candidate": "DICOM encoded-frame seam plus nvImageCodec nvJPEG2000",
+        "reason": "The public fixture, CPU oracle, encoded-frame extraction, packaging, and pixel tolerance already exist. Batch 1, 8, 32, and 128 measurements remain reproducible through the bounded GPU harness."
+      }
+    }
+  ]
+}

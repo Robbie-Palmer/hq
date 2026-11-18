@@ -2060,6 +2060,45 @@ describe("work-item context persistence", () => {
     ]);
   });
 
+  it("removes an architecture-decision link by its normalized URL", async () => {
+    await repository.createWorkItem({ id: "ticket", title: "Ticket" });
+    await repository.putWorkItemArchitectureDecision({
+      workItemId: "ticket",
+      title: "Withdrawn draft",
+      url: "https://example.test/adrs/050",
+      role: "background",
+    });
+    const identity = {
+      workItemId: "ticket",
+      url: "https://example.test/adrs/050",
+    };
+    const options = { idempotencyKey: recordId(304) };
+
+    await expect(
+      repository.removeWorkItemArchitectureDecision(identity, options),
+    ).resolves.toEqual(identity);
+    await expect(
+      repository.removeWorkItemArchitectureDecision(identity, options),
+    ).resolves.toEqual(identity);
+
+    expect((await repository.load()).architectureDecisions).toEqual([]);
+    const events = await repository.listEvents({ workItemId: "ticket" });
+    expect(events.map(({ type }) => type)).toEqual([
+      "work_item.created",
+      "context.put",
+      "context.removed",
+    ]);
+    expect(events.at(-1)?.data).toEqual({
+      kind: "architecture_decision",
+      url: "https://example.test/adrs/050",
+    });
+    await expect(
+      repository.removeWorkItemArchitectureDecision(identity, {
+        idempotencyKey: recordId(305),
+      }),
+    ).rejects.toMatchObject({ code: "architecture_decision_not_found" });
+  });
+
   it("refreshes one PR snapshot independently from its many work-item links", async () => {
     await repository.createWorkItem({ id: "first", title: "First" });
     await repository.createWorkItem({ id: "second", title: "Second" });

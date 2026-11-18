@@ -36,6 +36,22 @@ spec:
         object.spec.template.spec.containers[0].image.matches('^(nvcr.io/nvidia/|docker.io/nvidia/|ghcr.io/robbie-palmer/)[a-z0-9._/-]+@sha256:[a-f0-9]{64}$')
       message: The benchmark container must use an approved digest-pinned image.
     - expression: >-
+        (object.metadata.labels['gpu-benchmark.homelab.dev/mode'] == 'profile' &&
+          has(object.spec.template.spec.containers[0].command) &&
+          object.spec.template.spec.containers[0].command == [
+            'nsys', 'profile', '--sample=none', '--trace=cuda,nvtx,osrt',
+            '--stats=true', '--force-overwrite=true', '--output=/tmp/profile'
+          ] &&
+          has(object.spec.template.spec.containers[0].args) &&
+          object.spec.template.spec.containers[0].args.size() > 0) ||
+        (object.metadata.labels['gpu-benchmark.homelab.dev/mode'] != 'profile' &&
+          !has(object.spec.template.spec.containers[0].command))
+      message: Profiling Jobs must use the fixed unprivileged Nsight Systems wrapper.
+    - expression: >-
+        object.metadata.labels['gpu-benchmark.homelab.dev/mode'] != 'smoke' ||
+        object.spec.template.spec.containers[0].image == 'nvcr.io/nvidia/k8s/cuda-sample@sha256:7c7540bdf1f942d4fb6db97069fd6c289471b54ac29e3c7fcdf914cf77af7d41'
+      message: GPU smoke Jobs must use the reviewed CUDA vector-add image.
+    - expression: >-
         object.spec.template.spec.containers.size() == 1 &&
         has(object.spec.template.spec.containers[0].resources.requests) &&
         has(object.spec.template.spec.containers[0].resources.limits) &&

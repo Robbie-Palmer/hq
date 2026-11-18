@@ -44,6 +44,17 @@ platform_layers:
       - slot: "backend-api.relational-connection"
         adopted: "2026-10-19T00:00:00Z"
         decision: "personal-finance-app:003-online-only-shared-financial-writes"
+  - layer: "identity"
+    adopted: "2026-11-07T00:00:00Z"
+    tracking: true
+    decision: "personal-finance-app:008-cedar-household-authorization"
+    slots:
+      - slot: "identity.authorization-policy"
+        adopted: "2026-11-07T00:00:00Z"
+        decision: "personal-finance-app:008-cedar-household-authorization"
+      - slot: "identity.authorization-engine"
+        adopted: "2026-11-07T00:00:00Z"
+        decision: "personal-finance-app:008-cedar-household-authorization"
   - layer: "database"
     adopted: "2026-09-24T00:00:00Z"
     tracking: true

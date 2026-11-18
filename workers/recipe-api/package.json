@@ -23,9 +23,11 @@
   },
   "dependencies": {
     "@better-auth/agent-auth": "0.6.2",
+    "@cedar-policy/cedar-wasm": "4.14.0",
     "@hono/zod-openapi": "1.6.3",
     "agent-auth": "workspace:*",
     "better-auth": "^1.6.19",
+    "cedar-authorization": "workspace:*",
     "better-auth-cloudflare": "^0.3.0",
     "drizzle-orm": "^0.45.0",
     "fflate": "^0.8.3",

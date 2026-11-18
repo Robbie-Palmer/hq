@@ -1,0 +1,35 @@
+stages:
+  verify_publisher_metadata:
+    cmd: uv run --locked pannuke-source-data verify-metadata
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/pannuke_source_data
+      - uv.lock
+    outs:
+      - outputs/publisher-metadata.json
+
+  acquire_native:
+    cmd: uv run --locked pannuke-source-data acquire
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/pannuke_source_data
+      - uv.lock
+    outs:
+      - data/raw
+
+  index_native:
+    cmd: uv run --locked pannuke-source-data index
+    deps:
+      - data/raw
+      - manifest.json
+      - pyproject.toml
+      - src/pannuke_source_data
+      - uv.lock
+    outs:
+      - outputs/native-index.jsonl
+    metrics:
+      - outputs/source-metrics.json

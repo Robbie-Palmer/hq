@@ -1507,7 +1507,7 @@ test("the Doppler installer pins its schema version and enforces HTTPS", () => {
   assert.match(installer, /--tlsv1\.2/);
 });
 
-test("the vector overlay binds the large workspace and RTX 4080 to the laptop", () => {
+test("the vector overlay keeps the controller GPU-free on the RTX 4080 laptop", () => {
   const resources = parseResources(overlays.vector);
   const deployment = resource(resources, "Deployment", "t3-code", "t3-code");
   const devicePlugin = resource(
@@ -1532,6 +1532,12 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     "t3-code",
     "t3-code",
   );
+  const posthogReadSecret = resource(
+    resources,
+    "DopplerSecret",
+    "t3-code-posthog-read",
+    "t3-code",
+  );
   const dopplerWrapper = resources.find(
     ({ kind, metadata }) =>
       kind === "ConfigMap" &&
@@ -1541,7 +1547,7 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   assert.ok(dopplerWrapper);
   const podSpec = valueAt(deployment, ["spec", "template", "spec"]);
   assert.ok(typeof podSpec === "object" && podSpec !== null);
-  assert.equal(valueAt(podSpec, ["runtimeClassName"]), "nvidia");
+  assert.equal((podSpec as Record<string, unknown>).runtimeClassName, undefined);
   assert.deepEqual(valueAt(podSpec, ["nodeSelector"]), {
     "homelab.dev/accelerator": "nvidia",
     "homelab.dev/capability": "agent-workspace",
@@ -1576,9 +1582,11 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   }
   assert.equal(valueAt(t3Container, ["resources", "limits", "cpu"]), "20");
   assert.equal(valueAt(t3Container, ["resources", "limits", "memory"]), "40Gi");
+  const t3Limits = valueAt(t3Container, ["resources", "limits"]);
+  assert.ok(typeof t3Limits === "object" && t3Limits !== null);
   assert.equal(
-    valueAt(t3Container, ["resources", "limits", "nvidia.com/gpu"]),
-    "1",
+    (t3Limits as Record<string, unknown>)["nvidia.com/gpu"],
+    undefined,
   );
   const t3Environment = valueAt(t3Container, ["env"]);
   assert.ok(Array.isArray(t3Environment));
@@ -1603,6 +1611,38 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
     String(valueAt(dopplerWrapper, ["data", "work-graph"])),
     /exec \/usr\/local\/bin\/work-graph "\$@"/,
   );
+  assert.match(
+    String(valueAt(dopplerWrapper, ["data", "posthog-query"])),
+    /api\/projects\/\$\{project_id\}\/query\//,
+  );
+  assert.match(
+    String(valueAt(dopplerWrapper, ["data", "posthog-query"])),
+    /homepage-vitals/,
+  );
+  for (const name of [
+    "POSTHOG_PROJECT_ID",
+    "POSTHOG_QUERY_HOST",
+    "POSTHOG_PERSONAL_API_KEY",
+  ]) {
+    assert.deepEqual(
+      t3Environment.find(
+        (variable) =>
+          typeof variable === "object" &&
+          variable !== null &&
+          (variable as Record<string, unknown>).name === name,
+      ),
+      {
+        name,
+        valueFrom: {
+          secretKeyRef: {
+            key: name,
+            name: "t3-code-posthog-read",
+            optional: false,
+          },
+        },
+      },
+    );
+  }
   const t3VolumeMounts = valueAt(t3Container, ["volumeMounts"]);
   assert.ok(Array.isArray(t3VolumeMounts));
   assert.deepEqual(
@@ -1663,6 +1703,23 @@ test("the vector overlay binds the large workspace and RTX 4080 to the laptop", 
   );
   assert.equal(valueAt(cacheVolume, ["spec", "capacity", "storage"]), "250Gi");
   assert.equal(valueAt(runtimeSecret, ["spec", "config"]), "prd_vector_development");
+  assert.equal(
+    valueAt(posthogReadSecret, ["spec", "project"]),
+    "personal-site",
+  );
+  assert.equal(
+    valueAt(posthogReadSecret, ["spec", "config"]),
+    "dev_agent_observability",
+  );
+  assert.equal(
+    valueAt(posthogReadSecret, ["spec", "tokenSecret", "name"]),
+    "doppler-posthog-read-token",
+  );
+  assert.deepEqual(valueAt(posthogReadSecret, ["spec", "secrets"]), [
+    "POSTHOG_PROJECT_ID",
+    "POSTHOG_QUERY_HOST",
+    "POSTHOG_PERSONAL_API_KEY",
+  ]);
 
   const devicePluginContainers = valueAt(devicePlugin, [
     "spec",
@@ -1797,6 +1854,7 @@ test("Vector exports bounded DCGM metrics through OpenTelemetry to Netdata", () 
   assert.match(metrics, /^DCGM_FI_DEV_GPU_UTIL,/m);
   assert.match(metrics, /^DCGM_FI_DEV_FB_USED,/m);
   assert.match(metrics, /^DCGM_FI_DEV_POWER_USAGE,/m);
+  assert.match(metrics, /^DCGM_FI_DEV_CLOCK_THROTTLE_REASONS,/m);
   assert.doesNotMatch(metrics, /DCGM_FI_PROF_/);
   assert.equal(valueAt(service, ["spec", "type"]), "ClusterIP");
   assert.equal(valueAt(service, ["spec", "internalTrafficPolicy"]), "Local");
@@ -1844,10 +1902,105 @@ test("Vector exports bounded DCGM metrics through OpenTelemetry to Netdata", () 
     new URL("../hosts/vector-development/default.nix", import.meta.url),
     "utf8",
   );
+  const gpuHealthCollector = readFileSync(
+    new URL(
+      "../hosts/vector-development/scripts/collect-gpu-health.bash",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  const gpuHealthAlarms = readFileSync(
+    new URL(
+      "../hosts/vector-development/netdata/health.d/vector-development-gpu.conf",
+      import.meta.url,
+    ),
+    "utf8",
+  );
   assert.match(hostConfig, /services = \{[\s\S]*?netdata = \{[\s\S]*?retention = "7d"/);
   assert.match(hostConfig, /systemd\.services\.vector-development-dcgm-proxy/);
+  assert.match(hostConfig, /systemd\.timers\.vector-development-gpu-health/);
+  assert.match(hostConfig, /health\.d\/vector-development-gpu\.conf/);
   assert.match(hostConfig, /systemd\.services\.opentelemetry-collector/);
+  assert.match(gpuHealthCollector, /DCGM_FI_DEV_CLOCK_THROTTLE_REASONS/);
+  assert.match(gpuHealthCollector, /int\(reasons \/ 32\) % 4/);
+  assert.match(gpuHealthCollector, /vector_development\.gpu\.allocatable/);
+  for (const alarm of [
+    "vector_gpu_device_plugin_down",
+    "vector_gpu_metrics_down",
+    "vector_gpu_not_allocatable",
+    "vector_gpu_xid_error",
+    "vector_gpu_thermal_throttle",
+    "vector_gpu_power_brake",
+    "vector_gpu_temperature",
+    "vector_gpu_framebuffer_pressure",
+  ]) {
+    assert.match(gpuHealthAlarms, new RegExp(`alarm: ${alarm}`));
+  }
   assert.doesNotMatch(collectorText, /posthog/i);
+});
+
+test("the Vector GPU health collector derives actionable Netdata signals", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-gpu-health-"));
+  const collector = fileURLToPath(
+    new URL(
+      "../hosts/vector-development/scripts/collect-gpu-health.bash",
+      import.meta.url,
+    ),
+  );
+  const k3s = join(temporaryDirectory, "k3s");
+  const curl = join(temporaryDirectory, "curl");
+  const sink = join(temporaryDirectory, "statsd.txt");
+
+  try {
+    writeFileSync(
+      k3s,
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [[ " $* " == *" get daemonset "* ]]; then
+  printf '%s\n' '{"status":{"desiredNumberScheduled":1,"numberAvailable":1}}'
+else
+  printf '1'
+fi
+`,
+    );
+    writeFileSync(
+      curl,
+      `#!/usr/bin/env bash
+set -euo pipefail
+cat <<'METRICS'
+DCGM_FI_DEV_GPU_UTIL{gpu="0"} 75
+DCGM_FI_DEV_XID_ERRORS{gpu="0"} 31
+DCGM_FI_DEV_GPU_TEMP{gpu="0"} 84
+DCGM_FI_DEV_FB_USED{gpu="0"} 900
+DCGM_FI_DEV_FB_FREE{gpu="0"} 100
+DCGM_FI_DEV_CLOCK_THROTTLE_REASONS{gpu="0"} 100
+METRICS
+`,
+    );
+    chmodSync(k3s, 0o755);
+    chmodSync(curl, 0o755);
+    run("bash", [collector], undefined, {
+      ...process.env,
+      PATH: `${temporaryDirectory}:${process.env.PATH ?? ""}`,
+      VECTOR_GPU_STATSD_SINK: sink,
+    });
+    const metrics = readFileSync(sink, "utf8");
+    for (const expected of [
+      "vector_development.gpu.plugin_up:1|g",
+      "vector_development.gpu.metrics_up:1|g",
+      "vector_development.gpu.allocatable:1|g",
+      "vector_development.gpu.xid_code:31|g",
+      "vector_development.gpu.temperature_c:84|g",
+      "vector_development.gpu.fb_used_percent:90|g",
+      "vector_development.gpu.thermal_throttle:1|g",
+      "vector_development.gpu.power_brake:0|g",
+      "vector_development.gpu.power_cap:1|g",
+    ]) {
+      assert.ok(metrics.includes(expected), expected);
+    }
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
+  }
 });
 
 test("Vector T3 sessions can launch only bounded GPU benchmark Jobs", () => {
@@ -1948,7 +2101,7 @@ test("Vector T3 sessions can launch only bounded GPU benchmark Jobs", () => {
   });
   assert.deepEqual(
     validationsByPolicy.map((validations) => validations.length),
-    [3, 4, 3],
+    [3, 4, 5],
   );
   const expressions = validationsByPolicy
     .flat()
@@ -1969,6 +2122,8 @@ test("Vector T3 sessions can launch only bounded GPU benchmark Jobs", () => {
     "capabilities.drop == ['ALL']",
     "!has(variable.valueFrom)",
     "'nvidia.com/gpu'",
+    "gpu-benchmark.homelab.dev/mode",
+    "--sample=none",
     "quantity('16Gi')",
     "quantity('8Gi')",
     "emptyDir",
@@ -2032,6 +2187,7 @@ test("the Vector benchmark launcher renders the admitted Job contract", () => {
   const launcher = fileURLToPath(
     new URL("../scripts/vector-gpu-benchmark.sh", import.meta.url),
   );
+  const launcherText = readFileSync(launcher, "utf8");
   const image = `nvcr.io/nvidia/cuda-sample@sha256:${"a".repeat(64)}`;
 
   try {
@@ -2066,6 +2222,10 @@ cat
       valueAt(job, ["metadata", "labels", "gpu-benchmark.homelab.dev/run-id"]),
       "smoke-001",
     );
+    assert.equal(
+      valueAt(job, ["metadata", "labels", "gpu-benchmark.homelab.dev/mode"]),
+      "benchmark",
+    );
     assert.equal(valueAt(job, ["spec", "activeDeadlineSeconds"]), 1800);
     assert.equal(valueAt(job, ["spec", "backoffLimit"]), 0);
     assert.equal(valueAt(job, ["spec", "ttlSecondsAfterFinished"]), 3600);
@@ -2079,6 +2239,7 @@ cat
     });
     const container = valueAt(podSpec, ["containers", 0]);
     assert.equal(valueAt(container, ["image"]), image);
+    assert.equal((container as Record<string, unknown>).command, undefined);
     assert.deepEqual(valueAt(container, ["args"]), ["--iterations", "10"]);
     assert.equal(
       valueAt(container, ["resources", "limits", "nvidia.com/gpu"]),
@@ -2094,9 +2255,147 @@ cat
         emptyDir: { medium: "", sizeLimit: "1Gi" },
       },
     ]);
+
+    const profiled = run(
+      "bash",
+      [launcher, "profile", "profile-001", image, "--", "python", "train.py"],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${temporaryDirectory}:${process.env.PATH ?? ""}`,
+      },
+    ).stdout;
+    const profileJob = JSON.parse(profiled) as KubernetesResource;
+    assert.equal(
+      valueAt(profileJob, ["metadata", "labels", "gpu-benchmark.homelab.dev/mode"]),
+      "profile",
+    );
+    assert.deepEqual(
+      valueAt(profileJob, ["spec", "template", "spec", "containers", 0, "command"]),
+      [
+        "nsys",
+        "profile",
+        "--sample=none",
+        "--trace=cuda,nvtx,osrt",
+        "--stats=true",
+        "--force-overwrite=true",
+        "--output=/tmp/profile",
+      ],
+    );
+    assert.deepEqual(
+      valueAt(profileJob, ["spec", "template", "spec", "containers", 0, "args"]),
+      ["python", "train.py"],
+    );
+
+    const smokeManifest = join(temporaryDirectory, "smoke.json");
+    writeFileSync(
+      kubectl,
+      `#!/usr/bin/env bash
+set -euo pipefail
+test "$1" = --namespace
+test "$2" = gpu-benchmarks
+case "$3" in
+  create)
+    cat >"${smokeManifest}"
+    ;;
+  wait)
+    ;;
+  logs)
+    echo "Test PASSED"
+    ;;
+  delete)
+    ;;
+  *)
+    exit 2
+    ;;
+esac
+`,
+    );
+    chmodSync(kubectl, 0o755);
+    const smokeResult = run(
+      "bash",
+      [launcher, "smoke", "smoke-test"],
+      undefined,
+      {
+        ...process.env,
+        PATH: `${temporaryDirectory}:${process.env.PATH ?? ""}`,
+      },
+    ).stdout;
+    assert.match(smokeResult, /Test PASSED/);
+    const smokeJob = JSON.parse(
+      readFileSync(smokeManifest, "utf8"),
+    ) as KubernetesResource;
+    assert.equal(
+      valueAt(smokeJob, ["metadata", "labels", "gpu-benchmark.homelab.dev/mode"]),
+      "smoke",
+    );
+    assert.equal(
+      valueAt(smokeJob, ["spec", "template", "spec", "containers", 0, "image"]),
+      "nvcr.io/nvidia/k8s/cuda-sample@sha256:7c7540bdf1f942d4fb6db97069fd6c289471b54ac29e3c7fcdf914cf77af7d41",
+    );
+    assert.match(launcherText, /Test PASSED/);
+    assert.match(launcherText, /--for=condition=complete/);
   } finally {
     rmSync(temporaryDirectory, { force: true, recursive: true });
   }
+});
+
+test("the Pathologize GPU benchmark image pins CUDA dependencies and public inputs", () => {
+  const dockerfile = readFileSync(
+    new URL("../images/pathologize-gpu-benchmark/Dockerfile", import.meta.url),
+    "utf8",
+  );
+  const installer = readFileSync(
+    new URL("../images/pathologize-gpu-benchmark/install.sh", import.meta.url),
+    "utf8",
+  );
+  const buildScript = readFileSync(
+    new URL("../scripts/build-pathologize-gpu-benchmark-image.sh", import.meta.url),
+    "utf8",
+  );
+  const loadScript = readFileSync(
+    new URL("../scripts/load-vector-pathologize-gpu-image.sh", import.meta.url),
+    "utf8",
+  );
+  const homelabMise = readFileSync(
+    new URL("../mise.toml", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    dockerfile,
+    /^FROM docker\.io\/nvidia\/cuda:[^@]+@sha256:[a-f0-9]{64}$/m,
+  );
+  assert.match(
+    dockerfile,
+    /^FROM ghcr\.io\/astral-sh\/uv:[^@]+@sha256:[a-f0-9]{64} AS uv$/m,
+  );
+  assert.match(dockerfile, /pathologize-tiling-benchmark\/uv\.lock/);
+  assert.match(dockerfile, /COPY ml-pipelines\/pathologize-data-registry\/data\/raw\/cptac-coad-idc/);
+  assert.match(dockerfile, /USER 1000:1000/);
+  assert.match(dockerfile, /ENTRYPOINT \["pathologize-model-loader-benchmark"\]/);
+  assert.match(installer, /uv sync/);
+  assert.match(installer, /--locked/);
+  assert.match(installer, /--extra cuda/);
+  assert.match(installer, /--extra model/);
+  assert.match(installer, /--no-editable/);
+  assert.match(installer, /import nvidia\.nvimgcodec/);
+  assert.doesNotMatch(installer, /pip install/);
+  assert.match(buildScript, /--platform linux\/amd64/);
+  assert.match(buildScript, /--pull=false/);
+  assert.match(
+    loadScript,
+    /^target=\$\{VECTOR_DEVELOPMENT_TAILNET_TARGET:-root@vector-development\.tailaa0e46\.ts\.net\}$/m,
+  );
+  assert.match(loadScript, /gzip --decompress --stdout \| k3s ctr images import -/);
+  assert.match(loadScript, /k3s ctr images list "name==\$\{image\}"/);
+  assert.doesNotMatch(loadScript, /k3s ctr images info/);
+  assert.match(loadScript, /k3s crictl inspecti/);
+  assert.match(loadScript, /\.metadata\.labels\.homelab\\\.dev\/location/);
+  assert.match(
+    homelabMise,
+    /\[tasks\.pathologize-gpu-image-push\][\s\S]*?depends = \["pathologize-gpu-image-check"\]/,
+  );
 });
 
 test("the Vector workspace image provides the required glibc version", () => {
@@ -3187,12 +3486,35 @@ test("the Vector health check validates the NVIDIA runtime and browser sandbox",
   assert.match(healthCheck, /test -r \/etc\/apparmor\.d\/tunables\/global/);
   assert.match(healthCheck, /timeout 30s chromium/);
   assert.match(healthCheck, /--dump-dom about:blank/);
+  assert.match(healthCheck, /vector-gpu-benchmark smoke/);
+  assert.match(
+    healthCheck,
+    /resources\.limits\.nvidia\\\.com\/gpu/,
+  );
   assert.doesNotMatch(healthCheck, /--no-sandbox/);
   assert.doesNotMatch(
     healthCheck,
     /command -v nvidia-container-runtime/,
     "the tools output is intentionally not linked into the global system PATH",
   );
+});
+
+test("the Vector DCGM diagnostic is pinned and isolated", () => {
+  const diagnostic = readFileSync(
+    new URL("../scripts/vector-gpu-diagnostic.sh", import.meta.url),
+    "utf8",
+  );
+
+  assert.match(
+    diagnostic,
+    /nvcr\.io\/nvidia\/cloud-native\/dcgm@sha256:[a-f0-9]{64}/,
+  );
+  assert.match(diagnostic, /--cap-drop ALL/);
+  assert.match(diagnostic, /--cap-add SYS_ADMIN/);
+  assert.match(diagnostic, /--network none/);
+  assert.match(diagnostic, /--read-only/);
+  assert.match(diagnostic, /dcgmi diag --run 1/);
+  assert.doesNotMatch(diagnostic, /--privileged/);
 });
 
 test("Vector agent credentials use an idle guard and non-secret health checks", () => {
@@ -3222,6 +3544,14 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
       "../k3s/overlays/vector-development/workspaces/operator/work-graph-wrapper.sh",
       import.meta.url,
     ),
+    "utf8",
+  );
+  const homelabMise = readFileSync(
+    new URL("../mise.toml", import.meta.url),
+    "utf8",
+  );
+  const vectorHealthCheck = readFileSync(
+    new URL("../scripts/vector-development-health.sh", import.meta.url),
     "utf8",
   );
 
@@ -3303,6 +3633,13 @@ test("Vector agent credentials use an idle guard and non-secret health checks", 
   }
   assert.match(dopplerWrapper, /exec "\$\{real_doppler\}" "\$@"/);
   assert.match(workGraphWrapper, /exec \/usr\/local\/bin\/work-graph "\$@"/);
+  assert.ok(
+    homelabMise.includes(
+      '"t3-code:doppler-posthog-read-token:personal-site:dev_agent_observability"',
+    ),
+  );
+  assert.ok(vectorHealthCheck.includes("posthog-query homepage-vitals"));
+  assert.ok(vectorHealthCheck.includes("POSTHOG_PERSONAL_API_KEY"));
 });
 
 test("the Vector controller webhook reconciler is fixed to the pilot boundary", () => {
@@ -3448,6 +3785,69 @@ test("the Vector Doppler wrapper confines callers to declared dev configs", () =
     assert.equal(environmentConfig.status, 2);
   } finally {
     rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+});
+
+test("the Vector PostHog wrapper keeps its key out of arguments and returns homepage vitals", () => {
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "vector-posthog-query-"));
+  const binDirectory = join(temporaryDirectory, "bin");
+  const argumentPath = join(temporaryDirectory, "arguments");
+  const authPath = join(temporaryDirectory, "auth");
+  const bodyPath = join(temporaryDirectory, "body");
+  mkdirSync(binDirectory);
+  const curlPath = join(binDirectory, "curl");
+  writeFileSync(
+    curlPath,
+    `#!/usr/bin/env bash
+set -euo pipefail
+previous=
+for argument in "$@"; do
+  printf '%s\\n' "$argument" >>"$POSTHOG_TEST_ARGUMENTS"
+  case "$previous" in
+    --config) cp -- "$argument" "$POSTHOG_TEST_AUTH" ;;
+    --data-binary) cp -- "\${argument#@}" "$POSTHOG_TEST_BODY" ;;
+  esac
+  previous=$argument
+done
+printf '%s\\n' '{"results":[[10,100,200,30,0.01]]}'
+`,
+  );
+  chmodSync(curlPath, 0o755);
+
+  const wrapper = fileURLToPath(
+    new URL(
+      "../k3s/overlays/vector-development/workspaces/operator/posthog-query.sh",
+      import.meta.url,
+    ),
+  );
+  const apiKey = "phx_test_read_key";
+  const result = spawnSync("bash", [wrapper, "homepage-vitals"], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATH: `${binDirectory}:${process.env.PATH ?? ""}`,
+      POSTHOG_PROJECT_ID: "12345",
+      POSTHOG_QUERY_HOST: "https://eu.posthog.com",
+      POSTHOG_PERSONAL_API_KEY: apiKey,
+      POSTHOG_TEST_ARGUMENTS: argumentPath,
+      POSTHOG_TEST_AUTH: authPath,
+      POSTHOG_TEST_BODY: bodyPath,
+    },
+  });
+
+  try {
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, '{"results":[[10,100,200,30,0.01]]}\n');
+    assert.match(
+      readFileSync(argumentPath, "utf8"),
+      /https:\/\/eu\.posthog\.com\/api\/projects\/12345\/query\//,
+    );
+    assert.doesNotMatch(readFileSync(argumentPath, "utf8"), new RegExp(apiKey));
+    assert.match(readFileSync(authPath, "utf8"), new RegExp(apiKey));
+    assert.match(readFileSync(bodyPath, "utf8"), /p75_lcp_ms/);
+    assert.doesNotMatch(`${result.stdout}${result.stderr}`, new RegExp(apiKey));
+  } finally {
+    rmSync(temporaryDirectory, { force: true, recursive: true });
   }
 });
 

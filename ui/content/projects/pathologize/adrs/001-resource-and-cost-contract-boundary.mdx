@@ -32,9 +32,11 @@ Pathologize adapter specifications, resource budgets, resource usage, and
 scorecards will not contain provider authorization or provider-call limits.
 
 Pathologize continues to own benchmark-specific resource limits and
-measurements: input bytes, prediction bytes, pixels read, accelerator seconds,
-wall time, CPU time, and peak resident memory. These quantities affect whether
-a candidate is practical on the benchmark workload.
+measurements: input bytes, prediction bytes, input pixels, wall time, CPU time,
+peak resident memory, accelerator wall time, and peak accelerator memory. The
+runner can observe these quantities without asking an adapter to estimate its
+own work. These quantities affect whether a candidate is practical on the
+benchmark workload.
 
 Provider funding, account policy, and spending authorization remain in the
 orchestrator. If a future benchmark adapter uses metered inference, extract the

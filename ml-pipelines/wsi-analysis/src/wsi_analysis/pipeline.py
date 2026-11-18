@@ -1,10 +1,10 @@
 from pathlib import Path
 
 import yaml
+from pathologize_tiler import build_pyramid, extract_tiles
 
 from wsi_analysis.config import PROJECT_DIR, PipelineSettings
 from wsi_analysis.models import PipelineParameters
-from wsi_analysis.tiling import build_pyramid, extract_tiles
 
 
 def load_pipeline_parameters(path: Path) -> PipelineParameters:

@@ -1,0 +1,59 @@
+{
+  "image_width": 100,
+  "image_height": 80,
+  "ontology_labels": [
+    "nonTIL_stromal",
+    "sTIL",
+    "tumor_any",
+    "AMBIGUOUS",
+    "other_nucleus"
+  ],
+  "annotations": [
+    {
+      "class_name": "tumor_any",
+      "annotation_type": "polyline",
+      "xmin": 10,
+      "ymin": 20,
+      "xmax": 30,
+      "ymax": 40,
+      "coordinates_x": [10, 30, 30, 10, 10],
+      "coordinates_y": [20, 20, 40, 40, 20]
+    },
+    {
+      "class_name": "sTIL",
+      "annotation_type": "rectangle",
+      "xmin": 40,
+      "ymin": 10,
+      "xmax": 70,
+      "ymax": 30,
+      "coordinates_x": [40, 70, 70, 40],
+      "coordinates_y": [10, 10, 30, 30]
+    },
+    {
+      "class_name": "AMBIGUOUS",
+      "annotation_type": "point",
+      "xmin": 80,
+      "ymin": 60,
+      "xmax": 80,
+      "ymax": 60,
+      "coordinates_x": [80],
+      "coordinates_y": [60]
+    }
+  ],
+  "expected_detection_labels": [
+    "2 0.20000000 0.37500000 0.20000000 0.25000000",
+    "1 0.55000000 0.25000000 0.30000000 0.25000000"
+  ],
+  "expected_segmentation_labels": [
+    "2 0.10000000 0.25000000 0.30000000 0.25000000 0.30000000 0.50000000 0.10000000 0.50000000"
+  ],
+  "expected_exclusions": {
+    "detect": {
+      "point_has_no_area": 1
+    },
+    "segment": {
+      "point_has_no_polygon": 1,
+      "rectangle_has_no_polygon": 1
+    }
+  }
+}

@@ -40,6 +40,7 @@ import { AccountLiquidityEditor } from "./account-liquidity-editor";
 import { AccountProjection } from "./account-projection";
 import { AccountTrajectoryChart } from "./account-trajectory-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { ClearAccountHistoryButton } from "./clear-account-history-button";
 import { CloseAccountControls } from "./close-account-controls";
 import { EquityProjection } from "./equity-projection";
@@ -61,6 +62,20 @@ const CAPITAL_FLOW_LABELS: Record<CapitalFlowKind, string> = {
   debtPrincipal: "Debt principal",
   external: "Outside entered income",
 };
+
+const selectAccountDetailSheet = selectAssetTrackerFields(
+  "accounts",
+  "accountDetails",
+  "recurringFlows",
+  "inflation",
+  "transfers",
+  "netWorthData",
+  "propertyComparableViews",
+  "propertyValueHistories",
+  "setPropertyValueSelection",
+);
+const selectBalanceHistory = selectAssetTrackerFields("deleteSnapshot");
+const selectCapitalFlowHistory = selectAssetTrackerFields("deleteCapitalFlow");
 
 function PropertyEvidence({
   accountId,
@@ -106,7 +121,7 @@ export function AccountDetailSheet({
     propertyComparableViews = [],
     propertyValueHistories = [],
     setPropertyValueSelection,
-  } = useAssetTracker();
+  } = useAssetTracker(selectAccountDetailSheet);
   const account =
     accountDetails.find((detail) => detail.id === accountId) ?? null;
   if (!account) return null;
@@ -321,7 +336,7 @@ function EquityCard({
 }
 
 function BalanceHistory({ account }: Readonly<{ account: AccountDetailView }>) {
-  const { deleteSnapshot } = useAssetTracker();
+  const { deleteSnapshot } = useAssetTracker(selectBalanceHistory);
   const [error, setError] = useState<string | null>(null);
   const [deletingDate, setDeletingDate] = useState<string | null>(null);
 
@@ -386,7 +401,7 @@ function BalanceHistory({ account }: Readonly<{ account: AccountDetailView }>) {
 function CapitalFlowHistory({
   account,
 }: Readonly<{ account: AccountDetailView }>) {
-  const { deleteCapitalFlow } = useAssetTracker();
+  const { deleteCapitalFlow } = useAssetTracker(selectCapitalFlowHistory);
   const [error, setError] = useState<string | null>(null);
   const [deletingFlowKey, setDeletingFlowKey] = useState<string | null>(null);
 
@@ -453,7 +468,9 @@ function CapitalFlowHistory({
 }
 
 function TransfersList({ account }: Readonly<{ account: AccountDetailView }>) {
-  const { accounts, transfers } = useAssetTracker();
+  const { accounts, transfers } = useAssetTracker(
+    ({ accounts, transfers }) => ({ accounts, transfers }),
+  );
   const accountTransfers = transfers.filter(
     (t) => t.fromAccountId === account.id || t.toAccountId === account.id,
   );

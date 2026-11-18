@@ -10,7 +10,7 @@
 
 namespace satellite_swarm::simulation {
 
-enum class OrbitalCoordinateFrame : uint8_t { Teme, EarthFixed };
+enum class OrbitalCoordinateFrame : uint8_t { Teme, EarthFixed, Gcrf };
 
 struct CartesianVector {
   double x = 0.0;

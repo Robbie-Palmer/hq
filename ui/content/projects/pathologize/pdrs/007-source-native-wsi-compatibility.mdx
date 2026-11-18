@@ -1,0 +1,73 @@
+---
+title: "PDR 007: Support source-native whole-slide images with a CPU fallback"
+date: "2026-11-07"
+status: "Accepted"
+decision_date: "2026-11-07"
+informed_by_adrs:
+  - "pathologize:000-standards-based-pathology-data-boundary"
+evidence:
+  - title: "OpenSlide supported whole-slide formats"
+    url: "https://openslide.org/formats/"
+  - title: "cuCIM supported TIFF-family formats"
+    url: "https://github.com/rapidsai/cucim"
+---
+
+## Context
+
+Public pathology collections contain vendor-native and standards-based whole-slide
+images. Aperio SVS, Leica SCN, Hamamatsu NDPI and VMS, MIRAX MRXS, Philips TIFF,
+generic tiled TIFF, and DICOM WSI do not share one container layout. JPEG and JPEG
+2000 are pixel codecs that can occur inside several of those containers. Treating a
+codec name as a slide format would lose the metadata and indexes needed to find the
+right pixels.
+
+Pathologize has two different consumers. The evidence viewer and image exports need
+host pixels that can be encoded as PNG or JPEG. Training and inference may benefit
+from decoded tiles that remain on a GPU. Requiring CUDA for the first workload would
+reduce compatibility. Forcing the second workload through host images may waste
+time and memory on machines with a useful accelerator.
+
+OpenSlide provides broad CPU access across many scanner formats. cuCIM provides an
+OpenSlide-like GPU reader for a narrower documented set of TIFF-family slides. Other
+container and codec combinations need their own readers or must retain the CPU path.
+
+## Decision
+
+Pathologize will accept source-native whole-slide images through every reader it can
+test and package safely. It will not require conversion to DICOM, OME-Zarr, or one
+vendor format before analysis.
+
+Every supported slide must have a host-pixel path that works without CUDA. Viewer,
+export, and CPU-only analysis workloads may request that path directly. An optional
+accelerated backend may return device-resident pixels when it supports the detected
+container, codec, hardware, and requested operation.
+
+Backend selection must be observable. Results and benchmark records will identify
+the detected slide format, selected reader and decoder, output location, and any
+fallback. A failed or unsupported accelerator will fall back to the correct CPU
+path. It must not silently change color interpretation, alpha, orientation, bounds,
+pyramid level, coordinates, associated images, or the independent x and y physical
+pixel sizes.
+
+Pathologize will describe acceleration by tested format and codec combination. It
+will not claim that all TIFF, Leica, JPEG 2000, or DICOM inputs use the GPU because
+one fixture did.
+
+## Consequences
+
+Datasets can remain in their published representation, and the public viewer does
+not depend on an NVIDIA installation. Training and inference can still use a direct
+device path where one has passed the same pixel and geometry checks as the CPU path.
+
+The project must maintain a capability matrix rather than one universal list of file
+extensions. Some formats will remain CPU-only. Optional backends add packaging and
+fixture work, and a fallback may make two runs with the same slide use different
+hardware paths. Recording the selected path is therefore part of reproducibility.
+
+## Evaluation
+
+This decision is working when public fixtures cover at least
+Aperio SVS with JPEG, a tiled TIFF or SVS case with JPEG 2000, Leica SCN, and DICOM
+WSI with JPEG 2000. Each fixture must pass geometry and pixel checks through the CPU
+path. Accelerated combinations must pass the same checks, while unsupported
+combinations must report a CPU fallback instead of failing the slide.

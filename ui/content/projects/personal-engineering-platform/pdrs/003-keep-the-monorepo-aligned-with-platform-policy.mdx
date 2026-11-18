@@ -1,0 +1,116 @@
+---
+title: "PDR 003: Keep the monorepo aligned with platform policy"
+date: "2026-11-07"
+status: "Proposed"
+affected_projects:
+  - "agent-coordinator"
+  - "agent-first-writing"
+  - "agent-friendly-remote-development"
+  - "agentic-code-review"
+  - "autonomic-satellite-swarm"
+  - "homelab"
+  - "inbox-signal"
+  - "pathologize"
+  - "personal-digital-infrastructure"
+  - "personal-engineering-platform"
+  - "personal-finance-app"
+  - "personal-knowledge-graph"
+  - "recipe-site"
+  - "wedding-planner"
+  - "work-graph"
+informed_by_adrs:
+  - "personal-engineering-platform:028-copier-monorepo-scaffolding"
+  - "personal-engineering-platform:030-repository-owned-component-identities"
+  - "personal-engineering-platform:032-monorepo-project-package-layout"
+  - "personal-engineering-platform:040-executable-project-profile"
+---
+
+## Context
+
+The Personal Engineering Platform can resolve project profiles, render them
+through Copier, adopt existing projects without overwriting their files, and
+plan updates when platform defaults change. Eight production projects have
+Copier receipts. Much of the maintained repository still sits outside those
+profiles and receipts.
+
+The current directory structure also predates the platform model. `ui` is one
+Next.js package containing the personal site, several product applications,
+shared browser code, project content, and their tests. `homelab` contains
+Ansible, Nix, Kubernetes, container-image sources, backup applications,
+TypeScript tests, and host scripts behind one repository boundary. Those
+directories make unrelated changes share tasks and ownership while hiding the
+technology contracts that should govern them.
+
+New project generation alone will not fix this. The platform must manage code
+that already exists, bring it under the same declarations as new work, and
+apply later policy changes without discarding project-owned code.
+
+## Decision
+
+Make convergence of the maintained monorepo a Personal Engineering Platform
+product outcome. Every maintained source component will have one stable
+component identity, one owning project, one current source root, and an
+explicit template-ownership policy. A resolved project profile will describe
+the desired state. Its Copier receipt will record the last applied state.
+
+Adopt existing components before restructuring them. Adoption will record the
+current paths and preserve project-owned files. It must not use the desired
+future layout as evidence that a move has already happened. Generated output,
+vendored code, caches, build artifacts, fixtures, and retired source are not
+maintained components and do not need receipts.
+
+After coverage is complete, change the repository layout contract and
+reconcile projects through Copier. Reconciliation will treat a path change as
+a reviewed migration of the same stable component. It will move preserved
+source, update project and component catalogs, update workspace and task
+registrations, and refresh the receipt in one checked change. It will not
+create a second component identity or leave an undeclared old source root.
+
+The target repository will use technology-owned top-level directories. A
+logical product may span several of them. Project identity, ownership, and
+delivery stay in the catalog and project profile rather than in a product-owned
+top-level folder.
+
+The migration will proceed in bounded batches. Shared hosts such as the
+current Next.js application may retain one deployment boundary while their
+project-owned source moves into declared component paths. Homelab code will
+separate by the toolchain that validates and applies it instead of retaining
+one catch-all source root.
+
+## Product requirements
+
+The platform will:
+
+* report every maintained source root that has no project, component, profile,
+  or Copier receipt;
+* refuse ambiguous, overlapping, or cross-project ownership;
+* preview adoption and movement without changing the checkout;
+* preserve project-owned bytes, file modes, and symlinks during a move;
+* show generated edits, preserved-file moves, shared-manifest changes, and
+  manual decisions separately;
+* invalidate a reviewed plan when its source revision, profile, contracts,
+  template, or file inventory changes;
+* run the checks owned by each affected technology root before apply; and
+* leave no maintained code at an undeclared legacy path after a migration
+  batch.
+
+Projects may freeze platform-default updates, but freezing does not remove
+their ownership record. A frozen project still has a profile and receipt that
+explain its current state.
+
+## Evaluation
+
+First, produce a complete inventory that assigns or excludes every current
+mise root and maintained source root. Adopt the assigned roots without moving
+them and prove that a repeated adoption plan is empty.
+
+Then migrate representative mixed boundaries. Split project-owned browser code
+from the shared `ui` host without changing its public routes or deployment.
+Split the current `homelab` tree into technology-owned roots while preserving
+host builds, Kubernetes rendering, Ansible checks, backup verification, and
+operator commands. A second reconciliation plan for each migrated project must
+be empty.
+
+The outcome is complete when the layout validator rejects new unowned source,
+all tracking projects reconcile cleanly at the same platform effective time,
+and no compatibility path remains without an owner and removal condition.

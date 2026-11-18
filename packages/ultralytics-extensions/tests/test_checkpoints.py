@@ -1,0 +1,68 @@
+from __future__ import annotations
+
+from pathlib import Path
+
+import torch
+from ultralytics.nn.tasks import DetectionModel
+from ultralytics.utils import IterableSimpleNamespace
+
+from ultralytics_extensions.checkpoints import (
+    checkpoint_epoch,
+    load_safe_checkpoint,
+    resume_evidence,
+    training_rows,
+)
+
+
+def test_checkpoint_loading_restricts_deserialization(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "checkpoint.pt"
+    torch.save({"epoch": 3, "loss": torch.tensor([0.25])}, checkpoint_path)
+    checkpoint = load_safe_checkpoint(torch, checkpoint_path)
+    assert checkpoint["epoch"] == 3
+    assert torch.equal(checkpoint["loss"], torch.tensor([0.25]))
+    assert checkpoint_epoch(torch, checkpoint_path) == 3
+
+
+def test_checkpoint_loading_allows_trainer_argument_namespace(tmp_path: Path) -> None:
+    checkpoint_path = tmp_path / "last.pt"
+    model = DetectionModel("yolo26n.yaml", nc=5, verbose=False)
+    model.__dict__["args"] = IterableSimpleNamespace(batch=4, imgsz=640)
+    torch.save(
+        {"epoch": 3, "ema": model},
+        checkpoint_path,
+    )
+
+    checkpoint = load_safe_checkpoint(torch, checkpoint_path)
+
+    assert isinstance(checkpoint["ema"], DetectionModel)
+    assert checkpoint["ema"].args.batch == 4
+    assert checkpoint["ema"].args.imgsz == 640
+
+
+def test_resume_requires_rows_and_checkpoint(tmp_path: Path) -> None:
+    task_output = tmp_path / "detect"
+    weights = task_output / "weights"
+    weights.mkdir(parents=True)
+    (weights / "last.pt").write_bytes(b"checkpoint")
+    (task_output / "results.csv").write_text(
+        "epoch,time,metrics/mAP50-95(B)\n2,23.0,0.2\n",
+        encoding="utf-8",
+    )
+    rows = training_rows(task_output)
+    assert rows[0]["epoch"] == 2
+    resume = resume_evidence(task_output)
+    assert resume is not None
+    assert resume.completed_epochs == 2
+    assert resume.elapsed_seconds_upper_bound == 23.0
+    partial = tmp_path / "partial"
+    partial.mkdir()
+    assert resume_evidence(partial) is None
+    incomplete = tmp_path / "incomplete"
+    incomplete.mkdir()
+    (incomplete / "results.csv").write_text("epoch,time\n1,2\n", encoding="utf-8")
+    assert resume_evidence(incomplete) is None
+
+    checkpoint_only = tmp_path / "checkpoint-only/weights"
+    checkpoint_only.mkdir(parents=True)
+    (checkpoint_only / "last.pt").write_bytes(b"checkpoint")
+    assert resume_evidence(checkpoint_only.parent) is None

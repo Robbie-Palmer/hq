@@ -1,0 +1,66 @@
+schema: '2.0'
+stages:
+  acquire_native:
+    cmd: uv run --locked nucls-source-data acquire
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: 3661264a0edfaacfc7819860bb797acb
+      size: 2211
+    - path: pyproject.toml
+      hash: md5
+      md5: b08e643e23c8ef63cb7cfb7ec557a5e1
+      size: 1083
+    - path: src/nucls_source_data
+      hash: md5
+      md5: 4a7f617f127389afef72c371217b8484.dir
+      size: 16814
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: e19ac5812ed67548df38592291899d54
+      size: 34594
+    outs:
+    - path: data/native
+      hash: md5
+      md5: aa4b2d693a4b0ee3df8c1a6ea3be7d4b.dir
+      size: 399546523
+      nfiles: 3501
+  index_native:
+    cmd: uv run --locked nucls-source-data index
+    deps:
+    - path: data/native
+      hash: md5
+      md5: aa4b2d693a4b0ee3df8c1a6ea3be7d4b.dir
+      size: 399546523
+      nfiles: 3501
+    - path: manifest.json
+      hash: md5
+      md5: 3661264a0edfaacfc7819860bb797acb
+      size: 2211
+    - path: pyproject.toml
+      hash: md5
+      md5: b08e643e23c8ef63cb7cfb7ec557a5e1
+      size: 1083
+    - path: src/nucls_source_data
+      hash: md5
+      md5: 4a7f617f127389afef72c371217b8484.dir
+      size: 16814
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: e19ac5812ed67548df38592291899d54
+      size: 34594
+    outs:
+    - path: outputs/native-index.jsonl
+      hash: md5
+      md5: 0e22e80e839a4dff031c36bd3079075a
+      size: 1661716
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: d8ab4803186ae408c8b0fe09926e8f88
+      size: 1380

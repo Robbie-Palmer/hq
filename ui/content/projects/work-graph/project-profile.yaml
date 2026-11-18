@@ -40,6 +40,10 @@ layers:
       - "backend-api.contract-format"
       - "backend-api.contract-generator"
       - "backend-api.relational-connection"
+  - layer: "identity"
+    slots:
+      - "identity.authorization-policy"
+      - "identity.authorization-engine"
   - layer: "database"
     slots:
       - "database.relational-engine"
@@ -61,6 +65,7 @@ requirements:
   - "runtime-derived-api-contract"
   - "committed-migration-history"
   - "serialized-migration-runner"
+  - "server-side-authorization"
   - "backup-key-custody"
   - "backup-retention-policy"
   - "restore-drill"

@@ -1,21 +1,16 @@
 "use client";
 
+import { createSelector } from "@reduxjs/toolkit";
 import type { HouseholdTaxEstimate } from "finance-tax-rules/household-tax";
 import {
   createContext,
   type ReactNode,
-  useCallback,
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-import {
-  type AssetTrackerApi,
-  AssetTrackerStorageError,
-  createLocalAssetTrackerApi,
-} from "@/app/_projects/personal-finance-app/api/assettracker";
+import { Provider as ReduxProvider, shallowEqual } from "react-redux";
 import { pricePaidArchive } from "@/app/_projects/personal-finance-app/content/propertyComparables";
 import { housePriceIndexArchive } from "@/app/_projects/personal-finance-app/content/propertyIndexHistory";
 import {
@@ -137,12 +132,20 @@ import {
 import {
   buildBaseCurrencyFlowSankeyData,
   type FlowSankeyData,
-  getDemoAssetTrackerData,
   toBalancesCsv,
   todayIsoDate,
 } from "@/app/_projects/personal-finance-app/lib";
+import { createAssetTrackerCommandAdapter } from "@/app/_projects/personal-finance-app/state/asset-tracker-command-adapter";
+import {
+  createAssetTrackerStore,
+  selectAssetTrackerData,
+  selectHasLocalChanges,
+  selectLocalDataError,
+  selectLocalDataStatus,
+  useAssetTrackerSelector,
+} from "@/app/_projects/personal-finance-app/state/asset-tracker-store";
 
-interface AssetTrackerContextValue {
+export interface AssetTrackerContextValue {
   accounts: AccountSummaryView[];
   accountDetails: AccountDetailView[];
   netWorthData: NetWorthDataPoint[];
@@ -317,10 +320,6 @@ interface AssetTrackerContextValue {
   restoreBackup(backup: AssetTrackerBackup): Promise<void>;
 }
 
-const AssetTrackerContext = createContext<AssetTrackerContextValue | null>(
-  null,
-);
-
 function downloadFile(filename: string, content: string, mime: string): void {
   const blob = new Blob([content], { type: mime });
   const url = URL.createObjectURL(blob);
@@ -364,82 +363,6 @@ function propertyEvidenceViews(
       repository.propertyIndexHistories,
       housePriceIndexArchive,
     ),
-  };
-}
-
-function useLocalAssetTrackerData() {
-  const [data, setData] = useState<AssetTrackerData>(getDemoAssetTrackerData);
-  const [hasLocalChanges, setHasLocalChanges] = useState(false);
-  const [localDataStatus, setLocalDataStatus] =
-    useState<AssetTrackerContextValue["localDataStatus"]>("loading");
-  const [localDataError, setLocalDataError] = useState<string | null>(null);
-  const apiRef = useRef<AssetTrackerApi | null>(null);
-  const hasMutatedRef = useRef(false);
-  const loadRequestRef = useRef(0);
-  const getApi = useCallback(() => {
-    apiRef.current ??= createLocalAssetTrackerApi(window.localStorage);
-    return apiRef.current;
-  }, []);
-  const loadLocalData = useCallback(async () => {
-    const request = ++loadRequestRef.current;
-    setLocalDataStatus("loading");
-    setLocalDataError(null);
-    try {
-      const { data: stored, persisted } = await getApi().load();
-      if (request !== loadRequestRef.current) return;
-      if (!hasMutatedRef.current && persisted) {
-        setData(stored);
-        setHasLocalChanges(true);
-      }
-      setLocalDataStatus("ready");
-    } catch (error) {
-      if (request !== loadRequestRef.current) return;
-      console.warn("AssetTracker: failed to load stored data", error);
-      setLocalDataStatus("error");
-      setLocalDataError(
-        "Asset Tracker could not read this browser's saved data. Nothing has been changed. Check that browser storage is available, then try again.",
-      );
-    }
-  }, [getApi]);
-  useEffect(() => {
-    void loadLocalData();
-    return () => {
-      loadRequestRef.current += 1;
-    };
-  }, [loadLocalData]);
-  const mutate = useCallback(
-    async (run: (api: AssetTrackerApi) => Promise<AssetTrackerData>) => {
-      hasMutatedRef.current = true;
-      try {
-        const next = await run(getApi());
-        setData(next);
-        setHasLocalChanges(true);
-        setLocalDataStatus("ready");
-        setLocalDataError(null);
-      } catch (error) {
-        if (error instanceof AssetTrackerStorageError) {
-          setLocalDataStatus("error");
-          setLocalDataError(
-            "Asset Tracker could not save the last change in this browser. The change was not applied. Check that browser storage is available, then try again.",
-          );
-        }
-        throw error;
-      }
-    },
-    [getApi],
-  );
-  return {
-    data,
-    setData,
-    hasLocalChanges,
-    setHasLocalChanges,
-    localDataStatus,
-    setLocalDataStatus,
-    localDataError,
-    setLocalDataError,
-    getApi,
-    loadLocalData,
-    mutate,
   };
 }
 
@@ -599,192 +522,205 @@ function replacementIncomeThresholdSolver(
   };
 }
 
-function useAssetTrackerViews(data: AssetTrackerData) {
-  return useMemo(() => {
-    const baseRepository = buildRepository(scopeAssetTrackerData(data));
-    const propertyEvidence = propertyEvidenceViews(baseRepository);
-    const repository = withSelectedPropertyValues(
-      baseRepository,
-      propertyEvidence.propertyValueHistories,
-    );
-    const taxEstimate = getHouseholdTaxEstimate(data);
-    const { summaries: accounts, details: accountDetails } =
-      buildAccountReadModels(repository);
-    const netWorthDataByCurrency = Object.fromEntries(
-      SUPPORTED_CURRENCIES.map((currency) => [
-        currency,
-        getNetWorthTimeSeries({
-          ...repository,
-          settings: { ...repository.settings, baseCurrency: currency },
-        }),
-      ]),
-    ) as Record<Currency, NetWorthDataPoint[]>;
-    const netWorthData =
-      netWorthDataByCurrency[repository.settings.baseCurrency];
-    const latestValuation = getLatestPortfolioValuation(repository);
-    const valuationDate = latestValuation?.date ?? todayIsoDate();
-    const financialIndependence = getPortfolioFinancialIndependence(
-      repository,
-      valuationDate,
-    );
-    const emergencyFund = resolveEmergencyFundViews(
-      repository,
-      financialIndependence.representativeAnnualCurrentExpenditure,
-      valuationDate,
-    );
-    const emergencyFundAnalysis =
-      emergencyFund.activePlan == null
-        ? null
-        : analyseEmergencyFund(
-            repository,
-            emergencyFund.activePlan,
-            valuationDate,
-          );
-    const compareDecisions = decisionComparison(
-      repository,
-      financialIndependence,
-      emergencyFundAnalysis,
-      valuationDate,
-    );
-    return {
-      accounts,
-      accountDetails,
-      netWorthData,
-      netWorthDataByCurrency,
-      contributionData: getPortfolioContributionTimeSeries(repository),
-      assetAllocation: getTotalByAssetType(repository),
-      assetAllocationHistory: getAssetAllocationTimeSeries(repository),
-      transfers: repository.transfers,
-      recurringFlows: repository.recurringFlows,
-      recurringFlowOwnership: Object.fromEntries(
-        repository.recurringFlows.map(({ id }) => [
-          id,
-          data.ownership.recurringFlows[id] ??
-            personalOwnership(data.household.members[0]?.id ?? "primary"),
-        ]),
-      ),
-      plannedExpenditures: repository.plannedExpenditures,
-      planningCases: repository.planningCases,
-      futureCashFlows: repository.futureCashFlows,
-      forecastAssumptionSets: repository.forecastAssumptionSets,
-      spendingBaselines: repository.spendingBaselines,
-      emergencyFundPlans: emergencyFund.plans,
-      emergencyFundFacts: emergencyFund.facts,
-      emergencyFundAnalysis,
-      compareDecisionScenario: compareDecisions,
-      buildAdoptedDecisionForecast: (input: {
-        decisionIds: readonly string[];
-        horizonMonths: number;
-        reserveMonths: number | null;
-        title?: string;
-      }) => {
-        return buildHouseholdAdoptedDecisionForecast(data, input);
-      },
-      analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
-        analyseEmergencyFund(
+function buildAssetTrackerViews(data: AssetTrackerData) {
+  const baseRepository = buildRepository(scopeAssetTrackerData(data));
+  const propertyEvidence = propertyEvidenceViews(baseRepository);
+  const repository = withSelectedPropertyValues(
+    baseRepository,
+    propertyEvidence.propertyValueHistories,
+  );
+  const taxEstimate = getHouseholdTaxEstimate(data);
+  const { summaries: accounts, details: accountDetails } =
+    buildAccountReadModels(repository);
+  const netWorthDataByCurrency = Object.fromEntries(
+    SUPPORTED_CURRENCIES.map((currency) => [
+      currency,
+      getNetWorthTimeSeries({
+        ...repository,
+        settings: { ...repository.settings, baseCurrency: currency },
+      }),
+    ]),
+  ) as Record<Currency, NetWorthDataPoint[]>;
+  const netWorthData = netWorthDataByCurrency[repository.settings.baseCurrency];
+  const latestValuation = getLatestPortfolioValuation(repository);
+  const valuationDate = latestValuation?.date ?? todayIsoDate();
+  const financialIndependence = getPortfolioFinancialIndependence(
+    repository,
+    valuationDate,
+  );
+  const emergencyFund = resolveEmergencyFundViews(
+    repository,
+    financialIndependence.representativeAnnualCurrentExpenditure,
+    valuationDate,
+  );
+  const emergencyFundAnalysis =
+    emergencyFund.activePlan == null
+      ? null
+      : analyseEmergencyFund(
           repository,
-          applyEmergencyFundDerivedFacts(input, emergencyFund.facts),
+          emergencyFund.activePlan,
           valuationDate,
-        ),
-      mortgageScenarios: repository.mortgageScenarios,
-      decisionRecords: repository.decisionRecords,
-      reconcileAdoptedForecast: (forecast: AdoptedDecisionForecastRecord) =>
-        reconcileAdoptedDecisionForecast(forecast, repository),
-      incomeHistory: repository.incomeHistory,
-      salaryHistory: repository.salaryHistory,
-      hmrcEmploymentObservations: repository.hmrcEmploymentObservations,
-      hmrcEmploymentLabels: repository.hmrcEmploymentLabels,
-      currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
-      jobMoveScenarios: repository.jobMoveScenarios,
-      compareJobMoveScenario: jobMoveComparison(
-        repository,
-        financialIndependence,
-        emergencyFundAnalysis,
-        valuationDate,
-      ),
-      solveReplacementIncomeThresholds: replacementIncomeThresholdSolver(
-        repository,
-        financialIndependence,
-        emergencyFundAnalysis,
-        valuationDate,
-      ),
-      flowSankeyData: buildBaseCurrencyFlowSankeyData(
-        repository,
-        accountDetails,
-        valuationDate,
-        taxFlowContext(data, taxEstimate),
-      ),
-      financialIndependence,
-      housingPlanningPosition: getHousingPlanningPosition(
-        repository,
-        financialIndependence,
-        valuationDate,
-      ),
-      taxEstimate,
-      taxPosition: data.taxPosition,
-      soleTraderScenarios: data.soleTraderScenarios ?? [],
-      taxSetupIncomeSuggestions: Object.fromEntries(
-        data.household.members.map(({ id }) => [
-          id,
-          suggestedAnnualEmploymentIncomePence(data, id, taxEstimate.taxYear),
-        ]),
-      ),
-      portfolioReturn: getPortfolioAnnualReturn(repository),
-      positionSummary: getPortfolioPositionSummary(repository),
-      inflation: repository.settings.expectedAnnualInflation,
-      netWorthTarget: repository.settings.targetNetWorth ?? null,
-      netWorthTargetIsReal: repository.settings.targetNetWorthIsReal ?? false,
-      withdrawalRate: repository.settings.withdrawalRate,
-      baseCurrency: repository.settings.baseCurrency,
-      valuationDate: latestValuation?.date ?? null,
-      valuationIssues: latestValuation?.issues ?? [],
-      ...propertyEvidence,
-      household: data.household,
-      householdAccounts: data.accounts.map(({ id, name, provider }) => ({
+        );
+  const compareDecisions = decisionComparison(
+    repository,
+    financialIndependence,
+    emergencyFundAnalysis,
+    valuationDate,
+  );
+  return {
+    accounts,
+    accountDetails,
+    netWorthData,
+    netWorthDataByCurrency,
+    contributionData: getPortfolioContributionTimeSeries(repository),
+    assetAllocation: getTotalByAssetType(repository),
+    assetAllocationHistory: getAssetAllocationTimeSeries(repository),
+    transfers: repository.transfers,
+    recurringFlows: repository.recurringFlows,
+    recurringFlowOwnership: Object.fromEntries(
+      repository.recurringFlows.map(({ id }) => [
         id,
-        name,
-        provider,
-        ownership:
-          data.ownership.accounts[id] ??
+        data.ownership.recurringFlows[id] ??
           personalOwnership(data.household.members[0]?.id ?? "primary"),
-      })),
-    };
-  }, [data]);
+      ]),
+    ),
+    plannedExpenditures: repository.plannedExpenditures,
+    planningCases: repository.planningCases,
+    futureCashFlows: repository.futureCashFlows,
+    forecastAssumptionSets: repository.forecastAssumptionSets,
+    spendingBaselines: repository.spendingBaselines,
+    emergencyFundPlans: emergencyFund.plans,
+    emergencyFundFacts: emergencyFund.facts,
+    emergencyFundAnalysis,
+    compareDecisionScenario: compareDecisions,
+    buildAdoptedDecisionForecast: (input: {
+      decisionIds: readonly string[];
+      horizonMonths: number;
+      reserveMonths: number | null;
+      title?: string;
+    }) => {
+      return buildHouseholdAdoptedDecisionForecast(data, input);
+    },
+    analyseEmergencyFundDraft: (input: EmergencyFundPlanInput) =>
+      analyseEmergencyFund(
+        repository,
+        applyEmergencyFundDerivedFacts(input, emergencyFund.facts),
+        valuationDate,
+      ),
+    mortgageScenarios: repository.mortgageScenarios,
+    decisionRecords: repository.decisionRecords,
+    reconcileAdoptedForecast: (forecast: AdoptedDecisionForecastRecord) =>
+      reconcileAdoptedDecisionForecast(forecast, repository),
+    incomeHistory: repository.incomeHistory,
+    salaryHistory: repository.salaryHistory,
+    hmrcEmploymentObservations: repository.hmrcEmploymentObservations,
+    hmrcEmploymentLabels: repository.hmrcEmploymentLabels,
+    currentSalaryHistory: currentSalaryHistory(repository.salaryHistory),
+    jobMoveScenarios: repository.jobMoveScenarios,
+    compareJobMoveScenario: jobMoveComparison(
+      repository,
+      financialIndependence,
+      emergencyFundAnalysis,
+      valuationDate,
+    ),
+    solveReplacementIncomeThresholds: replacementIncomeThresholdSolver(
+      repository,
+      financialIndependence,
+      emergencyFundAnalysis,
+      valuationDate,
+    ),
+    flowSankeyData: buildBaseCurrencyFlowSankeyData(
+      repository,
+      accountDetails,
+      valuationDate,
+      taxFlowContext(data, taxEstimate),
+    ),
+    financialIndependence,
+    housingPlanningPosition: getHousingPlanningPosition(
+      repository,
+      financialIndependence,
+      valuationDate,
+    ),
+    taxEstimate,
+    taxPosition: data.taxPosition,
+    soleTraderScenarios: data.soleTraderScenarios ?? [],
+    taxSetupIncomeSuggestions: Object.fromEntries(
+      data.household.members.map(({ id }) => [
+        id,
+        suggestedAnnualEmploymentIncomePence(data, id, taxEstimate.taxYear),
+      ]),
+    ),
+    portfolioReturn: getPortfolioAnnualReturn(repository),
+    positionSummary: getPortfolioPositionSummary(repository),
+    inflation: repository.settings.expectedAnnualInflation,
+    netWorthTarget: repository.settings.targetNetWorth ?? null,
+    netWorthTargetIsReal: repository.settings.targetNetWorthIsReal ?? false,
+    withdrawalRate: repository.settings.withdrawalRate,
+    baseCurrency: repository.settings.baseCurrency,
+    valuationDate: latestValuation?.date ?? null,
+    valuationIssues: latestValuation?.issues ?? [],
+    ...propertyEvidence,
+    household: data.household,
+    householdAccounts: data.accounts.map(({ id, name, provider }) => ({
+      id,
+      name,
+      provider,
+      ownership:
+        data.ownership.accounts[id] ??
+        personalOwnership(data.household.members[0]?.id ?? "primary"),
+    })),
+  };
 }
 
-export function AssetTrackerProvider({
-  children,
-}: Readonly<{ children: ReactNode }>) {
-  const {
-    data,
-    setData,
-    hasLocalChanges,
-    setHasLocalChanges,
-    localDataStatus,
-    setLocalDataStatus,
-    localDataError,
-    setLocalDataError,
-    getApi,
-    loadLocalData,
-    mutate,
-  } = useLocalAssetTrackerData();
+export const selectAssetTrackerViews = createSelector(
+  [selectAssetTrackerData],
+  buildAssetTrackerViews,
+);
 
-  const views = useAssetTrackerViews(data);
+type AssetTrackerViews = ReturnType<typeof buildAssetTrackerViews>;
+type AssetTrackerActions = Omit<
+  AssetTrackerContextValue,
+  | keyof AssetTrackerViews
+  | "hasLocalChanges"
+  | "localDataStatus"
+  | "localDataError"
+>;
 
-  const value = useMemo<AssetTrackerContextValue>(
-    () => ({
-      ...views,
-      hasLocalChanges,
-      localDataStatus,
-      localDataError,
+const AssetTrackerContext = createContext<AssetTrackerActions | null>(null);
+
+type AssetTrackerProviderProps = Readonly<{ children: ReactNode }>;
+
+export function AssetTrackerProvider({ children }: AssetTrackerProviderProps) {
+  const [store] = useState(createAssetTrackerStore);
+  const adapter = useMemo(
+    () => createAssetTrackerCommandAdapter(store),
+    [store],
+  );
+
+  useEffect(() => {
+    void adapter.load();
+    return adapter.dispose;
+  }, [adapter]);
+
+  const actions = useMemo<AssetTrackerActions>(() => {
+    const mutate = (
+      operation: string,
+      run: Parameters<typeof adapter.run>[1],
+    ) => adapter.run(operation, run);
+    const currentData = () => selectAssetTrackerData(store.getState());
+    const currentViews = () => selectAssetTrackerViews(store.getState());
+    return {
       retryLocalData: () => {
-        void loadLocalData();
+        void adapter.load();
       },
-      createAccount: (input) => mutate((api) => api.createAccount(input)),
-      recordBalance: (input) => mutate((api) => api.recordBalance(input)),
-      recordTransfer: (input) => mutate((api) => api.recordTransfer(input)),
+      createAccount: (input) =>
+        mutate("account created", (api) => api.createAccount(input)),
+      recordBalance: (input) =>
+        mutate("balance recorded", (api) => api.recordBalance(input)),
+      recordTransfer: (input) =>
+        mutate("transfer recorded", (api) => api.recordTransfer(input)),
       closeAccount: (accountId, transferToAccountId) =>
-        mutate((api) =>
+        mutate("account closed", (api) =>
           api.closeAccount({
             accountId,
             closedAt: todayIsoDate(),
@@ -792,170 +728,249 @@ export function AssetTrackerProvider({
           }),
         ),
       clearAccountHistory: (input) =>
-        mutate((api) => api.clearAccountHistory(input)),
-      deleteSnapshot: (input) => mutate((api) => api.deleteSnapshot(input)),
+        mutate("account history cleared", (api) =>
+          api.clearAccountHistory(input),
+        ),
+      deleteSnapshot: (input) =>
+        mutate("snapshot deleted", (api) => api.deleteSnapshot(input)),
       deleteCapitalFlow: (input) =>
-        mutate((api) => api.deleteCapitalFlow(input)),
+        mutate("capital flow deleted", (api) => api.deleteCapitalFlow(input)),
       importAccountHistory: (input) =>
-        mutate((api) => api.importAccountHistory(input)),
+        mutate("account history imported", (api) =>
+          api.importAccountHistory(input),
+        ),
       importIncomeHistory: (input) =>
-        mutate((api) => api.importIncomeHistory(input)),
+        mutate("income history imported", (api) =>
+          api.importIncomeHistory(input),
+        ),
       importSalaryHistory: (input) =>
-        mutate((api) => api.importSalaryHistory(input)),
-      acceptHmrcImport: (input) => mutate((api) => api.acceptHmrcImport(input)),
-      saveSalaryRecord: (input) => mutate((api) => api.saveSalaryRecord(input)),
+        mutate("salary history imported", (api) =>
+          api.importSalaryHistory(input),
+        ),
+      acceptHmrcImport: (input) =>
+        mutate("HMRC import accepted", (api) => api.acceptHmrcImport(input)),
+      saveSalaryRecord: (input) =>
+        mutate("salary record saved", (api) => api.saveSalaryRecord(input)),
       deleteSalaryRecord: (input) =>
-        mutate((api) => api.deleteSalaryRecord(input)),
-      saveTaxSetup: (input) => mutate((api) => api.saveTaxSetup(input)),
-      clearIncomeHistory: () => mutate((api) => api.clearIncomeHistory()),
-      addRecurringFlow: (input) => mutate((api) => api.addRecurringFlow(input)),
+        mutate("salary record deleted", (api) => api.deleteSalaryRecord(input)),
+      saveTaxSetup: (input) =>
+        mutate("tax setup saved", (api) => api.saveTaxSetup(input)),
+      clearIncomeHistory: () =>
+        mutate("income history cleared", (api) => api.clearIncomeHistory()),
+      addRecurringFlow: (input) =>
+        mutate("recurring flow added", (api) => api.addRecurringFlow(input)),
       createPlanningCase: (input) =>
-        mutate((api) => api.createPlanningCase(input)),
+        mutate("planning case created", (api) => api.createPlanningCase(input)),
       addPlanningChecklistItem: (input) =>
-        mutate((api) => api.addPlanningChecklistItem(input)),
+        mutate("planning checklist item added", (api) =>
+          api.addPlanningChecklistItem(input),
+        ),
       setPlanningChecklistItemStatus: (input) =>
-        mutate((api) => api.setPlanningChecklistItemStatus(input)),
-      addCommitment: (input) => mutate((api) => api.addCommitment(input)),
+        mutate("planning checklist status changed", (api) =>
+          api.setPlanningChecklistItemStatus(input),
+        ),
+      addCommitment: (input) =>
+        mutate("commitment added", (api) => api.addCommitment(input)),
       addCashFlowDecision: (input) =>
-        mutate((api) => api.addCashFlowDecision(input)),
+        mutate("cash-flow decision added", (api) =>
+          api.addCashFlowDecision(input),
+        ),
       updateCashFlowDecision: (input) =>
-        mutate((api) => api.updateCashFlowDecision(input)),
+        mutate("cash-flow decision updated", (api) =>
+          api.updateCashFlowDecision(input),
+        ),
       setCashFlowDecisionStatus: (id, status) =>
-        mutate((api) => api.setCashFlowDecisionStatus({ id, status })),
+        mutate("cash-flow decision status changed", (api) =>
+          api.setCashFlowDecisionStatus({ id, status }),
+        ),
       setCommitmentStatus: (id, status) =>
-        mutate((api) => api.setCommitmentStatus({ id, status })),
+        mutate("commitment status changed", (api) =>
+          api.setCommitmentStatus({ id, status }),
+        ),
       recordActualCashFlow: (input) =>
-        mutate((api) => api.recordActualCashFlow(input)),
+        mutate("actual cash flow recorded", (api) =>
+          api.recordActualCashFlow(input),
+        ),
       deleteFutureCashFlow: (id) =>
-        mutate((api) => api.deleteFutureCashFlow({ id })),
+        mutate("future cash flow deleted", (api) =>
+          api.deleteFutureCashFlow({ id }),
+        ),
       createForecastAssumptionSet: (input) =>
-        mutate((api) => api.createForecastAssumptionSet(input)),
+        mutate("forecast assumption set created", (api) =>
+          api.createForecastAssumptionSet(input),
+        ),
       addForecastAssumption: (input) =>
-        mutate((api) => api.addForecastAssumption(input)),
+        mutate("forecast assumption added", (api) =>
+          api.addForecastAssumption(input),
+        ),
       versionForecastAssumptionSet: (id) =>
-        mutate((api) => api.versionForecastAssumptionSet({ id })),
+        mutate("forecast assumption set versioned", (api) =>
+          api.versionForecastAssumptionSet({ id }),
+        ),
       deleteForecastAssumption: (setId, assumptionId) =>
-        mutate((api) => api.deleteForecastAssumption({ setId, assumptionId })),
+        mutate("forecast assumption deleted", (api) =>
+          api.deleteForecastAssumption({ setId, assumptionId }),
+        ),
       addPlannedExpenditure: (input) =>
-        mutate((api) => api.addPlannedExpenditure(input)),
+        mutate("planned expenditure added", (api) =>
+          api.addPlannedExpenditure(input),
+        ),
       deleteRecurringFlow: (id) =>
-        mutate((api) => api.deleteRecurringFlow({ id })),
+        mutate("recurring flow deleted", (api) =>
+          api.deleteRecurringFlow({ id }),
+        ),
       deletePlannedExpenditure: (id) =>
-        mutate((api) => api.deletePlannedExpenditure({ id })),
+        mutate("planned expenditure deleted", (api) =>
+          api.deletePlannedExpenditure({ id }),
+        ),
       materializeFlow: (flowId) =>
-        mutate((api) =>
+        mutate("recurring flow materialized", (api) =>
           api.materializeFlow({ flowId, throughDate: todayIsoDate() }),
         ),
       setExpectedReturn: (input) =>
-        mutate((api) => api.setExpectedReturn(input)),
+        mutate("expected return changed", (api) =>
+          api.setExpectedReturn(input),
+        ),
       setAccountLiquidity: (input) =>
-        mutate((api) => api.setAccountLiquidity(input)),
-      setMortgageTerms: (input) => mutate((api) => api.setMortgageTerms(input)),
+        mutate("account liquidity changed", (api) =>
+          api.setAccountLiquidity(input),
+        ),
+      setMortgageTerms: (input) =>
+        mutate("mortgage terms changed", (api) => api.setMortgageTerms(input)),
       setPropertyValueSelection: (input) =>
-        mutate((api) => api.setPropertyValueSelection(input)),
-      setInflation: (rate) => mutate((api) => api.setInflation({ rate })),
+        mutate("property value selection changed", (api) =>
+          api.setPropertyValueSelection(input),
+        ),
+      setInflation: (rate) =>
+        mutate("inflation changed", (api) => api.setInflation({ rate })),
       setBaseCurrency: (currency) =>
-        mutate((api) => api.setBaseCurrency({ currency })),
+        mutate("base currency changed", (api) =>
+          api.setBaseCurrency({ currency }),
+        ),
       setWithdrawalRate: (rate) =>
-        mutate((api) => api.setWithdrawalRate({ rate })),
+        mutate("withdrawal rate changed", (api) =>
+          api.setWithdrawalRate({ rate }),
+        ),
       saveMortgageScenario: (input) =>
-        mutate((api) => api.saveMortgageScenario(input)),
+        mutate("mortgage scenario saved", (api) =>
+          api.saveMortgageScenario(input),
+        ),
       createDecisionRecord: (input) =>
-        mutate((api) => api.createDecisionRecord(input)),
+        mutate("decision record created", (api) =>
+          api.createDecisionRecord(input),
+        ),
       adoptDecisionForecast: (input) =>
-        mutate((api) =>
-          api.adoptDecisionForecast(views.buildAdoptedDecisionForecast(input)),
+        mutate("decision forecast adopted", (api) =>
+          api.adoptDecisionForecast(
+            currentViews().buildAdoptedDecisionForecast(input),
+          ),
         ),
       revisitAdoptedDecision: (input) =>
-        mutate((api) => api.revisitAdoptedDecision(input)),
+        mutate("adopted decision revisited", (api) =>
+          api.revisitAdoptedDecision(input),
+        ),
       recordDecisionObservation: (input) =>
-        mutate((api) => api.recordDecisionObservation(input)),
+        mutate("decision observation recorded", (api) =>
+          api.recordDecisionObservation(input),
+        ),
       addDecisionInterpretation: (input) =>
-        mutate((api) => api.addDecisionInterpretation(input)),
+        mutate("decision interpretation added", (api) =>
+          api.addDecisionInterpretation(input),
+        ),
       saveEmergencyFundPlan: (input) =>
-        mutate((api) => api.saveEmergencyFundPlan(input)),
+        mutate("emergency fund plan saved", (api) =>
+          api.saveEmergencyFundPlan(input),
+        ),
       saveSpendingBaseline: (input) =>
-        mutate((api) => api.saveSpendingBaseline(input)),
+        mutate("spending baseline saved", (api) =>
+          api.saveSpendingBaseline(input),
+        ),
       saveJobMoveScenario: (input) =>
-        mutate((api) => api.saveJobMoveScenario(input)),
+        mutate("job-move scenario saved", (api) =>
+          api.saveJobMoveScenario(input),
+        ),
       duplicateJobMoveScenario: (id) =>
-        mutate((api) => api.duplicateJobMoveScenario({ id })),
+        mutate("job-move scenario duplicated", (api) =>
+          api.duplicateJobMoveScenario({ id }),
+        ),
       deleteJobMoveScenario: (id) =>
-        mutate((api) => api.deleteJobMoveScenario({ id })),
+        mutate("job-move scenario deleted", (api) =>
+          api.deleteJobMoveScenario({ id }),
+        ),
       setNetWorthTarget: (target, inTodaysMoney) =>
-        mutate((api) => api.setNetWorthTarget({ target, inTodaysMoney })),
+        mutate("net-worth target changed", (api) =>
+          api.setNetWorthTarget({ target, inTodaysMoney }),
+        ),
       addHouseholdMember: (displayName) =>
-        mutate((api) => api.addHouseholdMember({ displayName })),
+        mutate("household member added", (api) =>
+          api.addHouseholdMember({ displayName }),
+        ),
       renameHouseholdMember: (memberId, displayName) =>
-        mutate((api) => api.renameHouseholdMember({ memberId, displayName })),
+        mutate("household member renamed", (api) =>
+          api.renameHouseholdMember({ memberId, displayName }),
+        ),
       setActiveHouseholdScope: (scope) =>
-        mutate((api) => api.setActiveHouseholdScope(scope)),
+        mutate("household scope changed", (api) =>
+          api.setActiveHouseholdScope(scope),
+        ),
       setAccountOwnership: (accountId, ownership) =>
-        mutate((api) => api.setAccountOwnership({ accountId, ownership })),
-      clearData: () => mutate((api) => api.clear()),
-      resetData: async () => {
-        try {
-          const seed = await getApi().reset();
-          setData(seed);
-          setHasLocalChanges(false);
-          setLocalDataStatus("ready");
-          setLocalDataError(null);
-        } catch (error) {
-          setLocalDataStatus("error");
-          setLocalDataError(
-            "Asset Tracker could not reset data in this browser. Nothing has been changed. Check that browser storage is available, then try again.",
-          );
-          throw error;
-        }
-      },
+        mutate("account ownership changed", (api) =>
+          api.setAccountOwnership({ accountId, ownership }),
+        ),
+      clearData: () => mutate("all data cleared", (api) => api.clear()),
+      resetData: () => adapter.reset((api) => api.reset()),
       downloadBackup: () =>
         downloadFile(
           `assettracker-backup-${todayIsoDate()}.json`,
-          JSON.stringify(createAssetTrackerBackup(data), null, 2),
+          JSON.stringify(createAssetTrackerBackup(currentData()), null, 2),
           "application/json",
         ),
       exportCsv: () =>
         downloadFile(
           `assettracker-balances-${todayIsoDate()}.csv`,
-          toBalancesCsv(data),
+          toBalancesCsv(currentData()),
           "text/csv",
         ),
-      exportTaxEstimate: () => downloadTaxEstimate(views.taxEstimate),
+      exportTaxEstimate: () => downloadTaxEstimate(currentViews().taxEstimate),
       previewBackup: async (file) => {
         const raw = JSON.parse(await file.text());
-        return previewAssetTrackerBackup(data, raw);
+        return previewAssetTrackerBackup(currentData(), raw);
       },
-      restoreBackup: (backup) => mutate((api) => api.restoreBackup(backup)),
-    }),
-    [
-      views,
-      hasLocalChanges,
-      localDataStatus,
-      localDataError,
-      data,
-      mutate,
-      getApi,
-      loadLocalData,
-      setData,
-      setHasLocalChanges,
-      setLocalDataStatus,
-      setLocalDataError,
-    ],
-  );
+      restoreBackup: (backup) =>
+        mutate("backup restored", (api) => api.restoreBackup(backup)),
+    };
+  }, [adapter, store]);
 
   return (
-    <AssetTrackerContext.Provider value={value}>
-      {children}
-    </AssetTrackerContext.Provider>
+    <ReduxProvider store={store}>
+      <AssetTrackerContext.Provider value={actions}>
+        {children}
+      </AssetTrackerContext.Provider>
+    </ReduxProvider>
   );
 }
 
-export function useAssetTracker(): AssetTrackerContextValue {
+export function useAssetTracker<Result>(
+  selector: (tracker: AssetTrackerContextValue) => Result,
+): Result;
+export function useAssetTracker(): AssetTrackerContextValue;
+export function useAssetTracker<Result>(
+  selector?: (tracker: AssetTrackerContextValue) => Result,
+): AssetTrackerContextValue | Result {
   const context = useContext(AssetTrackerContext);
   if (!context) {
     throw new Error(
       "useAssetTracker must be used within an AssetTrackerProvider",
     );
   }
-  return context;
+  return useAssetTrackerSelector((state) => {
+    const tracker: AssetTrackerContextValue = {
+      ...selectAssetTrackerViews(state),
+      hasLocalChanges: selectHasLocalChanges(state),
+      localDataStatus: selectLocalDataStatus(state),
+      localDataError: selectLocalDataError(state),
+      ...context,
+    };
+    return selector == null ? tracker : selector(tracker);
+  }, shallowEqual);
 }

@@ -33,6 +33,11 @@ description = "Exercise the Access-protected production Work Graph queue"
 depends = ["install"]
 run = "bash scripts/smoke-production.sh"
 
+[tasks."smoke:local-runtime"]
+description = "Start the bundled Work Graph Worker in workerd"
+depends = ["install"]
+run = "bash scripts/smoke-local-runtime.sh"
+
 [tasks."test:integration"]
 description = "Test Work Graph HTTP operations against disposable PostgreSQL"
 depends = ["install"]
@@ -55,7 +60,7 @@ run = "pnpm lint:api"
 
 [tasks.check]
 description = "Check the Work Graph API"
-depends = ["typecheck", "test", "lint:api", "lint:queries", "deploy:check"]
+depends = ["typecheck", "test", "lint:api", "lint:queries", "deploy:check", "smoke:local-runtime"]
 
 [tasks."diagnostics:query"]
 depends = ["install"]

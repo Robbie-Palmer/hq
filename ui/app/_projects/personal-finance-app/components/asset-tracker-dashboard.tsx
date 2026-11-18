@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { AccountBalanceChart } from "./account-balance-chart";
 import { AssetAllocationChart } from "./asset-allocation-chart";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import { HousingValueDisclosure } from "./housing-value-disclosure";
 
 function staleObservationMessage(
@@ -24,7 +25,9 @@ function staleObservationMessage(
 }
 
 function PropertyValuesInNetWorth() {
-  const { propertyValueHistories = [] } = useAssetTracker();
+  const { propertyValueHistories = [] } = useAssetTracker(
+    ({ propertyValueHistories }) => ({ propertyValueHistories }),
+  );
   if (propertyValueHistories.length === 0) return null;
   return (
     <details className="rounded-lg border p-4">
@@ -45,6 +48,18 @@ function PropertyValuesInNetWorth() {
   );
 }
 
+const selectAssetTrackerDashboard = selectAssetTrackerFields(
+  "accountDetails",
+  "contributionData",
+  "assetAllocation",
+  "portfolioReturn",
+  "positionSummary",
+  "inflation",
+  "baseCurrency",
+  "valuationDate",
+  "valuationIssues",
+);
+
 export function AssetTrackerDashboard() {
   const {
     accountDetails,
@@ -56,7 +71,7 @@ export function AssetTrackerDashboard() {
     baseCurrency,
     valuationDate,
     valuationIssues,
-  } = useAssetTracker();
+  } = useAssetTracker(selectAssetTrackerDashboard);
   const contributedCapital = contributionData.at(-1)?.contributedCapital;
   const missingPrices = valuationIssues.filter(
     (issue) => issue.kind === "missing_price" || issue.kind === "stale_price",

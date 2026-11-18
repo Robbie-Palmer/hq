@@ -70,6 +70,12 @@ their generated values must stay out of Terraform state. The
 [Vector commissioning guide](../../homelab/docs/vector-development.md)
 describes their guarded creation, rotation, and runtime health check.
 
+The root creates and owns the empty `personal-site/dev_agent_observability`
+config. Its values remain with the Vector workload. The config must contain
+only the PostHog project ID, private query origin, and a query-only API key. It
+must not inherit or copy the administrative provider credentials from
+`personal-site/dev_infra`.
+
 The tailnet baseline capture created its three Doppler configs before this
 registry adopted them. Account foundation imports those containers without
 reading their values. New GitHub environments can set `imported = false` so
@@ -94,9 +100,11 @@ rules only. GitHub secrets and variables still come from Doppler through the
 existing sync flow and are absent from Terraform configuration and state.
 
 The same registry creates `cloudflare-token-bootstrap/ops_provisioner` and
-`production-cloudflare-token-bootstrap` for the account-owned Cloudflare API
-token provisioner. That GitHub environment accepts only `main`, requires a
-reviewer, and disables administrator bypass.
+`production-cloudflare-token-bootstrap` for two separate account-owned
+Cloudflare credentials. `CLOUDFLARE_TOKEN_PROVISIONER_TOKEN` creates scoped
+API tokens. `CLOUDFLARE_BOOTSTRAP_TOKEN` writes declared Worker secrets and
+cannot create API tokens. That GitHub environment accepts only `main`, requires
+a reviewer, and disables administrator bypass.
 The account-foundation apply creates the empty config and environment. A human
 then installs the first masked token and runs the dedicated credential-sync
 task described in the [project bootstrap runbook](../../docs/runbooks/project-secret-bootstrap.md).

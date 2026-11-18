@@ -54,6 +54,16 @@ interface CatalogRecordDeclaration {
   source_paths?: string[];
 }
 
+function activeKnowledgeGraph(
+  contract: LayoutContract,
+): LayoutContract["knowledge_graph"] {
+  return contract.schema_version === 2 &&
+    contract.enforcement === "migration" &&
+    contract.migration_knowledge_graph
+    ? contract.migration_knowledge_graph
+    : contract.knowledge_graph;
+}
+
 export function parseLayoutContract(value: unknown): LayoutContract {
   return parseRepositoryLayoutContract(value);
 }
@@ -110,6 +120,15 @@ function validateComponentTaskOwnership(component: ComponentKind): string[] {
     );
   }
   if (
+    component.task_ownership !== "delegated" &&
+    "migration_delegated_task_project" in component &&
+    component.migration_delegated_task_project
+  ) {
+    issues.push(
+      `Component kind '${component.id}' has a migration delegated task target but does not delegate tasks`,
+    );
+  }
+  if (
     component.task_ownership === "delegated" &&
     component.mise_config_root
   ) {
@@ -123,23 +142,31 @@ function validateComponentTaskOwnership(component: ComponentKind): string[] {
 function validateComponentPaths(components: ComponentKind[]): string[] {
   const issues: string[] = [];
   for (const component of components) {
-    if (
-      component.directory.startsWith("/") ||
-      component.directory.split("/").includes("..")
-    ) {
-      issues.push(`Component path '${component.directory}' must be repository-relative`);
-    }
-    const placeholders = component.directory
-      .split("{")
-      .slice(1)
-      .map((segment) => `{${segment.split("}")[0]}}`);
-    if (
-      placeholders.some(
-        (placeholder) =>
-          placeholder !== "{component}" && placeholder !== "{project}",
-      )
-    ) {
-      issues.push(`Component path '${component.directory}' has an unknown placeholder`);
+    const directories = [
+      component.directory,
+      ...("migration_directories" in component
+        ? component.migration_directories
+        : []),
+    ];
+    for (const directory of directories) {
+      if (
+        directory.startsWith("/") ||
+        directory.split("/").includes("..")
+      ) {
+        issues.push(`Component path '${directory}' must be repository-relative`);
+      }
+      const placeholders = directory
+        .split("{")
+        .slice(1)
+        .map((segment) => `{${segment.split("}")[0]}}`);
+      if (
+        placeholders.some(
+          (placeholder) =>
+            placeholder !== "{component}" && placeholder !== "{project}",
+        )
+      ) {
+        issues.push(`Component path '${directory}' has an unknown placeholder`);
+      }
     }
     issues.push(...validateComponentTaskOwnership(component));
   }
@@ -148,6 +175,90 @@ function validateComponentPaths(components: ComponentKind[]): string[] {
       (duplicate) => `Duplicate component path '${duplicate}'`,
     ),
   );
+  return issues;
+}
+
+type LayoutContractV2 = Extract<LayoutContract, { schema_version: 2 }>;
+type TechnologyComponentKind = LayoutContractV2["component_kinds"][number];
+type TechnologyRoot =
+  LayoutContractV2["workspace_policy"]["technology_roots"][number];
+
+function validateTechnologyComponentRoot(
+  component: TechnologyComponentKind,
+  rootById: ReadonlyMap<string, TechnologyRoot>,
+): string[] {
+  if (component.migration_only) return [];
+  const root = rootById.get(component.technology);
+  if (!root) {
+    return [
+      `Component kind '${component.id}' uses undeclared technology root '${component.technology}'`,
+    ];
+  }
+  if (
+    component.directory === root.directory ||
+    component.directory.startsWith(`${root.directory}/`)
+  ) {
+    return [];
+  }
+  return [
+    `Component kind '${component.id}' must resolve below technology root '${root.directory}'`,
+  ];
+}
+
+function validateFinalComponent(
+  component: TechnologyComponentKind,
+): string[] {
+  const issues: string[] = [];
+  if (component.migration_only) {
+    issues.push(
+      `Final layout cannot retain migration-only component kind '${component.id}'`,
+    );
+  }
+  if (component.migration_directories.length > 0) {
+    issues.push(
+      `Final layout cannot retain migration directories for component kind '${component.id}'`,
+    );
+  }
+  if (component.migration_delegated_task_project) {
+    issues.push(
+      `Final layout cannot retain a migration delegated task target for component kind '${component.id}'`,
+    );
+  }
+  return issues;
+}
+
+function validateTechnologyRoots(contract: LayoutContract): string[] {
+  if (contract.schema_version !== 2) return [];
+  const roots = contract.workspace_policy.technology_roots;
+  const rootById = new Map(roots.map((root) => [root.id, root]));
+  const issues = [
+    ...duplicateValues(roots.map(({ id }) => id)).map(
+      (duplicate) => `Duplicate technology root ID '${duplicate}'`,
+    ),
+    ...duplicateValues(roots.map(({ directory }) => directory)).map(
+      (duplicate) => `Duplicate technology root path '${duplicate}'`,
+    ),
+  ];
+  if (
+    contract.enforcement === "migration" &&
+    !contract.migration_knowledge_graph
+  ) {
+    issues.push("Migration layout must declare migration knowledge-graph paths");
+  }
+  if (
+    contract.enforcement === "final" &&
+    contract.migration_knowledge_graph
+  ) {
+    issues.push("Final layout cannot retain migration knowledge-graph paths");
+  }
+  for (const component of contract.component_kinds) {
+    issues.push(
+      ...validateTechnologyComponentRoot(component, rootById),
+      ...(contract.enforcement === "final"
+        ? validateFinalComponent(component)
+        : []),
+    );
+  }
   return issues;
 }
 
@@ -248,15 +359,16 @@ function validateSharedManifestBoundary(
 
 export function validateLayoutContract(contract: LayoutContract): string[] {
   const issues: string[] = [];
-  if (contract.schema_version !== 1) {
-    issues.push(`Unsupported layout schema version '${contract.schema_version}'`);
-  }
   issues.push(
     ...validateNamedRecords("project kind", contract.project_kinds),
     ...validateProjectRegistrationContract(contract),
     ...validateNamedRecords("component kind", contract.component_kinds),
     ...validateComponentPaths(contract.component_kinds ?? []),
     ...validateKnowledgeGraphTemplates(contract.knowledge_graph),
+    ...(contract.schema_version === 2 && contract.migration_knowledge_graph
+      ? validateKnowledgeGraphTemplates(contract.migration_knowledge_graph)
+      : []),
+    ...validateTechnologyRoots(contract),
   );
   for (const projectKind of contract.project_kinds ?? []) {
     if (projectKind.task_profile !== contract.task_contract?.id) {
@@ -413,8 +525,17 @@ async function validateDecisionDirectory(
     );
 }
 
-async function validateKnowledgeGraph(repositoryRoot: string): Promise<string[]> {
-  const projectsRoot = path.join(repositoryRoot, "ui/content/projects");
+async function validateKnowledgeGraph(
+  repositoryRoot: string,
+  contract: LayoutContract,
+): Promise<string[]> {
+  const projectsDirectory = activeKnowledgeGraph(contract).project_index
+    .split("{project}")[0]
+    .replace(/\/$/, "");
+  const projectsRoot = path.join(repositoryRoot, projectsDirectory);
+  if (!(await pathExists(projectsRoot))) {
+    return [`Knowledge graph root '${projectsDirectory}' does not exist`];
+  }
   const projects = await readdir(projectsRoot, { withFileTypes: true });
   const projectIssues = await Promise.all(
     projects
@@ -482,7 +603,7 @@ async function validateRegisteredProjects(
   const issues = await Promise.all(
     (contract.projects ?? []).map(async (project) => {
       const projectIssues: string[] = [];
-      const projectIndex = contract.knowledge_graph.project_index.replace(
+      const projectIndex = activeKnowledgeGraph(contract).project_index.replace(
         "{project}",
         project.id,
       );
@@ -523,34 +644,57 @@ export async function validateRepositoryLayout(
 ): Promise<string[]> {
   const issues = validateLayoutContract(contract);
   const catalogRecords = await loadCatalogRecords(repositoryRoot);
-  const [componentIssues, manifestIssues, ...checks] = await Promise.all([
-    Promise.all(
-      (contract.component_kinds ?? []).map(async (component) => {
-        const stablePrefix = component.directory
-          .split("{")[0]
-          .replace(/\/$/, "");
-        return stablePrefix &&
-          !(await pathExists(path.join(repositoryRoot, stablePrefix)))
-          ? `Component directory root '${stablePrefix}' does not exist`
-          : null;
-      }),
+  const componentDirectoryCheck = Promise.all(
+    (contract.component_kinds ?? []).map(async (component) => {
+      const usesMigrationDirectories =
+        contract.schema_version === 2 &&
+        contract.enforcement === "migration" &&
+        !component.migration_only;
+      const activeDirectories = usesMigrationDirectories
+        ? component.migration_directories
+        : [component.directory];
+      if (activeDirectories.length === 0) return null;
+      const stablePrefix = activeDirectories[0]
+        .split("{")[0]
+        .replace(/\/$/, "");
+      return stablePrefix &&
+        !(await pathExists(path.join(repositoryRoot, stablePrefix)))
+        ? `Component directory root '${stablePrefix}' does not exist`
+        : null;
+    }),
+  );
+  const technologyRootCheck =
+    contract.schema_version === 2 && contract.enforcement === "final"
+      ? Promise.all(
+          contract.workspace_policy.technology_roots.map(async (root) =>
+            (await pathExists(path.join(repositoryRoot, root.directory)))
+              ? null
+              : `Technology root '${root.directory}' does not exist`,
+          ),
+        )
+      : Promise.resolve([]);
+  const sharedManifestCheck = Promise.all(
+    (contract.shared_manifests ?? []).map(async (manifest) =>
+      (await pathExists(path.join(repositoryRoot, manifest.path)))
+        ? null
+        : `Shared manifest '${manifest.path}' does not exist`,
     ),
-    Promise.all(
-      (contract.shared_manifests ?? []).map(async (manifest) =>
-        (await pathExists(path.join(repositoryRoot, manifest.path)))
-          ? null
-          : `Shared manifest '${manifest.path}' does not exist`,
-      ),
-    ),
-    validateMiseRoots(repositoryRoot, contract),
-    validateNodeWorkspace(repositoryRoot, contract),
-    validatePythonLocks(repositoryRoot),
-    validateKnowledgeGraph(repositoryRoot),
-    validateCatalogSourcePaths(repositoryRoot, catalogRecords),
-    validateRegisteredProjects(repositoryRoot, contract, catalogRecords),
-  ]);
+  );
+  const [componentIssues, technologyRootIssues, manifestIssues, ...checks] =
+    await Promise.all([
+      componentDirectoryCheck,
+      technologyRootCheck,
+      sharedManifestCheck,
+      validateMiseRoots(repositoryRoot, contract),
+      validateNodeWorkspace(repositoryRoot, contract),
+      validatePythonLocks(repositoryRoot),
+      validateKnowledgeGraph(repositoryRoot, contract),
+      validateCatalogSourcePaths(repositoryRoot, catalogRecords),
+      validateRegisteredProjects(repositoryRoot, contract, catalogRecords),
+    ]);
   issues.push(
     ...componentIssues.filter((issue): issue is string => issue !== null),
+    ...technologyRootIssues.filter((issue): issue is string => issue !== null),
     ...manifestIssues.filter((issue): issue is string => issue !== null),
     ...checks.flat(),
   );

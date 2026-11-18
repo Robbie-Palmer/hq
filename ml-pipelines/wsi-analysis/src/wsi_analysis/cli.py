@@ -4,6 +4,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
+from pathologize_tiler import extract_tiles
 from pydantic import ValidationError
 
 from wsi_analysis.config import PROJECT_DIR, PipelineSettings
@@ -16,7 +17,6 @@ from wsi_analysis.dataset import (
 )
 from wsi_analysis.models import DatasetInventory
 from wsi_analysis.pipeline import prepare_tiles
-from wsi_analysis.tiling import extract_tiles
 
 
 class DatasetValidationError(RuntimeError):

@@ -68,9 +68,9 @@ export const ProjectSchema = z
       .regex(/^\d{4}-\d{2}-\d{2}$/)
       .optional(),
     status: ProjectStatusSchema,
-    repoUrl: z.string().url().optional(),
-    demoUrl: z.string().url().optional(),
-    productUrl: z.string().url().optional(),
+    repoUrl: z.url().optional(),
+    demoUrl: z.url().optional(),
+    productUrl: z.url().optional(),
     paperUrl: z.url().optional(),
     paperTitle: z.string().min(1).optional(),
     pitch: PitchDeckSchema.optional(),

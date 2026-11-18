@@ -32,6 +32,11 @@ import { UnitSchema } from "recipe-domain/unit";
 import { RECIPE_VISIBILITIES } from "recipe-domain/visibility";
 import { z } from "zod";
 import {
+  agentRecipePrincipal,
+  authorizeRecipePolicy,
+  RecipeAuthorizationActionSchema,
+} from "./authorization/recipe-authorization";
+import {
   type AgentRecipeImportServices,
   createAgentRecipeImport,
   readAgentRecipeImportStatus,
@@ -1235,6 +1240,28 @@ export async function executeRecipeAgentCapability(
 ) {
   const handler = agentCapabilityHandlers[capability];
   if (!handler) throw new Error(`Unsupported agent capability: ${capability}`);
+  const action = RecipeAuthorizationActionSchema.safeParse(capability);
+  const delegatedUserId = agentSession.userId ?? agentSession.user.id;
+  const decision = action.success
+    ? authorizeRecipePolicy({
+        principal: agentRecipePrincipal(
+          agentSession.agent.id,
+          delegatedUserId,
+          true,
+        ),
+        action: action.data,
+        resource: {
+          type: "CapabilityInvocation",
+          id: `capability:${agentSession.agent.id}:${capability}`,
+          attrs: { capability, delegatedUserId },
+        },
+      })
+    : { allowed: false as const, diagnostics: ["Unknown Cedar action"] };
+  if (!decision.allowed) {
+    throw new APIError("FORBIDDEN", {
+      message: "The delegated agent cannot execute this capability",
+    });
+  }
   return handler(db, args, agentSession, services);
 }
 

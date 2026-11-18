@@ -10,9 +10,11 @@ symetry = "symetry" # SymetryML, streaming ML product
 vertica = "vertica" # Vertica analytics database
 sie = "sie" # split from the SIEM(s) acronym
 ome = "ome" # Open Microscopy Environment
+nd = "nd" # NoDerivatives token in the CC BY-NC-ND SPDX identifier
 
 [default.extend-identifiers]
 CelesTrak = "CelesTrak" # orbital-data and reference-software publisher
+rgb2hed = "rgb2hed" # scikit-image RGB-to-HED color conversion API
 654a541934ba = "654a541934ba" # generated UK HPI release checksum prefix
 
 [files]
@@ -20,6 +22,17 @@ extend-exclude = [
     # Versioned ISO code data contains short assigned identifiers that resemble
     # common misspellings, such as BA, FO, PN, and JOD.
     "packages/iso-codes/artifacts/",
+    # Generated public-pilot manifests preserve opaque Google Drive file IDs.
+    "ml-pipelines/pathologize-data-registry/manifests/assets/airaqc-tcga-public-pilot-v1.json",
+    "ml-pipelines/pathologize-slide-quality-benchmark/public-pilot/corpus.json",
+    "ml-pipelines/pathologize-slide-quality-benchmark/public-pilot/source-index.json",
+    "data-products/airaqc/tcga-public-pilot/contracts/assets.json",
+    "data-products/airaqc/tcga-public-pilot/contracts/source-index.json",
+    "data-products/airaqc/tcga-public-pilot/records/native-corpus.json",
+    # Publisher-authored CryoNuSeg review notes retain their original spelling.
+    "data-products/cryonuseg/frozen-he/records/selected-wsis.csv",
+    # The pinned PRIDE response retains publisher field names and protocol text.
+    "data-products/proteomexchange/pxd064700/snapshots/pride-project.json",
     # Vendored CelesTrak SGP4 reference code retains upstream identifiers and
     # comments so local changes remain auditable against the pinned source.
     "cpp/autonomic-satellite-swarm/third_party/sgp4/",

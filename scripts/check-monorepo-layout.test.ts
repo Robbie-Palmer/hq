@@ -91,7 +91,6 @@ describe("monorepo layout contract", () => {
 
   it("rejects malformed paths and incomplete task profiles", async () => {
     const contract = structuredClone(await loadLayoutContract(repositoryRoot));
-    contract.schema_version = 2;
     contract.project_kinds[0].task_profile = "custom";
     const recipeSite = contract.projects.find(({ id }) => id === "recipe-site");
     if (!recipeSite) throw new Error("Missing recipe-site test registration");
@@ -102,13 +101,63 @@ describe("monorepo layout contract", () => {
 
     expect(validateLayoutContract(contract)).toEqual(
       expect.arrayContaining([
-        "Unsupported layout schema version '2'",
         "Component path '../ui' must be repository-relative",
         "The project index path is missing a required placeholder",
         "Project kind 'application' must use task profile 'standard'",
         "Project 'recipe-site' uses unknown project kind 'unknown'",
         "The task contract must contain install, format, lint, typecheck-or-compile, test, build, and clean",
       ]),
+    );
+  });
+
+  it("allows compatibility paths only during migration enforcement", async () => {
+    const contract = structuredClone(await loadLayoutContract(repositoryRoot));
+    if (contract.schema_version !== 2) throw new Error("Expected layout v2");
+
+    expect(validateLayoutContract(contract)).not.toEqual(
+      expect.arrayContaining([expect.stringContaining("Final layout")]),
+    );
+
+    contract.enforcement = "final";
+    expect(validateLayoutContract(contract)).toEqual(
+      expect.arrayContaining([
+        "Final layout cannot retain migration knowledge-graph paths",
+        "Final layout cannot retain migration-only component kind 'ui'",
+        "Final layout cannot retain migration directories for component kind 'worker'",
+        "Final layout cannot retain a migration delegated task target for component kind 'project-ui'",
+      ]),
+    );
+
+    delete contract.migration_knowledge_graph;
+    contract.component_kinds = contract.component_kinds
+      .filter(({ migration_only: migrationOnly }) => !migrationOnly)
+      .map((component) => ({
+        ...component,
+        migration_directories: [],
+        migration_delegated_task_project: undefined,
+      }));
+    expect(validateLayoutContract(contract)).toEqual([]);
+  });
+
+  it("requires compatibility knowledge-graph paths during migration", async () => {
+    const contract = structuredClone(await loadLayoutContract(repositoryRoot));
+    if (contract.schema_version !== 2) throw new Error("Expected layout v2");
+    delete contract.migration_knowledge_graph;
+
+    expect(validateLayoutContract(contract)).toContain(
+      "Migration layout must declare migration knowledge-graph paths",
+    );
+  });
+
+  it("requires component kinds to use their declared technology root", async () => {
+    const contract = structuredClone(await loadLayoutContract(repositoryRoot));
+    if (contract.schema_version !== 2) throw new Error("Expected layout v2");
+    const worker = contract.component_kinds.find(({ id }) => id === "worker");
+    if (!worker) throw new Error("Missing worker component kind");
+    worker.directory = "python/apps/worker";
+
+    expect(validateLayoutContract(contract)).toContain(
+      "Component kind 'worker' must resolve below technology root 'typescript'",
     );
   });
 

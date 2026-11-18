@@ -147,7 +147,25 @@ function ComparisonControls(
 }
 
 function useDecisionComparisonModel() {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({
+      adoptDecisionForecast,
+      baseCurrency,
+      compareDecisionScenario,
+      emergencyFundPlans,
+      financialIndependence,
+      futureCashFlows,
+      planningCases,
+    }) => ({
+      adoptDecisionForecast,
+      baseCurrency,
+      compareDecisionScenario,
+      emergencyFundPlans,
+      financialIndependence,
+      futureCashFlows,
+      planningCases,
+    }),
+  );
   const decisions = useMemo(
     () =>
       tracker.futureCashFlows.filter(

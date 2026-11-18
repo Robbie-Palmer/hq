@@ -3,6 +3,7 @@ python = "3.12"
 
 [env]
 PYTHONDONTWRITEBYTECODE = "1"
+UV_PYTHON = "3.12"
 
 [tasks.sync]
 description = "Install the locked cell-analysis benchmark environment"
@@ -17,9 +18,9 @@ description = "Run a DVC command in the cell-analysis benchmark"
 run = "bash ../scripts/dvc.sh"
 
 [tasks.repro]
-description = "Reproduce the deterministic cell-analysis benchmark"
+description = "Reproduce the deterministic synthetic contract benchmark"
 depends = ["sync"]
-run = "bash ../scripts/dvc.sh repro"
+run = "bash ../scripts/dvc.sh repro write_benchmark_index"
 
 [tasks.verify]
 description = "Verify cell-analysis contracts, leakage boundaries, and scorecards"
@@ -28,4 +29,99 @@ run = "uv run --locked pathologize-benchmark verify"
 
 [tasks.check]
 description = "Check the cell-analysis benchmark"
-depends = ["verify"]
+depends = ["lint", "typecheck", "test:coverage", "verify"]
+
+[tasks.format]
+description = "Format cell-analysis benchmark Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint cell-analysis benchmark Python code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check cell-analysis benchmark Python code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run cell-analysis benchmark tests"
+depends = ["sync"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run cell-analysis benchmark tests with Cobertura coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks."public:repro"]
+description = "Run the bounded baseline from the NuCLS data product through DVC"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro report_nucls_public_baseline"
+
+[tasks."public:report"]
+description = "Write the NuCLS public-baseline DVC metric and Markdown evidence report"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis report"
+
+[tasks."learned:prepare"]
+description = "Acquire pinned model assets and build the derived NuCLS training layouts"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro prepare_learned_artifacts prepare_nucls_learned_layout"
+
+[tasks."learned:repro"]
+description = "Reproduce the parameterized NuCLS learned-baseline DVC experiment"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro report_nucls_learned"
+
+[tasks."learned:train"]
+description = "Train or exactly resume the configured NuCLS learned baseline"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis learned train"
+
+[tasks."learned:predict"]
+description = "Run configured inference and normalize Pathologize prediction records"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis learned predict"
+
+[tasks."learned:evaluate"]
+description = "Evaluate the trained NuCLS learned baseline on the frozen test fold"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis learned evaluate"
+
+[tasks."learned:report"]
+description = "Write the NuCLS learned-baseline DVC metric and tracked Markdown report"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis learned report"
+
+[tasks."annotation:pilot"]
+description = "Benchmark box-prompt mask proposals and render a NuCLS review batch"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis annotation pilot"
+
+[tasks."annotation:compare"]
+description = "Smoke-test pinned MedSAM, SAM 2, and CellSAM box-prompt mask proposals"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis annotation compare"
+
+[tasks."annotation:cellsam:acquire"]
+description = "Download and verify the pinned gated CellSAM archive"
+depends = ["sync"]
+run = "uv run --locked pathologize-cell-analysis annotation acquire-cellsam"
+
+[tasks."learned:calibration:validation"]
+description = "Run validation-only NuCLS detection operating-point calibration"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro calibrate_nucls_detection_validation"
+
+[tasks."learned:calibration:lock"]
+description = "Lock the validation-selected NuCLS detection operating point"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro lock_nucls_detection_calibration"
+
+[tasks."learned:calibration:test"]
+description = "Run one locked frozen-test NuCLS detection evaluation"
+depends = ["sync"]
+run = "bash ../scripts/dvc.sh repro report_nucls_detection_calibration"

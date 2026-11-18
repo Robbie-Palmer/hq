@@ -7,6 +7,7 @@ initiatives:
   - "personalized-medicine"
 tech_stack:
   - "Python"
+  - "OpenTelemetry"
   - "DVC"
   - "Pydantic"
   - "DICOM"
@@ -16,6 +17,12 @@ tech_stack:
   - "RO-Crate"
   - "OpenSlide"
   - "PyTorch"
+  - "fastai"
+  - "timm"
+  - "Ultralytics"
+  - "Hugging Face"
+  - "Transformers"
+  - "torchmil"
   - "DuckDB"
   - "Parquet"
 tags:
@@ -46,8 +53,8 @@ The initial proposals define the intended research boundary:
 
 * [PDR 000](/projects/pathologize/pdrs/000-open-evidence-bounded-research) proposes an open,
   evidence-bounded research programme rather than a clinical product claim.
-* [PDR 001](/projects/pathologize/pdrs/001-one-versioned-pathology-data-registry) proposes one
-  versioned source registry with independently reproducible downstream projects.
+* [PDR 001](/projects/pathologize/pdrs/001-one-versioned-pathology-data-registry) originally proposed
+  one versioned source registry and is superseded by PDR 009.
 * [PDR 002](/projects/pathologize/pdrs/002-public-source-provenance-boundary) proposes a documented
   public-source boundary from former-employer work.
 * [PDR 003](/projects/pathologize/pdrs/003-independent-pathology-benchmark-families) proposes separate
@@ -56,10 +63,22 @@ The initial proposals define the intended research boundary:
   outputs and failures alongside aggregate scores.
 * [PDR 005](/projects/pathologize/pdrs/005-restoration-as-reconstruction-and-model-input) proposes
   evaluating image restoration as uncertain reconstruction and as a possible input to downstream models.
+* [PDR 006](/projects/pathologize/pdrs/006-task-native-pathology-model-development) proposes matching
+  classification, regression, detection, segmentation and multiple instance learning to task-native
+  supervision and prediction contracts.
+* [PDR 007](/projects/pathologize/pdrs/007-source-native-wsi-compatibility) supports source-native
+  whole-slide formats through tested readers, preserves a CPU host-pixel path, and allows explicit
+  format-specific acceleration.
+* [PDR 008](/projects/pathologize/pdrs/008-evidence-gated-gpu-pixel-decoding) requires an end-to-end
+  workload improvement before GPU pixel decoding becomes a default.
+* [PDR 009](/projects/pathologize/pdrs/009-source-native-pathology-data-mesh) proposes reusable,
+  source-native DVC projects feeding consumer-owned reconciled products through versioned adapters.
+* [PDR 010](/projects/pathologize/pdrs/010-ingest-skin-frozen-ffpe-preview) rejects the current
+  Zenodo skin frozen and FFPE preview because its deposited files contain no usable whole-slide pixels.
 
 # Architecture decisions
 
-The accepted implementation boundaries are:
+The current implementation decisions and proposals are:
 
 * [ADR 000](/projects/pathologize/adrs/000-standards-based-pathology-data-boundary) makes the registry's
   portable artifact a source-only Croissant export and assigns DICOM WSI, OME-Zarr, RO-Crate and PROV-O
@@ -70,23 +89,50 @@ The accepted implementation boundaries are:
   artifact helpers, reusable ML evaluation contracts, and Pathologize domain code.
 * [ADR 003](/projects/pathologize/adrs/003-on-demand-source-acquisition) acquires source data when an
   experiment needs it, retains bounded verified inputs locally, and defers paid hosted storage.
+* [ADR 004](/projects/pathologize/adrs/004-framework-native-training-result-contracts) uses each
+  training library directly and standardizes predictions, resources, failures, and run evidence afterward.
+* [ADR 005](/projects/pathologize/adrs/005-fastai-timm-transfer-learning-baselines) adopts fastai and
+  timm for supervised image and patch transfer-learning baselines.
+* [ADR 006](/projects/pathologize/adrs/006-ultralytics-spatial-instance-baselines) adopts Ultralytics
+  for object-detection and instance-segmentation baselines under the repository's AGPL distribution model.
+* [ADR 007](/projects/pathologize/adrs/007-transformers-foundation-model-workflows) adopts pinned
+  Transformers and Hugging Face model revisions through framework-native experiment code.
+* [ADR 008](/projects/pathologize/adrs/008-torchmil-multiple-instance-baselines) adopts torchmil for
+  learned multiple instance baselines while retaining simple project-owned pooling controls.
+* [ADR 009](/projects/pathologize/adrs/009-separate-wsi-reading-decoding-and-residency) separates
+  slide-container semantics, pixel decoding, and host or device output while retaining OpenSlide as the
+  broad CPU compatibility path.
+* [ADR 010](/projects/pathologize/adrs/010-optional-cuda-wsi-decode-backends) proposes cuCIM for its
+  documented TIFF-family formats and wsidicom plus nvImageCodec for supported DICOM frame codecs, subject
+  to public-fixture correctness and end-to-end performance gates.
+* [ADR 011](/projects/pathologize/adrs/011-agent-readable-training-monitoring) uses project-owned structured
+  logs and OpenTelemetry for framework-neutral training observability, with low-cardinality metrics and
+  correlation to the existing DCGM and Netdata path.
+
+One architecture evaluation remains open:
+
+* [ADR 012](/projects/pathologize/adrs/012-evaluate-openlineage-end-to-end-lineage) proposes a bounded
+  OpenLineage spike across DVC artifacts, training, evaluation, deployment, and production observations
+  before deciding whether a persistent cross-system lineage service earns adoption.
 
 # Research programme
 
-## Data registry
+## Data mesh
 
-One authoritative registry will describe public datasets, licences, checksums, retrieval evidence, and the
-patient, case, specimen, slide and image identities needed to keep related records on one side of each train,
-validation and test boundary. It will preserve source-native labels, scanner metadata, physical pixel spacing
-and stain information without forcing every dataset into one false universal ontology.
+Source datasets live in versioned DVC projects that describe their own domain. A whole-slide source can preserve
+patient, specimen, scanner and physical-scale identities. A published patch source can preserve organ, source
+WSI group, image-mask pair, native pixel class and publisher role without inventing patient or scanner fields.
+Each source owns its bytes, rights, checksums and native ontology.
 
-New annotation layers may apply a finer ontology or replace source categories with an incommensurable ontology.
-The registry will preserve both label systems, their annotation protocols and any partial mappings instead of
-overwriting the source account or claiming equivalence where none exists.
+Downstream dataset projects pin those sources and own the task ontology, adapters, exclusions, reannotations,
+leakage-aware partitions and training or evaluation roles. A mapping records whether it is exact, partial,
+source-merged, unmapped or dropped. Source records and labels remain attached to the derived record, so a uniform
+training view does not overwrite the source account or claim an equivalence that the annotations do not support.
 
-Downstream projects will pin a registry revision and own their task-specific partitions, transformations,
-tiles, embeddings, models and scorecards. Raw slides remain source artifacts. A tile set is a parameterised
-experimental result, not another copy of the truth.
+Each downstream product reports what another source added and what reconciliation lost. That includes record and
+group counts, label coverage, collapsed concepts, unavailable distinctions, reannotations, exclusions and role
+overrides. Raw slides and patches remain source artifacts. Tiles, embeddings and harmonized manifests are
+versioned outputs of the project that defines their parameters.
 
 ## Whole-slide quality and tissue analysis
 

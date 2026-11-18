@@ -127,6 +127,24 @@ TEST_CASE("the packet network serializes wire packets on one deterministic share
   CHECK(metrics.energy_per_delivered_byte_millijoules > 0.0);
 }
 
+TEST_CASE("packet arrivals due on the same tick remain ordered by packet ID") {
+  SimulationTrace trace = packetNetworkTrace();
+  trace.provenance.seed = 9U;
+  trace.seeded_delivery_faults = {true, 0U, 3000U, 0U, 0U, 10U, 10U};
+
+  const SimulationResult result = runSimulationTrace(trace);
+  std::vector<uint64_t> delivered_packets;
+  for (const SimulationEvent& event : result.events) {
+    if (event.type == SimulationEventType::MessageDelivered && event.now_ms == 20U) {
+      delivered_packets.push_back(event.packet_id);
+    }
+  }
+
+  REQUIRE(delivered_packets.size() == 2U);
+  CHECK(delivered_packets[0] == 1U);
+  CHECK(delivered_packets[1] == 2U);
+}
+
 TEST_CASE("shared-medium arbitration rotates among backlogged senders") {
   SimulationTrace trace = packetNetworkTrace();
   trace.frames.front().mission_commands = {

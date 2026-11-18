@@ -94,6 +94,7 @@ private:
   };
 
   using DeliveryFaultIterator = std::vector<DeliveryFault>::iterator;
+  using PendingDeliveryIterator = std::vector<PendingDelivery>::iterator;
 
   void deliverLegacy(const SimulatedPacket& packet);
   void deliverNow(const SimulatedPacket& packet,
@@ -114,6 +115,8 @@ private:
   void completeTransmission(const ActiveTransmission& transmission);
   void scheduleArrival(const SimulatedPacket& packet, uint32_t delay_ms, bool forwarding);
   void processArrival(const PendingDelivery& delivery);
+  std::optional<uint32_t> nextPacketEventDelta(uint32_t target_ms, bool include_target) const;
+  PendingDeliveryIterator nextPendingDelivery();
   void advancePacketNetwork(uint32_t target_ms, bool include_target);
   uint64_t packetAirtimeMicroseconds() const;
   uint32_t packetTransmissionMilliseconds() const;
@@ -689,46 +692,57 @@ void SimulationBus::processArrival(const PendingDelivery& delivery) {
   enqueuePacket(packet);
 }
 
-void SimulationBus::advancePacketNetwork(uint32_t target_ms, bool include_target) {
-  while (true) {
-    const uint32_t target_delta = target_ms - now_ms_;
-    bool found = false;
-    uint32_t next_delta = 0U;
-    if (active_transmission_.has_value()) {
-      const uint32_t delta = active_transmission_->completes_at_ms - now_ms_;
-      if (delta < target_delta || (include_target && delta == target_delta)) {
-        found = true;
-        next_delta = delta;
-      }
-    }
-    for (const PendingDelivery& pending : pending_deliveries_) {
-      const uint32_t delta = pending.deliver_at_ms - now_ms_;
-      if ((delta < target_delta || (include_target && delta == target_delta)) &&
-          (!found || delta < next_delta)) {
-        found = true;
-        next_delta = delta;
-      }
-    }
-    if (!found) {
-      break;
-    }
+namespace {
 
-    now_ms_ += next_delta;
+bool occursBeforeTarget(uint32_t delta, uint32_t target_delta, bool include_target) {
+  return delta < target_delta || (include_target && delta == target_delta);
+}
+
+} // namespace
+
+std::optional<uint32_t> SimulationBus::nextPacketEventDelta(uint32_t target_ms,
+                                                            bool include_target) const {
+  const uint32_t target_delta = target_ms - now_ms_;
+  std::optional<uint32_t> next_delta;
+  if (active_transmission_.has_value()) {
+    const uint32_t delta = active_transmission_->completes_at_ms - now_ms_;
+    if (occursBeforeTarget(delta, target_delta, include_target)) {
+      next_delta = delta;
+    }
+  }
+  for (const PendingDelivery& pending : pending_deliveries_) {
+    const uint32_t delta = pending.deliver_at_ms - now_ms_;
+    if (occursBeforeTarget(delta, target_delta, include_target) &&
+        (!next_delta.has_value() || delta < *next_delta)) {
+      next_delta = delta;
+    }
+  }
+  return next_delta;
+}
+
+SimulationBus::PendingDeliveryIterator SimulationBus::nextPendingDelivery() {
+  auto selected = pending_deliveries_.end();
+  for (auto pending = pending_deliveries_.begin(); pending != pending_deliveries_.end();
+       ++pending) {
+    if (pending->deliver_at_ms == now_ms_ &&
+        (selected == pending_deliveries_.end() || pending->packet.id < selected->packet.id)) {
+      selected = pending;
+    }
+  }
+  return selected;
+}
+
+void SimulationBus::advancePacketNetwork(uint32_t target_ms, bool include_target) {
+  std::optional<uint32_t> next_delta = nextPacketEventDelta(target_ms, include_target);
+  while (next_delta.has_value()) {
+    now_ms_ += *next_delta;
     if (active_transmission_.has_value() && active_transmission_->completes_at_ms == now_ms_) {
       const ActiveTransmission completed = *active_transmission_;
       active_transmission_.reset();
       completeTransmission(completed);
     }
-
     while (true) {
-      auto selected = pending_deliveries_.end();
-      for (auto pending = pending_deliveries_.begin(); pending != pending_deliveries_.end();
-           ++pending) {
-        if (pending->deliver_at_ms == now_ms_ &&
-            (selected == pending_deliveries_.end() || pending->packet.id < selected->packet.id)) {
-          selected = pending;
-        }
-      }
+      const PendingDeliveryIterator selected = nextPendingDelivery();
       if (selected == pending_deliveries_.end()) {
         break;
       }
@@ -737,6 +751,7 @@ void SimulationBus::advancePacketNetwork(uint32_t target_ms, bool include_target
       processArrival(delivery);
     }
     startTransmissionIfIdle();
+    next_delta = nextPacketEventDelta(target_ms, include_target);
   }
   now_ms_ = target_ms;
 }
@@ -837,14 +852,17 @@ void validateDeliveryFault(const DeliveryFault& fault, std::size_t node_count) {
   }
 }
 
-void validateFrame(const SimulationFrame& frame, std::size_t node_count) {
-  for (const SatelliteUpdate& update : frame.satellite_updates) {
+void validateSatelliteUpdates(const std::vector<SatelliteUpdate>& updates, std::size_t node_count) {
+  for (const SatelliteUpdate& update : updates) {
     validateNodeId(update.node_id, node_count);
     if (!isValid(update.satellite)) {
       throw std::invalid_argument("simulation frame has an invalid satellite snapshot");
     }
   }
-  for (const OrbitUpdate& update : frame.orbit_updates) {
+}
+
+void validateOrbitUpdates(const std::vector<OrbitUpdate>& updates, std::size_t node_count) {
+  for (const OrbitUpdate& update : updates) {
     validateNodeId(update.node_id, node_count);
     if (!isValid(update.orbit.teme) || !isValid(update.orbit.earth_fixed) ||
         update.orbit.teme.frame != OrbitalCoordinateFrame::Teme ||
@@ -854,32 +872,48 @@ void validateFrame(const SimulationFrame& frame, std::size_t node_count) {
       throw std::invalid_argument("simulation frame has an invalid orbit update");
     }
   }
-  for (const HealthUpdate& update : frame.health_updates) {
+}
+
+void validateHealthUpdates(const std::vector<HealthUpdate>& updates, std::size_t node_count) {
+  for (const HealthUpdate& update : updates) {
     validateNodeId(update.node_id, node_count);
     if (!isKnown(update.health)) {
       throw std::invalid_argument("simulation frame has an invalid health state");
     }
   }
-  for (const SafeStateStatusUpdate& update : frame.safe_state_status_updates) {
+}
+
+void validateSafeStateUpdates(const std::vector<SafeStateStatusUpdate>& updates,
+                              std::size_t node_count) {
+  for (const SafeStateStatusUpdate& update : updates) {
     validateNodeId(update.node_id, node_count);
     if (!isKnown(update.status)) {
       throw std::invalid_argument("simulation frame has an invalid safe-state status");
     }
   }
-  for (const LinkUpdate& update : frame.link_updates) {
+}
+
+void validateLinkUpdates(const std::vector<LinkUpdate>& updates, std::size_t node_count) {
+  for (const LinkUpdate& update : updates) {
     validateNodeId(update.sender, node_count);
     validateNodeId(update.recipient, node_count);
     if (update.sender == update.recipient) {
       throw std::invalid_argument("simulation link update cannot target its sender");
     }
   }
-  for (const ContactUpdate& update : frame.contact_updates) {
+}
+
+void validateContactUpdates(const std::vector<ContactUpdate>& updates, std::size_t node_count) {
+  for (const ContactUpdate& update : updates) {
     validateNodeId(update.sender, node_count);
     validateNodeId(update.recipient, node_count);
     if (update.sender == update.recipient) {
       throw std::invalid_argument("simulation contact update cannot target its sender");
     }
   }
+}
+
+void validateNodeReferences(const SimulationFrame& frame, std::size_t node_count) {
   for (const StoragePressureUpdate& update : frame.storage_pressure_updates) {
     validateNodeId(update.node_id, node_count);
   }
@@ -892,6 +926,9 @@ void validateFrame(const SimulationFrame& frame, std::size_t node_count) {
   for (const NodeCrash& crash : frame.node_crashes) {
     validateNodeId(crash.node_id, node_count);
   }
+}
+
+void validateMissionUpdates(const SimulationFrame& frame, std::size_t node_count) {
   for (const MissionCommand& command : frame.mission_commands) {
     validateNodeId(command.leader, node_count);
     if (!isValid(command.objective)) {
@@ -903,15 +940,20 @@ void validateFrame(const SimulationFrame& frame, std::size_t node_count) {
   }
 }
 
-void validateTrace(const SimulationTrace& trace) {
-  if (trace.version != kSimulationTraceVersion) {
-    throw std::invalid_argument("unsupported simulation trace version");
-  }
-  if (trace.nodes.empty() || trace.nodes.size() > kMaximumNodes) {
-    throw std::invalid_argument("simulation trace must configure between 1 and 16 nodes");
-  }
-  for (std::size_t index = 0; index < trace.nodes.size(); ++index) {
-    const NodeConfiguration& node = trace.nodes[index];
+void validateFrame(const SimulationFrame& frame, std::size_t node_count) {
+  validateSatelliteUpdates(frame.satellite_updates, node_count);
+  validateOrbitUpdates(frame.orbit_updates, node_count);
+  validateHealthUpdates(frame.health_updates, node_count);
+  validateSafeStateUpdates(frame.safe_state_status_updates, node_count);
+  validateLinkUpdates(frame.link_updates, node_count);
+  validateContactUpdates(frame.contact_updates, node_count);
+  validateNodeReferences(frame, node_count);
+  validateMissionUpdates(frame, node_count);
+}
+
+void validateNodes(const std::vector<NodeConfiguration>& nodes) {
+  for (std::size_t index = 0; index < nodes.size(); ++index) {
+    const NodeConfiguration& node = nodes[index];
     if (static_cast<std::size_t>(node.node_id) != index) {
       throw std::invalid_argument("simulation node IDs must be contiguous and ordered");
     }
@@ -928,8 +970,9 @@ void validateTrace(const SimulationTrace& trace) {
       throw std::invalid_argument("simulation node protocol versions must be nonzero");
     }
   }
+}
 
-  const PacketNetworkConfig& network = trace.packet_network;
+void validatePacketNetwork(const PacketNetworkConfig& network) {
   if (network.enabled &&
       (network.bitrate_bits_per_second == 0U || network.maximum_hops == 0U ||
        network.propagation_delay_ms > static_cast<uint32_t>(std::numeric_limits<int32_t>::max()) ||
@@ -939,23 +982,27 @@ void validateTrace(const SimulationTrace& trace) {
        network.receive_energy_millijoules_per_byte < 0.0)) {
     throw std::invalid_argument("simulation packet network configuration is invalid");
   }
-  for (std::size_t index = 0U; index < trace.routes.size(); ++index) {
-    const RouteEntry& route = trace.routes[index];
-    validateNodeId(route.sender, trace.nodes.size());
-    validateNodeId(route.destination, trace.nodes.size());
-    validateNodeId(route.next_hop, trace.nodes.size());
+}
+
+void validateRoutes(const std::vector<RouteEntry>& routes, std::size_t node_count) {
+  for (std::size_t index = 0U; index < routes.size(); ++index) {
+    const RouteEntry& route = routes[index];
+    validateNodeId(route.sender, node_count);
+    validateNodeId(route.destination, node_count);
+    validateNodeId(route.next_hop, node_count);
     if (route.sender == route.destination || route.sender == route.next_hop) {
       throw std::invalid_argument("simulation route has an invalid hop");
     }
     for (std::size_t previous = 0U; previous < index; ++previous) {
-      if (trace.routes[previous].sender == route.sender &&
-          trace.routes[previous].destination == route.destination) {
+      if (routes[previous].sender == route.sender &&
+          routes[previous].destination == route.destination) {
         throw std::invalid_argument("simulation routes contain a duplicate source and destination");
       }
     }
   }
+}
 
-  const SeededDeliveryFaults& faults = trace.seeded_delivery_faults;
+void validateSeededFaults(const SeededDeliveryFaults& faults) {
   const uint32_t total_probability = static_cast<uint32_t>(faults.loss_permyriad) +
                                      static_cast<uint32_t>(faults.delay_permyriad) +
                                      static_cast<uint32_t>(faults.duplicate_permyriad) +
@@ -965,20 +1012,27 @@ void validateTrace(const SimulationTrace& trace) {
       faults.maximum_delay_ms > static_cast<uint32_t>(std::numeric_limits<int32_t>::max())) {
     throw std::invalid_argument("simulation seeded delivery fault configuration is invalid");
   }
-  if (network.enabled) {
-    const uint64_t packet_bits = static_cast<uint64_t>(WireCodec::kPacketSize) * 8U;
-    const uint64_t transmission_ms = (packet_bits * 1000U + network.bitrate_bits_per_second - 1U) /
-                                     network.bitrate_bits_per_second;
-    const uint64_t maximum_event_delay =
-        transmission_ms + network.propagation_delay_ms +
-        (faults.enabled && (faults.delay_permyriad != 0U || faults.reorder_permyriad != 0U)
-             ? faults.maximum_delay_ms
-             : 0U);
-    if (maximum_event_delay > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
-      throw std::invalid_argument("simulation packet event delay is ambiguous");
-    }
-  }
+}
 
+void validateMaximumPacketDelay(const PacketNetworkConfig& network,
+                                const SeededDeliveryFaults& faults) {
+  if (!network.enabled) {
+    return;
+  }
+  const uint64_t packet_bits = static_cast<uint64_t>(WireCodec::kPacketSize) * 8U;
+  const uint64_t transmission_ms = (packet_bits * 1000U + network.bitrate_bits_per_second - 1U) /
+                                   network.bitrate_bits_per_second;
+  const uint64_t maximum_event_delay =
+      transmission_ms + network.propagation_delay_ms +
+      (faults.enabled && (faults.delay_permyriad != 0U || faults.reorder_permyriad != 0U)
+           ? faults.maximum_delay_ms
+           : 0U);
+  if (maximum_event_delay > static_cast<uint64_t>(std::numeric_limits<int32_t>::max())) {
+    throw std::invalid_argument("simulation packet event delay is ambiguous");
+  }
+}
+
+void validateFrames(const SimulationTrace& trace) {
   uint32_t previous_time = 0U;
   bool first_frame = true;
   for (const SimulationFrame& frame : trace.frames) {
@@ -991,11 +1045,26 @@ void validateTrace(const SimulationTrace& trace) {
     first_frame = false;
     previous_time = frame.now_ms;
     validateFrame(frame, trace.nodes.size());
-    if (network.enabled && !frame.delivery_faults.empty()) {
+    if (trace.packet_network.enabled && !frame.delivery_faults.empty()) {
       throw std::invalid_argument(
           "packet network traces use seeded decisions instead of frame delivery faults");
     }
   }
+}
+
+void validateTrace(const SimulationTrace& trace) {
+  if (trace.version != kSimulationTraceVersion) {
+    throw std::invalid_argument("unsupported simulation trace version");
+  }
+  if (trace.nodes.empty() || trace.nodes.size() > kMaximumNodes) {
+    throw std::invalid_argument("simulation trace must configure between 1 and 16 nodes");
+  }
+  validateNodes(trace.nodes);
+  validatePacketNetwork(trace.packet_network);
+  validateRoutes(trace.routes, trace.nodes.size());
+  validateSeededFaults(trace.seeded_delivery_faults);
+  validateMaximumPacketDelay(trace.packet_network, trace.seeded_delivery_faults);
+  validateFrames(trace);
 }
 
 void recordStateChange(std::vector<SimulationEvent>& events, uint32_t now_ms, NodeId node_id,
@@ -1061,166 +1130,223 @@ NodeObservation observe(const SwarmController& controller,
   return observation;
 }
 
-} // namespace
-
-SimulationResult runSimulationTrace(const SimulationTrace& trace) {
-  validateTrace(trace);
-
-  SimulationResult result;
-  SimulationBus bus(result.events, trace);
-  HistoricalOrbitalScorer scorer;
-  ControllerConfig controller_config = trace.controller;
-  controller_config.node_capacity = static_cast<uint8_t>(trace.nodes.size());
-
-  std::vector<std::unique_ptr<SimulationTransport>> transports;
-  std::vector<std::unique_ptr<SimulationHealth>> health_monitors;
-  std::vector<std::unique_ptr<SimulationSafeStateActuator>> safe_state_actuators;
-  std::vector<std::unique_ptr<SwarmController>> controllers;
-  std::vector<BootEpoch> boot_epochs;
-  std::vector<std::optional<PropagationResult>> orbits;
-  transports.reserve(trace.nodes.size());
-  health_monitors.reserve(trace.nodes.size());
-  safe_state_actuators.reserve(trace.nodes.size());
-  controllers.reserve(trace.nodes.size());
-  boot_epochs.reserve(trace.nodes.size());
-  orbits.resize(trace.nodes.size());
-
-  for (const NodeConfiguration& node : trace.nodes) {
-    transports.push_back(std::make_unique<SimulationTransport>(node.node_id, bus));
-    health_monitors.push_back(std::make_unique<SimulationHealth>());
-    safe_state_actuators.push_back(
-        std::make_unique<SimulationSafeStateActuator>(node.safe_state_request_result));
-    boot_epochs.push_back(node.boot_epoch);
-  }
-  for (const NodeConfiguration& node : trace.nodes) {
-    const auto index = static_cast<std::size_t>(node.node_id);
-    controllers.push_back(std::make_unique<SwarmController>(
-        node.node_id, node.boot_epoch, node.satellite,
-        ControllerDependencies{*transports[index], *health_monitors[index], scorer,
-                               safe_state_actuators[index].get()},
-        controller_config));
+class SimulationRuntime {
+public:
+  explicit SimulationRuntime(const SimulationTrace& trace)
+      : bus_(result_.events, trace), controller_config_(trace.controller) {
+    controller_config_.node_capacity = static_cast<uint8_t>(trace.nodes.size());
+    transports_.reserve(trace.nodes.size());
+    health_monitors_.reserve(trace.nodes.size());
+    safe_state_actuators_.reserve(trace.nodes.size());
+    controllers_.reserve(trace.nodes.size());
+    boot_epochs_.reserve(trace.nodes.size());
+    orbits_.resize(trace.nodes.size());
+    initializeAdapters(trace.nodes);
+    initializeControllers(trace.nodes);
   }
 
-  for (const SimulationFrame& frame : trace.frames) {
-    bus.beginFrame(frame);
+  void runFrame(const SimulationFrame& frame) {
+    bus_.beginFrame(frame);
+    applyInputUpdates(frame);
+    crashNodes(frame);
+    resetNodes(frame);
+    bus_.releasePending();
+    completeMissions(frame);
+    startMissions(frame);
+    updateControllers(frame);
+    bus_.endFrame();
+    bus_.recordResourceSamples();
+    recordObservation(frame.now_ms);
+  }
 
+  SimulationResult takeResult() { return std::move(result_); }
+
+private:
+  void initializeAdapters(const std::vector<NodeConfiguration>& nodes) {
+    for (const NodeConfiguration& node : nodes) {
+      transports_.push_back(std::make_unique<SimulationTransport>(node.node_id, bus_));
+      health_monitors_.push_back(std::make_unique<SimulationHealth>());
+      safe_state_actuators_.push_back(
+          std::make_unique<SimulationSafeStateActuator>(node.safe_state_request_result));
+      boot_epochs_.push_back(node.boot_epoch);
+    }
+  }
+
+  void initializeControllers(const std::vector<NodeConfiguration>& nodes) {
+    for (const NodeConfiguration& node : nodes) {
+      const auto index = static_cast<std::size_t>(node.node_id);
+      controllers_.push_back(std::make_unique<SwarmController>(
+          node.node_id, node.boot_epoch, node.satellite,
+          ControllerDependencies{*transports_[index], *health_monitors_[index], scorer_,
+                                 safe_state_actuators_[index].get()},
+          controller_config_));
+    }
+  }
+
+  void applyInputUpdates(const SimulationFrame& frame) {
     for (const HealthUpdate& update : frame.health_updates) {
-      health_monitors.at(static_cast<std::size_t>(update.node_id))->set(update.health);
+      health_monitors_.at(static_cast<std::size_t>(update.node_id))->set(update.health);
     }
     for (const SafeStateStatusUpdate& update : frame.safe_state_status_updates) {
-      safe_state_actuators.at(static_cast<std::size_t>(update.node_id))->setStatus(update.status);
+      safe_state_actuators_.at(static_cast<std::size_t>(update.node_id))->setStatus(update.status);
     }
     for (const SatelliteUpdate& update : frame.satellite_updates) {
-      if (!controllers.at(static_cast<std::size_t>(update.node_id))
+      if (!controllers_.at(static_cast<std::size_t>(update.node_id))
                ->updateSatelliteSnapshot(update.satellite)) {
         throw std::invalid_argument("validated satellite update was rejected");
       }
     }
-    applyOrbitUpdates(frame, controllers, orbits);
+    applyOrbitUpdates(frame, controllers_, orbits_);
     for (const StoragePressureUpdate& update : frame.storage_pressure_updates) {
-      bus.setBufferCapacity(update.node_id, update.receive_buffer_capacity);
+      bus_.setBufferCapacity(update.node_id, update.receive_buffer_capacity);
     }
+  }
+
+  void crashNodes(const SimulationFrame& frame) {
     for (const NodeCrash& crash : frame.node_crashes) {
       const auto index = static_cast<std::size_t>(crash.node_id);
-      bus.crash(crash.node_id);
+      bus_.crash(crash.node_id);
       SimulationEvent event;
       event.type = SimulationEventType::NodeCrashed;
       event.now_ms = frame.now_ms;
       event.node_id = crash.node_id;
       event.running = false;
-      event.previous_state = controllers[index]->state();
-      event.current_state = controllers[index]->state();
-      result.events.push_back(event);
+      event.previous_state = controllers_[index]->state();
+      event.current_state = controllers_[index]->state();
+      result_.events.push_back(event);
     }
+  }
+
+  void resetNode(const NodeReset& reset, uint32_t now_ms) {
+    const auto index = static_cast<std::size_t>(reset.node_id);
+    const ControllerState previous = controllers_[index]->state();
+    const auto satellite = controllers_[index]->satelliteSnapshot();
+    if (boot_epochs_[index] == std::numeric_limits<BootEpoch>::max()) {
+      throw std::invalid_argument("simulation node boot epoch exhausted");
+    }
+    ++boot_epochs_[index];
+    bus_.reset(reset.node_id);
+    safe_state_actuators_[index]->reset();
+    controllers_[index] = std::make_unique<SwarmController>(
+        reset.node_id, boot_epochs_[index], satellite,
+        ControllerDependencies{*transports_[index], *health_monitors_[index], scorer_,
+                               safe_state_actuators_[index].get()},
+        controller_config_);
+
+    SimulationEvent event;
+    event.type = SimulationEventType::NodeReset;
+    event.now_ms = now_ms;
+    event.node_id = reset.node_id;
+    event.running = true;
+    event.previous_state = previous;
+    event.current_state = controllers_[index]->state();
+    result_.events.push_back(event);
+    drainTelemetry(result_.events, *controllers_[index]);
+  }
+
+  void resetNodes(const SimulationFrame& frame) {
     for (const NodeReset& reset : frame.node_resets) {
-      const auto index = static_cast<std::size_t>(reset.node_id);
-      const ControllerState previous = controllers[index]->state();
-      const auto satellite = controllers[index]->satelliteSnapshot();
-      if (boot_epochs[index] == std::numeric_limits<BootEpoch>::max()) {
-        throw std::invalid_argument("simulation node boot epoch exhausted");
-      }
-      ++boot_epochs[index];
-      bus.reset(reset.node_id);
-      safe_state_actuators[index]->reset();
-      controllers[index] = std::make_unique<SwarmController>(
-          reset.node_id, boot_epochs[index], satellite,
-          ControllerDependencies{*transports[index], *health_monitors[index], scorer,
-                                 safe_state_actuators[index].get()},
-          controller_config);
-
-      SimulationEvent event;
-      event.type = SimulationEventType::NodeReset;
-      event.now_ms = frame.now_ms;
-      event.node_id = reset.node_id;
-      event.running = true;
-      event.previous_state = previous;
-      event.current_state = controllers[index]->state();
-      result.events.push_back(event);
-      drainTelemetry(result.events, *controllers[index]);
+      resetNode(reset, frame.now_ms);
     }
-    bus.releasePending();
+  }
+
+  void completeMission(const MissionCompletion& completion, uint32_t now_ms) {
+    SimulationEvent event;
+    event.type = SimulationEventType::MissionCompletion;
+    event.now_ms = now_ms;
+    event.node_id = completion.node_id;
+    result_.events.push_back(event);
+    const std::size_t event_index = result_.events.size() - 1U;
+    SwarmController& controller = *controllers_.at(static_cast<std::size_t>(completion.node_id));
+    const ControllerState previous = controller.state();
+    result_.events[event_index].accepted =
+        bus_.running(completion.node_id) && previous == ControllerState::Active;
+    if (!bus_.running(completion.node_id)) {
+      return;
+    }
+    controller.completeMission(now_ms);
+    drainTelemetry(result_.events, controller);
+    recordStateChange(result_.events, now_ms, completion.node_id, previous, controller.state(),
+                      controller.currentMissionKey());
+  }
+
+  void completeMissions(const SimulationFrame& frame) {
     for (const MissionCompletion& completion : frame.mission_completions) {
-      SimulationEvent event;
-      event.type = SimulationEventType::MissionCompletion;
-      event.now_ms = frame.now_ms;
-      event.node_id = completion.node_id;
-      result.events.push_back(event);
-      const std::size_t event_index = result.events.size() - 1U;
-      SwarmController& controller = *controllers.at(static_cast<std::size_t>(completion.node_id));
-      const ControllerState previous = controller.state();
-      result.events[event_index].accepted =
-          bus.running(completion.node_id) && previous == ControllerState::Active;
-      if (bus.running(completion.node_id)) {
-        controller.completeMission(frame.now_ms);
-        drainTelemetry(result.events, controller);
-        recordStateChange(result.events, frame.now_ms, completion.node_id, previous,
-                          controller.state(), controller.currentMissionKey());
-      }
+      completeMission(completion, frame.now_ms);
     }
-    for (const MissionCommand& command : frame.mission_commands) {
-      SimulationEvent event;
-      event.type = SimulationEventType::MissionCommand;
-      event.now_ms = frame.now_ms;
-      event.node_id = command.leader;
-      event.objective = command.objective;
-      result.events.push_back(event);
-      const std::size_t event_index = result.events.size() - 1U;
-      SwarmController& controller = *controllers.at(static_cast<std::size_t>(command.leader));
-      const ControllerState previous = controller.state();
-      result.events[event_index].accepted =
-          bus.running(command.leader) &&
-          controller.initiateMission(command.objective, frame.now_ms);
-      if (bus.running(command.leader)) {
-        drainTelemetry(result.events, controller);
-        recordStateChange(result.events, frame.now_ms, command.leader, previous, controller.state(),
-                          controller.currentMissionKey());
-      }
-    }
+  }
 
-    for (const std::unique_ptr<SwarmController>& controller : controllers) {
-      if (!bus.running(controller->nodeId())) {
+  void startMission(const MissionCommand& command, uint32_t now_ms) {
+    SimulationEvent event;
+    event.type = SimulationEventType::MissionCommand;
+    event.now_ms = now_ms;
+    event.node_id = command.leader;
+    event.objective = command.objective;
+    result_.events.push_back(event);
+    const std::size_t event_index = result_.events.size() - 1U;
+    SwarmController& controller = *controllers_.at(static_cast<std::size_t>(command.leader));
+    const ControllerState previous = controller.state();
+    result_.events[event_index].accepted =
+        bus_.running(command.leader) && controller.initiateMission(command.objective, now_ms);
+    if (!bus_.running(command.leader)) {
+      return;
+    }
+    drainTelemetry(result_.events, controller);
+    recordStateChange(result_.events, now_ms, command.leader, previous, controller.state(),
+                      controller.currentMissionKey());
+  }
+
+  void startMissions(const SimulationFrame& frame) {
+    for (const MissionCommand& command : frame.mission_commands) {
+      startMission(command, frame.now_ms);
+    }
+  }
+
+  void updateControllers(const SimulationFrame& frame) {
+    for (const std::unique_ptr<SwarmController>& controller : controllers_) {
+      if (!bus_.running(controller->nodeId())) {
         continue;
       }
       const ControllerState previous = controller->state();
       controller->update(frame.now_ms);
-      drainTelemetry(result.events, *controller);
-      recordStateChange(result.events, frame.now_ms, controller->nodeId(), previous,
+      drainTelemetry(result_.events, *controller);
+      recordStateChange(result_.events, frame.now_ms, controller->nodeId(), previous,
                         controller->state(), controller->currentMissionKey());
     }
-    bus.endFrame();
-    bus.recordResourceSamples();
-
-    FrameObservation observation;
-    observation.now_ms = frame.now_ms;
-    observation.nodes.reserve(controllers.size());
-    for (const std::unique_ptr<SwarmController>& controller : controllers) {
-      const auto index = static_cast<std::size_t>(controller->nodeId());
-      observation.nodes.push_back(observe(*controller, orbits[index], bus));
-    }
-    result.frames.push_back(std::move(observation));
   }
 
-  return result;
+  void recordObservation(uint32_t now_ms) {
+    FrameObservation observation;
+    observation.now_ms = now_ms;
+    observation.nodes.reserve(controllers_.size());
+    for (const std::unique_ptr<SwarmController>& controller : controllers_) {
+      const auto index = static_cast<std::size_t>(controller->nodeId());
+      observation.nodes.push_back(observe(*controller, orbits_[index], bus_));
+    }
+    result_.frames.push_back(std::move(observation));
+  }
+
+  SimulationResult result_;
+  SimulationBus bus_;
+  HistoricalOrbitalScorer scorer_;
+  ControllerConfig controller_config_;
+  std::vector<std::unique_ptr<SimulationTransport>> transports_;
+  std::vector<std::unique_ptr<SimulationHealth>> health_monitors_;
+  std::vector<std::unique_ptr<SimulationSafeStateActuator>> safe_state_actuators_;
+  std::vector<std::unique_ptr<SwarmController>> controllers_;
+  std::vector<BootEpoch> boot_epochs_;
+  std::vector<std::optional<PropagationResult>> orbits_;
+};
+
+} // namespace
+
+SimulationResult runSimulationTrace(const SimulationTrace& trace) {
+  validateTrace(trace);
+  SimulationRuntime runtime(trace);
+  for (const SimulationFrame& frame : trace.frames) {
+    runtime.runFrame(frame);
+  }
+  return runtime.takeResult();
 }
 
 } // namespace satellite_swarm::simulation

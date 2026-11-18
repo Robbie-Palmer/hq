@@ -1,0 +1,131 @@
+---
+title: "ADR 010: Trial format-specific CUDA WSI decode backends"
+date: "2026-11-07"
+status: "Proposed"
+tech_stack: ["cuCIM", "nvImageCodec", "wsidicom"]
+implements_product_decisions:
+  - "pathologize:007-source-native-wsi-compatibility"
+  - "pathologize:008-evidence-gated-gpu-pixel-decoding"
+---
+
+## Context
+
+[ADR 009](/projects/pathologize/adrs/009-separate-wsi-reading-decoding-and-residency)
+keeps vendor-container semantics separate from codec execution and output memory.
+The remaining question is which optional backends should implement that boundary.
+
+[cuCIM's current `cuslide2` plugin](https://github.com/rapidsai/cucim) uses
+nvImageCodec for GPU-accelerated TIFF decoding, tile caching, and asynchronous batch
+reads. It documents Aperio SVS, Philips TIFF, and generic tiled multiresolution RGB
+TIFF with uncompressed, JPEG, JPEG 2000, LZW, or Deflate payloads. It does not claim
+every TIFF-derived vendor format. Leica SCN and Hamamatsu NDPI therefore need fixture
+evidence before Pathologize selects cuCIM for them.
+
+[NVIDIA documents](https://docs.nvidia.com/cuda/nvimagecodec/) nvImageCodec GPU
+decoders for JPEG, JPEG 2000, and TIFF. Its
+[DICOM examples](https://docs.nvidia.com/cuda/nvimagecodec/samples/DICOM_samples.html)
+register a pydicom plugin for compatible transfer syntaxes and also show direct
+batched decoding that keeps output in device memory. The direct API, rather than the
+NumPy result returned through `Dataset.pixel_array`, is the relevant path for ML
+workloads. [wsidicom](https://github.com/imi-bigpicture/wsidicom) can preserve DICOM
+WSI pyramid and frame semantics while exposing encoded frames to that decoder.
+
+The pinned public DICOM fixture contains 256 by 256 JPEG 2000 frames. The local CPU
+probe reproduced the color error tracked in
+[OpenSlide issue 772](https://github.com/openslide/openslide/issues/772) for legacy
+Aperio JPEG 2000 metadata, while wsidicom plus OpenJPEG agreed with an independent
+decode. The local machine has a compatible NVIDIA GPU but does not currently have
+nvImageCodec, nvJPEG2000, or cuFile installed. The investigation therefore
+establishes candidates without a measured CUDA result.
+
+## Proposed decision
+
+Trial two optional CUDA routes behind ADR 009's capability contract:
+
+1. Use cuCIM `cuslide2` for the TIFF-family formats it explicitly supports. Begin
+   with public Aperio SVS and generic or Philips tiled TIFF fixtures. Keep OpenSlide
+   as the fallback for Leica, Hamamatsu, MIRAX, and other formats until the exact
+   combination passes pixel, geometry, metadata, and associated-image tests.
+2. Use wsidicom for DICOM WSI container, pyramid, and frame semantics. Pass supported
+   JPEG, JPEG 2000, or HTJ2K encoded frame batches to the direct nvImageCodec API.
+   Keep a correct CPU DICOM decoder and use it for viewer output, unsupported transfer
+   syntaxes, missing CUDA hardware, or failed capability probes.
+
+Package these backends as an optional Linux NVIDIA extra. Import them lazily. The
+base Pathologize tiler must install and run without a CUDA wheel, driver, or GPU.
+Runtime selection will report library and driver versions and the exact reason for
+fallback.
+
+The first benchmark will compare:
+
+* current OpenSlide host output as a compatibility baseline;
+* a correct CPU decoder writing pinned host memory followed by asynchronous transfer;
+* cuCIM device output for each supported TIFF fixture; and
+* direct nvImageCodec device output for supported DICOM frames.
+
+Run cold and warm, random and contiguous reads at batch sizes 1, 8, 32, and 128.
+Include color conversion, resize or augmentation, and a representative GPU consumer.
+Record compressed, host, host-to-device, and device-to-host bytes. Viewer and PNG or
+JPEG export results remain a separate CPU-oriented benchmark.
+
+Do not add GPUDirect Storage in this trial. Container parsing and frame lookup still
+run on the CPU, compressed tiles are small, and no measurement currently identifies
+storage as the bottleneck. Revisit it only if a profile shows material I/O stalls and
+the chosen decoder can consume compressed input placed in device memory.
+
+## Acceptance criteria
+
+Accept this ADR after public-fixture results show all of the following:
+
+* CPU-only installation and fallback work without CUDA packages or a GPU.
+* Each accelerated format matches a trusted pixel oracle within an explicit
+  codec-appropriate tolerance and preserves bounds, levels, orientation, associated
+  images, and independent x and y MPP.
+* At least one representative training or inference workload improves end-to-end
+  performance beyond measured noise without increasing peak memory past its declared
+  budget.
+* Batch-size-one regressions and CPU viewer results are reported rather than hidden by
+  aggregate throughput.
+* Package resolution, wheel size, driver requirements, and unsupported hardware have
+  documented failure and fallback behavior.
+
+If cuCIM or nvImageCodec fails these gates for a format, keep that combination on the
+CPU. The failure does not reject the common boundary or acceleration for another
+format.
+
+## Consequences
+
+Pathologize can use maintained CUDA codec work instead of beginning with an OpenSlide
+fork. TIFF-family and DICOM acceleration can evolve independently, matching their
+different containers while sharing output and measurement contracts.
+
+The optional environment will be NVIDIA-specific and larger than the CPU install.
+cuCIM and nvImageCodec have their own CUDA and driver compatibility windows. The
+project must retain public fixtures for each enabled combination and re-run the
+benchmark when a backend changes materially.
+
+## Alternatives considered
+
+### Fork OpenSlide first
+
+OpenSlide offers the broadest reader coverage, but its public output and internal
+composition path are host-oriented. A useful CUDA fork would own more than the codec.
+It would also own a device API, cache, composition, packaging, and long-term rebases.
+
+### Use only nvImageCodec for every slide
+
+nvImageCodec understands codecs and some TIFF inputs. It does not replace vendor
+indexes, pyramid metadata, sparse coordinates, or associated-image semantics for
+every WSI container.
+
+### Decode through the pydicom plugin
+
+This is a small integration for host-oriented DICOM consumers, but pydicom's
+`pixel_array` contract returns a NumPy array. The direct nvImageCodec batch API is the
+candidate when the next consumer needs device-resident pixels.
+
+### Add GPUDirect Storage with the first CUDA decoder
+
+This would add filesystem, driver, and deployment constraints before Pathologize has
+shown that file reads limit the workload. Ordinary asynchronous reads are the proper
+baseline first.

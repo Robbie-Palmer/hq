@@ -1,0 +1,95 @@
+---
+title: "ADR 004: Framework-native training with common result contracts"
+date: "2026-11-07"
+status: "Accepted"
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:006-task-native-pathology-model-development"
+---
+
+## Context
+
+[PDR 006](/projects/pathologize/pdrs/006-task-native-pathology-model-development)
+requires classification, regression, detection, segmentation, and multiple
+instance learning. The useful libraries expose different strengths through
+different data, training, checkpoint, and prediction APIs.
+
+[ADR 002](/projects/pathologize/adrs/002-shared-python-package-boundaries)
+already assigns run records, resource accounting, and evaluation contracts to
+shared packages. `AdapterSpec` currently identifies a pinned executable model
+entrypoint. It does not need to become a common training framework.
+
+A Pathologize abstraction over fastai, Ultralytics, Transformers, timm, and
+torchmil would either expose the union of their APIs or reduce them to the few
+operations they share. The first option would be difficult to maintain. The
+second would hide the defaults and task-specific tools that justify using each
+library.
+
+## Decision
+
+Use each training library directly and follow its native API within the
+benchmark project that needs it. Do not create a shared Pathologize model,
+dataset, trainer, transform, callback, or checkpoint interface across
+frameworks.
+
+Keep the common boundary after prediction. Every published experiment must
+write the Pathologize prediction, resource, failure, and run records required
+by its benchmark contract. The evaluator reads those records and does not
+import the training library.
+
+Treat the existing `AdapterSpec` as a thin executable hook. Its entrypoint may
+contain ordinary framework-native experiment code. It pins the callable,
+environment, and model configuration and gives the runner one command to
+execute. It does not wrap framework objects or promise that another library can
+replace them without changes to the experiment code.
+
+The Pathologize manifest continues to own cohort eligibility, train,
+validation, and test assignments, leakage units, and random seeds. Each run
+records its package lock, architecture, weight artifact and licence,
+preprocessing, physical scale, input shape, training configuration, and output
+artifacts.
+
+Share helpers only after two concrete uses expose the same stable behavior.
+Local glue and some duplication are cheaper than an abstraction built before
+the project knows what varies. Native PyTorch remains available when a task
+needs a model or loss that no selected library expresses well.
+
+Choose training methods by development-set quality, robustness, compute cost,
+iteration time, and implementation burden. Fidelity to a published training
+recipe is not a goal unless that recipe is the hypothesis under study.
+
+## Consequences
+
+Fastai can keep its learner and callbacks, Ultralytics can keep its task
+trainer, Transformers can keep its processors and model classes, and torchmil
+can keep its bag-aware components. New library features remain usable without
+first extending a common facade.
+
+Some data conversion, configuration, and checkpoint code will repeat across
+projects. Framework replacement changes the experiment implementation even
+when the result contract stays stable. This is acceptable because Pathologize
+compares the resulting evidence rather than interchangeable trainer objects.
+
+The common result records still protect benchmark continuity. A library can
+change without changing a frozen cohort, prediction schema, metric, or old
+scorecard. Each project needs conversion tests at its input and output
+boundaries, but it does not need cross-framework training parity.
+
+## Alternatives considered
+
+### Build one training interface
+
+A common interface could reduce repeated orchestration after the project has
+several similar implementations. Building it now would require guessing which
+parts of task-specific APIs are stable and valuable.
+
+### Use framework-native reports as benchmark evidence
+
+This removes the result conversion step. Frameworks use different matching,
+averaging, calibration, failure, and resource conventions, so their reports do
+not support a stable cross-model comparison.
+
+### Write every trainer in native PyTorch
+
+This gives complete control but rebuilds mature training behavior. Use native
+PyTorch for genuine gaps rather than routine baselines.

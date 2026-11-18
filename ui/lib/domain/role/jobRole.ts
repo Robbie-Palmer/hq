@@ -14,7 +14,7 @@ export type PreviousTitle = z.infer<typeof PreviousTitleSchema>;
 
 export const JobRoleContentSchema = z.object({
   company: z.string().min(1),
-  companyUrl: z.string().url(),
+  companyUrl: z.url(),
   logoPath: z.string().min(1),
   title: z.string().min(1),
   previousTitles: z.array(PreviousTitleSchema).optional(),
@@ -35,7 +35,7 @@ export type JobRoleContent = z.infer<typeof JobRoleContentSchema>;
 export const JobRoleSchema = z.object({
   slug: RoleSlugSchema,
   company: z.string().min(1),
-  companyUrl: z.string().url(),
+  companyUrl: z.url(),
   logoPath: z.string().min(1),
   title: z.string().min(1),
   previousTitles: z.array(PreviousTitleSchema).optional(),

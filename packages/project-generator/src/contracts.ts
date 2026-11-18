@@ -11,7 +11,7 @@ const REFERENCE_KEY_PATTERN = /(?:_ref|_reference)$/i;
 
 const jsonPrimitiveSchema = z.union([
   z.string(),
-  z.number().finite(),
+  z.number(),
   z.boolean(),
   z.null(),
 ]);

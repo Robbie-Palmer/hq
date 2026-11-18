@@ -3,12 +3,31 @@ import react from "@vitejs/plugin-react";
 import { configDefaults, defineConfig } from "vitest/config";
 
 const coverageEnabled = process.env.UI_COVERAGE === "true";
+const codecovTestResultsEnabled = process.env.CODECOV_TEST_RESULTS === "true";
 
 export default defineConfig({
   root: coverageEnabled ? path.resolve(__dirname, "..") : undefined,
   plugins: [react()],
   test: {
     exclude: [...configDefaults.exclude, "e2e/**"],
+    ...(codecovTestResultsEnabled
+      ? {
+          reporters: [
+            "default",
+            [
+              "junit",
+              {
+                classnameTemplate: "{filepath}",
+                outputFile: path.resolve(
+                  __dirname,
+                  "test-results/codecov.junit.xml",
+                ),
+                suiteName: "UI unit tests",
+              },
+            ],
+          ],
+        }
+      : {}),
     ...(coverageEnabled
       ? {
           include: [

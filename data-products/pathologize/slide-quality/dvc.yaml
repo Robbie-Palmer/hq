@@ -1,0 +1,25 @@
+stages:
+  reconcile_artifact_spatial:
+    cmd: uv run --locked slide-quality-data build
+    deps:
+      - .python-version
+      - adapters
+      - imports.json
+      - ontologies
+      - products
+      - pyproject.toml
+      - src/slide_quality_dataset
+      - uv.lock
+      - ../../grandqc/mpp20/dvc.lock
+      - ../../grandqc/mpp20/manifest.json
+      - ../../grandqc/mpp20/outputs/native-index.jsonl
+      - ../../airaqc/tcga-public-pilot/dvc.lock
+      - ../../airaqc/tcga-public-pilot/contracts/subset.json
+      - ../../airaqc/tcga-public-pilot/outputs/native-corpus.json
+    outs:
+      - outputs/harmonized/artifact-spatial-v1.jsonl
+      - outputs/lineage.json
+      - outputs/partitions.json
+      - outputs/reconciliation.json
+    metrics:
+      - outputs/metrics.json

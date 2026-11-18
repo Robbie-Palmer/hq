@@ -4,6 +4,7 @@ import { HTTPException } from "hono/http-exception";
 import { householdCanaryRecord } from "personal-finance-data";
 import type { AuthenticatedSession } from "./auth";
 import { requireAuthorization } from "./authorization";
+import { householdAuthorizationRequest } from "./project-authorization";
 import type { Bindings, RuntimeApp } from "./runtime";
 
 const canaryResponse = z.object({
@@ -94,10 +95,6 @@ async function resolveCanarySession(
   } as AuthenticatedSession;
 }
 
-function resourceId(session: AuthenticatedSession): string {
-  return `household-canary:${session.user.id}`;
-}
-
 // Copier creates this route extension once. Register product routes here.
 export function registerProjectRoutes(app: RuntimeApp): void {
   app.openapi(writeCanaryRoute, async (context) => {
@@ -106,10 +103,11 @@ export function registerProjectRoutes(app: RuntimeApp): void {
       context.req.raw,
       context.env as CanaryBindings,
     );
-    await requireAuthorization(context.var.authorizationPolicy, session, {
-      action: "create",
-      resourceId: resourceId(session),
-    });
+    await requireAuthorization(
+      context.var.authorizationPolicy,
+      session,
+      householdAuthorizationRequest("household.create", session.user.id),
+    );
     const body = context.req.valid("json");
     const id = `synthetic-household-${session.user.id}`;
     const [record] = await context.var.db
@@ -134,10 +132,11 @@ export function registerProjectRoutes(app: RuntimeApp): void {
       context.req.raw,
       context.env as CanaryBindings,
     );
-    await requireAuthorization(context.var.authorizationPolicy, session, {
-      action: "read",
-      resourceId: resourceId(session),
-    });
+    await requireAuthorization(
+      context.var.authorizationPolicy,
+      session,
+      householdAuthorizationRequest("household.read", session.user.id),
+    );
     const [record] = await context.var.db
       .select()
       .from(householdCanaryRecord)

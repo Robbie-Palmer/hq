@@ -562,6 +562,42 @@ describe("Given inherited work-item context over HTTP", () => {
     expect(claim.context).toEqual(context.items);
   });
 
+  it("deletes an architecture-decision link without retaining it as context", async () => {
+    await requestJson("/api/work-items", "POST", {
+      id: "ticket",
+      title: "Ticket",
+    });
+    await requestJson("/api/work-items/ticket/contexts", "PUT", {
+      kind: "architecture_decision",
+      title: "Withdrawn draft",
+      url: "https://example.test/adrs/050",
+      role: "background",
+    });
+    const path =
+      "/api/work-items/ticket/contexts/architecture-decisions";
+    const body = { url: "https://example.test/adrs/050" };
+    const idempotencyKey = recordId(452);
+
+    const removed = await requestJson(path, "DELETE", body, idempotencyKey);
+    const replayed = await requestJson(path, "DELETE", body, idempotencyKey);
+    const context = await app.request("/api/work-items/ticket/contexts");
+    const missing = await requestJson(path, "DELETE", body, recordId(453));
+
+    expect(removed.status).toBe(200);
+    expect(await removed.json()).toEqual({ workItemId: "ticket", ...body });
+    expect(replayed.status).toBe(200);
+    expect(await replayed.json()).toEqual({ workItemId: "ticket", ...body });
+    expect(await context.json()).toEqual({ items: [] });
+    expect(missing.status).toBe(404);
+    expect(await missing.json()).toEqual(
+      expect.objectContaining({
+        error: expect.objectContaining({
+          code: "architecture_decision_not_found",
+        }),
+      }),
+    );
+  });
+
   it("keeps a completion candidate separate from lifecycle and lease state", async () => {
     await requestJson("/api/work-items", "POST", {
       id: "evidence-backed",

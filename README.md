@@ -1,5 +1,6 @@
 # hq
 
+[![Codecov coverage](https://codecov.io/github/Robbie-Palmer/hq/branch/main/graph/badge.svg)](https://app.codecov.io/github/Robbie-Palmer/hq)
 [![Lines of Code](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=ncloc)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Duplicated Lines (%)](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=duplicated_lines_density)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)
 [![Reliability Rating](https://sonarcloud.io/api/project_badges/measure?project=Robbie-Palmer_personal-site&metric=reliability_rating)](https://sonarcloud.io/summary/new_code?id=Robbie-Palmer_personal-site)

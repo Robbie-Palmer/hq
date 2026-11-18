@@ -1,0 +1,97 @@
+---
+title: "ADR 051: Stable-identity Copier path migrations"
+date: "2026-11-07"
+status: "Proposed"
+implements_product_decisions:
+  - "personal-engineering-platform:003-keep-the-monorepo-aligned-with-platform-policy"
+---
+
+## Context
+
+[ADR 028](/projects/personal-engineering-platform/adrs/028-copier-monorepo-scaffolding)
+selects Copier for project creation and updates. [ADR 030](/projects/personal-engineering-platform/adrs/030-repository-owned-component-identities)
+makes component identity independent of its source path. [ADR 040](/projects/personal-engineering-platform/adrs/040-executable-project-profile)
+makes a resolved profile the project declaration and a Copier receipt evidence
+of one applied render. [ADR 032](/projects/personal-engineering-platform/adrs/032-monorepo-project-package-layout)
+defines the target source roots.
+
+The current adoption planner can compare a rendered template with an existing
+checkout and preserve checkout-only files below an owned path. Reconciliation
+can classify generated edits and require a reviewed patch. Neither operation
+models moving preserved files when the same component resolves to a new path.
+A normal template update can create the new structure and remove generated
+files, but it cannot know that project-owned files at the previous path belong
+to the same component.
+
+## Decision
+
+Extend project reconciliation with an explicit component-path migration keyed
+by stable component ID. When a profile resolves the same component ID from an
+old path to a new path, the plan will treat the change as one move rather than
+a component removal and addition.
+
+Before planning a move, inventory the old component root and classify every
+entry as template-owned, project-owned, generated, ignored, or excluded. The
+recorded receipt and target blueprint establish the old and new paths. The
+checked-in catalog confirms the component identity and owning project. Reject
+the plan when those sources disagree, when roots overlap, when another
+component owns either path, or when an unclassified maintained file remains.
+
+Build the candidate in a disposable Git worktree. Move project-owned entries
+without rendering their contents. Preserve bytes, executable modes, and
+symlink targets. Let Copier update template-owned files at the target path.
+Regenerate disposable generated output through its owning task instead of
+moving it. Remove the old root only after its inventory is empty.
+
+Apply path-dependent structural edits in the same candidate. These include
+mise roots, language workspaces, catalog source paths, project ownership,
+content locations, CI path filters, deployment inputs, and the Copier receipt.
+Each edit must use a typed compare-before-replace operation or appear as a
+manual migration in the reviewed plan. Templates must not rewrite an entire
+shared manifest.
+
+The plan will report component moves separately from generated edits and
+semantic platform changes. Each move records the stable component ID, old and
+new roots, inventory digest, preserved entries, regenerated entries,
+structural edits, and required checks. The plan digest will cover the source
+revision, profile, contracts, template revision, old-root inventory, target
+occupancy, structural edits, and candidate patch.
+
+Apply will rebuild the plan and reject any digest change. It will check that
+the target path is absent or contains only declared matching files, apply the
+reviewed patch, run the affected technology and project checks, and verify that
+the old root has gone. A failed check leaves the caller with the Git diff but
+does not claim that the receipt represents a reconciled project.
+
+Adopt existing projects at their current paths before using this migration.
+The adoption receipt establishes the baseline that lets a later plan prove a
+move. Do not combine first adoption and restructuring in one opaque patch.
+
+## Alternatives
+
+Handwritten move commits followed by new Copier receipts would use ordinary
+Git tools. They would lose the link between the previous receipt, the stable
+component, and the new profile, and could make a moved project look newly
+generated.
+
+Teaching templates to copy every file from an old path would put repository
+inspection and arbitrary local-file handling inside template execution. It
+would also make a template revision depend on checkout state that is not part
+of its answers.
+
+Leaving old files in place and generating only the new structure would avoid
+destructive moves. It would create two apparent source roots and make imports,
+checks, catalogs, and delivery evidence disagree about the authoritative one.
+
+## Consequences
+
+Copier reconciliation can apply the layout policy to existing code without
+changing component identity or treating project-owned source as template
+output. A reviewed plan will show the difference between a file move, a
+generated change, and a platform-default migration.
+
+The project generator gains a repository inventory and move protocol in
+addition to template rendering. Cross-component moves remain separate
+migrations because one project receipt cannot authorize changes to another
+project's owned root. Large shared hosts will need several ordered plans or a
+coordinated migration ticket whose checks cover every affected project.

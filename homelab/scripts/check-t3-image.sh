@@ -214,7 +214,7 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 
-if [ "${server_ready}" != true ]; then
+if [[ "${server_ready}" != true ]]; then
   echo "t3-code image did not become healthy" >&2
   exit 1
 fi
@@ -258,7 +258,7 @@ for _ in $(seq 1 90); do
   sleep 1
 done
 
-if [ "${docker_ready}" != true ]; then
+if [[ "${docker_ready}" != true ]]; then
   docker logs "${docker_container}" >&2
   echo "rootless Docker sidecar did not become healthy" >&2
   exit 1

@@ -100,6 +100,22 @@ TEST_CASE("a missing cost for an enforced budget dimension fails telemetry close
         TelemetryScheduleResult::DeferredForBudget);
 }
 
+TEST_CASE("each radio budget dimension admits valid cost and rejects direct overflow") {
+  SharedRadioBudgetConfig bytes_config;
+  bytes_config.maximum_bytes_per_window = 52U;
+  SharedRadioScheduler bytes_scheduler(bytes_config);
+  CHECK(bytes_scheduler.admitTelemetry(0U, {1U, 0U}, false) == TelemetryScheduleResult::Admitted);
+  CHECK(bytes_scheduler.admitTelemetry(0U, {53U, 0U}, false) ==
+        TelemetryScheduleResult::DeferredForBudget);
+
+  SharedRadioBudgetConfig airtime_config;
+  airtime_config.maximum_airtime_microseconds_per_window = 30'000U;
+  SharedRadioScheduler airtime_scheduler(airtime_config);
+  CHECK(airtime_scheduler.admitTelemetry(0U, {0U, 1U}, false) == TelemetryScheduleResult::Admitted);
+  CHECK(airtime_scheduler.admitTelemetry(0U, {0U, 30'001U}, false) ==
+        TelemetryScheduleResult::DeferredForBudget);
+}
+
 TEST_CASE("the scheduler converts cumulative queue drops into visible telemetry loss") {
   SharedRadioScheduler scheduler(testBudget());
 

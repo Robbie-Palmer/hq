@@ -115,10 +115,10 @@ class SlideExportRecord(ExportModel):
     patient_id: str
     case_id: str
     specimen_id: str
-    specimen_uid: str
+    specimen_uid: str | None
     slide_container_id: str
-    study_instance_uid: str
-    series_instance_uid: str
+    study_instance_uid: str | None
+    series_instance_uid: str | None
     identity_basis: str
     scanner_manufacturer: str
     scanner_model: str
@@ -148,7 +148,8 @@ class AssetExportRecord(ExportModel):
     subset_id: str
     slide_id: str
     relative_path: str
-    sop_instance_uid: str
+    source_format: str
+    sop_instance_uid: str | None
     image_role: str
     distribution_id: str
 
@@ -188,7 +189,9 @@ class CroissantFileObject(ExportModel):
     description: str
     content_url: AnyHttpUrl = Field(alias="contentUrl")
     content_size: str = Field(alias="contentSize", pattern=r"^[1-9][0-9]* B$")
-    encoding_format: Literal["application/dicom"] = Field(alias="encodingFormat")
+    encoding_format: Literal["application/dicom", "image/png", "image/tiff"] = Field(
+        alias="encodingFormat"
+    )
     sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
@@ -392,6 +395,7 @@ def _asset_records_and_distributions(
                     subset_id=manifest.subset_id,
                     slide_id=slides_by_subset[manifest.subset_id][asset.relative_path],
                     relative_path=asset.relative_path,
+                    source_format=asset.format,
                     sop_instance_uid=asset.sop_instance_uid,
                     image_role=asset.image_role,
                     distribution_id=distribution_id,
@@ -404,7 +408,11 @@ def _asset_records_and_distributions(
                     description="Source pathology image object pinned by the registry.",
                     content_url=asset.source_url,
                     content_size=f"{asset.bytes} B",
-                    encoding_format="application/dicom",
+                    encoding_format={
+                        "aperio_svs": "image/tiff",
+                        "dicom": "application/dicom",
+                        "png_mask": "image/png",
+                    }[asset.format],
                     sha256=asset.sha256,
                 )
             )
@@ -521,15 +529,16 @@ def build_croissant_export(registry: LoadedRegistry, registry_revision: str) -> 
         _record_set(
             "assets",
             "Source assets",
-            "DICOM source objects and their stable image identities.",
+            "Source image objects and their stable identities.",
             "asset_id",
             _field_definitions(
                 ("asset_id", SCHEMA_TEXT, "Stable asset and Croissant distribution identifier."),
                 ("subset_id", SCHEMA_TEXT, "Owning acquired subset."),
                 ("slide_id", SCHEMA_TEXT, "Owning registry slide."),
                 ("relative_path", SCHEMA_TEXT, "Registry-relative source object path."),
-                ("sop_instance_uid", SCHEMA_TEXT, "DICOM SOP Instance UID."),
-                ("image_role", SCHEMA_TEXT, "DICOM image role."),
+                ("source_format", SCHEMA_TEXT, "Source image container format."),
+                ("sop_instance_uid", SCHEMA_TEXT, "DICOM SOP Instance UID when applicable."),
+                ("image_role", SCHEMA_TEXT, "Source image role."),
                 ("distribution_id", SCHEMA_TEXT, "Referenced Croissant FileObject identifier."),
             ),
             asset_records,

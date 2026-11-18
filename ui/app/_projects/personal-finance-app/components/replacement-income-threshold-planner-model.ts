@@ -75,7 +75,17 @@ function thresholdGoal(input: {
 export function useReplacementIncomeThresholdPlanner(
   scenario: JobMoveScenario,
 ) {
-  const tracker = useAssetTracker();
+  const tracker = useAssetTracker(
+    ({
+      financialIndependence,
+      solveReplacementIncomeThresholds,
+      baseCurrency,
+    }) => ({
+      financialIndependence,
+      solveReplacementIncomeThresholds,
+      baseCurrency,
+    }),
+  );
   const initialDates = defaultStartDates(scenario);
   const annualSpending =
     scenario.annualSpendingOverride ??

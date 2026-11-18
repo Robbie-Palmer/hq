@@ -19,7 +19,7 @@ components:
   - id: "wedding-planner-api"
     name: "Wedding Planner API"
     kind: "worker"
-    template_ownership: "structure-only"
+    template_ownership: "project"
   - id: "wedding-planner-contracts"
     name: "Wedding Planner API contracts"
     kind: "typescript-package"
@@ -59,6 +59,7 @@ layers:
       - "identity.login-provider"
       - "identity.session-transport"
       - "identity.authorization-policy"
+      - "identity.authorization-engine"
   - layer: "api-governance"
     slots:
       - "api-governance.compatibility-check"

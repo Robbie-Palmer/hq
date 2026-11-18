@@ -62,6 +62,14 @@ read-only Doppler token. Keep only `CF_ACCESS_CLIENT_ID`,
 `CF_ACCESS_CLIENT_SECRET`, and `CLOUDFLARE_PAGES_HOST` there. The installation
 task stores that token as `t3-code/doppler-agent-token`.
 
+Vector also reads `personal-site/dev_agent_observability` through its own
+read-only Doppler token. That config contains `POSTHOG_PERSONAL_API_KEY`,
+`POSTHOG_PROJECT_ID`, and `POSTHOG_QUERY_HOST`. The personal key is restricted
+to this project and the `query:read` and `tracing:read` scopes. It is separate
+from the PostHog administration key used by Terraform. The Vector overlay
+exposes the credentials only to the operator T3 Code container and installs
+`posthog-query` for the supported read-only calls.
+
 Work Graph access uses another read-only token, scoped to
 `work-graph/prd_work_graph`. The operator selects only the API URL, allowed
 origin, and Access client pair from that config. It renames the Access pair to

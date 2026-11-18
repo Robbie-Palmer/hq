@@ -230,7 +230,7 @@ async function main() {
 	try {
 		auditResult = await runAudits(chrome);
 	} finally {
-		await chrome.kill();
+		chrome.kill();
 	}
 
 	printSummary(auditResult.results);

@@ -1,0 +1,41 @@
+schema: '2.0'
+stages:
+  publish_native_contract:
+    cmd: uv run --locked airaqc-tcga-product publish
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts
+      hash: md5
+      md5: 5b11a358472e2ede3f18969df2c7c003.dir
+      size: 53223
+      nfiles: 4
+    - path: pyproject.toml
+      hash: md5
+      md5: e3256b1c8cc916257f4e7249d8761d7c
+      size: 1087
+    - path: records
+      hash: md5
+      md5: c583e8ad762b45ef9f825dd8e75be5e6.dir
+      size: 43849
+      nfiles: 1
+    - path: src/airaqc_tcga_product
+      hash: md5
+      md5: ecba2a902b25214a78c83de5b159259f.dir
+      size: 10880
+      nfiles: 5
+    - path: uv.lock
+      hash: md5
+      md5: 6f0dfd1bb845f7b441139cafd13b7bcf
+      size: 34596
+    outs:
+    - path: outputs/metrics.json
+      hash: md5
+      md5: 29f025fc95f9f4958b3b9eea5af7c59f
+      size: 283
+    - path: outputs/native-corpus.json
+      hash: md5
+      md5: 34439fd0fdc38ab7f7f4f855e9e008fa
+      size: 43849

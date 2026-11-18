@@ -129,6 +129,32 @@ validate_entries_for_environment() {
   fi
 
   case "$github_env" in
+    production-cloudflare-token-bootstrap)
+      missing_names=$(jq -r '
+        ["CLOUDFLARE_BOOTSTRAP_TOKEN"] - [.[].name]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$missing_names" ]]; then
+        echo "Refusing to sync incomplete Cloudflare token-bootstrap credentials to '$github_env': $missing_names" >&2
+        exit 1
+      fi
+
+      invalid_visibility=$(jq -r '
+        [
+          .[]
+          | select(
+              .name == "CLOUDFLARE_BOOTSTRAP_TOKEN"
+              and .visibility != "masked"
+            )
+          | .name
+        ]
+        | join(", ")
+      ' <<<"$entries_json")
+      if [[ -n "$invalid_visibility" ]]; then
+        echo "Refusing Cloudflare token-bootstrap credential visibility mismatch: $invalid_visibility" >&2
+        exit 1
+      fi
+      ;;
     production-work-graph-analytics)
       missing_names=$(jq -r '
         [

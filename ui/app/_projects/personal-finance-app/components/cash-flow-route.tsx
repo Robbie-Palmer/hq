@@ -10,7 +10,19 @@ import { UpcomingFlows } from "./upcoming-flows";
 
 export function CashFlowRoute() {
   const { flowSankeyData, baseCurrency, incomeHistory, financialIndependence } =
-    useAssetTracker();
+    useAssetTracker(
+      ({
+        flowSankeyData,
+        baseCurrency,
+        incomeHistory,
+        financialIndependence,
+      }) => ({
+        flowSankeyData,
+        baseCurrency,
+        incomeHistory,
+        financialIndependence,
+      }),
+    );
 
   return (
     <div className="space-y-8">

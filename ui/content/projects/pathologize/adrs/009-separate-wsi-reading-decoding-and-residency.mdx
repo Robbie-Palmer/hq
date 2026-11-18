@@ -1,0 +1,102 @@
+---
+title: "ADR 009: Separate WSI reading, pixel decoding, and output residency"
+date: "2026-11-07"
+status: "Accepted"
+implements_product_decisions:
+  - "pathologize:007-source-native-wsi-compatibility"
+  - "pathologize:008-evidence-gated-gpu-pixel-decoding"
+---
+
+## Context
+
+The current tiler opens every slide with OpenSlide. `read_region` decompresses and
+composites a requested region into host ARGB, the Python binding exposes a Pillow
+image, and Pathologize converts it to RGB before any resize or consumer work. The
+[OpenSlide C API](https://openslide.org/api/openslide_8h.html) requires the caller to
+provide CPU-addressable memory for four bytes per output pixel. It has no encoded-tile
+or device-output contract.
+
+A whole-slide reader does more than decode JPEG or JPEG 2000. It detects a vendor
+container, interprets metadata and bounds, locates tiles or frames, chooses pyramid
+levels, handles sparse regions and associated images, and maps physical coordinates.
+The codec then turns one compressed payload into pixels. The consumer finally decides
+whether those pixels belong in host or device memory.
+
+Combining those responsibilities behind `read_region -> Pillow.Image` is convenient
+for CPU tiling. It prevents a CUDA decoder from returning device memory and encourages
+format-specific behavior to leak into the tiler.
+
+## Decision
+
+Add a narrow internal boundary between slide reading, pixel decoding, and output
+residency. Introduce it behind the current tiler entry points rather than rewriting
+the tiler or changing its CPU behavior in one pass.
+
+The slide-reader responsibility will expose:
+
+* detected format and vendor;
+* level dimensions and independent x and y scale or MPP;
+* bounds, tile or frame geometry, and coordinate transforms;
+* associated images and sparse or missing-level behavior;
+* codec or transfer syntax when the container exposes it; and
+* encoded tiles or frames when the backend can provide them safely.
+
+The decoder responsibility will accept an encoded payload plus the color and codec
+metadata required to interpret it. A host result will have a documented RGB or RGBA
+layout. A device result will expose a standard CUDA array or DLPack contract with
+clear ownership, stream, synchronization, and lifetime rules. Device results will
+not pass through Pillow.
+
+Backend selection will use file-content detection and runtime capability probes. It
+will not use the filename extension alone. Each backend must declare the containers,
+codecs, output locations, operations, and hardware it supports. Pathologize will
+record the selected backend and rejection or fallback reason.
+
+OpenSlide remains the broad host-pixel compatibility backend. Viewer and export code
+can always request host output. Optional readers may provide encoded tiles or direct
+device output for a tested subset. If an accelerated backend cannot preserve the
+requested level, bounds, orientation, color, alpha, or anisotropic physical scale,
+selection falls back before it returns pixels.
+
+Do not fork OpenSlide for the first implementation. A Python compatibility wrapper
+may dispatch an OpenSlide-like request to another reader, but it must not present a
+pinned or mapped host buffer as device decoding. Reconsider a fork only when a named
+format lacks another viable reader and a measured workload justifies maintaining a
+new native API, cache, and compositor path.
+
+## Consequences
+
+The CPU viewer path remains stable while batched ML consumers can request device
+pixels without a Pillow round trip. Container-specific readers can retain their own
+pyramid rules instead of forcing DICOM, TIFF, and proprietary formats into one false
+metadata model.
+
+The boundary adds result types, capability reporting, and fallback tests. A region
+that crosses several source tiles may still need backend-specific composition. Some
+readers will only support host output, and some accelerated readers will support a
+smaller format set than OpenSlide.
+
+The separation also makes counters honest. Pathologize can distinguish compressed
+bytes read, decoded host bytes, transferred bytes, device output, and consumer time
+instead of estimating every read as four decoded bytes per source pixel.
+
+## Alternatives considered
+
+### Monkey-patch OpenSlide's output buffer
+
+Pinned, mapped, or managed host memory may reduce an explicit copy, but OpenSlide's
+CPU codecs and Cairo compositor still write host pixels. GPU access would read mapped
+host memory or migrate pages. This makes it a lower-copy benchmark control. The
+codec still runs on the CPU.
+
+### Fork OpenSlide around CUDA codecs
+
+Replacing libjpeg or OpenJPEG would still return device pixels to a host-oriented
+tile cache and compositor. A useful fork needs a new output API and substantial
+format-specific work. Existing accelerated readers should be tested first.
+
+### Convert every source to one compute format
+
+OME-Zarr can be a valuable downstream compute representation, but mandatory ingest
+conversion would add storage and preprocessing before Pathologize can inspect the
+published source. ADR 000 already keeps source and compute representations distinct.

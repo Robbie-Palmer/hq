@@ -13,7 +13,7 @@ for command in doppler jq ssh; do
     exit 1
   fi
 done
-if [ ! -r "${inventory_file}" ]; then
+if [[ ! -r "${inventory_file}" ]]; then
   echo "workspace backup inventory is not readable" >&2
   exit 1
 fi
@@ -58,7 +58,7 @@ if [[ ! ${access_key_id} =~ ^[0-9a-f]{32}$ ]]; then
   echo "R2_ACCESS_KEY_ID is invalid" >&2
   exit 1
 fi
-if [ -z "${secret_access_key}" ] || [ -z "${restic_password}" ]; then
+if [[ -z "${secret_access_key}" ]] || [[ -z "${restic_password}" ]]; then
   echo "workspace backup credentials must not be empty" >&2
   exit 1
 fi

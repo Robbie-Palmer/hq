@@ -7,6 +7,7 @@ import { RecipeContentSchema } from "recipe-domain";
 import type { PantryLocation } from "recipe-domain/pantry";
 import { previewScenarios } from "../src/preview-scenarios";
 import { syncCanonicalUserEmail } from "../src/user-emails";
+import { seedPreviewTermReviewFixtures } from "./preview-term-review-fixtures";
 
 function previewRecipeBody(
   slug: string,
@@ -239,7 +240,7 @@ try {
   // members belong to one household from the start. The IDs are deterministic
   // (keeping the seed idempotent across retries within a run) and must be valid
   // UUIDs: the household routes accept `householdId`/`memberId` only as
-  // `z.string().uuid()`, the same shape `crypto.randomUUID()` produces for
+  // `z.uuid()`, the same shape `crypto.randomUUID()` produces for
   // households created at runtime.
   const HOUSEHOLD_ID = "11111111-1111-4111-8111-111111111111";
   const HOUSEHOLD_SLUG = "preview-shared-household";
@@ -580,8 +581,15 @@ try {
     .values({ userId: householdOwnerUserId, ingredientSlug: "coconut-milk" })
     .onConflictDoNothing();
 
+  await seedPreviewTermReviewFixtures(db, {
+    reviewerUserId: adminUserId,
+    recipesUserId,
+    householdOwnerUserId,
+    householdId: HOUSEHOLD_ID,
+  });
+
   console.log(
-    `Seeded ${previewScenarios.length} preview scenarios with household, meal-plan, pantry, equipment, diet, cooking-history, and cross-household follow fixtures.`,
+    `Seeded ${previewScenarios.length} preview scenarios with household, meal-plan, pantry, equipment, diet, term-review, cooking-history, and cross-household follow fixtures.`,
   );
 } finally {
   await client.end({ timeout: 5 });

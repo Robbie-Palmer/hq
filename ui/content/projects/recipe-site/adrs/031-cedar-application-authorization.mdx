@@ -1,0 +1,56 @@
+---
+title: "ADR 031: Adopt platform Cedar authorization"
+date: "2026-11-07"
+status: "Accepted"
+supersedes: "recipe-site:005-authorization-model"
+tech_stack: ["Cedar"]
+implements_product_decisions:
+  - "recipe-site:003-private-user-state-and-household-sharing"
+  - "recipe-site:005-delegated-agent-access-with-human-publishing"
+---
+
+## Context
+
+[ADR 005](/projects/recipe-site/adrs/005-authorization-model) kept the first
+owner and household checks in small application functions. The API now has
+delegated capabilities, household collaboration, imports, pantry state,
+shopping lists, and cooking history. Planned agent access covers most API
+operations while remaining narrower than the delegating user's current
+permission.
+
+[Platform ADR 049](/projects/personal-engineering-platform/adrs/049-cedar-authorization-engine)
+selects Cedar for this class of resource and action policy. Recipe Site still
+needs to define its own actor, grant, household, custody, and publication rules.
+
+## Decision
+
+Adopt the platform Cedar engine for Recipe Site authorization. Model people,
+delegated agents, workflows, resources, households, and custody relationships
+in the Recipe Site schema. The API loads current identity, grant, membership,
+and resource facts before evaluation.
+
+Agent Auth continues to verify the agent, delegated user, grant, expiry, and
+request proof. Cedar intersects that verified grant with the user's current
+authority and the target resource. Household membership removal, revocation,
+or a custody change therefore affects the next decision.
+
+The first migration covers shared human authorization helpers and every current
+agent capability dispatch. Household governance remains human-only through an
+explicit prohibition. Migrate the remaining route-local ownership checks as
+the corresponding actions gain delegated access.
+
+Keep SQL visibility predicates for collection reads so unauthorized rows never
+reach application filtering. Authentication, quotas, rate limits, idempotency,
+mutation ledgers, validation, and domain transitions remain outside Cedar.
+
+## Consequences
+
+Human and delegated paths now share one action vocabulary and can record Cedar
+policy IDs in existing audit events. Adding an API route does not make it an
+agent capability until the schema, policy, grant vocabulary, and dispatcher all
+name it.
+
+The migration remains incomplete while route-local checks exist. Each migrated
+route needs an authoritative resource mapper and equivalence tests for its SQL
+scope. Cedar also adds WebAssembly to the Worker bundle and makes policy-schema
+compatibility a deployment concern.

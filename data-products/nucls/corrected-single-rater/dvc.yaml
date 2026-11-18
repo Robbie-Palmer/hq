@@ -1,0 +1,24 @@
+stages:
+  acquire_native:
+    cmd: uv run --locked nucls-source-data acquire
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/nucls_source_data
+      - uv.lock
+    outs:
+      - data/native
+
+  index_native:
+    cmd: uv run --locked nucls-source-data index
+    deps:
+      - data/native
+      - manifest.json
+      - pyproject.toml
+      - src/nucls_source_data
+      - uv.lock
+    outs:
+      - outputs/native-index.jsonl
+    metrics:
+      - outputs/source-metrics.json

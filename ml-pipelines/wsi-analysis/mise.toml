@@ -1,6 +1,9 @@
 [tools]
 python = "3.12"
 
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
 [tasks.sync]
 description = "Install the locked WSI analysis environment"
 run = "uv sync --locked"

@@ -303,6 +303,24 @@ run "vector_runtime_config_is_managed" {
     ])
     error_message = "The existing Vector runtime config must be managed by account-foundation."
   }
+
+  assert {
+    condition = anytrue([
+      for config in values(doppler_config.managed) :
+      config.name == "dev_agent_observability" &&
+      config.project == "personal-site" &&
+      config.environment == "dev"
+    ])
+    error_message = "The Vector PostHog read config must be managed by account-foundation."
+  }
+
+  assert {
+    condition = contains(
+      local.unimported_doppler_config_ids,
+      "personal-site/dev/dev_agent_observability",
+    )
+    error_message = "The new Vector PostHog config must be created instead of imported."
+  }
 }
 
 run "cloudflare_token_bootstrap_is_restricted" {

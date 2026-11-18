@@ -78,11 +78,10 @@ node 2: idle
 The [browser demonstration](https://robbiepalmer.me/satellite-swarm) runs the portable controller
 as WebAssembly in a module worker and draws the result on a self-hosted CesiumJS globe.
 
-`simulate:json` prints the versioned state, SGP4 position and velocity, message,
-controller-telemetry, transition, and network-fault record consumed by the CesiumJS view. Fixed
-checked-in TLEs and a fixed epoch make the full-orbit replay independent of the wall clock and
-network. The browser can compare the connected mission with a run where the winning assignment is
-dropped.
+`simulate:json` prints the versioned state, SGP4 position and velocity, GCRF maneuver trajectories,
+burn events, message, controller-telemetry, transition, and network-fault record consumed by the
+browser. Fixed checked-in TLEs and a fixed epoch make the full-orbit replay independent of the wall
+clock and network. A dropped winning assignment has no burn, transfer, or target-orbit record.
 
 `simulate:fairness` runs six missions where all three nodes score 100. It prints assignment evidence
 derived from the leader's bounded telemetry. The expected order is `0, 1, 2, 0, 1, 2`, with two
@@ -120,6 +119,28 @@ mise run check
 It writes SonarQube's generic coverage report and rejects line coverage below 80% or branch coverage
 below 70%. The monorepo's SonarQube workflow imports that report alongside its JavaScript and Python
 coverage.
+
+The static-analysis tasks cover separate failure modes:
+
+```shell
+mise run lint
+mise run analyze:safe-buffers
+mise run analyze:ctu
+```
+
+`lint` runs clang-tidy, including unused include detection. Missing direct includes are not gated
+until the existing transitive-include backlog has been reduced. `analyze:safe-buffers`
+builds the maintained host targets with a pinned Clang and reports raw buffer operations without
+rejecting the build. `analyze:ctu` runs Clang Static Analyzer through CodeChecker across translation
+units and writes `build/codechecker.sarif`. Findings remain advisory during the initial trial, while
+analyzer failures still fail the task. CI publishes the SARIF report to GitHub code scanning.
+
+The repository's advanced CodeQL workflow traces the native and firmware builds and runs the
+`security-extended` query suite. GitHub does not permit default and advanced CodeQL uploads at the
+same time. After `.github/workflows/codeql.yml` reaches the default branch, an administrator must
+set the repository variable `CODEQL_ADVANCED_ENABLED` to `true`, disable CodeQL default setup, and
+dispatch the CodeQL workflow once. Keep default setup enabled until those first two steps are ready
+to avoid a scanning gap.
 
 ## Architecture
 

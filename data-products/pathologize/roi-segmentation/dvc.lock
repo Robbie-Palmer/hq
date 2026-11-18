@@ -1,0 +1,76 @@
+schema: '2.0'
+stages:
+  build_roi_portfolio:
+    cmd: uv run --locked roi-segmentation-data build
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: adapters
+      hash: md5
+      md5: 89fa3b12aa91b7de4fda41dbaf3b71b9.dir
+      size: 1504
+      nfiles: 2
+    - path: contracts
+      hash: md5
+      md5: afe7aa52d4792e37e9cf0c992cce7fbc.dir
+      size: 1024
+      nfiles: 1
+    - path: fixtures
+      hash: md5
+      md5: 60cdec339ce1ce11a87c64432705d13c.dir
+      size: 6506
+      nfiles: 2
+    - path: imports.json
+      hash: md5
+      md5: ea8b1740df25a375c791952746cc844f
+      size: 747
+    - path: ontologies
+      hash: md5
+      md5: e4ec0ab18cb7f1bc34137714659cfb42.dir
+      size: 582
+      nfiles: 1
+    - path: products
+      hash: md5
+      md5: ff45985220106807bb3043088f5e90e5.dir
+      size: 725
+      nfiles: 1
+    - path: pyproject.toml
+      hash: md5
+      md5: 0113ba6d63d09fb2738b585e82150089
+      size: 1111
+    - path: src/roi_segmentation_dataset
+      hash: md5
+      md5: 77cd2e72e6a363ee0e4bccb5e0589d52.dir
+      size: 23909
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 2888964a97531962a88fb904f3ab8ed8
+      size: 34620
+    outs:
+    - path: outputs/lineage.json
+      hash: md5
+      md5: e36e682fcec7d031464eea41906ba124
+      size: 1547
+    - path: outputs/manifest.json
+      hash: md5
+      md5: 8ed886681740e331a9beb0b31fa1e801
+      size: 609
+    - path: outputs/metrics.json
+      hash: md5
+      md5: c582061313350c432186098585908a91
+      size: 851
+    - path: outputs/partitions.json
+      hash: md5
+      md5: d4df3ac65fb81d14bd2a2d45b39f5196
+      size: 761
+    - path: outputs/reconciliation.json
+      hash: md5
+      md5: 9e7978be0abbb3186583ac363c1d94a3
+      size: 1025
+    - path: outputs/records.jsonl
+      hash: md5
+      md5: b161fc311bf5db7a7249bbd61e80a583
+      size: 10880

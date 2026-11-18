@@ -48,7 +48,7 @@ const TechnologyContentSchema = z.object({
   slug: TechnologySlugSchema.optional(),
   description: z.string().optional(),
   overview: z.string().optional(),
-  website: z.string().url(),
+  website: z.url(),
   iconSlug: z.string().optional(), // Only when icon slug differs from what's derived from name
   type: TechnologyTypeSchema.optional(),
   // Date (YYYY-MM-DD) the technology was added to the catalogue.

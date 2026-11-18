@@ -1,0 +1,122 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "panda-prostate-cancer-grade-assessment-2020",
+  "title": "Prostate cANcer graDe Assessment challenge development set",
+  "dataset_version": "2020-04-21-kaggle-competition-release",
+  "version_basis": "Kaggle does not publish a semantic dataset version. This product pins the competition reference, its 2020 opening release, the official record snapshots retrieved on 2026-11-11, and the complete development inventory expected after authorized acquisition.",
+  "source_records": [
+    {
+      "record_id": "panda-grand-challenge-data",
+      "role": "challenge_and_rights_record",
+      "url": "https://panda.grand-challenge.org/data/",
+      "snapshot_path": "evidence/grand-challenge.json",
+      "snapshot_sha256": "2b90ff7664802715c7056464f646024363087cf9f279dc3e3a140c035deb5bad",
+      "retrieved_at": "2026-11-11"
+    },
+    {
+      "record_id": "kaggle-prostate-cancer-grade-assessment",
+      "role": "distribution_and_label_record",
+      "url": "https://www.kaggle.com/competitions/prostate-cancer-grade-assessment/data",
+      "snapshot_path": "evidence/kaggle.json",
+      "snapshot_sha256": "5478880fde7b283e2042f7724d8526041e00b319f31e10ccfbdd15cdda0aa2d7",
+      "retrieved_at": "2026-11-11"
+    }
+  ],
+  "paper_doi": "10.1038/s41591-021-01620-2",
+  "citation": "Bulten, W. et al. Artificial intelligence for diagnosis and Gleason grading of prostate cancer: the PANDA challenge. Nature Medicine 28, 154-163 (2022). https://doi.org/10.1038/s41591-021-01620-2",
+  "access": {
+    "policy": "operator_accepts_kaggle_competition_rules",
+    "authentication_required": true,
+    "competition_rules_acceptance_required": true,
+    "automated_acquisition": false,
+    "public_ci_access": false,
+    "instructions": "Sign in to Kaggle, accept the prostate-cancer-grade-assessment competition rules, and acquire the files with an authorized account. Do not place credentials or source bytes in Git or public DVC storage."
+  },
+  "rights": {
+    "license_name_as_published": "CC BY-SA-NC 4.0",
+    "spdx_id": "CC-BY-NC-SA-4.0",
+    "deed_url": "https://creativecommons.org/licenses/by-nc-sa/4.0/",
+    "evidence_url": "https://panda.grand-challenge.org/data/",
+    "attribution": "Cite the PANDA challenge paper when using the dataset.",
+    "scope": "Non-commercial attribution and share-alike terms apply to the PANDA dataset. Kaggle competition access terms also apply."
+  },
+  "distribution": {
+    "competition_ref": "prostate-cancer-grade-assessment",
+    "publisher_role": "train",
+    "reported_files": 21135,
+    "reported_bytes_decimal": 411900000000,
+    "development_slides": 10616,
+    "development_masks": 10516,
+    "development_patients": 2113,
+    "metadata_file": "train.csv",
+    "metadata_fields": ["image_id", "data_provider", "isup_grade", "gleason_score"],
+    "slide_path_template": "train_images/{image_id}.tiff",
+    "mask_path_template": "train_label_masks/{image_id}_mask.tiff",
+    "stain": "hematoxylin and eosin",
+    "format": "multi-level TIFF"
+  },
+  "providers": [
+    {
+      "provider_id": "radboud",
+      "institution": "Radboud University Medical Center",
+      "development_slide_count": 5160,
+      "scan_magnification": "20x",
+      "source_scan_micrometres_per_pixel": [0.24],
+      "published_tiff_micrometres_per_pixel": [0.48],
+      "mask_annotation_unit": "individual prostate glands",
+      "mask_codes": {
+        "0": "background (non-tissue) or unknown",
+        "1": "stroma (connective tissue, non-epithelium tissue)",
+        "2": "healthy (benign) epithelium",
+        "3": "cancerous epithelium (Gleason pattern 3)",
+        "4": "cancerous epithelium (Gleason pattern 4)",
+        "5": "cancerous epithelium (Gleason pattern 5)"
+      }
+    },
+    {
+      "provider_id": "karolinska",
+      "institution": "Karolinska Institutet",
+      "development_slide_count": 5456,
+      "scan_magnification": "20x",
+      "source_scan_micrometres_per_pixel": [0.45202, 0.5032],
+      "published_tiff_micrometres_per_pixel": [0.45202, 0.5032],
+      "scanner_vendors": ["Hamamatsu", "Aperio"],
+      "mask_annotation_unit": "regions combining stroma and epithelium",
+      "mask_codes": {
+        "0": "background (non-tissue) or unknown",
+        "1": "benign tissue (stroma and epithelium combined)",
+        "2": "cancerous tissue (stroma and epithelium combined)"
+      }
+    }
+  ],
+  "labels": {
+    "isup_grade_values": [0, 1, 2, 3, 4, 5],
+    "gleason_score_field": "gleason_score",
+    "provider_field": "data_provider",
+    "caveats": [
+      "Training labels were not assigned by multiple pathologists, unlike all private-test and most public-test images.",
+      "Pathologists may disagree on Gleason and ISUP grades, so the development labels contain label noise.",
+      "Masks are missing for 100 development slides and may contain false-positive or false-negative regions.",
+      "Radboud and Karolinska masks use different annotation units and code systems and must not be treated as one native ontology."
+    ]
+  },
+  "identities": {
+    "published_identity": "image_id",
+    "patient_identity_available_in_distribution": false,
+    "case_identity_available_in_distribution": false,
+    "policy": "Treat image_id as the publisher slide identity. Do not infer patient or case links from filenames, labels, tissue, or ordering."
+  },
+  "interfaces": {
+    "record_reference_template": "panda:{image_id}",
+    "artifact_reference_template": "panda:{image_id}:{artifact_kind}",
+    "artifact_kinds": ["whole_slide", "label_mask"],
+    "private_native_index_path": "outputs/private/native-index.jsonl",
+    "private_artifact_index_path": "outputs/private/artifact-references.jsonl",
+    "ownership": "Downstream MIL, segmentation, and classification products reference these records and artifacts. They must not copy source bytes or add cohort, ontology, exclusion, or partition decisions here."
+  },
+  "checksums": {
+    "algorithm": "sha256",
+    "evidence_snapshots": "Pinned in source_records and verified by the default metadata-only build.",
+    "authorized_artifacts": "The explicit private index command hashes train.csv and every whole-slide and available mask artifact."
+  }
+}

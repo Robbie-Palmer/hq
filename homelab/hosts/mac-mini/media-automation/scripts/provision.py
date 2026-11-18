@@ -316,12 +316,13 @@ def qbittorrent_fields(password, category_field, category):
 # torrent and its data from qBittorrent once an import completes, or the
 # raw download doubles the space of everything in the library.
 REMOVE_COMPLETED = True
+DOWNLOAD_CLIENT_ENDPOINT = "/api/v3/downloadclient"
 
 
 def ensure_download_client(app, category_field, category):
-    existing = {dc.get("name") for dc in app.get("/api/v3/downloadclient")}
+    existing = {dc.get("name") for dc in app.get(DOWNLOAD_CLIENT_ENDPOINT)}
     if "qbittorrent" in existing:
-        client = next(dc for dc in app.get("/api/v3/downloadclient")
+        client = next(dc for dc in app.get(DOWNLOAD_CLIENT_ENDPOINT)
                       if dc.get("name") == "qbittorrent")
         if (client.get("removeCompleted") != REMOVE_COMPLETED
                 or client.get("removeCompletedDownloads") != REMOVE_COMPLETED):
@@ -348,7 +349,7 @@ def ensure_download_client(app, category_field, category):
     schema["fields"] = qbittorrent_fields(
         os.environ["QBITTORRENT_PASSWORD"], category_field, category)
     app.post("/api/v3/downloadclient/test", schema)
-    app.post("/api/v3/downloadclient", schema)
+    app.post(DOWNLOAD_CLIENT_ENDPOINT, schema)
     print("  added download client 'qbittorrent' (connection test passed)")
 
 

@@ -11,7 +11,9 @@ The package owns:
 - SHA-256 hashes for bytes, files, and directory trees;
 - content-address identifiers;
 - Python source fingerprints; and
-- root-confined path resolution; and
+- root-confined path resolution;
+- allowlisted HTTPS metadata reads, anonymous FTP inventories, and directory identity parsing;
+- normalized metadata line endings; and
 - deterministic Pydantic JSON Schema writing and drift checks.
 
 Domain packages decide what their files mean. They also own validation beyond

@@ -34,11 +34,14 @@ import {
   type IdeaSlug,
 } from "../domain/idea/idea";
 import {
+  deriveInitiativeStatus,
   type Initiative,
   type InitiativeRelations,
   InitiativeRelationsSchema,
   InitiativeSchema,
   type InitiativeSlug,
+  type InitiativeSource,
+  InitiativeSourceSchema,
 } from "../domain/initiative/initiative";
 import {
   compareUtcInstants,
@@ -422,13 +425,13 @@ export function validateBlogPost(
   };
 }
 
-interface InitiativeLoadResult {
-  entities: Map<InitiativeSlug, Initiative>;
+interface InitiativeSourceLoadResult {
+  entities: Map<InitiativeSlug, InitiativeSource>;
   relations: Map<InitiativeSlug, InitiativeRelations>;
 }
 
-export function loadInitiatives(): InitiativeLoadResult {
-  const entities = new Map<InitiativeSlug, Initiative>();
+export function loadInitiatives(): InitiativeSourceLoadResult {
+  const entities = new Map<InitiativeSlug, InitiativeSource>();
   const relations = new Map<InitiativeSlug, InitiativeRelations>();
 
   if (!fs.existsSync(INITIATIVES_DIR)) {
@@ -444,23 +447,24 @@ export function loadInitiatives(): InitiativeLoadResult {
     const filePath = path.join(INITIATIVES_DIR, filename);
     const fileContent = fs.readFileSync(filePath, "utf-8");
     const { data, content } = parseFrontmatter(fileContent);
-    const initiative: Initiative = {
+    if (data.status !== undefined) {
+      throw new Error(
+        `Initiative ${slug} must not define status because linked projects determine it`,
+      );
+    }
+    const initiative: InitiativeSource = {
       slug,
       title: data.title,
       description: data.description,
       date: data.date,
       updated: data.updated,
-      status: data.status,
       projectContributions: data.project_contributions ?? {},
       content,
     };
 
-    const validation = validateInitiative(initiative);
+    const validation = InitiativeSourceSchema.safeParse(initiative);
     if (!validation.success) {
-      console.error(
-        `Failed to validate initiative ${slug}:`,
-        validation.schemaErrors,
-      );
+      console.error(`Failed to validate initiative ${slug}:`, validation.error);
       throw new Error(`Initiative ${slug} failed validation`);
     }
     entities.set(slug, validation.data);
@@ -472,6 +476,28 @@ export function loadInitiatives(): InitiativeLoadResult {
   }
 
   return { entities, relations };
+}
+
+function deriveInitiatives(
+  sources: ReadonlyMap<InitiativeSlug, InitiativeSource>,
+  projects: ReadonlyMap<ProjectSlug, Project>,
+  projectRelations: ReadonlyMap<ProjectSlug, ProjectRelations>,
+): Map<InitiativeSlug, Initiative> {
+  return new Map(
+    Array.from(sources, ([slug, source]) => {
+      const projectStatuses = Array.from(projectRelations)
+        .filter(([, relations]) => relations.initiatives.includes(slug))
+        .map(([projectSlug]) => projects.get(projectSlug)?.status)
+        .filter((status): status is Project["status"] => status !== undefined);
+      return [
+        slug,
+        InitiativeSchema.parse({
+          ...source,
+          status: deriveInitiativeStatus(projectStatuses),
+        }),
+      ];
+    }),
+  );
 }
 
 export function validateInitiative(
@@ -2175,7 +2201,10 @@ export interface DomainRepository {
 interface LoaderResults {
   ideas: IdeaLoadResult;
   blogs: BlogLoadResult;
-  initiatives: InitiativeLoadResult;
+  initiatives: {
+    entities: Map<InitiativeSlug, Initiative>;
+    relations: Map<InitiativeSlug, InitiativeRelations>;
+  };
   projects: ProjectLoadResult;
   adrs: ADRLoadResult;
   productDecisions: ProductDecisionLoadResult;
@@ -2278,8 +2307,16 @@ function buildDomainRepository(): DomainRepository {
   validateTechnologyReferences(technologies);
   const ideasResult = loadIdeas();
   const blogsResult = loadBlogPosts();
-  const initiativesResult = loadInitiatives();
+  const initiativeSourcesResult = loadInitiatives();
   const projectsResult = loadProjects();
+  const initiativesResult = {
+    entities: deriveInitiatives(
+      initiativeSourcesResult.entities,
+      projectsResult.entities,
+      projectsResult.relations,
+    ),
+    relations: initiativeSourcesResult.relations,
+  };
   const adrsResult = loadADRs();
   const productDecisionsResult = loadProductDecisions();
   const rolesResult = loadJobRoles();

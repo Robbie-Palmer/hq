@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0.0",
+  "adapter_id": "nucls-corrected-single-rater-to-nucleus-analysis",
+  "source_dataset_id": "nucls-corrected-single-rater-20220301",
+  "target_ontology_id": "pathologize-nucleus-analysis-source-preserving",
+  "mappings": [
+    {"source_label": "nonTIL_stromal", "target_label": "nonTIL_stromal", "status": "exact"},
+    {"source_label": "sTIL", "target_label": "sTIL", "status": "exact"},
+    {"source_label": "tumor_any", "target_label": "tumor_any", "status": "exact"},
+    {"source_label": "AMBIGUOUS", "target_label": "AMBIGUOUS", "status": "exact"},
+    {"source_label": "other_nucleus", "target_label": "other_nucleus", "status": "exact"}
+  ],
+  "notes": [
+    "The public NuCLS ontology is preserved without collapsing or renaming labels.",
+    "AMBIGUOUS and other_nucleus remain explicit source categories."
+  ]
+}

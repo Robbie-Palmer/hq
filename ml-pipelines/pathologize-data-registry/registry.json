@@ -1,34 +1,61 @@
 {
-  "schema_version": 1,
-  "registry_id": "pathologize-public-data",
-  "description": "Canonical public source data and metadata for Pathologize computational-pathology projects.",
+  "asset_manifests": [
+    "manifests/assets/airaqc-tcga-public-pilot-v1.json",
+    "manifests/assets/cptac-coad-idc-v23-smallest-series.json"
+  ],
   "collections": [
+    "manifests/collections/airaqc-tcga.json",
     "manifests/collections/camelyon16.json",
     "manifests/collections/cptac-coad-idc.json",
     "manifests/collections/panda.json"
   ],
-  "subsets": [
-    "manifests/subsets/cptac-coad-idc-v23-smallest-series.json"
-  ],
-  "asset_manifests": [
-    "manifests/assets/cptac-coad-idc-v23-smallest-series.json"
-  ],
-  "slide_records": [
-    "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json"
-  ],
+  "description": "Canonical public source data and metadata for Pathologize computational-pathology projects.",
   "ownership": {
+    "excludes": [
+      "derived tiles, embeddings, features, masks, and model outputs",
+      "task-specific labels or label reinterpretations",
+      "train, validation, test, fold, or split-isolation assignments",
+      "private data, weights, annotations, configuration, thresholds, product knowledge, and unpublished results"
+    ],
     "owns": [
       "unaltered source assets selected for the registry",
       "source, access, provenance, citation, and licence manifests",
       "source patient, case, specimen, slide, study, series, and instance identities",
       "source scanner and physical-resolution metadata",
       "source-native public labels"
-    ],
-    "excludes": [
-      "derived tiles, embeddings, features, masks, and model outputs",
-      "task-specific labels or label reinterpretations",
-      "train, validation, test, fold, or split-isolation assignments",
-      "private data, weights, annotations, configuration, thresholds, product knowledge, and unpublished results"
     ]
-  }
+  },
+  "registry_id": "pathologize-public-data",
+  "schema_version": 1,
+  "slide_records": [
+    "records/slides/airaqc-tcga-public-pilot-v1-00.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-01.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-02.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-03.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-04.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-05.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-06.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-07.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-08.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-09.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-10.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-11.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-12.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-13.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-14.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-15.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-16.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-17.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-18.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-19.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-20.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-21.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-22.json",
+    "records/slides/airaqc-tcga-public-pilot-v1-23.json",
+    "records/slides/cptac-coad-idc-09co003-0b1ee2c0.json"
+  ],
+  "subsets": [
+    "manifests/subsets/airaqc-tcga-public-pilot-v1.json",
+    "manifests/subsets/cptac-coad-idc-v23-smallest-series.json"
+  ]
 }

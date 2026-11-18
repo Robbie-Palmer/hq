@@ -1,0 +1,14 @@
+stages:
+  publish_native_contract:
+    cmd: uv run --locked airaqc-tcga-product publish
+    deps:
+      - .python-version
+      - contracts
+      - pyproject.toml
+      - records
+      - src/airaqc_tcga_product
+      - uv.lock
+    outs:
+      - outputs/native-corpus.json
+    metrics:
+      - outputs/metrics.json

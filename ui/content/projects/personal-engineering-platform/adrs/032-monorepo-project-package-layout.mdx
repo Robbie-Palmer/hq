@@ -1,7 +1,7 @@
 ---
 title: "ADR 032: Monorepo project and package layout"
 date: "2026-10-14"
-status: "Accepted"
+status: "Proposed"
 ---
 
 ## Context
@@ -62,21 +62,52 @@ records, and system records owned by another project.
 
 ### Technology directories
 
-Place browser application code in `ui`, deployable Cloudflare code in
-`workers/<component>`, reusable TypeScript in `packages/<component>`, Python
-pipelines in `ml-pipelines/<component>`, and C++ systems in
-`cpp/<component>`. Terraform state roots live at `infra/<component>`.
-Kubernetes components live below `homelab/k3s/components/<component>`, with
-reusable bases and environment overlays kept in their existing Kustomize
-trees. Host definitions and operator tooling remain under `homelab`.
+The first path segment identifies the language, infrastructure tool, packaging
+system, or authored-content contract that owns validation and dependency
+rules. The next segment separates deployable applications from reusable
+packages or uses the technology's native unit where `apps` and `packages`
+would be misleading.
 
-The project index lives at `ui/content/projects/<project>/index.mdx`.
-Architecture and product decisions live in its `adrs` and `pdrs` directories
-with monotonic three-digit prefixes. Those records belong to the logical
-project, not to one component path. Agent instructions sit at the narrowest
-directory whose rules they govern. Repository-wide rules stay in the root
-`AGENTS.md`; a component adds its own file only when its commands or safety
-boundary differ.
+The target contract uses these path families:
+
+| Source kind                                     | Path family                                                     |
+| ----------------------------------------------- | --------------------------------------------------------------- |
+| TypeScript and JavaScript applications          | `typescript/apps/<component>`                                   |
+| TypeScript and JavaScript packages              | `typescript/packages/<component>`                               |
+| Python applications and pipelines               | `python/apps/<component>`                                       |
+| Python packages                                 | `python/packages/<component>`                                   |
+| C++ applications                                | `cpp/apps/<component>`                                          |
+| C++ libraries                                   | `cpp/packages/<component>`                                      |
+| Terraform state roots                           | `terraform/roots/<component>`                                   |
+| Terraform modules                               | `terraform/modules/<component>`                                 |
+| Nix hosts, modules, and packages                | `nix/hosts`, `nix/modules`, and `nix/packages`                  |
+| Kubernetes applications and reusable components | `kubernetes/apps` and `kubernetes/packages`                     |
+| Ansible inventories, playbooks, and roles       | `ansible/inventories`, `ansible/playbooks`, and `ansible/roles` |
+| Container image sources                         | `containers/images/<component>`                                 |
+| Project and platform publications               | `content/projects/<project>`                                    |
+
+Add another top-level technology only when that root has its own dependency,
+validation, build, or apply contract. Do not add a product, team, host fleet,
+deployment environment, or vague category such as `shared` as a top-level
+source root.
+
+A deployable application can contain project-owned feature directories while
+remaining one build and deployment unit. The shared web host will move from
+`ui` to a TypeScript application root. Hosted products keep stable component
+identities and declared feature paths inside that application until they gain
+independent builds. Reusable browser and domain code moves to a TypeScript
+package only when it has a real package boundary.
+
+Project indexes live at `content/projects/<project>/index.mdx`. Architecture
+and product decisions live in their `adrs` and `pdrs` directories with
+monotonic three-digit prefixes. The web application consumes this content
+through a declared content workspace or package. Rendering content does not
+make the renderer its owner.
+
+Those records belong to the logical project, not to one component path. Agent
+instructions sit at the narrowest directory whose rules they govern.
+Repository-wide rules stay in the root `AGENTS.md`; a component adds its own
+file only when its commands or safety boundary differ.
 
 ### Dependencies and shared code
 
@@ -125,8 +156,10 @@ structural edits only to these shared fields:
 
 * `.mise.toml` `monorepo.config_roots`;
 * `pnpm-workspace.yaml` `packages`;
-* `platform.yaml` `catalog.records`; and
-* `repository-layout.yaml` `projects`.
+* `content/projects/personal-engineering-platform/platform.yaml`
+  `catalog.records`; and
+* `content/projects/personal-engineering-platform/repository-layout.yaml`
+  `projects`.
 
 The operation must parse and rewrite the named field, preserve unrelated
 content, reject an unexpected old state, and show the resulting Git diff. It
@@ -143,9 +176,9 @@ to the declared shared-manifest boundary.
 
 Adopt the contract without moving every existing path at once:
 
-1. Keep current technology roots and catalog IDs. Add catalog declarations as
-   generation or delivery begins to depend on them, then register the project
-   in the layout contract.
+1. Inventory the existing `ui`, `homelab`, `workers`, `packages`,
+   `ml-pipelines`, `cpp`, and `infra` trees. Assign each maintained source root
+   one stable component ID and owning project before changing its path.
 2. Add the standard task names to existing components. Record a reason where a
    task does not apply, then make the validator enforce the declarations.
 3. Keep TypeScript dependencies in the root pnpm lockfile. Keep the two listed
@@ -155,6 +188,9 @@ Adopt the contract without moving every existing path at once:
    Add missing native lockfiles through the owning tool rather than by hand.
 5. Bring existing project indexes, ADRs, PDRs, and component catalog records
    under generated-project validation before Copier reconciles their files.
+6. Adopt each component into Copier at its current path. Move it to the target
+   technology root only through a later reviewed reconciliation plan keyed by
+   the same stable component ID.
 
 Do not add Nx, Turborepo, Bazel, Pants, or another root workspace system. Mise
 already provides the cross-language task graph, while pnpm, uv, CMake,
@@ -170,6 +206,12 @@ decisions together. It would split native language workspaces and repeat their
 configuration. Stable catalog IDs and the project index provide product
 cohesion without giving up technology-owned tooling.
 
+Using `apps` and `packages` as the only top-level roots would work for one
+language. In this repository, an app may be a TypeScript deployment, Python
+pipeline, Terraform state root, Nix host, or Kubernetes workload. The owning
+toolchain must be known before a task runner or agent can interpret the second
+segment.
+
 Nx would provide generators, a project graph, and computation caching for the
 TypeScript workspace. It would not own uv, Terraform, CMake, Nix, or
 Kubernetes, and the scaffolding spike found no current transformation that
@@ -182,13 +224,13 @@ create components and which shared files they may change.
 
 ## Consequences
 
-One logical project can span UI, Worker, package, pipeline, infrastructure, and
-operations paths while keeping one ID, index, and decision history. Native
-tools retain their workspace and lockfile authority, and mise remains the
-single command interface.
+One logical project can span TypeScript, Python, C++, Terraform, Nix,
+Kubernetes, Ansible, container-image, and content roots while keeping one ID,
+index, and decision history. Native tools retain their workspace and lockfile
+authority, and mise remains the single command interface.
 
 The repository must maintain a small layout manifest and validator. Existing
-components will need task and lockfile cleanup before every rule can become a
-blocking check. Technology-owned directories also make a product less obvious
-from the filesystem alone, so project creation must add the catalog record and
-project index.
+components need task, lockfile, import, CI-filter, catalog, and deployment-path
+changes before every rule can become a blocking check. Technology-owned
+directories also make a product less obvious from the filesystem alone, so
+project creation must add the catalog record and project index.

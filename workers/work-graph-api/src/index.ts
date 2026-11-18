@@ -1,8 +1,18 @@
 export {
   createWorkGraphApp,
+  type WorkGraphAuthorizationIdentity,
   type WorkGraphApiRepository,
   type WorkGraphAppOptions,
 } from "./app";
+export {
+  type WorkGraphAuthorizationAction,
+  type WorkGraphAuthorizationDecision,
+  type WorkGraphAuthorizationRequest,
+  type WorkGraphAuthorizer,
+  type WorkGraphAuthorityProfile,
+  workGraphActionForRequest,
+  workGraphAuthorizer,
+} from "./authorization";
 
 import {
   closeDb,

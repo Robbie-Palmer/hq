@@ -1,4 +1,19 @@
 stages:
+  acquire_airaqc_tcga_public_pilot:
+    cmd: uv run --locked pathologize-registry acquire --subset airaqc-tcga-public-pilot-v1 --max-bytes 16500000000
+    deps:
+      - .python-version
+      - manifests/assets/airaqc-tcga-public-pilot-v1.json
+      - manifests/collections/airaqc-tcga.json
+      - manifests/subsets/airaqc-tcga-public-pilot-v1.json
+      - pyproject.toml
+      - records
+      - registry.json
+      - src/pathologize_data_registry
+      - uv.lock
+    outs:
+      - data/raw/airaqc-tcga/public-pilot-v1
+
   acquire_cptac_coad_smallest_series:
     cmd: uv run --locked pathologize-registry acquire
     deps:

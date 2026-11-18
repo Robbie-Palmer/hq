@@ -43,7 +43,9 @@ export function LogBalanceDrawer({
   accountId,
   trigger,
 }: Readonly<LogBalanceDrawerProps>) {
-  const { accounts, recordBalance } = useAssetTracker();
+  const { accounts, recordBalance } = useAssetTracker(
+    ({ accounts, recordBalance }) => ({ accounts, recordBalance }),
+  );
   const openAccounts = accounts.filter((account) => account.isOpen);
 
   const [open, setOpen] = useState(false);

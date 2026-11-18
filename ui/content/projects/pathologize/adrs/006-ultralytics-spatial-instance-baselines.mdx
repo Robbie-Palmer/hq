@@ -1,0 +1,104 @@
+---
+title: "ADR 006: Ultralytics detection and instance-segmentation baselines"
+date: "2026-11-07"
+status: "Accepted"
+tech_stack: ["Ultralytics"]
+implements_product_decisions:
+  - "pathologize:003-independent-pathology-benchmark-families"
+  - "pathologize:004-inspectable-spatial-evidence"
+  - "pathologize:006-task-native-pathology-model-development"
+---
+
+## Context
+
+Nucleus, cell, tissue-object, and artifact experiments need object detection or
+instance segmentation. Fastai can represent bounding boxes but does not offer
+an equally complete task trainer, evaluator, and deployment path for these
+outputs. Ultralytics supplies one Python and command-line workflow for
+pretrained detection and segmentation models, custom datasets, augmentation,
+mixed precision, and multi-GPU training through its
+[train mode](https://docs.ultralytics.com/modes/train/).
+
+Ultralytics offers its code under AGPL-3.0 for projects willing to publish the
+whole project under that licence. It requires an Enterprise licence for the
+proprietary uses listed on its
+[licensing page](https://www.ultralytics.com/license). This repository already
+publishes its source under AGPL-3.0, so the free route matches the project's
+current distribution model. That does not determine the licence of a dataset
+or pretrained weight.
+
+[ADR 004](/projects/pathologize/adrs/004-framework-native-training-result-contracts)
+keeps training framework-native and makes Pathologize predictions
+authoritative for evaluation.
+
+## Decision
+
+Use Ultralytics directly for the first object-detection and
+instance-segmentation baselines. Pin the package version, model definition,
+initial weight artifact, weight digest, weight licence, image size,
+augmentation, optimizer, schedule, confidence thresholds, non-maximum
+suppression settings, and export configuration.
+
+The experiment code converts Pathologize's pinned samples and annotations into
+an ephemeral Ultralytics dataset layout. It must preserve source identifiers,
+physical coordinates, class ontology, empty images, ignored regions, and the
+project's train, validation, and test assignments. Generated YAML and
+converted labels are derived run artifacts. The pinned Pathologize manifest
+retains dataset authority.
+
+Normalize predictions back to Pathologize records before evaluation. Retain
+boxes, masks, classes, confidences, source coordinates, rejected instances,
+and conversion failures. Ultralytics metrics may diagnose training, but the
+Pathologize evaluator owns matching rules, class metrics, calibration, spatial
+evidence, failure slices, and resource gates.
+
+Keep the conversion local to the benchmark project. Do not build a shared
+wrapper around the Ultralytics trainer or model objects.
+
+Do not use Ultralytics as the default for semantic segmentation,
+classification, regression, or slide-level multiple instance learning. Those
+tasks keep their own framework-native experiment code.
+
+Review this decision if the repository stops being fully AGPL, the upstream
+licensing terms change, converted annotations lose pathology semantics, or a
+pathology-specific model gives a materially stronger and reproducible
+baseline.
+
+## Consequences
+
+Pathologize gets a fast route to strong detection and instance-segmentation
+baselines, including pretrained small models suitable for bounded indie GPU
+budgets. The same Ultralytics workflow can exercise training, validation,
+prediction, and export without a project-owned detector loop.
+
+Dataset conversion becomes a serious correctness boundary. A box convention,
+mask polygon, resize, or empty-image mistake can produce plausible training
+logs and false benchmark results. Golden conversion fixtures and round-trip
+coordinate tests are required before real data runs.
+
+AGPL source publication remains mandatory for network use and distribution
+under the selected route. Model weights and training data still need separate
+licence records. A future proprietary Pathologize product could not inherit
+this decision without a new licence review and architecture record.
+
+## Alternatives considered
+
+### Use Transformers detection and segmentation heads
+
+Transformers supports current detection and segmentation architectures and
+keeps model acquisition close to the Hub. Its task recipes require more
+trainer and post-processing assembly than Ultralytics for the first baseline.
+It remains useful for models that Ultralytics cannot express.
+
+### Use MMDetection
+
+MMDetection offers broad research configuration and many model families. That
+flexibility brings a larger configuration and dependency burden than the
+initial bounded benchmarks need.
+
+### Build a native torchvision detector
+
+Torchvision would reduce the framework count and avoid annotation conversion
+to an external layout. Pathologize would own more training, augmentation,
+post-processing, distributed, and export behavior before those mechanics are
+the research contribution.

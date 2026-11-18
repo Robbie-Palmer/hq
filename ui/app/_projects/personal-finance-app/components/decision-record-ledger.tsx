@@ -83,7 +83,19 @@ function EmptyDecisionRecords() {
 
 export function DecisionRecordLedger() {
   const { accountDetails, baseCurrency, decisionRecords, mortgageScenarios } =
-    useAssetTracker();
+    useAssetTracker(
+      ({
+        accountDetails,
+        baseCurrency,
+        decisionRecords,
+        mortgageScenarios,
+      }) => ({
+        accountDetails,
+        baseCurrency,
+        decisionRecords,
+        mortgageScenarios,
+      }),
+    );
   const scenarios = new Map(
     mortgageScenarios.map((scenario) => [scenario.id, scenario]),
   );

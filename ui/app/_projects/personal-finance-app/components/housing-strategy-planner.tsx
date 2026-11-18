@@ -16,6 +16,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useAssetTracker } from "./asset-tracker-provider";
+import { selectAssetTrackerFields } from "./asset-tracker-selectors";
 import {
   createInitialHousingAssumptions,
   HOUSING_STRATEGIES,
@@ -54,8 +55,13 @@ function warningsFor(
   return warnings;
 }
 
+const selectView = selectAssetTrackerFields(
+  "baseCurrency",
+  "housingPlanningPosition",
+);
+
 export function HousingStrategyPlanner() {
-  const { baseCurrency, housingPlanningPosition } = useAssetTracker();
+  const { baseCurrency, housingPlanningPosition } = useAssetTracker(selectView);
   const [editedAssumptions, setEditedAssumptions] = useState<
     HousingStrategyAssumptions[] | null
   >(null);

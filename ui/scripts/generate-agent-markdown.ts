@@ -1274,6 +1274,7 @@ function buildRoutesJson(): string {
       include: [
         "/.well-known/agent-configuration",
         "/api/auth/*",
+        "/api/admin/*",
         "/api/profile/*",
         "/api/households",
         "/api/households/*",

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Sequence
 from pathlib import Path
 
 from data_artifacts.files import resolve_under
@@ -66,7 +67,7 @@ def _artifact_class_counts(truth: list[int], prediction: list[int]) -> dict[int,
 
 def _quality_item_counts(
     item: FixtureItem, prediction: QualityPrediction, root: Path
-) -> tuple[int, int, int, int, int, dict[int, list[int]]]:
+) -> tuple[int, int, int, int, int, float, dict[int, list[int]]]:
     tissue_truth = _load_mask(root, item.tissue_mask_path)
     artifact_truth = _load_mask(root, item.artifact_mask_path)
     if len(prediction.tissue_labels) != len(tissue_truth):
@@ -89,6 +90,7 @@ def _quality_item_counts(
         clean_intersection,
         sum(clean_truth) + sum(clean_prediction),
         int(prediction.reject_slide == any(artifact_truth)),
+        (prediction.reject_probability - float(any(artifact_truth))) ** 2,
         _artifact_class_counts(artifact_truth, prediction.artifact_labels),
     )
 
@@ -100,6 +102,7 @@ def evaluate_quality(
     tissue_intersection = tissue_union = 0
     clean_intersection = clean_total = 0
     rejection_correct = 0
+    rejection_brier = 0.0
     class_counts = {label: [0, 0, 0] for label in (1, 2)}
     for item in items:
         item_counts = _quality_item_counts(item, by_id[item.item_id], root)
@@ -108,7 +111,8 @@ def evaluate_quality(
         clean_intersection += item_counts[2]
         clean_total += item_counts[3]
         rejection_correct += item_counts[4]
-        for label, counts in item_counts[5].items():
+        rejection_brier += item_counts[5]
+        for label, counts in item_counts[6].items():
             class_counts[label] = [
                 current + added for current, added in zip(class_counts[label], counts, strict=True)
             ]
@@ -118,6 +122,7 @@ def evaluate_quality(
         "artifact_macro_f1": artifact_f1,
         "artifact_free_tissue_dice": _ratio(2 * clean_intersection, clean_total),
         "slide_rejection_accuracy": _ratio(rejection_correct, len(items)),
+        "slide_rejection_brier": _ratio(rejection_brier, len(items)),
     }
 
 
@@ -188,7 +193,16 @@ def evaluate_tiling(
         selected_background += item_background
         selected_pixels += item_pixels
         total_tissue += sum(bool(value) for value in truth)
-        scale_errors.append(abs(prediction.target_microns_per_pixel - expected_mpp) / expected_mpp)
+        target_error = abs(prediction.target_microns_per_pixel - expected_mpp) / expected_mpp
+        source_error_x = (
+            abs(prediction.source_microns_per_pixel_x - item.microns_per_pixel_x)
+            / item.microns_per_pixel_x
+        )
+        source_error_y = (
+            abs(prediction.source_microns_per_pixel_y - item.microns_per_pixel_y)
+            / item.microns_per_pixel_y
+        )
+        scale_errors.append(max(target_error, source_error_x, source_error_y))
     return {
         "tile_selection_f1": _f1(true_positive, false_positive, false_negative),
         "tissue_coverage": _ratio(covered_tissue, total_tissue),
@@ -245,6 +259,7 @@ def evaluate_nuclei(
     true_positive = false_positive = false_negative = 0
     intersection = truth_pixels_total = predicted_pixels_total = 0
     matched_iou = 0.0
+    classification_brier = 0.0
     class_counts = {
         class_name: [0, 0, 0] for class_name in ("synthetic_type_a", "synthetic_type_b")
     }
@@ -270,6 +285,14 @@ def evaluate_nuclei(
         predicted_pixels_total += len(predicted_union)
         matched_truth = {truth_id for truth_id, _, _ in matches}
         matched_prediction = {prediction_id for _, prediction_id, _ in matches}
+        classification_brier += sum(
+            (
+                prediction_by_id[prediction_id].type_a_probability
+                - float(truth_classes[truth_id] == "synthetic_type_a")
+            )
+            ** 2
+            for truth_id, prediction_id, _ in matches
+        )
         for class_name, counts in class_counts.items():
             counts[0] += sum(
                 truth_classes[truth_id] == class_name
@@ -301,6 +324,7 @@ def evaluate_nuclei(
         "semantic_dice": _ratio(2 * intersection, truth_pixels_total + predicted_pixels_total),
         "mean_matched_iou": _ratio(matched_iou, true_positive),
         "classification_macro_f1": classification_f1,
+        "classification_brier": _ratio(classification_brier, true_positive),
         "binary_panoptic_quality": _ratio(matched_iou, denominator),
     }
 
@@ -308,7 +332,7 @@ def evaluate_nuclei(
 def evaluate_predictions(
     manifest: ExperimentManifest,
     items: list[FixtureItem],
-    predictions: list[Prediction],
+    predictions: Sequence[Prediction],
     root: Path,
 ) -> dict[str, float]:
     if len(predictions) != len(items):

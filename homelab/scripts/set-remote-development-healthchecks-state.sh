@@ -44,7 +44,7 @@ api_key=$(
     --config "${doppler_config}" \
     --plain
 )
-if [ -z "${api_key}" ]; then
+if [[ -z "${api_key}" ]]; then
   echo "HEALTHCHECKS_API_KEY is empty" >&2
   exit 1
 fi
@@ -81,11 +81,11 @@ read -r check_uuid check_status < <(
     "${checks_file}"
 )
 
-if [ "${desired_state}" = pause ] && [ "${check_status}" = paused ]; then
+if [[ "${desired_state}" = pause ]] && [[ "${check_status}" = paused ]]; then
   echo "Healthchecks.io check ${check_slug} is already paused"
   exit 0
 fi
-if [ "${desired_state}" = resume ] && [ "${check_status}" != paused ]; then
+if [[ "${desired_state}" = resume ]] && [[ "${check_status}" != paused ]]; then
   echo "Healthchecks.io check ${check_slug} is already active"
   exit 0
 fi
@@ -112,7 +112,7 @@ curl \
   --output "${check_file}" \
   "${api_url}/checks/${check_uuid}"
 
-if [ "${desired_state}" = pause ]; then
+if [[ "${desired_state}" = pause ]]; then
   expected_status=paused
 else
   expected_status=new
