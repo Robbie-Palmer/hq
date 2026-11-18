@@ -137,12 +137,14 @@ export function evaluateBusinessFiPensionContribution(input: {
   ];
 
   const supported = issues.length === 0;
-  const withdrawalTaxPence =
-    policy.taxTreatment?.kind === "fixed-rate"
-      ? roundPence(input.grossPence * policy.taxTreatment.rate)
-      : policy.taxTreatment?.kind === "tax-free"
-        ? 0
-        : null;
+  let withdrawalTaxPence: number | null = null;
+  if (policy.taxTreatment?.kind === "fixed-rate") {
+    withdrawalTaxPence = roundPence(
+      input.grossPence * policy.taxTreatment.rate,
+    );
+  } else if (policy.taxTreatment?.kind === "tax-free") {
+    withdrawalTaxPence = 0;
+  }
   const withdrawalFeePence = roundPence(
     input.grossPence * policy.withdrawalFeeRate,
   );
