@@ -6,6 +6,7 @@ stages:
       - contracts
       - fixtures/release-46.0
       - pyproject.toml
+      - ../../../packages/data-artifacts/src/data_artifacts/files.py
       - src/gdc_tcga_image_genomics
       - uv.lock
     outs:
