@@ -261,7 +261,10 @@ in
       nvidiaSettings = true;
       nvidiaPersistenced = false;
     };
-    nvidia-container-toolkit.enable = true;
+    nvidia-container-toolkit = {
+      enable = true;
+      device-name-strategy = "uuid";
+    };
   };
 
   services = {
@@ -512,7 +515,7 @@ in
     description = "Select the power-saver profile";
     after = [ "power-profiles-daemon.service" ];
     requires = [ "power-profiles-daemon.service" ];
-    wantedBy = [ "multi-user.target" ];
+    wantedBy = [ "graphical.target" ];
     serviceConfig = {
       Type = "oneshot";
       RemainAfterExit = true;
