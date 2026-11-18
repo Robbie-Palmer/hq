@@ -75,7 +75,6 @@ jobs:
           RECEIPT: infra/oci-r2-artifact-spike/.state/broker-receipt.json
         run: |
           if [[ -f "$RECEIPT" ]]; then
-            bash infra/oci-r2-artifact-spike/scripts/stop-consumer-containers.sh
             mise //infra/oci-r2-artifact-spike:teardown
           fi
 

@@ -6,6 +6,9 @@ cleanup_complete=0
 
 cleanup() {
   if [[ "$cleanup_complete" -eq 0 ]]; then
+    if ! bash "$project_root/scripts/stop-consumer-process-group.sh"; then
+      return 1
+    fi
     if ! bash "$project_root/scripts/stop-consumer-containers.sh"; then
       return 1
     fi
@@ -21,8 +24,10 @@ cleanup_on_exit() {
 }
 trap cleanup_on_exit EXIT
 
+consumer_group_token="$(openssl rand -hex 16)"
 set +e
-timeout --kill-after=30s 25m bash "$project_root/scripts/run-live.sh"
+HQ_R2_CONSUMER_GROUP_TOKEN="$consumer_group_token" \
+  setsid --wait bash "$project_root/scripts/run-live-process-group.sh"
 consumer_status=$?
 set -e
 
