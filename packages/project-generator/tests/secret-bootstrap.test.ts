@@ -127,6 +127,90 @@ describe("secret bootstrap contract", () => {
     expect(JSON.stringify(result)).not.toContain("secret-value");
   });
 
+  it("redacts account-token and R2 parent source details", () => {
+    const base = plan();
+    const currentPlan = plan({
+      identities: {
+        ...base.identities,
+        cloudflare_token_provisioner: {
+          token_env: "CLOUDFLARE_TOKEN_PROVISIONER_TOKEN",
+          account_id_env: "CLOUDFLARE_ACCOUNT_ID",
+        },
+      },
+      checkpoints: [],
+      secrets: [
+        {
+          ...base.secrets[0],
+          id: "cloudflare-deploy-token",
+          consumers: [base.secrets[0]?.consumers[0]],
+          creation: {
+            mode: "extension",
+            extension: "cloudflare-account-token",
+            token_name: "sample-service-deploy",
+            permission_groups: [
+              { id: "d".repeat(32), name: "Workers Scripts Write" },
+            ],
+            expires_on: "2027-01-01T00:00:00Z",
+          },
+        },
+        {
+          ...base.secrets[0],
+          id: "r2-parent-credentials",
+          name: "CLOUDFLARE_R2_PARENT_CREDENTIALS",
+          system_of_record: {
+            kind: "doppler",
+            config: "prd",
+            name: "CLOUDFLARE_R2_PARENT_CREDENTIALS",
+          },
+          consumers: [
+            {
+              kind: "github-environment",
+              environment: "production-sample-service",
+              name: "CLOUDFLARE_R2_PARENT_CREDENTIALS",
+            },
+          ],
+          creation: {
+            mode: "extension",
+            extension: "cloudflare-r2-parent-credentials",
+            token_name: "sample-r2-parent",
+            permission_group: {
+              id: "e".repeat(32),
+              name: "Workers R2 Storage Write",
+            },
+          },
+        },
+      ],
+    });
+
+    expect(
+      planSecretBootstrap({ plan: currentPlan }).secrets.map(
+        ({ sourceDetails }) => sourceDetails,
+      ),
+    ).toEqual([
+      {
+        provider: "cloudflare",
+        ownership: "account",
+        tokenName: "sample-service-deploy",
+        accountIdEnvironment: "CLOUDFLARE_ACCOUNT_ID",
+        permissionGroups: [
+          { id: "d".repeat(32), name: "Workers Scripts Write" },
+        ],
+        expiresOn: "2027-01-01T00:00:00Z",
+      },
+      {
+        provider: "cloudflare",
+        ownership: "account",
+        tokenName: "sample-r2-parent",
+        accountIdEnvironment: "CLOUDFLARE_ACCOUNT_ID",
+        permissionGroups: [
+          { id: "e".repeat(32), name: "Workers R2 Storage Write" },
+        ],
+        credentialKind: "r2-parent",
+        resourceScope: "all-r2-buckets",
+      },
+    ]);
+  });
+
   it("accepts Doppler config slugs with underscores", () => {
     const base = plan();
     const parsed = plan({

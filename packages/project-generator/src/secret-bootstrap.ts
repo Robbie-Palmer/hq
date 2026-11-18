@@ -73,6 +73,21 @@ const sourceSchema = z.union([
   z
     .object({
       mode: z.literal("extension"),
+      extension: z.literal("cloudflare-r2-parent-credentials"),
+      checkpoint: slugSchema.optional(),
+      token_name: z.string().min(1).max(120),
+      permission_group: z
+        .object({
+          id: z.string().regex(/^[0-9a-f]{32}$/),
+          name: z.literal("Workers R2 Storage Write"),
+        })
+        .strict(),
+      expires_on: z.iso.datetime().optional(),
+    })
+    .strict(),
+  z
+    .object({
+      mode: z.literal("extension"),
       extension: z.literal("cloudflare-account-token-authority"),
       checkpoint: slugSchema,
       value_env: environmentNameSchema,
@@ -84,7 +99,8 @@ const sourceSchema = z.union([
       extension: slugSchema.refine(
         (value) =>
           value !== "cloudflare-account-token" &&
-          value !== "cloudflare-account-token-authority",
+          value !== "cloudflare-account-token-authority" &&
+          value !== "cloudflare-r2-parent-credentials",
         "built-in Cloudflare extensions require their credential fields",
       ),
       checkpoint: slugSchema.optional(),
@@ -295,8 +311,8 @@ function validateCloudflareTokenSource(
   }
   if (
     secret.creation.mode !== "extension" ||
-    secret.creation.extension !== "cloudflare-account-token" ||
-    !("permission_groups" in secret.creation)
+    (secret.creation.extension !== "cloudflare-account-token" &&
+      secret.creation.extension !== "cloudflare-r2-parent-credentials")
   ) {
     return;
   }
@@ -314,11 +330,16 @@ function validateCloudflareTokenSource(
       message: "must be true for a generated Cloudflare API token",
     });
   }
-  addDuplicateIssues(
-    secret.creation.permission_groups.map(({ id }) => id),
-    `Cloudflare permission-group ids for secret '${secret.id}'`,
-    context,
-  );
+  if (
+    secret.creation.extension === "cloudflare-account-token" &&
+    "permission_groups" in secret.creation
+  ) {
+    addDuplicateIssues(
+      secret.creation.permission_groups.map(({ id }) => id),
+      `Cloudflare permission-group ids for secret '${secret.id}'`,
+      context,
+    );
+  }
 }
 
 export const secretBootstrapPlanSchema = z
@@ -428,6 +449,8 @@ export interface SafeBootstrapPlan {
         readonly name: string;
       }[];
       readonly expiresOn?: string;
+      readonly credentialKind?: "r2-parent";
+      readonly resourceScope?: "all-r2-buckets";
     };
     readonly status: "complete" | "ready" | "waiting";
   }[];
@@ -554,6 +577,55 @@ function consumerLabel(
     : `cloudflare-worker:${consumer.worker}/${consumer.name}`;
 }
 
+function cloudflareSourceDetails(
+  plan: SecretBootstrapPlan,
+  secret: BootstrapSecret,
+): NonNullable<SafeBootstrapPlan["secrets"][number]["sourceDetails"]> | undefined {
+  const creation = secret.creation;
+  if (creation.mode !== "extension") return undefined;
+  const accountIdEnvironment =
+    plan.identities.cloudflare_token_provisioner?.account_id_env ?? "";
+  if (
+    creation.extension === "cloudflare-account-token" &&
+    "permission_groups" in creation
+  ) {
+    return {
+      provider: "cloudflare",
+      ownership: "account",
+      tokenName: creation.token_name,
+      accountIdEnvironment,
+      permissionGroups: creation.permission_groups,
+      ...(creation.expires_on ? { expiresOn: creation.expires_on } : {}),
+    };
+  }
+  if (
+    creation.extension === "cloudflare-r2-parent-credentials" &&
+    "permission_group" in creation
+  ) {
+    return {
+      provider: "cloudflare",
+      ownership: "account",
+      tokenName: creation.token_name,
+      accountIdEnvironment,
+      permissionGroups: [creation.permission_group],
+      credentialKind: "r2-parent",
+      resourceScope: "all-r2-buckets",
+      ...(creation.expires_on ? { expiresOn: creation.expires_on } : {}),
+    };
+  }
+  return undefined;
+}
+
+function safeSecretStatus(input: {
+  readonly secret: BootstrapSecret;
+  readonly complete: ReadonlySet<string>;
+  readonly acknowledged: ReadonlySet<string>;
+}): "complete" | "waiting" | "ready" {
+  if (input.complete.has(input.secret.id)) return "complete";
+  const checkpoint = checkpointForSecret(input.secret);
+  return checkpoint && !input.acknowledged.has(checkpoint) ? "waiting" : "ready";
+}
+
 export function planSecretBootstrap(input: {
   readonly plan: SecretBootstrapPlan;
   readonly state?: SecretBootstrapState;
@@ -579,13 +651,7 @@ export function planSecretBootstrap(input: {
       status: acknowledged.has(checkpoint.id) ? "acknowledged" : "waiting",
     })),
     secrets: input.plan.secrets.map((secret) => {
-      const checkpoint = checkpointForSecret(secret);
-      let status: "complete" | "waiting" | "ready" = "ready";
-      if (complete.has(secret.id)) {
-        status = "complete";
-      } else if (checkpoint && !acknowledged.has(checkpoint)) {
-        status = "waiting";
-      }
+      const sourceDetails = cloudflareSourceDetails(input.plan, secret);
       return {
         id: secret.id,
         name: secret.name,
@@ -594,25 +660,8 @@ export function planSecretBootstrap(input: {
         consumers: secret.consumers.map(consumerLabel),
         rotationOwner: secret.rotation_owner,
         creation: secret.creation.mode,
-        ...(secret.creation.mode === "extension" &&
-        secret.creation.extension === "cloudflare-account-token" &&
-        "permission_groups" in secret.creation
-          ? {
-              sourceDetails: {
-                provider: "cloudflare" as const,
-                ownership: "account" as const,
-                tokenName: secret.creation.token_name,
-                accountIdEnvironment:
-                  input.plan.identities.cloudflare_token_provisioner
-                    ?.account_id_env ?? "",
-                permissionGroups: secret.creation.permission_groups,
-                ...(secret.creation.expires_on
-                  ? { expiresOn: secret.creation.expires_on }
-                  : {}),
-              },
-            }
-          : {}),
-        status,
+        ...(sourceDetails ? { sourceDetails } : {}),
+        status: safeSecretStatus({ secret, complete, acknowledged }),
       };
     }),
   };

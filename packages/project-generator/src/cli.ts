@@ -44,6 +44,7 @@ import {
 import {
   conformCloudflareAccountTokenAuthority,
   createCloudflareAccountToken,
+  createCloudflareR2ParentCredentials,
   handoffCloudflareAccountTokenAuthority,
 } from "./cloudflare-account-token.js";
 import {
@@ -401,6 +402,8 @@ async function runSecretBootstrapApplyCommand(
     persist: (state) => writeBootstrapState(prepared.statePath, state),
     extensions: {
       "cloudflare-account-token": createCloudflareAccountToken,
+      "cloudflare-r2-parent-credentials":
+        createCloudflareR2ParentCredentials,
       "cloudflare-account-token-authority":
         handoffCloudflareAccountTokenAuthority,
     },
