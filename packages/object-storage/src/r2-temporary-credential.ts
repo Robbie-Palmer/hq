@@ -363,6 +363,29 @@ async function reclaimStaleReceiptLock(
   ) {
     return false;
   }
+  try {
+    await writeFile(
+      path.join(lockPath, "reclaim.json"),
+      `${JSON.stringify({ hostname: currentHostname, pid: process.pid })}\n`,
+      { encoding: "utf8", flag: "wx", mode: 0o600 },
+    );
+  } catch {
+    return false;
+  }
+  let claimedOwner: { hostname?: unknown; pid?: unknown };
+  try {
+    claimedOwner = JSON.parse(
+      await readFile(path.join(lockPath, "owner.json"), "utf8"),
+    ) as { hostname?: unknown; pid?: unknown };
+  } catch {
+    return false;
+  }
+  if (
+    claimedOwner.hostname !== owner.hostname ||
+    claimedOwner.pid !== owner.pid
+  ) {
+    return false;
+  }
   const stalePath = `${lockPath}.stale-${process.pid}-${randomBytes(4).toString("hex")}`;
   try {
     await rename(lockPath, stalePath);

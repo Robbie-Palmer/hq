@@ -268,6 +268,55 @@ describe("R2 temporary credential broker", () => {
     ).resolves.toEqual({ bucket: "hq-oci-r2-canary-0123456789" });
   });
 
+  it("allows only one concurrent caller to reclaim a stale lock", async () => {
+    const receipt = await receiptPath();
+    await mkdir(`${receipt}.lock`);
+    await writeFile(
+      path.join(`${receipt}.lock`, "owner.json"),
+      JSON.stringify({ hostname: hostname(), pid: 999_999_999 }),
+    );
+    let releaseConsumer: () => void = () => undefined;
+    const consumerReleased = new Promise<void>((resolve) => {
+      releaseConsumer = resolve;
+    });
+    let markConsumerStarted: () => void = () => undefined;
+    const consumerStarted = new Promise<void>((resolve) => {
+      markConsumerStarted = resolve;
+    });
+    let consumerCalls = 0;
+    const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
+      if (request.command === "consumer") {
+        consumerCalls += 1;
+        markConsumerStarted();
+        await consumerReleased;
+      }
+      if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
+        return result(1, "403 Forbidden");
+      }
+      return result(0);
+    });
+
+    const first = runR2CredentialBroker(brokerInput(receipt), {
+      fetch: successfulFetch(),
+      randomSuffix: () => "0123456789",
+      runProcess,
+    });
+    const second = runR2CredentialBroker(brokerInput(receipt), {
+      fetch: successfulFetch(),
+      randomSuffix: () => "0123456789",
+      runProcess,
+    });
+    const outcomesPromise = Promise.allSettled([first, second]);
+    await consumerStarted;
+    await new Promise<void>((resolve) => setImmediate(resolve));
+    releaseConsumer();
+
+    const outcomes = await outcomesPromise;
+    expect(outcomes.filter(({ status }) => status === "fulfilled")).toHaveLength(1);
+    expect(outcomes.filter(({ status }) => status === "rejected")).toHaveLength(1);
+    expect(consumerCalls).toBe(1);
+  });
+
   it("retains owned buckets when the consumer cannot verify container cleanup", async () => {
     const receipt = await receiptPath();
     const requests: BrokerProcessRequest[] = [];

@@ -83,7 +83,7 @@ async function runProcess(
     child.once("error", reject);
     child.once("close", (code, signal) => {
       resolve({
-        exitCode: code ?? (signal ? 1 : 0),
+        exitCode: signal ? 75 : (code ?? 1),
         stdout,
         stderr,
       });
