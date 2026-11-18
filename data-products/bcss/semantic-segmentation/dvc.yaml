@@ -1,0 +1,15 @@
+stages:
+  publish_native_contract:
+    cmd: uv run --locked bcss-source-data publish
+    deps:
+      - .python-version
+      - contracts
+      - pyproject.toml
+      - records
+      - src/bcss_source_data
+      - uv.lock
+    outs:
+      - outputs/native-corpus.json
+      - outputs/native-ontology.json
+    metrics:
+      - outputs/source-metrics.json

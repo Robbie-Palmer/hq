@@ -1,0 +1,39 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "bcss-figshare-7193138-v2",
+  "evidence_url": "https://raw.githubusercontent.com/PathologyDataScience/BCSS/3c49d554497dd896cd02ffe382503ef4ce28b1c1/meta/gtruth_codes.tsv",
+  "codes": [
+    {
+      "code": 0,
+      "label": "outside_roi",
+      "source_use": "ignore",
+      "source_note": "The publisher calls this a don't-care region and requires zero training weight."
+    },
+    {"code": 1, "label": "tumor", "source_use": "class"},
+    {"code": 2, "label": "stroma", "source_use": "class"},
+    {"code": 3, "label": "lymphocytic_infiltrate", "source_use": "class"},
+    {"code": 4, "label": "necrosis_or_debris", "source_use": "class"},
+    {"code": 5, "label": "glandular_secretions", "source_use": "class"},
+    {"code": 6, "label": "blood", "source_use": "class"},
+    {
+      "code": 7,
+      "label": "exclude",
+      "source_use": "ignore",
+      "source_note": "The publisher's native label marks excluded regions."
+    },
+    {"code": 8, "label": "metaplasia_NOS", "source_use": "class"},
+    {"code": 9, "label": "fat", "source_use": "class"},
+    {"code": 10, "label": "plasma_cells", "source_use": "class"},
+    {"code": 11, "label": "other_immune_infiltrate", "source_use": "class"},
+    {"code": 12, "label": "mucoid_material", "source_use": "class"},
+    {"code": 13, "label": "normal_acinus_or_duct", "source_use": "class"},
+    {"code": 14, "label": "lymphatics", "source_use": "class"},
+    {"code": 15, "label": "undetermined", "source_use": "class"},
+    {"code": 16, "label": "nerve", "source_use": "class"},
+    {"code": 17, "label": "skin_adnexa", "source_use": "class"},
+    {"code": 18, "label": "blood_vessel", "source_use": "class"},
+    {"code": 19, "label": "angioinvasion", "source_use": "class"},
+    {"code": 20, "label": "dcis", "source_use": "class"},
+    {"code": 21, "label": "other", "source_use": "class"}
+  ]
+}

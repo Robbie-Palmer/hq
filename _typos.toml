@@ -29,6 +29,8 @@ extend-exclude = [
     "data-products/airaqc/tcga-public-pilot/contracts/assets.json",
     "data-products/airaqc/tcga-public-pilot/contracts/source-index.json",
     "data-products/airaqc/tcga-public-pilot/records/native-corpus.json",
+    # Generated BCSS records preserve publisher filenames and opaque IDs.
+    "data-products/bcss/semantic-segmentation/records/native-corpus.json",
     # Publisher-authored CryoNuSeg review notes retain their original spelling.
     "data-products/cryonuseg/frozen-he/records/selected-wsis.csv",
     # The pinned PRIDE response retains publisher field names and protocol text.
