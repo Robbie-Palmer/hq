@@ -1,0 +1,104 @@
+schema: '2.0'
+stages:
+  verify_metadata:
+    cmd: uv run --locked monusac-source-data verify-metadata --output
+      outputs/metadata-verification.json
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: contracts/organ-roles.json
+      hash: md5
+      md5: eec6b9125726641badc398ddbc7c8573
+      size: 10564
+    - path: manifest.json
+      hash: md5
+      md5: c2743bf14e344a2d51c7e2adffc15c1c
+      size: 5296
+    - path: pyproject.toml
+      hash: md5
+      md5: a31091440eb9a888d1e76ae725947bd0
+      size: 1111
+    - path: src/monusac_source_data
+      hash: md5
+      md5: 13cf7a6d42efbaf5fce86fe92f5ff644.dir
+      size: 31051
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 9333fa07a98b7e322c2f133e56406b3d
+      size: 35401
+    outs:
+    - path: outputs/metadata-verification.json
+      hash: md5
+      md5: 34e627f1637f0dd0ecb61398e9b2653d
+      size: 639
+  acquire_native:
+    cmd: uv run --locked monusac-source-data acquire
+    deps:
+    - path: .python-version
+      hash: md5
+      md5: 61939823fbcc7e8de3b61ab105331baf
+      size: 5
+    - path: manifest.json
+      hash: md5
+      md5: c2743bf14e344a2d51c7e2adffc15c1c
+      size: 5296
+    - path: pyproject.toml
+      hash: md5
+      md5: a31091440eb9a888d1e76ae725947bd0
+      size: 1111
+    - path: src/monusac_source_data
+      hash: md5
+      md5: 13cf7a6d42efbaf5fce86fe92f5ff644.dir
+      size: 31051
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 9333fa07a98b7e322c2f133e56406b3d
+      size: 35401
+    outs:
+    - path: data/raw
+      hash: md5
+      md5: eae53b699b75584e43da25837221ddbd.dir
+      size: 767903028
+      nfiles: 4
+  index_native:
+    cmd: uv run --locked monusac-source-data index
+    deps:
+    - path: contracts/organ-roles.json
+      hash: md5
+      md5: eec6b9125726641badc398ddbc7c8573
+      size: 10564
+    - path: data/raw
+      hash: md5
+      md5: eae53b699b75584e43da25837221ddbd.dir
+      size: 767903028
+      nfiles: 4
+    - path: manifest.json
+      hash: md5
+      md5: c2743bf14e344a2d51c7e2adffc15c1c
+      size: 5296
+    - path: pyproject.toml
+      hash: md5
+      md5: a31091440eb9a888d1e76ae725947bd0
+      size: 1111
+    - path: src/monusac_source_data
+      hash: md5
+      md5: 13cf7a6d42efbaf5fce86fe92f5ff644.dir
+      size: 31051
+      nfiles: 4
+    - path: uv.lock
+      hash: md5
+      md5: 9333fa07a98b7e322c2f133e56406b3d
+      size: 35401
+    outs:
+    - path: outputs/native-index.jsonl
+      hash: md5
+      md5: 8f33de84e470ad67615cdbde7d65df96
+      size: 695470
+    - path: outputs/source-metrics.json
+      hash: md5
+      md5: 5b28a689ef9703b91b61a75046ebddc5
+      size: 767
