@@ -1,0 +1,188 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "gdc-tcga-data-release-46.0",
+  "queries": [
+    {
+      "query_id": "diagnostic_slides",
+      "record_kind": "diagnostic_slide",
+      "endpoint": "https://api.gdc.cancer.gov/files",
+      "expected_full_release_count": 11901,
+      "page_size": 1000,
+      "sort": "file_id:asc",
+      "filters": {
+        "op": "and",
+        "content": [
+          {
+            "op": "in",
+            "content": {
+              "field": "cases.project.program.name",
+              "value": ["TCGA"]
+            }
+          },
+          {
+            "op": "in",
+            "content": {
+              "field": "access",
+              "value": ["open"]
+            }
+          },
+          {
+            "op": "in",
+            "content": {
+              "field": "data_type",
+              "value": ["Slide Image"]
+            }
+          },
+          {
+            "op": "in",
+            "content": {
+              "field": "experimental_strategy",
+              "value": ["Diagnostic Slide"]
+            }
+          }
+        ]
+      },
+      "fields": [
+        "file_id",
+        "file_name",
+        "md5sum",
+        "file_size",
+        "access",
+        "data_category",
+        "data_type",
+        "data_format",
+        "experimental_strategy",
+        "stain_type",
+        "analysis.analysis_id",
+        "analysis.workflow_type",
+        "analysis.workflow_link",
+        "analysis.workflow_version",
+        "cases.case_id",
+        "cases.submitter_id",
+        "cases.project.project_id",
+        "cases.samples.sample_id",
+        "cases.samples.submitter_id",
+        "cases.samples.sample_type",
+        "cases.samples.specimen_type",
+        "cases.samples.tissue_type",
+        "cases.samples.tumor_descriptor",
+        "cases.samples.portions.portion_id",
+        "cases.samples.portions.submitter_id",
+        "cases.samples.portions.portion_number",
+        "cases.samples.portions.is_ffpe",
+        "cases.samples.portions.slides.slide_id",
+        "cases.samples.portions.slides.submitter_id",
+        "cases.samples.portions.slides.section_location",
+        "cases.samples.portions.analytes.analyte_id",
+        "cases.samples.portions.analytes.submitter_id",
+        "cases.samples.portions.analytes.analyte_type",
+        "cases.samples.portions.analytes.experimental_protocol_type",
+        "cases.samples.portions.analytes.aliquots.aliquot_id",
+        "cases.samples.portions.analytes.aliquots.submitter_id"
+      ],
+      "expand": [
+        "cases.annotations",
+        "cases.samples.annotations",
+        "cases.samples.portions.annotations",
+        "cases.samples.portions.slides.annotations",
+        "cases.samples.portions.analytes.annotations",
+        "cases.samples.portions.analytes.aliquots.annotations",
+        "associated_entities",
+        "analysis"
+      ]
+    },
+    {
+      "query_id": "molecular_evidence",
+      "record_kind": "molecular_evidence",
+      "endpoint": "https://api.gdc.cancer.gov/files",
+      "expected_full_release_count": 178567,
+      "page_size": 1000,
+      "sort": "file_id:asc",
+      "filters": {
+        "op": "and",
+        "content": [
+          {
+            "op": "in",
+            "content": {
+              "field": "cases.project.program.name",
+              "value": ["TCGA"]
+            }
+          },
+          {
+            "op": "in",
+            "content": {
+              "field": "access",
+              "value": ["open"]
+            }
+          },
+          {
+            "op": "in",
+            "content": {
+              "field": "data_type",
+              "value": [
+                "Allele-specific Copy Number Segment",
+                "Copy Number Segment",
+                "Gene Expression Quantification",
+                "Gene Level Copy Number",
+                "Isoform Expression Quantification",
+                "Masked Copy Number Segment",
+                "Masked Somatic Mutation",
+                "Methylation Beta Value",
+                "miRNA Expression Quantification",
+                "Protein Expression Quantification"
+              ]
+            }
+          }
+        ]
+      },
+      "fields": [
+        "file_id",
+        "file_name",
+        "md5sum",
+        "file_size",
+        "access",
+        "data_category",
+        "data_type",
+        "data_format",
+        "experimental_strategy",
+        "stain_type",
+        "analysis.analysis_id",
+        "analysis.workflow_type",
+        "analysis.workflow_link",
+        "analysis.workflow_version",
+        "cases.case_id",
+        "cases.submitter_id",
+        "cases.project.project_id",
+        "cases.samples.sample_id",
+        "cases.samples.submitter_id",
+        "cases.samples.sample_type",
+        "cases.samples.specimen_type",
+        "cases.samples.tissue_type",
+        "cases.samples.tumor_descriptor",
+        "cases.samples.portions.portion_id",
+        "cases.samples.portions.submitter_id",
+        "cases.samples.portions.portion_number",
+        "cases.samples.portions.is_ffpe",
+        "cases.samples.portions.slides.slide_id",
+        "cases.samples.portions.slides.submitter_id",
+        "cases.samples.portions.slides.section_location",
+        "cases.samples.portions.analytes.analyte_id",
+        "cases.samples.portions.analytes.submitter_id",
+        "cases.samples.portions.analytes.analyte_type",
+        "cases.samples.portions.analytes.experimental_protocol_type",
+        "cases.samples.portions.analytes.aliquots.aliquot_id",
+        "cases.samples.portions.analytes.aliquots.submitter_id"
+      ],
+      "expand": [
+        "cases.annotations",
+        "cases.samples.annotations",
+        "cases.samples.portions.annotations",
+        "cases.samples.portions.slides.annotations",
+        "cases.samples.portions.analytes.annotations",
+        "cases.samples.portions.analytes.aliquots.annotations",
+        "associated_entities",
+        "analysis"
+      ]
+    }
+  ]
+}

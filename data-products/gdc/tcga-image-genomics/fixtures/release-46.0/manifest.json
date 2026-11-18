@@ -1,0 +1,12 @@
+{
+  "schema_version": "1.0.0",
+  "fixture_id": "gdc-tcga-dr46-tcga-gn-a267",
+  "dataset_id": "gdc-tcga-data-release-46.0",
+  "case_ids": ["ab74d6ed-880e-4470-bfd5-2974a4c3a0d7"],
+  "case_submitter_ids": ["TCGA-GN-A267"],
+  "query_record_counts": {
+    "diagnostic_slides": 1,
+    "molecular_evidence": 2
+  },
+  "purpose": "Deterministic metadata-only contract verification; not a cohort or published subset"
+}
