@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { z } from "zod";
 import {
   APPROVED_PROVIDER_ORIGINS,
@@ -31,7 +32,10 @@ const tokenDetailsResponseSchema = z.looseObject({
   result: z.looseObject({ policies: z.array(tokenPolicySchema) }),
 });
 const createTokenResponseSchema = z.looseObject({
-  result: z.looseObject({ value: z.string().min(1) }),
+  result: z.looseObject({
+    id: z.string().min(1),
+    value: z.string().min(1),
+  }),
 });
 
 type CloudflareTokenCreation = BootstrapSecret["creation"] & {
@@ -42,6 +46,14 @@ type CloudflareTokenCreation = BootstrapSecret["creation"] & {
   readonly expires_on?: string;
 };
 
+type CloudflareR2ParentCreation = BootstrapSecret["creation"] & {
+  readonly mode: "extension";
+  readonly extension: "cloudflare-r2-parent-credentials";
+  readonly token_name: string;
+  readonly permission_group: { readonly id: string; readonly name: string };
+  readonly expires_on?: string;
+};
+
 function isCloudflareTokenCreation(
   creation: BootstrapSecret["creation"],
 ): creation is CloudflareTokenCreation {
@@ -49,6 +61,16 @@ function isCloudflareTokenCreation(
     creation.mode === "extension" &&
     creation.extension === "cloudflare-account-token" &&
     "permission_groups" in creation
+  );
+}
+
+function isCloudflareR2ParentCreation(
+  creation: BootstrapSecret["creation"],
+): creation is CloudflareR2ParentCreation {
+  return (
+    creation.mode === "extension" &&
+    creation.extension === "cloudflare-r2-parent-credentials" &&
+    "permission_group" in creation
   );
 }
 
@@ -144,6 +166,41 @@ function assertBootstrapPolicy(input: {
   }
 }
 
+function assertR2ParentPolicy(input: {
+  accountId: string;
+  permissionId: string;
+  policies: readonly z.infer<typeof tokenPolicySchema>[];
+}): void {
+  const accountResource = `com.cloudflare.api.account.${input.accountId}`;
+  if (input.policies.length !== 1) {
+    throw new Error("Cloudflare R2 parent token must have exactly one policy");
+  }
+  const policy = input.policies[0];
+  if (
+    policy?.permission_groups.length !== 1 ||
+    policy.permission_groups[0]?.id !== input.permissionId
+  ) {
+    throw new Error(
+      "Cloudflare R2 parent token must grant only 'Workers R2 Storage Write'",
+    );
+  }
+  const resources = Object.entries(policy.resources);
+  const nested = resources[0]?.[1];
+  if (
+    resources.length !== 1 ||
+    resources[0]?.[0] !== accountResource ||
+    typeof nested !== "object" ||
+    nested === null ||
+    Array.isArray(nested) ||
+    Object.keys(nested).length !== 1 ||
+    (nested as Record<string, unknown>)["com.cloudflare.edge.r2.bucket.*"] !== "*"
+  ) {
+    throw new Error(
+      "Cloudflare R2 parent token must be scoped to all R2 buckets in the declared account",
+    );
+  }
+}
+
 async function readPermissionGroups(input: {
   accountId: string;
   token: string;
@@ -220,11 +277,15 @@ export async function conformCloudflareAccountTokenAuthority(input: {
     policies: details.result.policies,
   });
 
-  const requested = input.plan.secrets.flatMap((secret) =>
-    isCloudflareTokenCreation(secret.creation)
-      ? secret.creation.permission_groups
-      : [],
-  );
+  const requested = input.plan.secrets.flatMap((secret) => {
+    if (isCloudflareTokenCreation(secret.creation)) {
+      return secret.creation.permission_groups;
+    }
+    if (isCloudflareR2ParentCreation(secret.creation)) {
+      return [secret.creation.permission_group];
+    }
+    return [];
+  });
   for (const expected of requested) {
     const actual = permissionGroups.find(({ id }) => id === expected.id);
     if (
@@ -291,6 +352,94 @@ export const createCloudflareAccountToken: SecretSourceExtension = async (input)
     await responseJson(response, "Cloudflare account-token creation"),
     "Cloudflare account-token creation",
   ).result.value;
+};
+
+export const createCloudflareR2ParentCredentials: SecretSourceExtension = async (
+  input,
+) => {
+  if (!isCloudflareR2ParentCreation(input.secret.creation)) {
+    throw new Error("Cloudflare R2 parent provisioner received an incompatible secret");
+  }
+  const creation = input.secret.creation;
+  await conformCloudflareAccountTokenAuthority({
+    plan: input.plan,
+    environment: input.environment,
+    fetch: input.fetch,
+  });
+  const identity = cloudflareIdentity(input.plan);
+  const provisionerToken = requiredEnvironmentValue(
+    input.environment,
+    identity.token_env,
+  );
+  const accountId = requiredEnvironmentValue(
+    input.environment,
+    identity.account_id_env,
+  );
+  const accountResource = `com.cloudflare.api.account.${accountId}`;
+  const resources = {
+    [accountResource]: { "com.cloudflare.edge.r2.bucket.*": "*" },
+  };
+  const response = await cloudflareRequest(
+    input.fetch,
+    `/client/v4/accounts/${encodeURIComponent(accountId)}/tokens`,
+    provisionerToken,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        name: creation.token_name,
+        policies: [
+          {
+            effect: "allow",
+            permission_groups: [{ id: creation.permission_group.id }],
+            resources,
+          },
+        ],
+        ...(creation.expires_on ? { expires_on: creation.expires_on } : {}),
+      }),
+    },
+  );
+  const created = parseSafe(
+    createTokenResponseSchema,
+    await responseJson(response, "Cloudflare R2 parent-token creation"),
+    "Cloudflare R2 parent-token creation",
+  ).result;
+
+  const verifyResponse = await cloudflareRequest(
+    input.fetch,
+    `/client/v4/accounts/${encodeURIComponent(accountId)}/tokens/verify`,
+    created.value,
+  );
+  const verified = parseSafe(
+    verifyResponseSchema,
+    await responseJson(verifyResponse, "Cloudflare R2 parent-token verification"),
+    "Cloudflare R2 parent-token verification",
+  );
+  if (verified.result.id !== created.id) {
+    throw new Error("Cloudflare R2 parent-token verification returned the wrong token");
+  }
+
+  const detailsResponse = await cloudflareRequest(
+    input.fetch,
+    `/client/v4/accounts/${encodeURIComponent(accountId)}/tokens/${encodeURIComponent(created.id)}`,
+    provisionerToken,
+  );
+  const details = parseSafe(
+    tokenDetailsResponseSchema,
+    await responseJson(detailsResponse, "Cloudflare R2 parent-token inspection"),
+    "Cloudflare R2 parent-token inspection",
+  );
+  assertR2ParentPolicy({
+    accountId,
+    permissionId: creation.permission_group.id,
+    policies: details.result.policies,
+  });
+
+  return JSON.stringify({
+    schemaVersion: 1,
+    apiToken: created.value,
+    accessKeyId: created.id,
+    secretAccessKey: createHash("sha256").update(created.value).digest("hex"),
+  });
 };
 
 export const handoffCloudflareAccountTokenAuthority: SecretSourceExtension = async (

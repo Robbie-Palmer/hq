@@ -148,6 +148,40 @@ unchanged plan. If token creation succeeded but distribution failed, revoke the
 orphan by its reviewed token name before retrying. The resume file deliberately
 stores no token ID or value.
 
+### R2 parent credentials
+
+Use
+`infra/account-foundation/cloudflare-token-plans/r2-parent-credentials.yaml`
+to create the account-owned parent for short-lived R2 credentials. The plan
+grants only `Workers R2 Storage Write` over the declared account's R2 buckets.
+It writes one masked `CLOUDFLARE_R2_PARENT_CREDENTIALS` JSON value to
+`cloudflare-token-bootstrap/ops_provisioner` and the protected
+`production-cloudflare-token-bootstrap` environment.
+
+The built-in `cloudflare-r2-parent-credentials` source captures the token ID
+and one-time token value from Cloudflare. It derives the S3 secret as the
+SHA-256 digest of that value, following Cloudflare's R2 authentication
+contract. The JSON contains `apiToken`, `accessKeyId`, and `secretAccessKey`.
+Do not split fields in a shell command, print them, or copy them to a routine
+deployment environment. The temporary-credential broker reads the JSON only
+inside the protected job and gives consumers shorter-lived credentials.
+
+Run the redacted plan and authority check before applying:
+
+```bash
+mise //:project:secret-bootstrap:plan -- \
+  infra/account-foundation/cloudflare-token-plans/r2-parent-credentials.yaml
+mise //:project:secret-bootstrap:conformance -- \
+  infra/account-foundation/cloudflare-token-plans/r2-parent-credentials.yaml
+```
+
+Apply from the `Cloudflare Token Bootstrap` workflow with the
+`rotate-r2-parent-credentials` checkpoint acknowledged. Keep the old parent
+active until the replacement passes exact policy inspection and issues a
+working temporary credential. Revoke the old token by its privately recorded
+ID after that proof. If distribution fails after creation, revoke the orphan
+token before retrying the unchanged plan.
+
 ### Provisioner rotation and parking
 
 Use
