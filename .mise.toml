@@ -167,6 +167,25 @@ description = "Test Work Graph ticket routing and T3 profile selection"
 depends = ["//:install"]
 run = "pnpm exec vitest run scripts/launch-work-graph-agent.test.ts"
 
+[tasks."severe-vulnerability-controller:typecheck"]
+description = "Typecheck the deterministic severe-vulnerability reconciler"
+depends = ["//:install"]
+run = "pnpm exec tsc --noEmit --target ES2023 --module ESNext --moduleResolution Bundler --strict --skipLibCheck --types node scripts/reconcile-severe-vulnerabilities.ts scripts/reconcile-severe-vulnerabilities.test.ts"
+
+[tasks."severe-vulnerability-controller:test"]
+description = "Test severe-vulnerability reconciliation and worker routing"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/reconcile-severe-vulnerabilities.test.ts"
+
+[tasks."severe-vulnerability-controller:test:coverage"]
+description = "Test severe-vulnerability reconciliation with coverage"
+depends = ["//:install"]
+run = "pnpm exec vitest run scripts/reconcile-severe-vulnerabilities.test.ts --coverage --coverage.include=scripts/reconcile-severe-vulnerabilities.ts"
+
+[tasks."severe-vulnerability-controller:check"]
+description = "Check the deterministic severe-vulnerability reconciler"
+depends = ["severe-vulnerability-controller:typecheck", "severe-vulnerability-controller:test"]
+
 [tasks."project:stateful-operation"]
 description = "Validate or run one generated stateful project operation"
 run = "node scripts/project-stateful-operation.mjs"
