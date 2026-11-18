@@ -17,7 +17,7 @@
         "work-graph.cedar",
         "deployment.cedar"
       ],
-      "sha256": "ee1a2553be3b7d0734869818179792095b1e149724e1dabe595ce5052c9918ed"
+      "sha256": "80d7d2bbef4485b0f40240f1d577f26cf16a3506863cda383f49a43351db72a1"
     }
   },
   "repositories": [
@@ -26,61 +26,12 @@
       "authorityProfileId": "authority:personal-project-unattended"
     }
   ],
-  "admittedActions": [
-    "auto_reopened",
-    "created",
-    "reintroduced",
-    "reopened"
-  ],
   "admittedSeverities": ["high", "critical"],
   "concurrency": {
     "maximumActiveIncidents": 1
   },
-  "webhookTask": {
-    "bindToControllerThread": true,
-    "holdWhileOffline": true,
-    "schedule": {
-      "type": "webhook",
-      "signature": {
-        "header": "x-hub-signature-256",
-        "encoding": "hex",
-        "prefix": "sha256="
-      },
-      "maxDeliveryAgeMinutes": 15,
-      "dedupe": {
-        "replayKey": "{{headers.x-github-delivery}}"
-      },
-      "filters": [
-        {
-          "path": "headers.x-github-event",
-          "op": "equals",
-          "value": "dependabot_alert"
-        },
-        {
-          "path": "body.repository.full_name",
-          "op": "in",
-          "value": ["Robbie-Palmer/hq"]
-        },
-        {
-          "path": "body.action",
-          "op": "in",
-          "value": [
-            "auto_reopened",
-            "created",
-            "reintroduced",
-            "reopened"
-          ]
-        },
-        {
-          "path": "body.alert.security_advisory.severity",
-          "op": "in",
-          "value": ["high", "critical"]
-        },
-        {
-          "path": "body.alert.number",
-          "op": "exists"
-        }
-      ]
-    }
+  "reconciliation": {
+    "intervalSeconds": 60,
+    "maximumProviderAgeSeconds": 300
   }
 }

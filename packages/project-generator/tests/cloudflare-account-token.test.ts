@@ -1,7 +1,9 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it, vi } from "vitest";
 import {
   conformCloudflareAccountTokenAuthority,
   createCloudflareAccountToken,
+  createCloudflareR2ParentCredentials,
   handoffCloudflareAccountTokenAuthority,
 } from "../src/cloudflare-account-token.js";
 import {
@@ -11,6 +13,7 @@ import {
 
 const BOOTSTRAP_PERMISSION_ID = "b".repeat(32);
 const DOWNSTREAM_PERMISSION_ID = "d".repeat(32);
+const R2_PERMISSION_ID = "e".repeat(32);
 
 function plan() {
   return secretBootstrapPlanSchema.parse({
@@ -78,6 +81,43 @@ function plan() {
   });
 }
 
+function r2Plan(expiresOn?: string) {
+  const base = plan();
+  return secretBootstrapPlanSchema.parse({
+    ...base,
+    project_id: "r2-parent",
+    secrets: [
+      {
+        ...base.secrets[0],
+        id: "r2-parent-credentials",
+        name: "CLOUDFLARE_R2_PARENT_CREDENTIALS",
+        system_of_record: {
+          kind: "doppler",
+          config: "prd",
+          name: "CLOUDFLARE_R2_PARENT_CREDENTIALS",
+        },
+        consumers: [
+          {
+            kind: "github-environment",
+            environment: "production-sample-service",
+            name: "CLOUDFLARE_R2_PARENT_CREDENTIALS",
+          },
+        ],
+        creation: {
+          mode: "extension",
+          extension: "cloudflare-r2-parent-credentials",
+          token_name: "sample-r2-parent",
+          permission_group: {
+            id: R2_PERMISSION_ID,
+            name: "Workers R2 Storage Write",
+          },
+          ...(expiresOn ? { expires_on: expiresOn } : {}),
+        },
+      },
+    ],
+  });
+}
+
 const environment = {
   CLOUDFLARE_TOKEN_PROVISIONER_TOKEN: "bootstrap-secret",
   CLOUDFLARE_ACCOUNT_ID: "account-123",
@@ -109,6 +149,12 @@ function conformantFetch(createdValue = "generated-secret") {
           is_selectable: true,
           scopes: ["com.cloudflare.api.account"],
         },
+        {
+          id: R2_PERMISSION_ID,
+          name: "Workers R2 Storage Write",
+          is_selectable: true,
+          scopes: ["com.cloudflare.api.account"],
+        },
       ]);
     }
     if (url.pathname.endsWith("/tokens/verify")) {
@@ -126,7 +172,7 @@ function conformantFetch(createdValue = "generated-secret") {
       });
     }
     if (url.pathname.endsWith("/tokens") && init.method === "POST") {
-      return jsonResponse({ value: createdValue });
+      return jsonResponse({ id: "created-token-id", value: createdValue });
     }
     throw new Error(`Unexpected request: ${url.pathname}`);
   };
@@ -183,6 +229,167 @@ describe("Cloudflare account-token provisioner", () => {
       ],
     });
     expect(JSON.stringify(creation?.init)).not.toContain("generated-secret");
+  });
+
+  it("creates and verifies one R2 parent credential bundle", async () => {
+    const currentPlan = r2Plan("2027-01-01T00:00:00Z");
+    const secret = currentPlan.secrets[0];
+    if (!secret) throw new Error("missing R2 parent test secret");
+    const base = conformantFetch();
+    const fetchCredential: CredentialFetch = async (url, init) => {
+      if (url.pathname.endsWith("/tokens/created-token-id")) {
+        return jsonResponse({
+          policies: [
+            {
+              effect: "allow",
+              permission_groups: [{ id: R2_PERMISSION_ID }],
+              resources: {
+                "com.cloudflare.api.account.account-123": {
+                  "com.cloudflare.edge.r2.bucket.*": "*",
+                },
+              },
+            },
+          ],
+        });
+      }
+      if (
+        url.pathname.endsWith("/tokens/verify") &&
+        (init.headers as Record<string, string>).Authorization ===
+          "Bearer generated-secret"
+      ) {
+        return jsonResponse({ id: "created-token-id", status: "active" });
+      }
+      return base.fetchCredential(url, init);
+    };
+
+    const serialized = await createCloudflareR2ParentCredentials({
+      plan: currentPlan,
+      secret,
+      environment,
+      fetch: fetchCredential,
+    });
+
+    expect(JSON.parse(serialized)).toEqual({
+      schemaVersion: 1,
+      apiToken: "generated-secret",
+      accessKeyId: "created-token-id",
+      secretAccessKey: createHash("sha256")
+        .update("generated-secret")
+        .digest("hex"),
+    });
+    const creation = base.requests.find(({ init }) => init.method === "POST");
+    expect(JSON.parse(String(creation?.init.body))).toEqual({
+      name: "sample-r2-parent",
+      policies: [
+        {
+          effect: "allow",
+          permission_groups: [{ id: R2_PERMISSION_ID }],
+          resources: {
+            "com.cloudflare.api.account.account-123": {
+              "com.cloudflare.edge.r2.bucket.*": "*",
+            },
+          },
+        },
+      ],
+      expires_on: "2027-01-01T00:00:00Z",
+    });
+  });
+
+  it("rejects an incompatible secret for R2 parent provisioning", async () => {
+    const currentPlan = plan();
+    const secret = currentPlan.secrets[0];
+    if (!secret) throw new Error("missing test secret");
+
+    await expect(
+      createCloudflareR2ParentCredentials({
+        plan: currentPlan,
+        secret,
+        environment,
+        fetch: vi.fn(),
+      }),
+    ).rejects.toThrow(/incompatible secret/);
+  });
+
+  it("rejects a created R2 parent token with the wrong identity or policy", async () => {
+    const currentPlan = r2Plan();
+    const secret = currentPlan.secrets[0];
+    if (!secret) throw new Error("missing R2 parent test secret");
+    const cases: readonly {
+      readonly verifyId: string;
+      readonly policies: readonly Record<string, unknown>[];
+      readonly expected: RegExp;
+    }[] = [
+      {
+        verifyId: "other-token-id",
+        policies: [
+          {
+            effect: "allow",
+            permission_groups: [{ id: R2_PERMISSION_ID }],
+            resources: {
+              "com.cloudflare.api.account.account-123": {
+                "com.cloudflare.edge.r2.bucket.*": "*",
+              },
+            },
+          },
+        ],
+        expected: /wrong token/,
+      },
+      {
+        verifyId: "created-token-id",
+        policies: [],
+        expected: /exactly one policy/,
+      },
+      {
+        verifyId: "created-token-id",
+        policies: [
+          {
+            effect: "allow",
+            permission_groups: [{ id: DOWNSTREAM_PERMISSION_ID }],
+            resources: {
+              "com.cloudflare.api.account.account-123": {
+                "com.cloudflare.edge.r2.bucket.*": "*",
+              },
+            },
+          },
+        ],
+        expected: /grant only/,
+      },
+      {
+        verifyId: "created-token-id",
+        policies: [
+          {
+            effect: "allow",
+            permission_groups: [{ id: R2_PERMISSION_ID }],
+            resources: { "com.cloudflare.api.account.account-123": "*" },
+          },
+        ],
+        expected: /all R2 buckets/,
+      },
+    ];
+    for (const testCase of cases) {
+      const base = conformantFetch();
+      const fetchCredential: CredentialFetch = async (url, init) => {
+        if (
+          url.pathname.endsWith("/tokens/verify") &&
+          (init.headers as Record<string, string>).Authorization ===
+            "Bearer generated-secret"
+        ) {
+          return jsonResponse({ id: testCase.verifyId, status: "active" });
+        }
+        if (url.pathname.endsWith("/tokens/created-token-id")) {
+          return jsonResponse({ policies: testCase.policies });
+        }
+        return base.fetchCredential(url, init);
+      };
+      await expect(
+        createCloudflareR2ParentCredentials({
+          plan: currentPlan,
+          secret,
+          environment,
+          fetch: fetchCredential,
+        }),
+      ).rejects.toThrow(testCase.expected);
+    }
   });
 
   it("validates a manually created replacement authority before handoff", async () => {

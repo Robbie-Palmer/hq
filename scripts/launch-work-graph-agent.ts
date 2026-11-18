@@ -53,6 +53,7 @@ const RuntimeModeSchema = z.enum([
   "full-access",
 ]);
 const ReasoningEffortSchema = z.enum(["low", "medium", "high"]);
+const ServiceTierSchema = z.enum(["default", "priority"]);
 const WorkGraphTicketSchema = z.looseObject({
   id: z.string().min(1),
   title: z.string().min(1),
@@ -74,6 +75,7 @@ const WorkGraphSelectionSchema = z.object({
 type WorkGraphSelection = z.infer<typeof WorkGraphSelectionSchema>;
 type RuntimeMode = z.infer<typeof RuntimeModeSchema>;
 type ReasoningEffort = z.infer<typeof ReasoningEffortSchema>;
+type ServiceTier = "default" | "priority";
 type Complexity = "routine" | "standard" | "complex" | "critical";
 type WorkKind = "implementation" | "documentation";
 
@@ -84,7 +86,7 @@ export interface TicketRoute {
   reasoningEffort: ReasoningEffort;
   runtimeMode: RuntimeMode;
   protectedMutation: boolean;
-  serviceTier: string;
+  serviceTier: ServiceTier;
   reasons: readonly string[];
 }
 
@@ -608,8 +610,9 @@ async function main(): Promise<void> {
       route,
       environmentOverride("T3_WORK_GRAPH_EFFORT"),
     );
-    const serviceTier =
-      environmentOverride("T3_WORK_GRAPH_SERVICE_TIER") ?? route.serviceTier;
+    const serviceTier = ServiceTierSchema.parse(
+      environmentOverride("T3_WORK_GRAPH_SERVICE_TIER") ?? route.serviceTier,
+    );
     const runtimeMode = selectRuntimeMode(
       route,
       environmentOverride("T3_WORK_GRAPH_RUNTIME_MODE"),

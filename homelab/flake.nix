@@ -70,6 +70,10 @@
           pkgs = pkgsFor system;
           remoteLifecycle = self.nixosConfigurations.remote-development.config.homelab.hostLifecycle;
           vectorLifecycle = self.nixosConfigurations.vector-development.config.homelab.hostLifecycle;
+          vectorNvidiaContainerToolkit =
+            self.nixosConfigurations.vector-development.config.hardware.nvidia-container-toolkit;
+          vectorPowerProfile =
+            self.nixosConfigurations.vector-development.config.systemd.services.vector-development-power-profile;
         in
         {
           flake-contract =
@@ -102,6 +106,9 @@
             assert vectorLifecycle.requiredMounts == [ "/" ];
             assert builtins.length remoteLifecycle.k3s.nodeLabels == 3;
             assert builtins.length vectorLifecycle.k3s.nodeLabels == 4;
+            assert vectorNvidiaContainerToolkit.device-name-strategy == "uuid";
+            assert vectorPowerProfile.wantedBy == [ "graphical.target" ];
+            assert builtins.elem "power-profiles-daemon.service" vectorPowerProfile.after;
             pkgs.runCommand "homelab-host-lifecycle-contract-v1" { } ''
               touch "$out"
             '';

@@ -3,10 +3,12 @@
 This directory owns the Annotation Workbench browser product mounted at
 `/annotation-workbench` in the shared Next.js application.
 
-The UI reads generic review bundles from a local service. Dataset adapters own
-image acquisition and model inference. The browser records revisable review
-events and never treats a model proposal or one reviewer decision as source
-truth.
+The UI reads versioned spatial-instance review bundles from a local service.
+Dataset adapters own image acquisition and model inference. The browser
+records revisable review events and never treats a model proposal or one
+reviewer decision as source truth. The current `1.0.0` workflow is specific to
+nucleus and mask decisions; another annotation task needs its own explicit
+workflow schema and UI controls.
 
 The tailnet launcher supplies `NEXT_PUBLIC_ANNOTATION_WORKBENCH_SERVICE_URL`,
 and the browser opens that review batch without asking the reviewer for an API
