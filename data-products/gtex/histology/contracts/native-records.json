@@ -42,7 +42,8 @@
         "age_bracket": "AGE",
         "sex_code": "SEX",
         "hardy_scale_code": "DTHHRDY"
-      }
+      },
+      "null_policy": "Empty publisher values become JSON null. Records list missing fields; no value is imputed."
     },
     "idc_dicom": {
       "series_key": "SeriesInstanceUID",
@@ -66,6 +67,5 @@
       "format": "original Aperio SVS"
     }
   },
-  "null_policy": "Empty publisher values become JSON null. Records also list missing fields; no value is imputed.",
   "roles": "All records keep publisher source roles. This contract defines no cohort, split, exclusion, diagnosis label, derived outcome, or harmonized ontology."
 }

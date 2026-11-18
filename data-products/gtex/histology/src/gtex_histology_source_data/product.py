@@ -11,7 +11,12 @@ from typing import Any
 from pydantic import BaseModel
 
 from gtex_histology_source_data.models import HistologyRecord, MolecularRecord, SourceManifest
-from gtex_histology_source_data.source import PROJECT_DIR, SourceDataError, load_manifest
+from gtex_histology_source_data.source import (
+    PROJECT_DIR,
+    SourceDataError,
+    load_manifest,
+    validate_acquisition,
+)
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -266,8 +271,7 @@ def _require_counts(counts: dict[str, int], expected: dict[str, int]) -> None:
 def build_product(root: Path = PROJECT_DIR) -> dict[str, Any]:
     manifest = load_manifest(root)
     raw = root / "data/raw"
-    if not (raw / "acquisition.json").is_file():
-        raise SourceDataError("acquire metadata before indexing")
+    validate_acquisition(raw, manifest)
     histology = _histology_records(_read_jsonl(raw / "gtex-histology-api.jsonl"))
     anvil = _read_jsonl(raw / "anvil-svs.jsonl")
     series = _read_jsonl(raw / "idc-series.jsonl")

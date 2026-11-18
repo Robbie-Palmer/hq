@@ -38,6 +38,7 @@ from gtex_histology_source_data.source import (
     _verify_download,
     _write_snapshot,
     load_manifest,
+    validate_acquisition,
     verify_live_identities,
 )
 
@@ -127,6 +128,12 @@ def _write_static_fixture(root: Path) -> None:
     (static / "GTEx_Analysis_v8_Annotations_SubjectPhenotypesDS.txt").write_text(
         "SUBJID\tSEX\tAGE\tDTHHRDY\nGTEX-AAAA\t2\t60-69\t4\n", encoding="utf-8"
     )
+
+
+def _manifest_for_file(path: Path, sha256: str) -> SourceManifest:
+    manifest = load_manifest(PROJECT_DIR)
+    artifact = manifest.static_artifacts[0].model_copy(update={"name": path.name, "sha256": sha256})
+    return manifest.model_copy(update={"static_artifacts": [artifact], "snapshots": []})
 
 
 def test_committed_manifest_pins_distinct_publisher_counts() -> None:
@@ -277,6 +284,7 @@ def test_build_product_writes_all_native_namespaces(
             dataset_id="fixture", identities=identities, snapshots=snapshots
         ),
     )
+    monkeypatch.setattr(product, "validate_acquisition", lambda _raw, _manifest: None)
 
     metrics = build_product(tmp_path)
 
@@ -478,24 +486,66 @@ def test_download_verifies_bytes_and_hashes(
         _verify_download(destination, artifact)
 
 
-def test_existing_acquisition_rejects_changed_file(tmp_path: Path) -> None:
+def test_existing_acquisition_rejects_changed_file_with_same_count(tmp_path: Path) -> None:
     path = tmp_path / "metadata.jsonl"
     path.write_text("original\n", encoding="utf-8")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest = _manifest_for_file(path, digest)
     evidence = AcquisitionEvidence(
-        dataset_id="fixture",
+        dataset_id=manifest.dataset_id,
         files=[
             AcquisitionFile(
                 name=path.name,
+                records=1,
                 bytes=path.stat().st_size,
-                sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                sha256=digest,
             )
         ],
     )
-    _validate_existing(tmp_path, evidence)
+    (tmp_path / "acquisition.json").write_text(evidence.model_dump_json() + "\n", encoding="utf-8")
+    assert validate_acquisition(tmp_path, manifest) == evidence
     path.write_text("changed\n", encoding="utf-8")
 
     with pytest.raises(SourceDataError, match="incomplete or changed"):
-        _validate_existing(tmp_path, evidence)
+        validate_acquisition(tmp_path, manifest)
+
+
+def test_validate_acquisition_requires_evidence(tmp_path: Path) -> None:
+    manifest = load_manifest(PROJECT_DIR)
+
+    with pytest.raises(SourceDataError, match="acquire metadata before indexing"):
+        validate_acquisition(tmp_path, manifest)
+
+
+def test_existing_acquisition_rejects_changed_manifest_hash(tmp_path: Path) -> None:
+    path = tmp_path / "metadata.jsonl"
+    path.write_text("original\n", encoding="utf-8")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    manifest = _manifest_for_file(path, "f" * 64)
+    evidence = AcquisitionEvidence(
+        dataset_id=manifest.dataset_id,
+        files=[
+            AcquisitionFile(
+                name=path.name,
+                records=1,
+                bytes=path.stat().st_size,
+                sha256=digest,
+            )
+        ],
+    )
+    with pytest.raises(SourceDataError, match="does not match manifest hash"):
+        _validate_existing(tmp_path, evidence, manifest)
+
+
+def test_null_policy_is_scoped_to_molecular_records() -> None:
+    contract = json.loads(
+        (PROJECT_DIR / "contracts/native-records.json").read_text(encoding="utf-8")
+    )
+
+    assert "null_policy" not in contract
+    assert "missing fields" in contract["namespaces"]["gtex_molecular"]["null_policy"]
+    for namespace in ["gtex_histology", "idc_dicom", "anvil_svs"]:
+        assert "null_policy" not in contract["namespaces"][namespace]
 
 
 def test_live_identity_check_reads_counts_without_downloading_images(  # noqa: C901

@@ -22,6 +22,12 @@ from gtex_histology_source_data.models import (
 PROJECT_DIR = Path(__file__).resolve().parents[2]
 USER_AGENT = "gtex-histology-source-data/0.1 (+metadata-only)"
 PAGE_SIZE = 10_000
+SNAPSHOT_FILENAMES = {
+    "gtex_histology_api": "gtex-histology-api.jsonl",
+    "anvil_svs": "anvil-svs.jsonl",
+    "idc_series": "idc-series.jsonl",
+    "idc_instances": "idc-instances.jsonl",
+}
 
 
 class SourceDataError(RuntimeError):
@@ -288,12 +294,43 @@ def _file_evidence(path: Path, records: int | None = None) -> AcquisitionFile:
     )
 
 
-def _validate_existing(root: Path, evidence: AcquisitionEvidence) -> None:
-    for item in evidence.files:
+def _expected_hashes(manifest: SourceManifest) -> dict[str, str]:
+    expected = {artifact.name: artifact.sha256 for artifact in manifest.static_artifacts}
+    expected.update(
+        {
+            SNAPSHOT_FILENAMES[snapshot.name]: snapshot.canonical_sha256
+            for snapshot in manifest.snapshots
+        }
+    )
+    return expected
+
+
+def _validate_existing(root: Path, evidence: AcquisitionEvidence, manifest: SourceManifest) -> None:
+    if evidence.dataset_id != manifest.dataset_id:
+        raise SourceDataError("existing acquisition does not match the current dataset")
+    files = {item.name: item for item in evidence.files}
+    if len(files) != len(evidence.files):
+        raise SourceDataError("existing acquisition contains duplicate file evidence")
+    expected = _expected_hashes(manifest)
+    if files.keys() != expected.keys():
+        raise SourceDataError("existing acquisition does not match the current manifest files")
+    for name, sha256 in expected.items():
+        item = files[name]
+        if item.sha256 != sha256:
+            raise SourceDataError(f"existing acquisition does not match manifest hash: {name}")
         candidates = [root / item.name, root / "static" / item.name]
         path = next((candidate for candidate in candidates if candidate.is_file()), None)
-        if path is None or path.is_symlink() or _digest(path) != item.sha256:
+        if path is None or path.is_symlink() or _digest(path) != sha256:
             raise SourceDataError(f"existing acquisition is incomplete or changed: {item.name}")
+
+
+def validate_acquisition(root: Path, manifest: SourceManifest) -> AcquisitionEvidence:
+    evidence_path = root / "acquisition.json"
+    if not evidence_path.is_file():
+        raise SourceDataError("acquire metadata before indexing")
+    evidence = AcquisitionEvidence.model_validate_json(evidence_path.read_text(encoding="utf-8"))
+    _validate_existing(root, evidence, manifest)
+    return evidence
 
 
 def acquire_metadata(root: Path = PROJECT_DIR) -> AcquisitionEvidence:
@@ -303,11 +340,7 @@ def acquire_metadata(root: Path = PROJECT_DIR) -> AcquisitionEvidence:
     if output.exists():
         if not evidence_path.is_file():
             raise SourceDataError(f"incomplete acquisition output: {output}")
-        evidence = AcquisitionEvidence.model_validate_json(
-            evidence_path.read_text(encoding="utf-8")
-        )
-        _validate_existing(output, evidence)
-        return evidence
+        return validate_acquisition(output, manifest)
 
     temporary = root / "data/.raw.part"
     shutil.rmtree(temporary, ignore_errors=True)
@@ -322,10 +355,10 @@ def acquire_metadata(root: Path = PROJECT_DIR) -> AcquisitionEvidence:
 
         snapshots = _snapshots(manifest)
         snapshot_jobs: list[tuple[str, Callable[[Snapshot], list[dict[str, Any]]], str]] = [
-            ("gtex_histology_api", _gtex_histology, "gtex-histology-api.jsonl"),
-            ("anvil_svs", _anvil_svs, "anvil-svs.jsonl"),
-            ("idc_series", _idc_series, "idc-series.jsonl"),
-            ("idc_instances", _idc_instances, "idc-instances.jsonl"),
+            ("gtex_histology_api", _gtex_histology, SNAPSHOT_FILENAMES["gtex_histology_api"]),
+            ("anvil_svs", _anvil_svs, SNAPSHOT_FILENAMES["anvil_svs"]),
+            ("idc_series", _idc_series, SNAPSHOT_FILENAMES["idc_series"]),
+            ("idc_instances", _idc_instances, SNAPSHOT_FILENAMES["idc_instances"]),
         ]
         for name, fetch, filename in snapshot_jobs:
             snapshot = snapshots[name]
