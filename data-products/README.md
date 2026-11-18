@@ -21,6 +21,8 @@ Current products:
   provider-specific masks, rights, checksums, and gated access contract.
 - `airaqc/tcga-public-pilot`: source-native AIRAQc annotations and referenced
   TCGA slides for the fixed 24-slide pilot.
+- `sicapv2/mendeley-v2`: source-native SICAPv2 patients, slides, patches,
+  Gleason-pattern masks, global scores, and publisher partitions.
 - `cryonuseg/frozen-he`: source-native CryoNuSeg frozen-section H&E patches,
   manual annotation rounds, auxiliary masks, and exact GDC slide lineage.
 - `proteomexchange/pxd064700`: source-native PRIDE and ProteomeXchange metadata,
