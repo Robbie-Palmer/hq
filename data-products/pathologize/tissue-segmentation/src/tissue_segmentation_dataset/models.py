@@ -4,6 +4,8 @@ from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue, model_validator
 
+SHA256_PATTERN = r"^[a-f0-9]{64}$"
+
 
 class StrictModel(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -119,7 +121,7 @@ class SourceArtifactReference(StrictModel):
     media_type: str = Field(min_length=1)
     path: str | None = Field(default=None, min_length=1)
     checksum_algorithm: Literal["sha256"] | None = None
-    checksum: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
+    checksum: str | None = Field(default=None, pattern=SHA256_PATTERN)
 
     @model_validator(mode="after")
     def checksum_is_complete(self) -> Self:
@@ -173,8 +175,8 @@ class BcssRecord(StrictModel):
     mask_path: str
     image_media_type: Literal["image/png"]
     mask_media_type: Literal["image/png"]
-    image_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    mask_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    image_sha256: str = Field(pattern=SHA256_PATTERN)
+    mask_sha256: str = Field(pattern=SHA256_PATTERN)
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     micrometres_per_pixel: float = Field(gt=0)
@@ -196,8 +198,8 @@ class CrcEpitheliumRecord(StrictModel):
     mask_path: str
     image_media_type: Literal["image/jpeg", "image/png"]
     mask_media_type: Literal["image/png"]
-    image_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
-    mask_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    image_sha256: str = Field(pattern=SHA256_PATTERN)
+    mask_sha256: str = Field(pattern=SHA256_PATTERN)
     width: int = Field(gt=0)
     height: int = Field(gt=0)
     micrometres_per_pixel: float = Field(gt=0)

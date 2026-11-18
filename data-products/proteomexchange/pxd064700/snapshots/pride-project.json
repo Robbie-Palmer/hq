@@ -1,0 +1,175 @@
+{
+  "accession": "PXD064700",
+  "additionalAttributes": [],
+  "botCount": 2,
+  "countries": [
+    "Germany"
+  ],
+  "dataProcessingProtocol": "DIA-NN 1.8 library-free search vs UniProt (H. sapiens, 82,518 entries); trypsin, 1 mis-cleavage, Cys carbamidomethyl fixed, N-Met excision variable, 7\u201330 aa; 1 % FDR; \u2018robust LC\u2019 quantification, RT-dependent normalisation. LFQ intensities exported to Perseus 2.1.3.0 and later to R v.4.4.1 for log\u2082-transform, 70 % presence filtering, Welch or Student t-tests (FDR 0.05), clustering, PCA and enrichment analyses (STRING). The hydrophobicity and length of peptides from differentially detected proteins was extracted and compared (Games-Howell test).",
+  "diseases": [
+    {
+      "@type": "CvParam",
+      "accession": "DOID:10652",
+      "cvLabel": "DOID",
+      "name": "Alzheimer's disease"
+    }
+  ],
+  "doi": "",
+  "experimentTypes": [
+    {
+      "@type": "CvParam",
+      "accession": "PRIDE:0000450",
+      "cvLabel": "PRIDE",
+      "name": "Data-independent acquisition"
+    },
+    {
+      "@type": "CvParam",
+      "accession": "PRIDE:0000428",
+      "cvLabel": "PRIDE",
+      "name": "Bottom-up proteomics"
+    }
+  ],
+  "hubCount": 1118,
+  "identifiedPTMStrings": [
+    {
+      "@type": "CvParam",
+      "accession": "PRIDE:0000398",
+      "cvLabel": "PRIDE",
+      "name": "No PTMs are included in the dataset"
+    }
+  ],
+  "instruments": [
+    {
+      "@type": "CvParam",
+      "accession": "MS:1003028",
+      "cvLabel": "MS",
+      "name": "Orbitrap Exploris 480"
+    }
+  ],
+  "keywords": [
+    "Human brain; hippocampus; prefrontal cortex; formalin-fixed; ffpe; fresh-frozen; dia; lc-hrms; alzheimer; braak"
+  ],
+  "labPIs": [
+    {
+      "affiliation": "Institute of Laboratory Medicine, Clinical Chemistry and Molecular Diagnostics, Faculty of Medicine, University of Leipzig, Leipzig, Germany",
+      "country": "",
+      "email": "uta.ceglarek@medizin.uni-leipzig.de",
+      "firstName": "Uta",
+      "id": "3163145",
+      "identifier": "3163145",
+      "lastName": "Ceglarek",
+      "name": "Uta Ceglarek",
+      "orcid": "",
+      "title": "Dr"
+    }
+  ],
+  "license": "Creative Commons Public Domain (CC0)",
+  "organicCount": 0,
+  "organismParts": [
+    {
+      "@type": "CvParam",
+      "accession": "BTO:0000142",
+      "cvLabel": "BTO",
+      "name": "Brain"
+    }
+  ],
+  "organisms": [
+    {
+      "@type": "CvParam",
+      "accession": "NEWT:9606",
+      "cvLabel": "NEWT",
+      "name": "Homo sapiens (human)"
+    }
+  ],
+  "projectDescription": "This study investigated the impact of tissue preservation methods on protein profiles analyzed by reversed-phase liquid chromatography-high-resolution mass spectrometry (LC-HRMS) using data-independent acquisition (DIA). We compared proteomic profiles from formalin-fixed, formalin-fixed and paraffin-embedded (FFPE), and fresh-frozen human brain tissues (cortex and hippocampus, n=6). Additionally, we evaluated an FFPE-specific commercial protein extraction kit (n=4).  Formalin-fixed samples closely resembled fresh-frozen profiles, whereas FFPE samples exhibited greater deviations. A core set of 1,753 proteins was consistently detected across all sample preparation methods. A total of 35 proteins were identified exclusively in fresh-frozen samples but without functional enrichment. Quantitative comparisons to the proteome of fresh-frozen tissue revealed an underrepresentation of cellular processes, energy metabolism, signaling, and transport related to protein properties such as length, location, and hydrophobicity. In contrast, neuronal development and phagosome-related pathways were overrepresented in fixed tissues.  In a pilot study comparing low (Braak 0-II, n=4) and high (Braak IV-VI, n=4) Alzheimer\u2019s disease (AD) stages using formalin-fixed samples, we identified 12 potential protein biomarkers, primarily nucleosomal proteins and carboxypeptidase M (CPM).   These findings suggest that formalin-fixed brain tissue provides reliable proteomic information, making it a valuable resource for neurodegenerative disease research.",
+  "projectTags": [],
+  "publicationDate": "2026-03-16",
+  "quantificationMethods": [
+    {
+      "@type": "CvParam",
+      "accession": "EFO:0030054",
+      "cvLabel": "PRIDE",
+      "name": "label-free quantification"
+    }
+  ],
+  "references": [
+    {
+      "doi": "10.1016/J.JPROT.2025.105589",
+      "pubmedID": 0
+    }
+  ],
+  "sampleAttributes": [
+    {
+      "@type": "Tuple",
+      "key": {
+        "accession": "EFO:0000635",
+        "cvLabel": "EFO",
+        "name": "organism part"
+      },
+      "value": [
+        {
+          "accession": "BTO:0000142",
+          "cvLabel": "BTO",
+          "name": "brain"
+        }
+      ]
+    },
+    {
+      "@type": "Tuple",
+      "key": {
+        "accession": "OBI:0100026",
+        "cvLabel": "EFO",
+        "name": "organism"
+      },
+      "value": [
+        {
+          "accession": "NEWT:9606",
+          "cvLabel": "NEWT",
+          "name": "Homo sapiens (Human)"
+        }
+      ]
+    },
+    {
+      "@type": "Tuple",
+      "key": {
+        "accession": "EFO:0000408",
+        "cvLabel": "EFO",
+        "name": "disease"
+      },
+      "value": [
+        {
+          "accession": "DOID:10652",
+          "cvLabel": "DOID",
+          "name": "Alzheimer's disease"
+        }
+      ]
+    }
+  ],
+  "sampleProcessingProtocol": "Fresh-frozen: 70 mg tissue, ABC lysis, TFE denaturation, 5 mM TCEP reduction, 10 mM IAA alkylation, 1:10 dilution, 1:30 trypsin, overnight 37 \u00b0C, Oasis-C18 desalting. Formalin-fixed: 30 % ACN/100 mM ABC + 0.05 % RapiGest, Dounce homogenized, 95 \u00b0C \u00d7 90 min, ultrasonic homogenisation, 30 mM DTT/90 mM IAA, 1:10 dilution and trypsin as above. FFPE: xylene de-wax, graded ethanol re-hydrate, same extraction buffer and downstream steps as formalin-fixed. FFPE-kit: Qiagen Qproteome workflow with identical digest/desalt.",
+  "softwares": [
+    {
+      "@type": "CvParam",
+      "accession": "MS:1003253",
+      "cvLabel": "MS",
+      "name": "DIA-NN"
+    }
+  ],
+  "submissionDate": "2025-06-05",
+  "submissionType": "PARTIAL",
+  "submitters": [
+    {
+      "affiliation": "University of Leipzig, Medical Faculty",
+      "country": "Germany",
+      "email": "laura.plantera@medizin.uni-leipzig.de",
+      "firstName": "Laura",
+      "id": "3629912",
+      "identifier": "3629912",
+      "lastName": "Plantera",
+      "name": "Laura Plantera",
+      "orcid": "0009-0008-9295-8676",
+      "title": "Ms"
+    }
+  ],
+  "title": "Impact of tissue fixation on the isolation and detection of human brain proteome (DIA-LC-HRMS)",
+  "totalFileDownloads": 1120
+}

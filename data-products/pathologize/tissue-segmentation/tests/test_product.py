@@ -160,9 +160,11 @@ def test_product_rejects_publisher_role_group_leakage(tmp_path: Path) -> None:
     duplicate["source_role"] = "test"
     conflicting = tmp_path / "segpath.jsonl"
     conflicting.write_text("\n".join([*lines, json.dumps(duplicate)]) + "\n", encoding="utf-8")
+    root = _root(tmp_path / "root")
+    source_paths = _source_paths(segpath=conflicting)
 
     with pytest.raises(ProductError, match="source groups cross product roles"):
-        build_product(_root(tmp_path / "root"), source_paths=_source_paths(segpath=conflicting))
+        build_product(root, source_paths=source_paths)
 
 
 def test_product_rejects_unmapped_source_label(tmp_path: Path) -> None:
@@ -171,23 +173,29 @@ def test_product_rejects_unmapped_source_label(tmp_path: Path) -> None:
     record["native_labels_present"] = ["invented_label"]
     invalid = tmp_path / "bcss.jsonl"
     invalid.write_text(json.dumps(record) + "\n", encoding="utf-8")
+    root = _root(tmp_path / "root")
+    source_paths = _source_paths(bcss=invalid)
 
     with pytest.raises(ProductError, match="missing source labels"):
-        build_product(_root(tmp_path / "root"), source_paths=_source_paths(bcss=invalid))
+        build_product(root, source_paths=source_paths)
 
 
 def test_product_rejects_duplicate_source_record_id(tmp_path: Path) -> None:
     lines = (FIXTURES / "segpath.jsonl").read_text(encoding="utf-8").splitlines()
     duplicate = tmp_path / "segpath.jsonl"
     duplicate.write_text("\n".join([lines[0], lines[0]]) + "\n", encoding="utf-8")
+    root = _root(tmp_path / "root")
+    source_paths = _source_paths(segpath=duplicate)
 
     with pytest.raises(ProductError, match="duplicate derived record IDs"):
-        build_product(_root(tmp_path / "root"), source_paths=_source_paths(segpath=duplicate))
+        build_product(root, source_paths=source_paths)
 
 
 def test_explicit_empty_source_paths_do_not_fall_back_to_fixtures(tmp_path: Path) -> None:
+    root = _root(tmp_path)
+
     with pytest.raises(ProductError, match="cover every configured source exactly once"):
-        build_product(_root(tmp_path), source_paths={})
+        build_product(root, source_paths={})
 
 
 def test_published_product_defaults_to_native_source_interfaces(tmp_path: Path) -> None:
@@ -289,9 +297,9 @@ def test_production_readiness_validates_segpath_task_contract(tmp_path: Path) ->
     for name in ("dvc.lock", "native-records.jsonl"):
         (tmp_path / name).write_text("{}\n", encoding="utf-8")
     manifest = json.loads(
-        (
-            PROJECT_DIR.parent.parent / "segpath/registered-if-masks/manifest.json"
-        ).read_text(encoding="utf-8")
+        (PROJECT_DIR.parent.parent / "segpath/registered-if-masks/manifest.json").read_text(
+            encoding="utf-8"
+        )
     )
     manifest["tasks"][0] = {}
     (tmp_path / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")

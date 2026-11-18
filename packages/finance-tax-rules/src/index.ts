@@ -128,6 +128,7 @@ export const resolveRules = (request: RuleRequest): RuleResolution => {
 
 export { ruleDataset } from "./data";
 export * from "./annualAllowance";
+export * from "./businessRealisation";
 export { pensionAnnualAllowanceFixtures } from "./annualAllowanceFixtures";
 export * from "./marriageAllowance";
 export {

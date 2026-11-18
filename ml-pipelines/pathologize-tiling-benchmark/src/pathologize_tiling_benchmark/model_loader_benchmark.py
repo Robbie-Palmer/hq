@@ -733,11 +733,11 @@ def _cgroup_memory_limit() -> int | None:
 
 def _dependency_versions() -> tuple[DependencyVersion, ...]:
     names = (
-        "cupy-cuda12x",
-        "nvidia-cuda-runtime-cu12",
-        "nvidia-cudnn-cu12",
-        "nvidia-nvimgcodec-cu12",
-        "nvidia-nvjpeg2k-cu12",
+        "cupy-cuda13x",
+        "nvidia-cuda-runtime",
+        "nvidia-cudnn-cu13",
+        "nvidia-nvimgcodec-cu13",
+        "nvidia-nvjpeg2k-cu13",
         "nvidia-ml-py",
         "pydicom",
         "pylibjpeg-openjpeg",

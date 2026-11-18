@@ -18,7 +18,9 @@ permissions:
 
 concurrency:
   group: sonarqube-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Supersede stale pull-request analysis, but retain SAST evidence for every
+  # commit that reaches the default branch.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   coverage:

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import Counter, defaultdict
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
@@ -29,6 +30,15 @@ SOURCE_MANIFEST_MODELS: dict[str, type[BaseModel]] = {
 
 class ProductError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True)
+class RecordAssets:
+    image: SourceArtifactReference
+    mask: SourceArtifactReference
+    width: int
+    height: int
+    micrometres_per_pixel: float
 
 
 def _read_object(path: Path) -> dict[str, Any]:
@@ -128,6 +138,26 @@ def _artifact(
     )
 
 
+def _paired_artifacts(
+    source: BcssRecord | CrcEpitheliumRecord, adapter: Adapter
+) -> tuple[SourceArtifactReference, SourceArtifactReference]:
+    image = _artifact(
+        adapter.source_dataset_id,
+        artifact_ref=f"{adapter.source_dataset_id}://{source.image_path}",
+        path=source.image_path,
+        checksum=source.image_sha256,
+        media_type=source.image_media_type,
+    )
+    mask = _artifact(
+        adapter.source_dataset_id,
+        artifact_ref=f"{adapter.source_dataset_id}://{source.mask_path}",
+        path=source.mask_path,
+        checksum=source.mask_sha256,
+        media_type=source.mask_media_type,
+    )
+    return image, mask
+
+
 def _common_record(
     *,
     spec: ProductSpec,
@@ -137,11 +167,7 @@ def _common_record(
     source_role: str,
     organ: str,
     source_tissue_role: str | None,
-    image_artifact: SourceArtifactReference,
-    mask_artifact: SourceArtifactReference,
-    width: int,
-    height: int,
-    micrometres_per_pixel: float,
+    assets: RecordAssets,
     image_assay: AssayProvenance,
     annotation_provenance: AnnotationProvenance,
     source_labels: list[str],
@@ -181,11 +207,11 @@ def _common_record(
         source_tissue_role=source_tissue_role,
         segmentation_scope="semantic_regions",
         coverage_semantics=adapter.coverage_semantics,
-        image_artifact=image_artifact,
-        mask_artifact=mask_artifact,
-        width=width,
-        height=height,
-        micrometres_per_pixel=micrometres_per_pixel,
+        image_artifact=assets.image,
+        mask_artifact=assets.mask,
+        width=assets.width,
+        height=assets.height,
+        micrometres_per_pixel=assets.micrometres_per_pixel,
         image_assay=image_assay,
         annotation_provenance=annotation_provenance,
         source_labels_present=sorted(source_labels),
@@ -203,6 +229,7 @@ def _adapt_bcss(
     output: list[HarmonizedRecord] = []
     for model in records:
         source = cast(BcssRecord, model)
+        image_artifact, mask_artifact = _paired_artifacts(source, adapter)
         output.append(
             _common_record(
                 spec=spec,
@@ -212,23 +239,13 @@ def _adapt_bcss(
                 source_role=source.source_role,
                 organ=source.organ,
                 source_tissue_role=None,
-                image_artifact=_artifact(
-                    adapter.source_dataset_id,
-                    artifact_ref=f"{adapter.source_dataset_id}://{source.image_path}",
-                    path=source.image_path,
-                    checksum=source.image_sha256,
-                    media_type=source.image_media_type,
+                assets=RecordAssets(
+                    image=image_artifact,
+                    mask=mask_artifact,
+                    width=source.width,
+                    height=source.height,
+                    micrometres_per_pixel=source.micrometres_per_pixel,
                 ),
-                mask_artifact=_artifact(
-                    adapter.source_dataset_id,
-                    artifact_ref=f"{adapter.source_dataset_id}://{source.mask_path}",
-                    path=source.mask_path,
-                    checksum=source.mask_sha256,
-                    media_type=source.mask_media_type,
-                ),
-                width=source.width,
-                height=source.height,
-                micrometres_per_pixel=source.micrometres_per_pixel,
                 image_assay=AssayProvenance(
                     technique="H&E",
                     targets=[],
@@ -263,21 +280,23 @@ def _adapt_segpath(
                 source_role=source.source_role,
                 organ=source.published_tumour_type,
                 source_tissue_role=None,
-                image_artifact=_artifact(
-                    adapter.source_dataset_id,
-                    artifact_ref=source.he_input.artifact_ref,
-                    path=source.he_input.member_path,
-                    media_type="image/png",
+                assets=RecordAssets(
+                    image=_artifact(
+                        adapter.source_dataset_id,
+                        artifact_ref=source.he_input.artifact_ref,
+                        path=source.he_input.member_path,
+                        media_type="image/png",
+                    ),
+                    mask=_artifact(
+                        adapter.source_dataset_id,
+                        artifact_ref=source.annotation.artifact.artifact_ref,
+                        path=source.annotation.artifact.member_path,
+                        media_type="image/png",
+                    ),
+                    width=source.width_pixels,
+                    height=source.height_pixels,
+                    micrometres_per_pixel=source.micrometers_per_pixel,
                 ),
-                mask_artifact=_artifact(
-                    adapter.source_dataset_id,
-                    artifact_ref=source.annotation.artifact.artifact_ref,
-                    path=source.annotation.artifact.member_path,
-                    media_type="image/png",
-                ),
-                width=source.width_pixels,
-                height=source.height_pixels,
-                micrometres_per_pixel=source.micrometers_per_pixel,
                 image_assay=AssayProvenance(
                     technique="H&E",
                     targets=[],
@@ -318,6 +337,7 @@ def _adapt_crc(
     for model in records:
         source = cast(CrcEpitheliumRecord, model)
         targets = [] if source.marker_or_target is None else [source.marker_or_target]
+        image_artifact, mask_artifact = _paired_artifacts(source, adapter)
         output.append(
             _common_record(
                 spec=spec,
@@ -327,23 +347,13 @@ def _adapt_crc(
                 source_role=source.source_role,
                 organ=source.organ,
                 source_tissue_role=source.tissue_role,
-                image_artifact=_artifact(
-                    adapter.source_dataset_id,
-                    artifact_ref=f"{adapter.source_dataset_id}://{source.image_path}",
-                    path=source.image_path,
-                    checksum=source.image_sha256,
-                    media_type=source.image_media_type,
+                assets=RecordAssets(
+                    image=image_artifact,
+                    mask=mask_artifact,
+                    width=source.width,
+                    height=source.height,
+                    micrometres_per_pixel=source.micrometres_per_pixel,
                 ),
-                mask_artifact=_artifact(
-                    adapter.source_dataset_id,
-                    artifact_ref=f"{adapter.source_dataset_id}://{source.mask_path}",
-                    path=source.mask_path,
-                    checksum=source.mask_sha256,
-                    media_type=source.mask_media_type,
-                ),
-                width=source.width,
-                height=source.height,
-                micrometres_per_pixel=source.micrometres_per_pixel,
                 image_assay=AssayProvenance(
                     technique=source.image_assay,
                     targets=targets,
@@ -489,6 +499,52 @@ def _input_path_blockers(
     return blockers
 
 
+def _manifest_blockers(root: Path, source: str, item: dict[str, Any]) -> list[str]:
+    manifest_path = root / item["expected_manifest"]
+    manifest_model = SOURCE_MANIFEST_MODELS.get(source)
+    if not manifest_path.is_file() or manifest_model is None:
+        return []
+    try:
+        manifest_model.model_validate_json(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return [f"source {source} manifest does not satisfy its source contract"]
+    return []
+
+
+def _evidence_blockers(root: Path, source: str, item: dict[str, Any]) -> list[str]:
+    blockers: list[str] = []
+    for evidence_name, evidence in item["evidence"].items():
+        evidence_path = root / evidence["path"]
+        if not evidence_path.is_file():
+            blockers.append(
+                f"source {source} is missing {evidence_name} evidence: {evidence['path']}"
+            )
+            continue
+        if missing := _missing_json_fields(evidence_path, evidence["required_json_fields"]):
+            blockers.append(
+                f"source {source} {evidence_name} evidence is missing JSON fields: {missing}"
+            )
+    return blockers
+
+
+def _source_product_blockers(root: Path, item: dict[str, Any]) -> list[str]:
+    source = item["source_dataset_id"]
+    blockers = (
+        []
+        if item["status"] == "pinned_source_product"
+        else [f"source product is not pinned: {source}"]
+    )
+    required_paths = ("expected_dvc_lock", "expected_manifest", "expected_interface")
+    blockers.extend(
+        f"source {source} is missing {field}: {item[field]}"
+        for field in required_paths
+        if not (root / item[field]).is_file()
+    )
+    blockers.extend(_manifest_blockers(root, source, item))
+    blockers.extend(_evidence_blockers(root, source, item))
+    return blockers
+
+
 def _production_blockers(
     root: Path,
     records: list[HarmonizedRecord],
@@ -501,33 +557,8 @@ def _production_blockers(
         blockers.append("product contains synthetic contract records")
     if input_paths is not None and not has_fixture_records:
         blockers.extend(_input_path_blockers(root, imports, input_paths))
-    required_paths = ("expected_dvc_lock", "expected_manifest", "expected_interface")
     for item in imports["imports"]:
-        source = item["source_dataset_id"]
-        if item["status"] != "pinned_source_product":
-            blockers.append(f"source product is not pinned: {source}")
-        blockers.extend(
-            f"source {source} is missing {field}: {item[field]}"
-            for field in required_paths
-            if not (root / item[field]).is_file()
-        )
-        manifest_path = root / item["expected_manifest"]
-        if manifest_path.is_file() and (manifest_model := SOURCE_MANIFEST_MODELS.get(source)):
-            try:
-                manifest_model.model_validate_json(manifest_path.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                blockers.append(f"source {source} manifest does not satisfy its source contract")
-        for evidence_name, evidence in item["evidence"].items():
-            evidence_path = root / evidence["path"]
-            if not evidence_path.is_file():
-                blockers.append(
-                    f"source {source} is missing {evidence_name} evidence: {evidence['path']}"
-                )
-                continue
-            if missing := _missing_json_fields(evidence_path, evidence["required_json_fields"]):
-                blockers.append(
-                    f"source {source} {evidence_name} evidence is missing JSON fields: {missing}"
-                )
+        blockers.extend(_source_product_blockers(root, item))
     return blockers
 
 
