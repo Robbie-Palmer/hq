@@ -13,21 +13,35 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 from http.client import HTTPMessage
 from pathlib import Path, PurePosixPath
-from typing import IO, Any, Literal, cast, override
+from typing import IO, Literal, override
 from urllib.parse import urlsplit
 
 from openpyxl import load_workbook
+from pydantic import BaseModel
 
 from sicapv2_source_data.models import (
+    CribriformTableRow,
+    ExpectedPatchLabelCounts,
+    GlobalGleasonScoreCounts,
+    GradeGroupCounts,
+    MendeleyMetadataResponse,
     OriginalArtifact,
     PatchCoordinates,
     PatchRecord,
     PatientRecord,
     PublishedPartition,
     PublishedPatchLabels,
+    PublishedPatchTableRow,
     PublishedRole,
+    PublishedRoleCounts,
+    PublisherMetadataContract,
+    PublisherMetadataEvidence,
+    RecordSets,
     SlideRecord,
+    SlideTableRow,
+    SourceCatalog,
     SourceManifest,
+    SourceMetrics,
 )
 
 PROJECT_DIR = Path(__file__).resolve().parents[2]
@@ -84,24 +98,7 @@ def _json_request(url: str) -> object:
         return json.load(response)
 
 
-def _require_equal(actual: object, expected: object, field: str) -> None:
-    if actual != expected:
-        raise SourceDataError(f"Mendeley {field} differs: expected {expected!r}, found {actual!r}")
-
-
-def _metadata_shapes(
-    dataset: object, files: object, versions: object
-) -> tuple[dict[str, Any], list[object], list[object]]:
-    if (
-        not isinstance(dataset, dict)
-        or not isinstance(files, list)
-        or not isinstance(versions, list)
-    ):
-        raise SourceDataError("Mendeley returned an unexpected metadata shape")
-    return cast(dict[str, Any], dataset), files, versions
-
-
-def verify_publisher_metadata(root: Path = PROJECT_DIR) -> dict[str, object]:
+def verify_publisher_metadata(root: Path = PROJECT_DIR) -> PublisherMetadataEvidence:
     manifest = load_manifest(root)
     dataset_url = (
         f"{PUBLIC_API}/datasets/{manifest.publisher_dataset_id}"
@@ -112,84 +109,33 @@ def verify_publisher_metadata(root: Path = PROJECT_DIR) -> dict[str, object]:
         f"&version={manifest.publisher_version}&$start=0&$limit=1000"
     )
     versions_url = f"{PUBLIC_API}/datasets/{manifest.publisher_dataset_id}/versions"
-    dataset, files, versions = _metadata_shapes(
-        _json_request(dataset_url),
-        _json_request(files_url),
-        _json_request(versions_url),
+    response = MendeleyMetadataResponse.model_validate(
+        {
+            "dataset": _json_request(dataset_url),
+            "files": _json_request(files_url),
+            "versions": _json_request(versions_url),
+        }
     )
-    _require_equal(dataset.get("id"), manifest.publisher_dataset_id, "dataset ID")
-    doi = dataset.get("doi")
-    _require_equal(doi.get("id") if isinstance(doi, dict) else None, manifest.doi, "DOI")
-    _require_equal(dataset.get("version"), manifest.publisher_version, "version")
-    _require_equal(dataset.get("name"), manifest.title, "title")
-    _require_equal(dataset.get("publish_date"), manifest.published_at, "publish date")
-    licence = dataset.get("data_licence")
-    if not isinstance(licence, dict):
-        raise SourceDataError("Mendeley record does not contain rights metadata")
-    _require_equal(licence.get("short_name"), "CC BY 4.0", "license")
-    _require_equal(licence.get("full_name"), manifest.license.name, "license name")
-    contributors = dataset.get("contributors")
-    if not isinstance(contributors, list) or len(contributors) != 1:
-        raise SourceDataError("Mendeley contributor list differs")
-    contributor = contributors[0]
-    if not isinstance(contributor, dict):
-        raise SourceDataError("Mendeley contributor has an unexpected shape")
-    _require_equal(contributor.get("profile_id"), manifest.contributor.profile_id, "contributor")
-    _require_equal(
-        f"{contributor.get('first_name')} {contributor.get('last_name')}",
-        manifest.contributor.name,
-        "contributor name",
-    )
-    if len(files) != 1 or not isinstance(files[0], dict):
-        raise SourceDataError("Mendeley version 2 must contain exactly one root file")
-    source_file = files[0]
-    content = source_file.get("content_details")
-    if not isinstance(content, dict):
-        raise SourceDataError("Mendeley file does not contain content details")
-    expected_file = manifest.archive
-    _require_equal(source_file.get("id"), expected_file.file_id, "archive file ID")
-    _require_equal(source_file.get("filename"), expected_file.filename, "archive filename")
-    _require_equal(source_file.get("size"), expected_file.bytes, "archive byte count")
-    _require_equal(content.get("sha256_hash"), expected_file.sha256, "archive SHA-256")
-    _require_equal(content.get("content_type"), expected_file.content_type, "archive media type")
-    version_rows = [row for row in versions if isinstance(row, dict)]
-    if not any(
-        row.get("version") == manifest.publisher_version
-        and str(row.get("publish_date", "")).startswith("2020-10-22")
-        and row.get("available") is True
-        for row in version_rows
-    ):
-        raise SourceDataError("Mendeley version history does not contain available version 2")
-    result: dict[str, object] = {
-        "schema_version": "1.0.0",
-        "verification_scope": "publisher_metadata_only",
-        "credentials_required": False,
-        "archive_bytes_downloaded": False,
-        "dataset_id": manifest.dataset_id,
-        "publisher_dataset_id": manifest.publisher_dataset_id,
-        "publisher_version": manifest.publisher_version,
-        "doi": manifest.doi,
-        "license": manifest.license.spdx_id,
-        "contributor_profile_id": manifest.contributor.profile_id,
-        "archive": {
-            "file_id": expected_file.file_id,
-            "filename": expected_file.filename,
-            "bytes": expected_file.bytes,
-            "sha256": expected_file.sha256,
-            "content_type": expected_file.content_type,
-        },
-        "verified": True,
-    }
+    actual = PublisherMetadataContract.from_response(response)
+    expected = PublisherMetadataContract.from_manifest(manifest)
+    if actual != expected:
+        raise SourceDataError(
+            "live Mendeley metadata differs from the pinned manifest: "
+            f"expected {expected.model_dump_json()}, found {actual.model_dump_json()}"
+        )
+    result = PublisherMetadataEvidence.from_verified_contract(actual, manifest)
     output = root / "records/publisher-metadata.json"
     output.parent.mkdir(parents=True, exist_ok=True)
     if output.is_file():
-        committed = json.loads(output.read_text(encoding="utf-8"))
+        committed = PublisherMetadataEvidence.model_validate_json(
+            output.read_text(encoding="utf-8")
+        )
         if committed != result:
             raise SourceDataError(
                 "committed publisher metadata differs from live Mendeley metadata"
             )
     else:
-        output.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        output.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
     return result
 
 
@@ -258,7 +204,9 @@ def _artifact(info: zipfile.ZipInfo) -> OriginalArtifact:
     )
 
 
-def _table_rows(archive: zipfile.ZipFile, path: str) -> list[dict[str, object]]:
+def _table_rows[RowT: BaseModel](
+    archive: zipfile.ZipFile, path: str, row_type: type[RowT]
+) -> list[RowT]:
     try:
         payload = archive.read(path)
     except KeyError as error:
@@ -273,7 +221,7 @@ def _table_rows(archive: zipfile.ZipFile, path: str) -> list[dict[str, object]]:
         if header is None or any(value is None for value in header):
             raise SourceDataError(f"SICAPv2 table has an invalid header: {path}")
         names = [str(value) for value in header]
-        return [dict(zip(names, row, strict=True)) for row in values]
+        return [row_type.model_validate(dict(zip(names, row, strict=True))) for row in values]
     finally:
         workbook.close()
 
@@ -312,25 +260,11 @@ def grade_group(primary: int, secondary: int) -> int:
     return mapping[pair]
 
 
-def _int_field(row: dict[str, object], field: str, table: str) -> int:
-    value = row.get(field)
-    if isinstance(value, bool) or not isinstance(value, int | float) or int(value) != value:
-        raise SourceDataError(f"{table}: {field} must be an integer")
-    return int(value)
-
-
 def _partition_artifact(infos: dict[str, zipfile.ZipInfo], path: str) -> OriginalArtifact:
     info = infos.get(path)
     if info is None:
         raise SourceDataError(f"missing SICAPv2 partition artifact: {path}")
     return _artifact(info)
-
-
-def _partition_image_name(row: dict[str, object], path: str) -> str:
-    image_name = row.get("image_name")
-    if not isinstance(image_name, str) or not image_name:
-        raise SourceDataError(f"{path}: invalid image_name")
-    return image_name
 
 
 def _append_published_role(
@@ -359,13 +293,8 @@ def _append_published_role(
 def _record_patch_labels(
     labels: dict[str, PublishedPatchLabels],
     image_name: str,
-    row: dict[str, object],
-    path: str,
-    manifest: SourceManifest,
+    patch_labels: PublishedPatchLabels,
 ) -> None:
-    patch_labels = PublishedPatchLabels(
-        **{field: _int_field(row, field, path) for field in manifest.published_patch_labels}
-    )
     existing = labels.setdefault(image_name, patch_labels)
     if existing != patch_labels:
         raise SourceDataError(f"{image_name}: published labels differ across partitions")
@@ -374,7 +303,6 @@ def _record_patch_labels(
 def _read_partition_table(
     archive: zipfile.ZipFile,
     infos: dict[str, zipfile.ZipInfo],
-    manifest: SourceManifest,
     partition: PublishedPartition,
     role_name: Literal["Train", "Test"],
     task: Literal["gleason_grading", "cribriform_detection"],
@@ -385,11 +313,13 @@ def _read_partition_table(
     role: Literal["train", "test"] = "train" if role_name == "Train" else "test"
     path = f"{partition.path}/{role_name}{suffix}.xlsx"
     artifact = _partition_artifact(infos, path)
-    for row in _table_rows(archive, path):
-        image_name = _partition_image_name(row, path)
-        _append_published_role(roles, image_name, partition, task, role, artifact)
-        if task == "gleason_grading":
-            _record_patch_labels(labels, image_name, row, path, manifest)
+    if task == "gleason_grading":
+        for row in _table_rows(archive, path, PublishedPatchTableRow):
+            _append_published_role(roles, row.image_name, partition, task, role, artifact)
+            _record_patch_labels(labels, row.image_name, row.labels())
+    else:
+        for row in _table_rows(archive, path, CribriformTableRow):
+            _append_published_role(roles, row.image_name, partition, task, role, artifact)
     return artifact
 
 
@@ -408,7 +338,6 @@ def _partition_tables(
                     _read_partition_table(
                         archive,
                         infos,
-                        manifest,
                         partition,
                         role_name,
                         task,
@@ -426,14 +355,11 @@ def _slide_rows(
     path = info.filename
     artifact = _artifact(info)
     slides: dict[str, SlideRecord] = {}
-    for row in _table_rows(archive, path):
-        slide_id = row.get("slide_id")
-        patient_value = row.get("patient_id")
-        if not isinstance(slide_id, str) or not isinstance(patient_value, int | str):
-            raise SourceDataError(f"{path}: invalid slide or patient identity")
-        patient_id = str(patient_value)
-        primary = _int_field(row, "Gleason_primary", path)
-        secondary = _int_field(row, "Gleason_secondary", path)
+    for row in _table_rows(archive, path, SlideTableRow):
+        slide_id = row.slide_id
+        patient_id = row.patient_identity
+        primary = row.gleason_primary
+        secondary = row.gleason_secondary
         score = (
             "NC"
             if (primary, secondary) == (0, 0)
@@ -459,9 +385,7 @@ def _slide_rows(
 
 
 def _json_lines(records: Iterable[PatientRecord | SlideRecord | PatchRecord]) -> str:
-    return "".join(
-        json.dumps(record.model_dump(mode="json"), sort_keys=True) + "\n" for record in records
-    )
+    return "".join(record.model_dump_json() + "\n" for record in records)
 
 
 def _write_outputs(
@@ -471,7 +395,7 @@ def _write_outputs(
     slides: list[SlideRecord],
     patches: list[PatchRecord],
     table_artifacts: list[OriginalArtifact],
-) -> dict[str, object]:
+) -> SourceMetrics:
     role_counts = Counter(
         f"{role.partition_id}:{role.task}:{role.role}"
         for patch in patches
@@ -481,46 +405,41 @@ def _write_outputs(
     for patch in patches:
         if patch.published_labels is None:
             continue
-        for name, value in patch.published_labels.model_dump().items():
+        for name, value in patch.published_labels:
             label_counts[name] += value
     labelled_patch_count = sum(patch.published_labels is not None for patch in patches)
     if labelled_patch_count != manifest.expected.published_labelled_patch_count:
         raise SourceDataError("SICAPv2 published labelled-patch count differs from the manifest")
-    expected_label_counts = manifest.expected.published_patch_label_counts.model_dump()
-    if dict(label_counts) != expected_label_counts:
+    actual_label_counts = ExpectedPatchLabelCounts.model_validate(dict(label_counts))
+    if actual_label_counts != manifest.expected.published_patch_label_counts:
         raise SourceDataError("SICAPv2 published patch-label counts differ from the manifest")
-    metrics: dict[str, object] = {
-        "dataset_id": manifest.dataset_id,
-        "patient_count": len(patients),
-        "slide_count": len(slides),
-        "patch_count": len(patches),
-        "paired_mask_count": len(patches),
-        "published_labelled_patch_count": labelled_patch_count,
-        "published_patch_label_counts": dict(sorted(label_counts.items())),
-        "published_role_counts": dict(sorted(role_counts.items())),
-        "global_gleason_score_counts": dict(
-            sorted(Counter(slide.global_gleason_score for slide in slides).items())
+    metrics = SourceMetrics(
+        dataset_id=manifest.dataset_id,
+        patient_count=len(patients),
+        slide_count=len(slides),
+        patch_count=len(patches),
+        paired_mask_count=len(patches),
+        published_labelled_patch_count=labelled_patch_count,
+        published_patch_label_counts=actual_label_counts,
+        published_role_counts=PublishedRoleCounts.model_validate(dict(role_counts)),
+        global_gleason_score_counts=GlobalGleasonScoreCounts.model_validate(
+            dict(Counter(slide.global_gleason_score for slide in slides))
         ),
-        "grade_group_counts": dict(
-            sorted(Counter(str(slide.grade_group) for slide in slides).items())
+        grade_group_counts=GradeGroupCounts.model_validate(
+            dict(Counter(str(slide.grade_group) for slide in slides))
         ),
-    }
-    catalog: dict[str, Any] = {
-        "schema_version": "1.0.0",
-        "dataset_id": manifest.dataset_id,
-        "dataset_ref": "sicapv2:v2:dataset:10.17632/9xxm58dvs3.2",
-        "archive_ref": ARCHIVE_REF,
-        "archive_sha256": manifest.archive.sha256,
-        "source_release": manifest.source_release,
-        "rights": manifest.license.model_dump(mode="json"),
-        "native_mask_labels": [label.model_dump() for label in manifest.native_mask_labels],
-        "record_sets": {
-            "patients": "outputs/patients.jsonl",
-            "slides": "outputs/slides.jsonl",
-            "patches": "outputs/patches.jsonl",
-        },
-        "table_artifacts": [artifact.model_dump() for artifact in table_artifacts],
-    }
+    )
+    catalog = SourceCatalog(
+        dataset_id=manifest.dataset_id,
+        dataset_ref="sicapv2:v2:dataset:10.17632/9xxm58dvs3.2",
+        archive_ref=ARCHIVE_REF,
+        archive_sha256=manifest.archive.sha256,
+        source_release=manifest.source_release,
+        rights=manifest.license,
+        native_mask_labels=manifest.native_mask_labels,
+        record_sets=RecordSets(),
+        table_artifacts=table_artifacts,
+    )
     output = root / "outputs"
     temporary = root / ".outputs.part"
     shutil.rmtree(temporary, ignore_errors=True)
@@ -530,10 +449,10 @@ def _write_outputs(
         (temporary / "slides.jsonl").write_text(_json_lines(slides), encoding="utf-8")
         (temporary / "patches.jsonl").write_text(_json_lines(patches), encoding="utf-8")
         (temporary / "catalog.json").write_text(
-            json.dumps(catalog, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            catalog.model_dump_json(indent=2) + "\n", encoding="utf-8"
         )
         (temporary / "source-metrics.json").write_text(
-            json.dumps(metrics, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            metrics.model_dump_json(indent=2) + "\n", encoding="utf-8"
         )
         shutil.rmtree(output, ignore_errors=True)
         temporary.replace(output)
@@ -646,7 +565,7 @@ def _slide_and_patient_records(
     return slide_records, patient_records
 
 
-def index_archive(root: Path = PROJECT_DIR) -> dict[str, object]:
+def index_archive(root: Path = PROJECT_DIR) -> SourceMetrics:
     manifest = load_manifest(root)
     archive_path = root / "data/raw" / manifest.archive.filename
     verify_archive(archive_path, manifest)

@@ -30,7 +30,7 @@ class Application:
     def verify_metadata(self) -> None:
         evidence = verify_publisher_metadata(self.root)
         print(
-            f"Verified Mendeley version {evidence['publisher_version']} metadata without "
+            f"Verified Mendeley version {evidence.publisher_version} metadata without "
             "downloading SICAPv2.zip."
         )
 
@@ -41,8 +41,8 @@ class Application:
     def index(self) -> None:
         metrics = index_archive(self.root)
         print(
-            f"Indexed {metrics['patch_count']} SICAPv2 patches from "
-            f"{metrics['slide_count']} slides and {metrics['patient_count']} patients."
+            f"Indexed {metrics.patch_count} SICAPv2 patches from "
+            f"{metrics.slide_count} slides and {metrics.patient_count} patients."
         )
 
 

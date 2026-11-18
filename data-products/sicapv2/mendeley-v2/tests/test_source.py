@@ -10,7 +10,16 @@ import pytest
 from openpyxl import Workbook
 from pydantic import ValidationError
 
-from sicapv2_source_data.models import SourceManifest
+from sicapv2_source_data.models import (
+    PatchRecord,
+    PatientRecord,
+    PublishedPatchTableRow,
+    PublisherMetadataEvidence,
+    SlideRecord,
+    SourceCatalog,
+    SourceManifest,
+    SourceMetrics,
+)
 from sicapv2_source_data.source import (
     SourceDataError,
     _HttpsOnlyRedirectHandler,
@@ -99,6 +108,43 @@ def _fixture_root(tmp_path: Path) -> Path:
     return root
 
 
+def _publisher_response(url: str) -> object:
+    if url.endswith("/versions"):
+        return [{"version": 2, "publish_date": "2020-10-22", "available": True}]
+    if "/files?" in url:
+        return [
+            {
+                "id": "6ab087a7-ca89-47ac-9698-f6546bb50f98",
+                "filename": "SICAPv2.zip",
+                "size": 2159052394,
+                "content_details": {
+                    "sha256_hash": (
+                        "a28aa6a0e3831217bf31575cecfc1846607ace7ff25a4392f07052bbc7355916"
+                    ),
+                    "content_type": "application/x-zip-compressed",
+                },
+            }
+        ]
+    return {
+        "id": "9xxm58dvs3",
+        "doi": {"id": "10.17632/9xxm58dvs3.2"},
+        "version": 2,
+        "name": "SICAPv2 - Prostate Whole Slide Images with Gleason Grades Annotations",
+        "publish_date": "2020-10-22T13:41:01.412Z",
+        "data_licence": {
+            "short_name": "CC BY 4.0",
+            "full_name": "Creative Commons Attribution 4.0 International",
+        },
+        "contributors": [
+            {
+                "profile_id": "f1d364e0-92ba-3975-9ba1-a288ab10c04e",
+                "first_name": "Julio",
+                "last_name": "Silva-Rodríguez",
+            }
+        ],
+    }
+
+
 def test_committed_manifest_pins_authoritative_mendeley_version() -> None:
     manifest = load_manifest(PROJECT_DIR)
 
@@ -176,10 +222,11 @@ def test_index_archive_writes_stable_native_records(tmp_path: Path) -> None:
 
     metrics = index_archive(root)
 
-    assert metrics["patient_count"] == 1
-    assert metrics["slide_count"] == 1
-    assert metrics["patch_count"] == 1
-    assert metrics["published_role_counts"] == {
+    assert isinstance(metrics, SourceMetrics)
+    assert metrics.patient_count == 1
+    assert metrics.slide_count == 1
+    assert metrics.patch_count == 1
+    assert metrics.published_role_counts.root == {
         f"{partition}:{task}:train": 1
         for partition in (
             "test",
@@ -190,21 +237,53 @@ def test_index_archive_writes_stable_native_records(tmp_path: Path) -> None:
         )
         for task in ("cribriform_detection", "gleason_grading")
     }
-    patient = json.loads((root / "outputs/patients.jsonl").read_text(encoding="utf-8"))
-    slide = json.loads((root / "outputs/slides.jsonl").read_text(encoding="utf-8"))
-    patch = json.loads((root / "outputs/patches.jsonl").read_text(encoding="utf-8"))
-    catalog = json.loads((root / "outputs/catalog.json").read_text(encoding="utf-8"))
-    assert patient["record_ref"] == "sicapv2:v2:patient:667360"
-    assert slide["patient_ref"] == patient["record_ref"]
-    assert slide["global_gleason_score"] == "4+5=9"
-    assert slide["grade_group"] == 5
-    assert patch["slide_ref"] == slide["record_ref"]
-    assert patch["image"]["member_path"] == f"SICAPv2/images/{PATCH_NAME}"
-    assert patch["gleason_pattern_mask"]["member_path"] == f"SICAPv2/masks/{PATCH_NAME}"
-    assert patch["published_labels"] == {"NC": 0, "G3": 0, "G4": 0, "G5": 1, "G4C": 0}
-    assert patch["mask_label_ids"] == [0, 1, 2, 3]
-    assert catalog["archive_ref"].startswith("mendeley:9xxm58dvs3:v2:file:")
-    assert len(catalog["table_artifacts"]) == 22
+    patient = PatientRecord.model_validate_json(
+        (root / "outputs/patients.jsonl").read_text(encoding="utf-8")
+    )
+    slide = SlideRecord.model_validate_json(
+        (root / "outputs/slides.jsonl").read_text(encoding="utf-8")
+    )
+    patch = PatchRecord.model_validate_json(
+        (root / "outputs/patches.jsonl").read_text(encoding="utf-8")
+    )
+    catalog = SourceCatalog.model_validate_json(
+        (root / "outputs/catalog.json").read_text(encoding="utf-8")
+    )
+    written_metrics = SourceMetrics.model_validate_json(
+        (root / "outputs/source-metrics.json").read_text(encoding="utf-8")
+    )
+    assert patient.record_ref == "sicapv2:v2:patient:667360"
+    assert slide.patient_ref == patient.record_ref
+    assert slide.global_gleason_score == "4+5=9"
+    assert slide.grade_group == 5
+    assert patch.slide_ref == slide.record_ref
+    assert patch.image.member_path == f"SICAPv2/images/{PATCH_NAME}"
+    assert patch.gleason_pattern_mask.member_path == f"SICAPv2/masks/{PATCH_NAME}"
+    assert patch.published_labels is not None
+    assert patch.published_labels.model_dump() == {"NC": 0, "G3": 0, "G4": 0, "G5": 1, "G4C": 0}
+    assert patch.mask_label_ids == (0, 1, 2, 3)
+    assert catalog.archive_ref.startswith("mendeley:9xxm58dvs3:v2:file:")
+    assert len(catalog.table_artifacts) == 22
+    assert written_metrics == metrics
+
+
+def test_published_patch_row_normalizes_excel_integer_values() -> None:
+    row = PublishedPatchTableRow.model_validate(
+        {"image_name": PATCH_NAME, "NC": 0.0, "G3": 0.0, "G4": 0.0, "G5": 1.0, "G4C": 0.0}
+    )
+
+    assert (
+        row.labels()
+        == PublishedPatchTableRow(image_name=PATCH_NAME, NC=0, G3=0, G4=0, G5=1, G4C=0).labels()
+    )
+
+
+@pytest.mark.parametrize("value", [True, 0.5, "1"])
+def test_published_patch_row_rejects_non_integer_values(value: object) -> None:
+    with pytest.raises(ValidationError, match="value must be an integer"):
+        PublishedPatchTableRow.model_validate(
+            {"image_name": PATCH_NAME, "NC": value, "G3": 0, "G4": 0, "G5": 1, "G4C": 0}
+        )
 
 
 def test_safe_infos_rejects_archive_traversal(tmp_path: Path) -> None:
@@ -254,51 +333,40 @@ def test_metadata_verification_uses_public_credential_free_records(
         (PROJECT_DIR / "manifest.json").read_text(encoding="utf-8"), encoding="utf-8"
     )
 
-    def fake_json_request(url: str) -> object:
-        if url.endswith("/versions"):
-            return [{"version": 2, "publish_date": "2020-10-22", "available": True}]
-        if "/files?" in url:
-            return [
-                {
-                    "id": "6ab087a7-ca89-47ac-9698-f6546bb50f98",
-                    "filename": "SICAPv2.zip",
-                    "size": 2159052394,
-                    "content_details": {
-                        "sha256_hash": (
-                            "a28aa6a0e3831217bf31575cecfc1846607ace7ff25a4392f07052bbc7355916"
-                        ),
-                        "content_type": "application/x-zip-compressed",
-                    },
-                }
-            ]
-        return {
-            "id": "9xxm58dvs3",
-            "doi": {"id": "10.17632/9xxm58dvs3.2"},
-            "version": 2,
-            "name": "SICAPv2 - Prostate Whole Slide Images with Gleason Grades Annotations",
-            "publish_date": "2020-10-22T13:41:01.412Z",
-            "data_licence": {
-                "short_name": "CC BY 4.0",
-                "full_name": "Creative Commons Attribution 4.0 International",
-            },
-            "contributors": [
-                {
-                    "profile_id": "f1d364e0-92ba-3975-9ba1-a288ab10c04e",
-                    "first_name": "Julio",
-                    "last_name": "Silva-Rodríguez",
-                }
-            ],
-        }
-
-    monkeypatch.setattr("sicapv2_source_data.source._json_request", fake_json_request)
+    monkeypatch.setattr("sicapv2_source_data.source._json_request", _publisher_response)
 
     evidence = verify_publisher_metadata(root)
 
-    assert evidence["verified"] is True
-    assert evidence["credentials_required"] is False
-    assert evidence["archive_bytes_downloaded"] is False
-    committed = json.loads((root / "records/publisher-metadata.json").read_text(encoding="utf-8"))
+    assert isinstance(evidence, PublisherMetadataEvidence)
+    assert evidence.verified is True
+    assert evidence.credentials_required is False
+    assert evidence.archive_bytes_downloaded is False
+    committed = PublisherMetadataEvidence.model_validate_json(
+        (root / "records/publisher-metadata.json").read_text(encoding="utf-8")
+    )
     assert committed == evidence
+
+
+def test_metadata_verification_compares_normalized_contracts(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "source"
+    root.mkdir()
+    (root / "manifest.json").write_text(
+        (PROJECT_DIR / "manifest.json").read_text(encoding="utf-8"), encoding="utf-8"
+    )
+
+    def changed_title(url: str) -> object:
+        response = _publisher_response(url)
+        if url.endswith("/versions") or "/files?" in url:
+            return response
+        assert isinstance(response, dict)
+        return {**response, "name": "Changed publisher title"}
+
+    monkeypatch.setattr("sicapv2_source_data.source._json_request", changed_title)
+
+    with pytest.raises(SourceDataError, match="differs from the pinned manifest"):
+        verify_publisher_metadata(root)
 
 
 def test_redirect_handler_rejects_non_https_destination() -> None:

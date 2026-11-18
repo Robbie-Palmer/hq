@@ -17,12 +17,12 @@ stages:
       size: 1111
     - path: records/publisher-metadata.json
       hash: md5
-      md5: ee003665a8ae90236ceb77e1f4c2c6ac
+      md5: 47c0f91b43c73e1a659165543338a1f4
       size: 670
     - path: src/sicapv2_source_data
       hash: md5
-      md5: c3831e86a96803e614800d2a3093cf4c.dir
-      size: 36094
+      md5: d2c7b36afc5ef51e72486e7ae1df22b3.dir
+      size: 42283
       nfiles: 4
     - path: uv.lock
       hash: md5
