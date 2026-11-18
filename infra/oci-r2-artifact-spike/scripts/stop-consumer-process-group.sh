@@ -5,9 +5,40 @@ project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 group_file="${CONSUMER_PROCESS_GROUP_FILE:-$project_root/.state/consumer-process-group}"
 
 [[ -f "$group_file" ]] || exit 0
-read -r process_group group_token extra < "$group_file"
-if [[ -n "${extra:-}" || ! "$process_group" =~ ^[1-9][0-9]*$ || ! "$group_token" =~ ^[a-f0-9]{32}$ ]]; then
+read_record() {
+  group_state=""
+  process_group=""
+  group_token=""
+  extra=""
+  read -r group_state process_group group_token extra < "$group_file"
+}
+
+read_record
+if [[ -n "${extra:-}" || ! "$group_token" =~ ^[a-f0-9]{32}$ ]] ||
+  [[ "$group_state" != "launching" && "$group_state" != "active" ]] ||
+  [[ ! "$process_group" =~ ^[1-9][0-9]*$ ]]; then
   echo "The R2 consumer process-group record is invalid; refusing bucket recovery" >&2
+  exit 1
+fi
+
+if [[ "$group_state" == "launching" ]]; then
+  launch_process="$process_group"
+  launch_token="$group_token"
+  for _ in $(seq 1 50); do
+    sleep 0.1
+    read_record
+    if [[ "$group_state" == "active" && "$group_token" == "$launch_token" ]]; then
+      break
+    fi
+    if [[ "$group_state" != "launching" || "$process_group" != "$launch_process" ||
+      "$group_token" != "$launch_token" || -n "${extra:-}" ]]; then
+      echo "The R2 consumer launch record changed unexpectedly; refusing bucket recovery" >&2
+      exit 1
+    fi
+  done
+fi
+if [[ "$group_state" != "active" || ! "$process_group" =~ ^[1-9][0-9]*$ ]]; then
+  echo "The R2 consumer group was not published; refusing bucket recovery" >&2
   exit 1
 fi
 

@@ -58,6 +58,7 @@ case "$mode" in
     container_line="$(rg -n 'stop-consumer-containers' scripts/teardown.sh | cut -d: -f1)"
     recovery_line="$(rg -n 'object-storage:r2:broker -- recover' scripts/teardown.sh | cut -d: -f1)"
     ((process_group_line < container_line && container_line < recovery_line))
+    bash scripts/test-process-group-cleanup.sh
     ;;
   evidence)
     jq --exit-status '

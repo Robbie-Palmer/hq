@@ -12,6 +12,6 @@ if [[ "$process_group" != "$$" ]]; then
 fi
 
 umask 077
-printf '%s %s\n' "$process_group" "$group_token" > "$group_file.next"
+printf 'active %s %s\n' "$process_group" "$group_token" > "$group_file.next"
 mv "$group_file.next" "$group_file"
 exec timeout --kill-after=30s 25m bash "$project_root/scripts/run-live.sh"

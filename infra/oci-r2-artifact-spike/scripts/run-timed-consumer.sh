@@ -2,6 +2,7 @@
 set -euo pipefail
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+consumer_group_file="$project_root/.state/consumer-process-group"
 cleanup_complete=0
 
 cleanup() {
@@ -25,6 +26,9 @@ cleanup_on_exit() {
 trap cleanup_on_exit EXIT
 
 consumer_group_token="$(openssl rand -hex 16)"
+umask 077
+printf 'launching %s %s\n' "$$" "$consumer_group_token" > "$consumer_group_file.next"
+mv "$consumer_group_file.next" "$consumer_group_file"
 set +e
 HQ_R2_CONSUMER_GROUP_TOKEN="$consumer_group_token" \
   setsid --wait bash "$project_root/scripts/run-live-process-group.sh"
