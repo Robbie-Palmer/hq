@@ -1,3 +1,4 @@
+import { execFile } from "node:child_process";
 import {
   chmod,
   mkdir,
@@ -10,6 +11,7 @@ import {
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { promisify } from "node:util";
 import { parse, stringify } from "yaml";
 import { afterEach, describe, expect, it } from "vitest";
 import { runCommand } from "../src/process.js";
@@ -33,6 +35,37 @@ const profilePath = path.join(
   "packages/project-generator/tests/fixtures/stateful-operations-profile.yaml",
 );
 const temporaryRoots: string[] = [];
+const executeFile = promisify(execFile);
+
+async function runOperationScript(
+  operationsRoot: string,
+  args: readonly string[],
+  options: {
+    readonly allowFailure?: boolean;
+    readonly env?: NodeJS.ProcessEnv;
+  } = {},
+) {
+  try {
+    const { stdout, stderr } = await executeFile("./operate.sh", args, {
+      cwd: operationsRoot,
+      encoding: "utf8",
+      env: options.env ?? process.env,
+    });
+    return { stdout, stderr, exitCode: 0 };
+  } catch (error) {
+    if (!options.allowFailure) throw error;
+    const failure = error as {
+      readonly code?: number;
+      readonly stderr?: string;
+      readonly stdout?: string;
+    };
+    return {
+      stdout: failure.stdout ?? "",
+      stderr: failure.stderr ?? "",
+      exitCode: failure.code ?? 1,
+    };
+  }
+}
 
 afterEach(async () => {
   await Promise.all(
@@ -217,10 +250,10 @@ describe("stateful project operations", () => {
     expect(productionWorkflow).toContain("production-rollback");
     expect(backupWorkflow).toContain("restore_drill_id");
     expect(evidenceSchema.properties.action.enum).toContain("restore");
-    await runCommand("bash", ["-n", path.join(operationsRoot, "operate.sh")]);
-    const refused = await runCommand(
-      "bash",
-      [path.join(operationsRoot, "operate.sh"), "preview-up", "42"],
+    await chmod(path.join(operationsRoot, "operate.sh"), 0o755);
+    const refused = await runOperationScript(
+      operationsRoot,
+      ["preview-up", "42"],
       {
         allowFailure: true,
         env: {
@@ -260,11 +293,10 @@ describe("stateful project operations", () => {
       ],
       { cwd: destination },
     );
-    const completed = await runCommand(
-      "bash",
-      [path.join(operationsRoot, "operate.sh"), "preview-up", "42"],
+    const completed = await runOperationScript(
+      operationsRoot,
+      ["preview-up", "42"],
       {
-        cwd: destination,
         env: {
           ...process.env,
           PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
