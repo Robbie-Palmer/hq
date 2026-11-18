@@ -584,6 +584,43 @@ describe("business FI extraction", () => {
     );
   });
 
+  it("returns blocked results for invalid or incomplete plan inputs", () => {
+    const invalidCapital = businessFiPlanFixture();
+    invalidCapital.capitalPosition.availableNowPence = -1;
+
+    const missingScenario = businessFiPlanFixture();
+    delete missingScenario.limitedCompanyScenario;
+
+    const missingStrategy = businessFiPlanFixture();
+    if (missingStrategy.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    missingStrategy.treatment.strategyId = "strategy:not-recorded";
+
+    const missingPension = businessFiPlanFixture();
+    delete missingPension.pensionTreatment;
+
+    const results = [
+      evaluateBusinessFiPlan(invalidCapital),
+      evaluateBusinessFiPlan(missingScenario),
+      evaluateBusinessFiPlan(missingStrategy),
+      evaluateBusinessFiPlan(missingPension),
+    ];
+
+    expect(results.map(({ status }) => status)).toEqual([
+      "blocked",
+      "blocked",
+      "blocked",
+      "blocked",
+    ]);
+    expect(results.map(({ issues }) => issues[0]?.kind)).toEqual([
+      "invalid-extraction-input",
+      "missing-extraction-input",
+      "missing-extraction-input",
+      "missing-extraction-input",
+    ]);
+  });
+
   it("compares an available plan without letting a blocked alternative contaminate it", () => {
     const excluded = businessFiPlanFixture();
     excluded.id = "exclude";
