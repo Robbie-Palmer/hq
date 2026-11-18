@@ -45,6 +45,11 @@ root owns the private B2 bucket, its Object Lock capability, and its lifecycle
 policy. Application keys stay outside Terraform because their secret values
 would enter Terraform state.
 
+The [Object Lock runbook](../../docs/runbooks/personal-archive-object-lock.md)
+records the completed one-day proof and the gates for a later production
+retention policy. The current bucket has no default retention. Do not infer
+immutability from Object Lock capability alone.
+
 ## Run the migration
 
 The Doppler config `homelab/prd_personal_archive_backup` contains these masked
@@ -138,4 +143,4 @@ Do not record credentials or full source paths here.
 | Independent recovery-key restore | Read-only recovery key restored and verified 22,367 files without Doppler or the write key |
 | Recovery egress | The restore materialized 3,700,154,368 bytes and triggered the account's 100 percent daily download-cap alert; exact billable egress was not available from the alert |
 | Mac mini 10 TB drive copy | Pending |
-| Object Lock maintenance test | Pending |
+| Object Lock maintenance test | One-day governance retention passed; direct deletion was rejected, restic prune left locked upload versions retained, and post-expiry cleanup removed 21 versions, three disposable prefixes, and the dedicated bucket |
