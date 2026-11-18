@@ -1,0 +1,37 @@
+stages:
+  verify_metadata:
+    cmd: uv run --locked monusac-source-data verify-metadata --output outputs/metadata-verification.json
+    deps:
+      - .python-version
+      - contracts/organ-roles.json
+      - manifest.json
+      - pyproject.toml
+      - src/monusac_source_data
+      - uv.lock
+    outs:
+      - outputs/metadata-verification.json
+
+  acquire_native:
+    cmd: uv run --locked monusac-source-data acquire
+    deps:
+      - .python-version
+      - manifest.json
+      - pyproject.toml
+      - src/monusac_source_data
+      - uv.lock
+    outs:
+      - data/raw
+
+  index_native:
+    cmd: uv run --locked monusac-source-data index
+    deps:
+      - contracts/organ-roles.json
+      - data/raw
+      - manifest.json
+      - pyproject.toml
+      - src/monusac_source_data
+      - uv.lock
+    outs:
+      - outputs/native-index.jsonl
+    metrics:
+      - outputs/source-metrics.json

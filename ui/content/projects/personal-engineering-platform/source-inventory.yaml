@@ -710,6 +710,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/monusac-challenge-2020-data-product"
+    project: "project:pathologize"
+    paths: [ "data-products/monusac/challenge-2020" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/cryonuseg-frozen-he-data-product"
     project: "project:pathologize"
     paths: [ "data-products/cryonuseg/frozen-he" ]

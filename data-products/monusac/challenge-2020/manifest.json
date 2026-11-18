@@ -1,0 +1,89 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "monusac2020-challenge-distribution-20210608",
+  "title": "MoNuSAC 2020 challenge distribution",
+  "source_version": "Publisher challenge distribution: training artifact modified 2019-12-23, supplemental artifact modified 2021-06-03, testing artifact modified 2021-06-08",
+  "publisher": "MoNuSAC 2020 Grand Challenge",
+  "publisher_record": "https://monusac-2020.grand-challenge.org/Data/",
+  "paper_doi": "10.1109/TMI.2021.3085712",
+  "citation": "Verma, R. et al. MoNuSAC2020: A Multi-Organ Nuclei Segmentation and Classification Challenge. IEEE Transactions on Medical Imaging 40, 3413-3423 (2021).",
+  "license": {
+    "spdx_id": "CC-BY-NC-SA-4.0",
+    "name": "Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International",
+    "url": "https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode",
+    "evidence_url": "https://monusac-2020.grand-challenge.org/Data/",
+    "redistribution": "Redistribution must retain attribution, remain non-commercial, and use the same license. Dataset bytes are not committed to this repository."
+  },
+  "checksum_evidence": {
+    "method": "MD5 and SHA-256 computed from complete public Google Drive responses",
+    "observed_at": "2026-11-11",
+    "limitation": "The publisher landing page and Google Drive download responses do not publish cryptographic checksums. The pinned digests are repository observations, not publisher-signed values."
+  },
+  "source_images": {
+    "origin": "The Cancer Genome Atlas data portal",
+    "stain": "H&E",
+    "scanner_magnification": "40x"
+  },
+  "annotation_protocol": {
+    "tool": "Aperio ImageScope",
+    "initial_annotator_role": "engineering graduate student",
+    "quality_control_role": "expert pathologist",
+    "quality_control_target": "iterative review until fewer than 1% of nuclei of each type had missed, false, mislabeled, or wrong-boundary errors",
+    "test_role_semantics": "The testing data followed the training annotation procedure and adds Ambiguous regions excluded from challenge scoring.",
+    "per_instance_annotator_identity_available": false,
+    "evidence": "https://doi.org/10.1109/TMI.2021.3085712"
+  },
+  "cell_classes": [
+    {"name": "Epithelial", "publisher_role": "challenge_scored_nucleus"},
+    {"name": "Lymphocyte", "publisher_role": "challenge_scored_nucleus"},
+    {"name": "Macrophage", "publisher_role": "challenge_scored_nucleus"},
+    {"name": "Neutrophil", "publisher_role": "challenge_scored_nucleus"},
+    {"name": "Ambiguous", "publisher_role": "challenge_excluded_region"}
+  ],
+  "artifacts": [
+    {
+      "name": "training",
+      "kind": "dataset_archive",
+      "publisher_split": "training",
+      "google_drive_file_id": "1lxMZaAPSpEHLSxGA9KKMt_r-4S8dwLhq",
+      "publisher_url": "https://drive.google.com/file/d/1lxMZaAPSpEHLSxGA9KKMt_r-4S8dwLhq/view",
+      "download_url": "https://drive.usercontent.google.com/download?id=1lxMZaAPSpEHLSxGA9KKMt_r-4S8dwLhq&export=download&confirm=t",
+      "filename": "MoNuSAC_images_and_annotations.zip",
+      "bytes": 545564883,
+      "md5": "9237b6b6e2c00b4ebbb23c311a3f1704",
+      "sha256": "5b7cbeb34817a8f880d3fddc28391e48d3329a91bf3adcbd131ea149a725cd92",
+      "last_modified": "Mon, 23 Dec 2019 08:43:06 GMT"
+    },
+    {
+      "name": "testing",
+      "kind": "dataset_archive",
+      "publisher_split": "testing",
+      "google_drive_file_id": "1G54vsOdxWY1hG7dzmkeK3r0xz9s-heyQ",
+      "publisher_url": "https://drive.google.com/file/d/1G54vsOdxWY1hG7dzmkeK3r0xz9s-heyQ/view?usp=sharing",
+      "download_url": "https://drive.usercontent.google.com/download?id=1G54vsOdxWY1hG7dzmkeK3r0xz9s-heyQ&export=download&confirm=t",
+      "filename": "MoNuSAC Testing Data and Annotations.zip",
+      "bytes": 202746703,
+      "md5": "857011bc9aecf1b2073733826bae7749",
+      "sha256": "bcbc38f6bf8b149230c90c29f3428cc7b2b76f8acd7766ce9fc908fc896c2674",
+      "last_modified": "Tue, 08 Jun 2021 23:26:52 GMT"
+    },
+    {
+      "name": "organ_roles",
+      "kind": "organ_evidence",
+      "publisher_split": null,
+      "google_drive_file_id": "1kdOl3s6uQBRv0nToSIf1dPuceZunzL4N",
+      "publisher_url": "https://drive.google.com/file/d/1kdOl3s6uQBRv0nToSIf1dPuceZunzL4N/view",
+      "download_url": "https://drive.usercontent.google.com/download?id=1kdOl3s6uQBRv0nToSIf1dPuceZunzL4N&export=download&confirm=t",
+      "filename": "MoNuSAC_Supplementary_material.pdf",
+      "bytes": 19590377,
+      "md5": "187416e7b8ff9face72f08fc9d4f244f",
+      "sha256": "2e4e7774559595a77ed57387ff47177a1da65ccff6154bc2c5d311c8ef02a878",
+      "last_modified": "Thu, 03 Jun 2021 16:46:37 GMT"
+    }
+  ],
+  "expected": {
+    "organs": ["Breast", "Kidney", "Lung", "Prostate"],
+    "training": {"patient_role_count": 46, "image_count": 209, "svs_count": 209, "tif_count": 209, "xml_count": 209, "scored_instance_count": 31411, "ambiguous_instance_count": 0, "cell_class_counts": {"Epithelial": 14539, "Lymphocyte": 15654, "Macrophage": 587, "Neutrophil": 631}},
+    "testing": {"patient_role_count": 25, "image_count": 101, "svs_count": 101, "tif_count": 85, "xml_count": 101, "scored_instance_count": 15498, "ambiguous_instance_count": 2403, "cell_class_counts": {"Ambiguous": 2403, "Epithelial": 7213, "Lymphocyte": 7806, "Macrophage": 307, "Neutrophil": 172}}
+  }
+}
