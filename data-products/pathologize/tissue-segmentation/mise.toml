@@ -1,0 +1,52 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked tissue-segmentation dataset environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the tissue-segmentation dataset lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format tissue-segmentation dataset code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint tissue-segmentation dataset code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check tissue-segmentation dataset code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run tissue-segmentation dataset tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run tissue-segmentation dataset tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the tissue-segmentation dataset project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks.build]
+description = "Build the multi-source tissue-segmentation contract fixture"
+depends = ["sync"]
+run = "uv run --locked tissue-segmentation-data build"
+
+[tasks.repro]
+description = "Reproduce the tissue-segmentation composition product through DVC"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro"
+
+[tasks.check]
+description = "Run deterministic tissue-segmentation dataset checks"
+depends = ["lint", "typecheck", "test:coverage"]

@@ -112,6 +112,42 @@ class ReviewItem(StrictModel):
     context: ReviewContext
 
 
+def _validate_item_asset_references(
+    item: ReviewItem,
+    assets_by_id: dict[str, Asset],
+) -> None:
+    expected_roles = [
+        (item.source_asset_id, "source", f"item {item.id} source asset"),
+        *(
+            [
+                (
+                    item.reference_asset_id,
+                    "reference",
+                    f"item {item.id} reference asset",
+                )
+            ]
+            if item.reference_asset_id is not None
+            else []
+        ),
+        *[
+            (proposal.asset_id, "proposal", f"proposal {proposal.id} asset")
+            for proposal in item.proposals
+        ],
+    ]
+    missing = sorted(
+        {
+            asset_id
+            for asset_id, _expected_kind, _description in expected_roles
+            if asset_id not in assets_by_id
+        }
+    )
+    if missing:
+        raise ValueError(f"item {item.id} references missing assets: {missing}")
+    for asset_id, expected_kind, description in expected_roles:
+        if assets_by_id[asset_id].kind != expected_kind:
+            raise ValueError(f"{description} must have kind {expected_kind}")
+
+
 class ReviewBundle(StrictModel):
     schema_version: Literal["1.0.0"]
     batch_id: str = Field(
@@ -132,20 +168,12 @@ class ReviewBundle(StrictModel):
         item_ids = [item.id for item in self.items]
         if len(item_ids) != len(set(item_ids)):
             raise ValueError("item ids must be unique")
-        known_assets = set(asset_ids)
-        proposal_ids: set[str] = set()
+        assets_by_id = {asset.id: asset for asset in self.assets}
         for item in self.items:
-            required = {item.source_asset_id}
-            if item.reference_asset_id is not None:
-                required.add(item.reference_asset_id)
-            required.update(proposal.asset_id for proposal in item.proposals)
-            missing = required - known_assets
-            if missing:
-                raise ValueError(f"item {item.id} references missing assets: {sorted(missing)}")
-            for proposal in item.proposals:
-                if proposal.id in proposal_ids:
-                    raise ValueError("proposal ids must be unique across a bundle")
-                proposal_ids.add(proposal.id)
+            _validate_item_asset_references(item, assets_by_id)
+        proposal_ids = [proposal.id for item in self.items for proposal in item.proposals]
+        if len(proposal_ids) != len(set(proposal_ids)):
+            raise ValueError("proposal ids must be unique across a bundle")
         return self
 
 

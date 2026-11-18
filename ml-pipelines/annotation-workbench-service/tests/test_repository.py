@@ -1,13 +1,19 @@
 from __future__ import annotations
 
+import fcntl
 import hashlib
 import json
+import os
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
 from datetime import UTC, datetime
 from pathlib import Path
 from uuid import UUID
 
 import pytest
 
+import annotation_workbench_service.repository as repository_module
 from annotation_workbench_service.contracts import ReviewBundle, ReviewEvent
 from annotation_workbench_service.repository import ReviewRepository
 
@@ -110,6 +116,41 @@ def test_bundle_rejects_escaping_asset_path(tmp_path: Path) -> None:
         ReviewBundle.model_validate(values)
 
 
+@pytest.mark.parametrize(
+    ("asset_index", "kind", "message"),
+    [
+        (0, "proposal", "source asset must have kind source"),
+        (1, "source", "asset must have kind proposal"),
+    ],
+)
+def test_bundle_rejects_asset_role_mismatches(
+    tmp_path: Path,
+    asset_index: int,
+    kind: str,
+    message: str,
+) -> None:
+    path = _bundle(tmp_path)
+    values = json.loads(path.read_text(encoding="utf-8"))
+    values["assets"][asset_index]["kind"] = kind
+
+    with pytest.raises(ValueError, match=message):
+        ReviewBundle.model_validate(values)
+
+
+def test_bundle_rejects_reference_asset_role_mismatch(tmp_path: Path) -> None:
+    path = _bundle(tmp_path)
+    values = json.loads(path.read_text(encoding="utf-8"))
+    reference = values["assets"][0] | {
+        "id": "reference:item-1",
+        "kind": "source",
+    }
+    values["assets"].append(reference)
+    values["items"][0]["reference_asset_id"] = reference["id"]
+
+    with pytest.raises(ValueError, match="reference asset must have kind reference"):
+        ReviewBundle.model_validate(values)
+
+
 def test_review_decisions_keep_object_and_mask_states_coherent() -> None:
     with pytest.raises(ValueError, match="cannot receive a mask decision"):
         _event(object_decision="non_nucleus", mask_decision="accept")
@@ -160,3 +201,45 @@ def test_repository_detects_changed_asset(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="differs from its pinned digest"):
         ReviewRepository(bundle)
+
+
+def test_repository_revalidates_events_written_after_startup(tmp_path: Path) -> None:
+    repository = ReviewRepository(_bundle(tmp_path))
+    repository.append(_event())
+    invalid = _event(event_id="22222222-2222-4222-8222-222222222222")
+    with repository.events_path.open("a", encoding="utf-8") as target:
+        target.write(invalid.model_dump_json() + "\n")
+
+    with pytest.raises(ValueError, match="does not supersede"):
+        repository.session()
+
+
+def test_repository_reader_waits_for_exclusive_writer_lock(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = ReviewRepository(_bundle(tmp_path))
+    event = repository.append(_event())
+    shared_lock_attempted = threading.Event()
+    real_flock = fcntl.flock
+
+    def tracked_flock(descriptor: int, operation: int) -> None:
+        if operation == fcntl.LOCK_SH:
+            shared_lock_attempted.set()
+        real_flock(descriptor, operation)
+
+    descriptor = os.open(repository.events_path, os.O_RDONLY)
+    with (
+        os.fdopen(descriptor, encoding="utf-8") as writer,
+        ThreadPoolExecutor(max_workers=1) as executor,
+    ):
+        real_flock(writer.fileno(), fcntl.LOCK_EX)
+        try:
+            monkeypatch.setattr(repository_module.fcntl, "flock", tracked_flock)
+            read = executor.submit(repository.read_events)
+            assert shared_lock_attempted.wait(timeout=1)
+            with pytest.raises(FutureTimeoutError):
+                read.result(timeout=0.05)
+        finally:
+            real_flock(writer.fileno(), fcntl.LOCK_UN)
+        assert read.result(timeout=1) == [event]

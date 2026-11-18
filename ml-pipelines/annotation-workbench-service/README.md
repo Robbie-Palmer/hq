@@ -1,12 +1,18 @@
 # Annotation Workbench service
 
 This FastAPI service validates a versioned review bundle, serves its confined
-image assets, and appends reviewer events to JSON Lines. It has no model or
-dataset dependency.
+image assets, and appends reviewer events to JSON Lines. The service and event
+log have no model or dataset dependency. The `1.0.0` bundle schema describes
+nucleus-boundary review because NuCLS is its first use.
 
 Dataset adapters create bundles. The first adapter lives in the NuCLS cell
 analysis benchmark and records CellSAM and SAM 2.1 mask proposals without
 changing source annotations.
+
+Keep dataset acquisition, model inference, and source-ontology mapping in each
+adapter. Add a new versioned workflow schema when a second task needs different
+decisions. Do not weaken the existing nucleus-decision invariants or add unused
+fields to anticipate that task.
 
 Run all commands through mise:
 
