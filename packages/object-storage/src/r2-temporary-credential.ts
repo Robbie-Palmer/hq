@@ -65,7 +65,8 @@ type BrokerReceipt = {
   schemaVersion: 1;
   accountId: string;
   bucketPrefix: string;
-  buckets: readonly string[];
+  plannedBuckets: readonly [string, string];
+  ownedBuckets: readonly string[];
   createdAt: string;
 };
 
@@ -224,14 +225,17 @@ function parseReceipt(source: string): BrokerReceipt {
     value.schemaVersion !== 1 ||
     typeof value.accountId !== "string" ||
     typeof value.bucketPrefix !== "string" ||
-    !Array.isArray(value.buckets) ||
-    value.buckets.length !== 2 ||
-    !value.buckets.every((bucket) => typeof bucket === "string") ||
+    !Array.isArray(value.plannedBuckets) ||
+    value.plannedBuckets.length !== 2 ||
+    !value.plannedBuckets.every((bucket) => typeof bucket === "string") ||
+    !Array.isArray(value.ownedBuckets) ||
+    !value.ownedBuckets.every((bucket) => typeof bucket === "string") ||
     typeof value.createdAt !== "string"
   ) {
     throw new Error("R2 broker receipt is invalid");
   }
-  const [allowedBucket, deniedBucket] = value.buckets;
+  const [allowedBucket, deniedBucket] = value.plannedBuckets;
+  const ownedBuckets = new Set(value.ownedBuckets);
   if (
     !/^[a-f0-9]{32}$/i.test(value.accountId) ||
     !bucketPrefixPattern.test(value.bucketPrefix) ||
@@ -239,6 +243,8 @@ function parseReceipt(source: string): BrokerReceipt {
     !deniedBucket ||
     !new RegExp(`^${value.bucketPrefix}-[a-f0-9]{10}$`).test(allowedBucket) ||
     deniedBucket !== `${allowedBucket}-scope` ||
+    ownedBuckets.size !== value.ownedBuckets.length ||
+    !value.ownedBuckets.every((bucket) => value.plannedBuckets?.includes(bucket)) ||
     !Number.isFinite(Date.parse(value.createdAt))
   ) {
     throw new Error("R2 broker receipt has invalid ownership fields");
@@ -267,6 +273,18 @@ async function createReceipt(receiptPath: string, receipt: BrokerReceipt): Promi
     }
     throw error;
   }
+}
+
+async function replaceReceipt(
+  receiptPath: string,
+  receipt: BrokerReceipt,
+): Promise<void> {
+  const nextPath = `${receiptPath}.next`;
+  await writeFile(nextPath, `${JSON.stringify(receipt, null, 2)}\n`, {
+    encoding: "utf8",
+    mode: 0o600,
+  });
+  await rename(nextPath, receiptPath);
 }
 
 async function removeReceipt(receiptPath: string): Promise<void> {
@@ -378,7 +396,7 @@ async function destroyBuckets(
   parentCredentials: R2ParentCredentials,
 ): Promise<void> {
   const failures: string[] = [];
-  for (const bucket of receipt.buckets) {
+  for (const bucket of receipt.ownedBuckets) {
     const purged = await runner({
       command: helperCommand,
       arguments: ["purge", bucket],
@@ -413,11 +431,12 @@ export async function runR2CredentialBroker(
   if (!/^[a-f0-9]{10}$/.test(suffix)) throw new Error("Broker suffix must be 10 lowercase hex characters");
   const allowedBucket = `${input.bucketPrefix}-${suffix}`;
   const deniedBucket = `${input.bucketPrefix}-${suffix}-scope`;
-  const receipt: BrokerReceipt = {
+  let receipt: BrokerReceipt = {
     schemaVersion: 1,
     accountId: input.accountId,
     bucketPrefix: input.bucketPrefix,
-    buckets: [allowedBucket, deniedBucket],
+    plannedBuckets: [allowedBucket, deniedBucket],
+    ownedBuckets: [],
     createdAt: (dependencies.now ?? (() => new Date()))().toISOString(),
   };
   await createReceipt(input.receiptPath, receipt);
@@ -430,7 +449,11 @@ export async function runR2CredentialBroker(
   let operationFailure: unknown;
   try {
     await client.createBucket(allowedBucket);
+    receipt = { ...receipt, ownedBuckets: [allowedBucket] };
+    await replaceReceipt(input.receiptPath, receipt);
     await client.createBucket(deniedBucket);
+    receipt = { ...receipt, ownedBuckets: [allowedBucket, deniedBucket] };
+    await replaceReceipt(input.receiptPath, receipt);
     const credentials = await client.createTemporaryCredentials(
       allowedBucket,
       input.parentCredentials.accessKeyId,

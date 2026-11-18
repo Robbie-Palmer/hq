@@ -234,9 +234,10 @@ helm pull "oci://$registry_endpoint/spike/oci-r2-spike" --version 0.1.0 \
 cmp "$fixture_root/chart/oci-r2-spike-0.1.0.tgz" "$fixture_root/chart/pull/oci-r2-spike-0.1.0.tgz"
 printf '{"spdxVersion":"SPDX-2.3","name":"r2-spike"}\n' > "$fixture_root/release/sbom.json"
 release_digest="$(oras resolve "${oras_auth[@]}" "$registry_endpoint/spike/release:v1")"
-oras attach "${oras_auth[@]}" --artifact-type application/spdx+json \
+(cd "$fixture_root/release" && oras attach "${oras_auth[@]}" \
+  --artifact-type application/spdx+json \
   "$registry_endpoint/spike/release@$release_digest" \
-  "$fixture_root/release/sbom.json:application/spdx+json"
+  "sbom.json:application/spdx+json")
 discover="$(oras discover "${oras_auth[@]}" --format json \
   "$registry_endpoint/spike/release@$release_digest")"
 [[ "$(jq '.referrers | length' <<<"$discover")" -ge 1 ]]

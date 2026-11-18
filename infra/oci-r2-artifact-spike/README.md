@@ -19,7 +19,8 @@ mise //infra/oci-r2-artifact-spike:teardown
 
 Recovery accepts only the exact bucket names in the non-secret receipt. If the
 parent was revoked, rotate `r2-parent-credentials.yaml` first; revocation immediately
-invalidates every child credential, while the replacement parent can finish cleanup.
+invalidates every child credential. Dispatch the workflow with the failed run ID to
+restore its retained receipt and finish cleanup with the replacement parent.
 
 ## Checks
 

@@ -206,7 +206,11 @@ describe("R2 temporary credential broker", () => {
     ).rejects.toThrow("cleanup failed; receipt retained");
     expect(JSON.parse(await readFile(receipt, "utf8"))).toMatchObject({
       bucketPrefix: "hq-oci-r2-canary",
-      buckets: [
+      plannedBuckets: [
+        "hq-oci-r2-canary-0123456789",
+        "hq-oci-r2-canary-0123456789-scope",
+      ],
+      ownedBuckets: [
         "hq-oci-r2-canary-0123456789",
         "hq-oci-r2-canary-0123456789-scope",
       ],
@@ -235,7 +239,11 @@ describe("R2 temporary credential broker", () => {
         schemaVersion: 1,
         accountId,
         bucketPrefix: "hq-oci-r2-canary",
-        buckets: [
+        plannedBuckets: [
+          "hq-oci-r2-canary-0123456789",
+          "hq-oci-r2-canary-0123456789-scope",
+        ],
+        ownedBuckets: [
           "hq-oci-r2-canary-0123456789",
           "hq-oci-r2-canary-0123456789-scope",
         ],
@@ -264,7 +272,11 @@ describe("R2 temporary credential broker", () => {
         schemaVersion: 1,
         accountId,
         bucketPrefix: "hq-oci-r2-canary",
-        buckets: ["hq-oci-r2-canary-production", "hq-oci-r2-canary-production-scope"],
+        plannedBuckets: [
+          "hq-oci-r2-canary-production",
+          "hq-oci-r2-canary-production-scope",
+        ],
+        ownedBuckets: ["hq-oci-r2-canary-production"],
         createdAt: "2026-11-18T12:00:00.000Z",
       }),
     );
@@ -281,5 +293,68 @@ describe("R2 temporary credential broker", () => {
       ),
     ).rejects.toThrow("invalid ownership fields");
     expect(runProcess).not.toHaveBeenCalled();
+  });
+
+  it("does not clean a generated name when bucket creation reports a collision", async () => {
+    const receipt = await receiptPath();
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      if (init?.method !== "POST") throw new Error("unexpected destructive request");
+      return new Response(
+        JSON.stringify({
+          success: false,
+          errors: [{ message: "bucket already exists" }],
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const runProcess = vi.fn(async () => result(0));
+
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch,
+        randomSuffix: () => "0123456789",
+        runProcess,
+      }),
+    ).rejects.toThrow("bucket already exists");
+    expect(runProcess).not.toHaveBeenCalled();
+    expect(fetch).toHaveBeenCalledTimes(1);
+    await expect(readFile(receipt, "utf8")).rejects.toThrow();
+  });
+
+  it("cleans only the confirmed bucket when the scope probe name collides", async () => {
+    const receipt = await receiptPath();
+    let creations = 0;
+    const fetch = vi.fn<typeof globalThis.fetch>(async (_input, init) => {
+      if (init?.method === "DELETE") return jsonResponse({});
+      if (init?.method === "GET") return jsonResponse(undefined, 404);
+      creations += 1;
+      if (creations === 1) return jsonResponse({ name: "confirmed" });
+      return new Response(
+        JSON.stringify({
+          success: false,
+          errors: [{ message: "scope probe already exists" }],
+        }),
+        { status: 409, headers: { "Content-Type": "application/json" } },
+      );
+    });
+    const requests: BrokerProcessRequest[] = [];
+    const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
+      requests.push(request);
+      return result(0);
+    });
+
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch,
+        randomSuffix: () => "0123456789",
+        runProcess,
+      }),
+    ).rejects.toThrow("scope probe already exists");
+    expect(requests).toHaveLength(1);
+    expect(requests[0]?.arguments).toEqual([
+      "purge",
+      "hq-oci-r2-canary-0123456789",
+    ]);
+    await expect(readFile(receipt, "utf8")).rejects.toThrow();
   });
 });
