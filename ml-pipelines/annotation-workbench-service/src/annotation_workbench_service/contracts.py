@@ -132,7 +132,8 @@ class ReviewBundle(StrictModel):
         item_ids = [item.id for item in self.items]
         if len(item_ids) != len(set(item_ids)):
             raise ValueError("item ids must be unique")
-        known_assets = set(asset_ids)
+        assets_by_id = {asset.id: asset for asset in self.assets}
+        known_assets = set(assets_by_id)
         proposal_ids: set[str] = set()
         for item in self.items:
             required = {item.source_asset_id}
@@ -142,7 +143,16 @@ class ReviewBundle(StrictModel):
             missing = required - known_assets
             if missing:
                 raise ValueError(f"item {item.id} references missing assets: {sorted(missing)}")
+            if assets_by_id[item.source_asset_id].kind != "source":
+                raise ValueError(f"item {item.id} source asset must have kind source")
+            if (
+                item.reference_asset_id is not None
+                and assets_by_id[item.reference_asset_id].kind != "reference"
+            ):
+                raise ValueError(f"item {item.id} reference asset must have kind reference")
             for proposal in item.proposals:
+                if assets_by_id[proposal.asset_id].kind != "proposal":
+                    raise ValueError(f"proposal {proposal.id} asset must have kind proposal")
                 if proposal.id in proposal_ids:
                     raise ValueError("proposal ids must be unique across a bundle")
                 proposal_ids.add(proposal.id)

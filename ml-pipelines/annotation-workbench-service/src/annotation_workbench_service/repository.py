@@ -31,7 +31,7 @@ class ReviewRepository:
         self._assets = {asset.id: asset for asset in self.bundle.assets}
         self._items = {item.id: item for item in self.bundle.items}
         self._verify_assets()
-        self._validate_events(self.read_events())
+        self.read_events()
 
     def _asset_path(self, asset: Asset) -> Path:
         path = (self.root / asset.path).resolve()
@@ -56,9 +56,19 @@ class ReviewRepository:
     def read_events(self) -> list[ReviewEvent]:
         if not self.events_path.exists():
             return []
+        descriptor = os.open(self.events_path, os.O_RDONLY)
+        with os.fdopen(descriptor, encoding="utf-8") as source:
+            fcntl.flock(source.fileno(), fcntl.LOCK_SH)
+            events = self._parse_events(source.read())
+            fcntl.flock(source.fileno(), fcntl.LOCK_UN)
+        self._validate_events(events)
+        return events
+
+    @staticmethod
+    def _parse_events(contents: str) -> list[ReviewEvent]:
         return [
             ReviewEvent.model_validate_json(line)
-            for line in self.events_path.read_text(encoding="utf-8").splitlines()
+            for line in contents.splitlines()
             if line.strip()
         ]
 
@@ -94,23 +104,14 @@ class ReviewRepository:
     def append(self, event: ReviewEvent) -> ReviewEvent:
         self.events_path.parent.mkdir(parents=True, exist_ok=True)
         descriptor = os.open(self.events_path, os.O_APPEND | os.O_CREAT | os.O_RDWR, 0o600)
-        try:
-            with os.fdopen(descriptor, "r+", encoding="utf-8") as target:
-                fcntl.flock(target.fileno(), fcntl.LOCK_EX)
-                target.seek(0)
-                events = [
-                    ReviewEvent.model_validate_json(line)
-                    for line in target.read().splitlines()
-                    if line.strip()
-                ]
-                self._validate_events([*events, event])
-                target.seek(0, os.SEEK_END)
-                target.write(_canonical_json(event.model_dump(mode="json")) + "\n")
-                target.flush()
-                os.fsync(target.fileno())
-                fcntl.flock(target.fileno(), fcntl.LOCK_UN)
-        except Exception:
-            if not self.events_path.exists():
-                raise
-            raise
+        with os.fdopen(descriptor, "r+", encoding="utf-8") as target:
+            fcntl.flock(target.fileno(), fcntl.LOCK_EX)
+            target.seek(0)
+            events = self._parse_events(target.read())
+            self._validate_events([*events, event])
+            target.seek(0, os.SEEK_END)
+            target.write(_canonical_json(event.model_dump(mode="json")) + "\n")
+            target.flush()
+            os.fsync(target.fileno())
+            fcntl.flock(target.fileno(), fcntl.LOCK_UN)
         return event

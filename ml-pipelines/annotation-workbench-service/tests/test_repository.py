@@ -110,6 +110,41 @@ def test_bundle_rejects_escaping_asset_path(tmp_path: Path) -> None:
         ReviewBundle.model_validate(values)
 
 
+@pytest.mark.parametrize(
+    ("asset_index", "kind", "message"),
+    [
+        (0, "proposal", "source asset must have kind source"),
+        (1, "source", "asset must have kind proposal"),
+    ],
+)
+def test_bundle_rejects_asset_role_mismatches(
+    tmp_path: Path,
+    asset_index: int,
+    kind: str,
+    message: str,
+) -> None:
+    path = _bundle(tmp_path)
+    values = json.loads(path.read_text(encoding="utf-8"))
+    values["assets"][asset_index]["kind"] = kind
+
+    with pytest.raises(ValueError, match=message):
+        ReviewBundle.model_validate(values)
+
+
+def test_bundle_rejects_reference_asset_role_mismatch(tmp_path: Path) -> None:
+    path = _bundle(tmp_path)
+    values = json.loads(path.read_text(encoding="utf-8"))
+    reference = values["assets"][0] | {
+        "id": "reference:item-1",
+        "kind": "source",
+    }
+    values["assets"].append(reference)
+    values["items"][0]["reference_asset_id"] = reference["id"]
+
+    with pytest.raises(ValueError, match="reference asset must have kind reference"):
+        ReviewBundle.model_validate(values)
+
+
 def test_review_decisions_keep_object_and_mask_states_coherent() -> None:
     with pytest.raises(ValueError, match="cannot receive a mask decision"):
         _event(object_decision="non_nucleus", mask_decision="accept")
@@ -160,3 +195,14 @@ def test_repository_detects_changed_asset(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="differs from its pinned digest"):
         ReviewRepository(bundle)
+
+
+def test_repository_revalidates_events_written_after_startup(tmp_path: Path) -> None:
+    repository = ReviewRepository(_bundle(tmp_path))
+    repository.append(_event())
+    invalid = _event(event_id="22222222-2222-4222-8222-222222222222")
+    with repository.events_path.open("a", encoding="utf-8") as target:
+        target.write(invalid.model_dump_json() + "\n")
+
+    with pytest.raises(ValueError, match="does not supersede"):
+        repository.session()
