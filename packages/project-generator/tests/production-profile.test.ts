@@ -450,6 +450,10 @@ describe("Personal Finance production profile", () => {
     expect(terraformSource).toContain('module "neon"');
     expect(terraformSource).toContain('module "telemetry"');
     expect(terraformSource).toContain('module "posthog_alerts"');
+    expect(terraformSource).toContain(`provider "posthog" {
+  host       = var.posthog_alerting.host
+  project_id = var.posthog_alerting.project_id
+}`);
     expect(terraformSource).not.toMatch(
       /NEON_DATABASE_URL|R2_SECRET_ACCESS_KEY|POSTHOG_KEY/,
     );

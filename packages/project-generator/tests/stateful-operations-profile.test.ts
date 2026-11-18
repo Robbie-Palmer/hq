@@ -385,6 +385,10 @@ describe("stateful project operations", () => {
     expect(terraform).toContain('module "cloudflare_access"');
     expect(terraform).toContain('module "neon"');
     expect(terraform).toContain('module "cloudflare_r2"');
+    expect(terraform).toContain("host       = var.posthog_alerting.host");
+    expect(terraform).toContain(
+      "project_id = var.posthog_alerting.project_id",
+    );
   });
 
   it("requires exactly one Terraform root for stateful operations", async () => {
