@@ -381,6 +381,33 @@ describe("business FI extraction", () => {
     ).toHaveLength(3);
   });
 
+  it("blocks payments before the contract establishes company cash", () => {
+    const input = businessFiPlanFixture();
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    const firstTiming = input.treatment.periodTimings[0];
+    if (firstTiming == null) throw new Error("Missing first-period timing");
+    input.treatment.periodTimings = [
+      {
+        ...firstTiming,
+        salaryPaidOn: "2025-05-01",
+        dividendPaidOn: "2025-05-01",
+        employerPensionContributedOn: "2025-05-01",
+      },
+      ...input.treatment.periodTimings.slice(1),
+    ];
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("blocked");
+    expect(
+      result.issues.filter(
+        ({ kind }) => kind === "unsupported-extraction-cash-date",
+      ),
+    ).toHaveLength(3);
+  });
+
   it("preserves tax-reserve shortfalls when the released scenario floors cash at zero", () => {
     const scenario = corporationTaxBoundaryScenario(5_000_000);
     const period = scenario.companyPeriods[0];
@@ -501,6 +528,33 @@ describe("business FI extraction", () => {
     expect(result.status).toBe("blocked");
     expect(result.issues.map(({ kind }) => kind)).toContain(
       "mismatched-later-extraction-tax-year",
+    );
+  });
+
+  it("does not block retention on an unused later-extraction tax year", () => {
+    const input = businessFiPlanFixture();
+    if (
+      input.treatment.kind !== "limited-company-extraction" ||
+      input.limitedCompanyScenario == null
+    ) {
+      throw new Error("Missing extraction input");
+    }
+    const strategyId = input.treatment.strategyId;
+    const scenario = structuredClone(input.limitedCompanyScenario);
+    const selectedStrategy = scenario.strategies.find(
+      ({ id }) => id === strategyId,
+    );
+    if (selectedStrategy == null) throw new Error("Missing selected strategy");
+    selectedStrategy.laterExtraction.taxYear = "2035-36";
+    input.limitedCompanyScenario = scenario;
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("available");
+    expect(result.issues).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "unsupported-tax-year" }),
+      ]),
     );
   });
 

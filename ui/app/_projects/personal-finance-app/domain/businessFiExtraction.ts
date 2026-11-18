@@ -348,6 +348,38 @@ function fallsWithinUkTaxYear(date: string, taxYear: string): boolean {
   );
 }
 
+function validateTaxableTransferTiming(input: {
+  label: string;
+  date: string;
+  amountPence: number;
+  period: LimitedCompanyScenarioInput["companyPeriods"][number];
+  taxYear: string;
+  issues: BusinessFiPlanIssue[];
+}): void {
+  if (input.amountPence <= 0 || !IsoDateSchema.safeParse(input.date).success) {
+    return;
+  }
+  if (!fallsWithinUkTaxYear(input.date, input.taxYear)) {
+    input.issues.push({
+      kind: "mismatched-extraction-tax-year",
+      state: "needs-review",
+      detail: `The ${input.label} date ${input.date} does not fall within the calculation tax year ${input.taxYear}.`,
+      companyPeriodId: input.period.id,
+    });
+  }
+  const fallsWithinPeriod =
+    input.date >= input.period.accountingPeriodStartsOn &&
+    input.date <= input.period.accountingPeriodEndsOn;
+  if (fallsWithinPeriod && input.date !== input.period.accountingPeriodEndsOn) {
+    input.issues.push({
+      kind: "unsupported-extraction-cash-date",
+      state: "unsupported",
+      detail: `The released contract establishes company cash at ${input.period.accountingPeriodEndsOn}, not on the ${input.label} date ${input.date}.`,
+      companyPeriodId: input.period.id,
+    });
+  }
+}
+
 function validateTiming(input: {
   timing: BusinessFiPeriodTiming;
   period: LimitedCompanyScenarioInput["companyPeriods"][number];
@@ -397,18 +429,14 @@ function validateTiming(input: {
     ],
   ] as const;
   for (const [label, date, amount] of taxableTransfers) {
-    if (
-      amount > 0 &&
-      IsoDateSchema.safeParse(date).success &&
-      !fallsWithinUkTaxYear(date, input.taxYear)
-    ) {
-      input.issues.push({
-        kind: "mismatched-extraction-tax-year",
-        state: "needs-review",
-        detail: `The ${label} date ${date} does not fall within the calculation tax year ${input.taxYear}.`,
-        companyPeriodId: input.period.id,
-      });
-    }
+    validateTaxableTransferTiming({
+      label,
+      date,
+      amountPence: amount,
+      period: input.period,
+      taxYear: input.taxYear,
+      issues: input.issues,
+    });
   }
   const cashDatesAreValid = [
     input.timing.householdCashAvailableOn,
@@ -629,11 +657,14 @@ function constraintAmounts(
 function extractionIssues(
   evaluated: LimitedCompanyEvaluation,
   strategyId: string,
+  includeDeferredExtraction: boolean,
 ): BusinessFiPlanIssue[] {
   return evaluated.issues
     .filter(
-      ({ strategyId: issueStrategyId }) =>
-        issueStrategyId == null || issueStrategyId === strategyId,
+      ({ strategyId: issueStrategyId, companyPeriodId }) =>
+        issueStrategyId == null ||
+        (issueStrategyId === strategyId &&
+          (includeDeferredExtraction || companyPeriodId != null)),
     )
     .map((issue) => ({
       kind: issue.code,
@@ -654,7 +685,11 @@ function createExtractionContext(input: {
   strategy: LimitedCompanyStrategy;
 }): ExtractionContext {
   const base = baseResult(input.plan);
-  const issues = extractionIssues(input.evaluated, input.treatment.strategyId);
+  const issues = extractionIssues(
+    input.evaluated,
+    input.treatment.strategyId,
+    input.treatment.deferredExtraction.kind === "dividend",
+  );
   if (base.company.grossCompanyValuePence == null) {
     issues.push({
       kind: "missing-company-valuation",
@@ -1336,7 +1371,10 @@ function extractionResult(
   deferred: ReturnType<typeof deferredExtraction>,
 ): BusinessFiPlanResult {
   const issues = uniqueIssues(context.issues);
-  const blocked = issues.length > 0 || !context.strategy.feasible;
+  const blocked =
+    issues.length > 0 ||
+    (context.treatment.deferredExtraction.kind === "dividend" &&
+      !context.strategy.feasible);
   const additions = capitalAdditions({
     context,
     deferredEvent: deferred.event,
