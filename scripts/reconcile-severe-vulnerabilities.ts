@@ -485,8 +485,7 @@ export function t3WorkerLauncher(input: {
         return { threadId: id, url };
       }
       if (
-        existing !== undefined &&
-        existing.latestTurn === null &&
+        existing?.latestTurn === null &&
         existing.worktreePath === null
       ) {
         await client.threads.delete(id);
