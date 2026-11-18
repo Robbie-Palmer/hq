@@ -337,9 +337,26 @@ function eventOwnership(input: {
   return interests.map(({ recordId }) => recordId);
 }
 
+function fallsWithinUkTaxYear(date: string, taxYear: string): boolean {
+  const startYear = Number.parseInt(taxYear.slice(0, 4), 10);
+  const endYear = startYear + 1;
+  const expectedSuffix = String(endYear % 100).padStart(2, "0");
+  return (
+    taxYear.slice(5) === expectedSuffix &&
+    date >= `${startYear}-04-06` &&
+    date <= `${endYear}-04-05`
+  );
+}
+
 function validateTiming(input: {
   timing: BusinessFiPeriodTiming;
   period: LimitedCompanyScenarioInput["companyPeriods"][number];
+  taxYear: string;
+  transfers: {
+    salaryPence: number;
+    dividendsPence: number;
+    employerPensionContributionPence: number;
+  };
   issues: BusinessFiPlanIssue[];
 }): void {
   const dates = [
@@ -366,6 +383,29 @@ function validateTiming(input: {
         kind: "invalid-extraction-date",
         state: "needs-review",
         detail: `The ${label} date ${date} is outside ${input.period.id}.`,
+        companyPeriodId: input.period.id,
+      });
+    }
+  }
+  const taxableTransfers = [
+    ["salary", input.timing.salaryPaidOn, input.transfers.salaryPence],
+    ["dividend", input.timing.dividendPaidOn, input.transfers.dividendsPence],
+    [
+      "employer pension",
+      input.timing.employerPensionContributedOn,
+      input.transfers.employerPensionContributionPence,
+    ],
+  ] as const;
+  for (const [label, date, amount] of taxableTransfers) {
+    if (
+      amount > 0 &&
+      IsoDateSchema.safeParse(date).success &&
+      !fallsWithinUkTaxYear(date, input.taxYear)
+    ) {
+      input.issues.push({
+        kind: "mismatched-extraction-tax-year",
+        state: "needs-review",
+        detail: `The ${label} date ${date} does not fall within the calculation tax year ${input.taxYear}.`,
         companyPeriodId: input.period.id,
       });
     }
@@ -945,7 +985,13 @@ function evaluatePeriod(
     });
     return;
   }
-  validateTiming({ timing, period: scenarioPeriod, issues: context.issues });
+  validateTiming({
+    timing,
+    period: scenarioPeriod,
+    taxYear: period.taxYear,
+    transfers: period.household,
+    issues: context.issues,
+  });
   const liquidity = resolvePeriodLiquidity(context, period, scenarioPeriod);
   const ownershipIds = periodOwnership(context, period, timing);
   const inputRecordIds = periodInputRecordIds(
@@ -1012,6 +1058,7 @@ function validateDeferredTax(
   context: ExtractionContext,
   deferred: LimitedCompanyStrategy["deferredExtraction"],
   eventId: string,
+  availableOn: string,
 ): void {
   if (
     deferred.estimatedLaterDividendTaxPence == null ||
@@ -1022,6 +1069,18 @@ function validateDeferredTax(
       state: "unsupported",
       detail:
         "The selected later dividend has no supported personal-tax result.",
+      eventId,
+    });
+  }
+  if (
+    deferred.grossDividendPence > 0 &&
+    IsoDateSchema.safeParse(availableOn).success &&
+    !fallsWithinUkTaxYear(availableOn, deferred.taxYear)
+  ) {
+    context.issues.push({
+      kind: "mismatched-later-extraction-tax-year",
+      state: "needs-review",
+      detail: `The later dividend date ${availableOn} does not fall within the calculation tax year ${deferred.taxYear}.`,
       eventId,
     });
   }
@@ -1167,7 +1226,7 @@ function deferredExtraction(context: ExtractionContext): {
   const deferred = context.strategy.deferredExtraction;
   const id = eventId(context.input.id, "terminal", "deferred-dividend");
   const availableOn = context.treatment.deferredExtraction.availableOn;
-  validateDeferredTax(context, deferred, id);
+  validateDeferredTax(context, deferred, id, availableOn);
   const periodState = deferredPeriodState(context, availableOn, id);
   const constraint = deferredConstraint(context, periodState, availableOn, id);
   const supportedLiquidityPence = deferredLiquidity(context, {

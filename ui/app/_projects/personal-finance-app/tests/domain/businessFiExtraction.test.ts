@@ -354,6 +354,33 @@ describe("business FI extraction", () => {
     );
   });
 
+  it("blocks taxable transfers dated outside their calculation tax year", () => {
+    const input = businessFiPlanFixture();
+    if (input.treatment.kind !== "limited-company-extraction") {
+      throw new Error("Missing extraction treatment");
+    }
+    const secondTiming = input.treatment.periodTimings[1];
+    if (secondTiming == null) throw new Error("Missing second-period timing");
+    input.treatment.periodTimings = [
+      ...input.treatment.periodTimings.slice(0, 1),
+      {
+        ...secondTiming,
+        salaryPaidOn: "2026-04-02",
+        dividendPaidOn: "2026-04-02",
+        employerPensionContributedOn: "2026-04-02",
+      },
+    ];
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("blocked");
+    expect(
+      result.issues.filter(
+        ({ kind }) => kind === "mismatched-extraction-tax-year",
+      ),
+    ).toHaveLength(3);
+  });
+
   it("preserves tax-reserve shortfalls when the released scenario floors cash at zero", () => {
     const scenario = corporationTaxBoundaryScenario(5_000_000);
     const period = scenario.companyPeriods[0];
@@ -447,6 +474,33 @@ describe("business FI extraction", () => {
     expect(result.status).toBe("blocked");
     expect(result.issues.map(({ kind }) => kind)).toContain(
       "unsupported-overlapping-later-extraction-tax",
+    );
+  });
+
+  it("blocks a terminal dividend dated outside its declared tax year", () => {
+    const input = businessFiPlanFixture();
+    if (
+      input.treatment.kind !== "limited-company-extraction" ||
+      input.limitedCompanyScenario == null
+    ) {
+      throw new Error("Missing extraction input");
+    }
+    const strategyId = input.treatment.strategyId;
+    const scenario = structuredClone(input.limitedCompanyScenario);
+    const strategy = scenario.strategies.find(({ id }) => id === strategyId);
+    if (strategy == null) throw new Error("Missing selected strategy");
+    strategy.laterExtraction.taxYear = "2025-26";
+    input.limitedCompanyScenario = scenario;
+    input.treatment.deferredExtraction = {
+      kind: "dividend",
+      availableOn: "2027-03-31",
+    };
+
+    const result = evaluateBusinessFiPlan(input);
+
+    expect(result.status).toBe("blocked");
+    expect(result.issues.map(({ kind }) => kind)).toContain(
+      "mismatched-later-extraction-tax-year",
     );
   });
 
