@@ -49,8 +49,21 @@ const WorkItemPageSchema = z.looseObject({
   items: z.array(
     z.looseObject({
       id: z.string().min(1),
-      stage: z.string().min(1),
-      currentLease: z.unknown().nullable(),
+      stage: z.enum([
+        "blocked",
+        "ready",
+        "in_progress",
+        "stale",
+        "needs_attention",
+        "released",
+        "cancelled",
+      ]),
+      currentLease: z
+        .looseObject({
+          expiresAt: z.iso.datetime(),
+          endedAt: z.iso.datetime().nullable(),
+        })
+        .nullable(),
     }),
   ),
   nextCursor: z.string().nullable(),
@@ -59,6 +72,12 @@ const WorkItemPageSchema = z.looseObject({
 const WorkItemNotePageSchema = z.looseObject({
   items: z.array(z.looseObject({ content: z.string() })),
   nextCursor: z.string().nullable(),
+});
+
+const IncidentTransitionNoteSchema = z.looseObject({
+  recordType: z.literal("vulnerability-incident-event"),
+  incidentId: z.string().min(1),
+  transition: z.string().min(1),
 });
 
 export interface ReconcilerDependencies {
@@ -146,10 +165,11 @@ async function listOpenAlertNumbers(
     .toSorted((left, right) => left - right);
 }
 
-async function incidentHasWorker(
+async function incidentTransitions(
   workGraph: WorkGraphClient,
   incidentId: string,
-): Promise<boolean> {
+): Promise<Set<string>> {
+  const transitions = new Set<string>();
   let cursor: string | undefined;
   for (let pageNumber = 0; pageNumber < 10; pageNumber += 1) {
     const page = WorkItemNotePageSchema.parse(
@@ -158,35 +178,44 @@ async function incidentHasWorker(
         ...(cursor === undefined ? {} : { cursor }),
       }),
     );
-    if (
-      page.items.some(({ content }) => {
-        try {
-          const parsed = JSON.parse(content) as { transition?: unknown };
-          return parsed.transition === "worker-linked";
-        } catch {
-          return false;
+    for (const { content } of page.items) {
+      try {
+        const parsed = IncidentTransitionNoteSchema.parse(JSON.parse(content));
+        if (parsed.incidentId === incidentId) {
+          transitions.add(parsed.transition);
         }
-      })
-    ) {
-      return true;
+      } catch {
+        // Non-event notes are not part of the controller state machine.
+      }
     }
-    if (page.nextCursor === null) return false;
+    if (page.nextCursor === null) return transitions;
     cursor = page.nextCursor;
   }
   throw new Error(`Incident notes for ${incidentId} exceeded the page limit`);
 }
 
+function hasActiveWorkerLease(
+  item: z.infer<typeof WorkItemPageSchema>["items"][number],
+  evaluatedAt: number,
+): boolean {
+  return (
+    item.stage === "in_progress" &&
+    item.currentLease !== null &&
+    item.currentLease.endedAt === null &&
+    Date.parse(item.currentLease.expiresAt) > evaluatedAt
+  );
+}
+
 function currentIncidentCount(
   items: z.infer<typeof WorkItemPageSchema>["items"],
   candidateId: string,
+  evaluatedAt: number,
 ): number {
   return items.filter(
     (item) =>
       item.id !== candidateId &&
       INCIDENT_ID_PATTERN.test(item.id) &&
-      item.currentLease !== null &&
-      item.stage !== "released" &&
-      item.stage !== "cancelled",
+      hasActiveWorkerLease(item, evaluatedAt),
   ).length;
 }
 
@@ -228,7 +257,7 @@ async function reconcileAlert(
 ): Promise<boolean> {
   const { authorizer, github, now, policy, workGraph } = dependencies;
   input.result.observed += 1;
-  const evaluatedAt = now();
+  const observedAt = now();
   const snapshot = await queryGithubVulnerability(
     github,
     {
@@ -237,10 +266,11 @@ async function reconcileAlert(
       alertNumber: input.alertNumber,
     },
     {
-      now: evaluatedAt,
+      now: observedAt,
       maxProviderAgeMs: policy.reconciliation.maximumProviderAgeSeconds * 1_000,
     },
   );
+  const evaluatedAt = now();
   const incidentId = createVulnerabilityIncidentId(
     snapshot.repository.id,
     snapshot.alert.number,
@@ -260,12 +290,28 @@ async function reconcileAlert(
         severity: admissionSeverity(snapshot.alert.severity),
         observedAt: snapshot.observedAt,
       },
-      activeIncidentCount: currentIncidentCount(input.items, incidentId),
+      activeIncidentCount: currentIncidentCount(
+        input.items,
+        incidentId,
+        evaluatedAt.getTime(),
+      ),
       evaluatedAt: evaluatedAt.toISOString(),
     },
     authorizer,
   );
   if (admission.decision === "reject") return false;
+
+  const existing = input.items.find(({ id }) => id === incidentId);
+  const transitions =
+    existing === undefined
+      ? new Set<string>()
+      : await incidentTransitions(workGraph, incidentId);
+  if (
+    existing !== undefined &&
+    !["ready", "in_progress", "stale"].includes(existing.stage)
+  ) {
+    return false;
+  }
 
   const ledger = new VulnerabilityIncidentLedger(
     workGraph as VulnerabilityIncidentWorkGraphPort,
@@ -274,8 +320,7 @@ async function reconcileAlert(
       now: () => now().getTime(),
     },
   );
-  const existing = input.items.find(({ id }) => id === incidentId);
-  if (existing === undefined) {
+  if (!transitions.has("admitted")) {
     await ledger.admit({
       eventId: deterministicUuid(`admitted:${incidentId}`),
       occurredAt: evaluatedAt.toISOString(),
@@ -288,7 +333,11 @@ async function reconcileAlert(
     input.result.admitted.push(incidentId);
   }
 
-  if (existing !== undefined && (await incidentHasWorker(workGraph, incidentId))) {
+  if (
+    existing !== undefined &&
+    transitions.has("worker-linked") &&
+    hasActiveWorkerLease(existing, evaluatedAt.getTime())
+  ) {
     return true;
   }
   const launchAuthorization = authorizer.authorize({
@@ -428,8 +477,21 @@ export function t3WorkerLauncher(input: {
       const id = threadId(vulnerabilityWorkerThreadId(decision.incidentId));
       const descriptor = await client.server.environment();
       const url = new URL(`/${descriptor.environmentId}/${id}`, input.origin).toString();
-      const existing = await client.threads.get(id);
-      if (existing !== undefined) return { threadId: id, url };
+      let existing = await client.threads.get(id);
+      if (
+        existing?.latestTurn?.state === "running" ||
+        existing?.latestTurn?.state === "completed"
+      ) {
+        return { threadId: id, url };
+      }
+      if (
+        existing !== undefined &&
+        existing.latestTurn === null &&
+        existing.worktreePath === null
+      ) {
+        await client.threads.delete(id);
+        existing = undefined;
+      }
 
       const project = await client.projects.findByWorkspaceRoot(input.projectRoot);
       if (project === undefined) {
@@ -464,7 +526,7 @@ export function t3WorkerLauncher(input: {
           ),
           runtimeMode: "full-access",
           interactionMode: "default",
-          ...(attemptIndex === 0
+          ...(existing === undefined && attemptIndex === 0
             ? {
                 bootstrap: {
                   createThread: {

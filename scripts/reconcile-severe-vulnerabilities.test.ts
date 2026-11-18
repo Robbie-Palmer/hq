@@ -113,7 +113,7 @@ function workItem(id: string, currentLease: unknown = null) {
 }
 
 function workGraph(initialItems: unknown[] = [], initialNotes: unknown[] = []) {
-  let item: ReturnType<typeof workItem> | undefined;
+  let item = initialItems[0] as ReturnType<typeof workItem> | undefined;
   const notes = [...initialNotes];
   const claims: Array<{ workerId: string }> = [];
   const created: string[] = [];
@@ -123,6 +123,7 @@ function workGraph(initialItems: unknown[] = [], initialNotes: unknown[] = []) {
       nextCursor: null,
     })),
     createWorkItem: vi.fn(async (body: { id: string }) => {
+      if (item?.id === body.id) return item;
       item = workItem(body.id);
       created.push(body.id);
       return item;
@@ -163,7 +164,13 @@ function workGraph(initialItems: unknown[] = [], initialNotes: unknown[] = []) {
         return note;
       },
     ),
-    listWorkItemNotes: vi.fn(async () => ({ items: notes, nextCursor: null })),
+    listWorkItemNotes: vi.fn(async (workItemId: string) => ({
+      items: notes.filter((note) => {
+        const noteWorkItemId = (note as { workItemId?: unknown }).workItemId;
+        return noteWorkItemId === undefined || noteWorkItemId === workItemId;
+      }),
+      nextCursor: null,
+    })),
     listWorkItemLeases: vi.fn(async () => ({ items: [], nextCursor: null })),
     listWorkItemEvidence: vi.fn(async () => ({ items: [], nextCursor: null })),
     requestAttention: vi.fn(async () => ({})),
@@ -211,6 +218,50 @@ function decision(
       fixAvailable: true,
       pullRequests: [],
     },
+  };
+}
+
+function readyProvider() {
+  return {
+    instanceId: "codex",
+    driver: "codex",
+    enabled: true,
+    installed: true,
+    status: "ready",
+    auth: { status: "authenticated" },
+    models: [
+      {
+        slug: "gpt-5.6-sol",
+        capabilities: {
+          optionDescriptors: [
+            {
+              type: "select",
+              id: "reasoningEffort",
+              options: [{ id: "high" }],
+            },
+            {
+              type: "select",
+              id: "serviceTier",
+              options: [{ id: "priority" }],
+            },
+          ],
+        },
+      },
+    ],
+  };
+}
+
+function transitionNote(
+  incidentId: string,
+  transition: "admitted" | "worker-linked",
+) {
+  return {
+    workItemId: incidentId,
+    content: JSON.stringify({
+      recordType: "vulnerability-incident-event",
+      incidentId,
+      transition,
+    }),
   };
 }
 
@@ -301,13 +352,16 @@ describe("severe vulnerability reconciliation", () => {
         {
           id: incidentId,
           stage: "in_progress",
-          currentLease: { workerId: vulnerabilityWorkerIdentity(incidentId) },
+          currentLease: {
+            workerId: vulnerabilityWorkerIdentity(incidentId),
+            expiresAt: "2026-11-18T19:15:00.000Z",
+            endedAt: null,
+          },
         },
       ],
       [
-        {
-          content: JSON.stringify({ transition: "worker-linked" }),
-        },
+        transitionNote(incidentId, "admitted"),
+        transitionNote(incidentId, "worker-linked"),
       ],
     );
     const launchWorker = vi.fn();
@@ -323,6 +377,121 @@ describe("severe vulnerability reconciliation", () => {
 
     expect(result).toEqual({ admitted: [], launched: [], observed: 1 });
     expect(graph.created).toEqual([]);
+    expect(launchWorker).not.toHaveBeenCalled();
+  });
+
+  it("continues past an incident waiting for attention", async () => {
+    const waitingId = "github:repository:123:dependabot-alert:7";
+    const graph = workGraph(
+      [
+        {
+          id: waitingId,
+          stage: "needs_attention",
+          currentLease: null,
+        },
+      ],
+      [
+        transitionNote(waitingId, "admitted"),
+        transitionNote(waitingId, "worker-linked"),
+      ],
+    );
+    const launchWorker = vi.fn(async (correlation: VulnerabilityCorrelationDecision) => ({
+      threadId: vulnerabilityWorkerThreadId(correlation.incidentId),
+      url: "https://t3.example/environment/thread",
+    }));
+
+    const result = await reconcileSevereVulnerabilities({
+      authorizer,
+      github: githubWithoutRenovate([7, 8]),
+      launchWorker,
+      now: () => new Date(NOW),
+      policy,
+      workGraph: graph.client,
+    });
+
+    const launchedId = "github:repository:123:dependabot-alert:8";
+    expect(result).toEqual({
+      admitted: [launchedId],
+      launched: [launchedId],
+      observed: 2,
+    });
+    expect(launchWorker).toHaveBeenCalledOnce();
+  });
+
+  it("does not count an expired lease against worker concurrency", async () => {
+    const staleId = "github:repository:123:dependabot-alert:7";
+    const stale = {
+      ...workItem(staleId, {
+        expiresAt: "2026-11-18T18:59:59.000Z",
+        endedAt: null,
+      }),
+      stage: "stale",
+    };
+    const graph = workGraph([stale]);
+    const launchWorker = vi.fn(async (correlation: VulnerabilityCorrelationDecision) => ({
+      threadId: vulnerabilityWorkerThreadId(correlation.incidentId),
+      url: "https://t3.example/environment/thread",
+    }));
+
+    const result = await reconcileSevereVulnerabilities({
+      authorizer,
+      github: githubWithoutRenovate([8]),
+      launchWorker,
+      now: () => new Date(NOW),
+      policy,
+      workGraph: graph.client,
+    });
+
+    expect(result.launched).toEqual([
+      "github:repository:123:dependabot-alert:8",
+    ]);
+  });
+
+  it("repairs an incomplete admission before launching", async () => {
+    const incidentId = "github:repository:123:dependabot-alert:7";
+    const graph = workGraph([workItem(incidentId)]);
+    const launchWorker = vi.fn(async () => ({
+      threadId: vulnerabilityWorkerThreadId(incidentId),
+      url: "https://t3.example/environment/thread",
+    }));
+
+    const result = await reconcileSevereVulnerabilities({
+      authorizer,
+      github: githubWithoutRenovate([7]),
+      launchWorker,
+      now: () => new Date(NOW),
+      policy,
+      workGraph: graph.client,
+    });
+
+    expect(result.admitted).toEqual([incidentId]);
+    expect(vi.mocked(graph.client.putWorkItemContext)).toHaveBeenCalledTimes(2);
+    expect(
+      graph.notes.map(
+        (note) =>
+          JSON.parse(String((note as { content: string }).content)).transition,
+      ),
+    ).toEqual(["admitted", "worker-linked"]);
+  });
+
+  it("rejects provider state that expires during the GitHub query", async () => {
+    const graph = workGraph();
+    const now = vi
+      .fn<() => Date>()
+      .mockReturnValueOnce(new Date(NOW))
+      .mockReturnValue(new Date("2026-11-18T19:06:00.000Z"));
+    const launchWorker = vi.fn();
+
+    const result = await reconcileSevereVulnerabilities({
+      authorizer,
+      github: githubWithoutRenovate([7]),
+      launchWorker,
+      now,
+      policy,
+      workGraph: graph.client,
+    });
+
+    expect(result).toEqual({ admitted: [], launched: [], observed: 1 });
     expect(launchWorker).not.toHaveBeenCalled();
   });
 
@@ -374,7 +543,12 @@ describe("severe vulnerability reconciliation", () => {
   it("reuses the deterministic T3 thread when it already exists", async () => {
     const client = {
       server: { environment: vi.fn(async () => ({ environmentId: "vector" })) },
-      threads: { get: vi.fn(async () => ({ id: "existing" })) },
+      threads: {
+        get: vi.fn(async () => ({
+          id: "existing",
+          latestTurn: { state: "completed" },
+        })),
+      },
     } as unknown as T3ControllerClient;
     const launcher = t3WorkerLauncher({
       accessToken: "test-token",
@@ -394,6 +568,49 @@ describe("severe vulnerability reconciliation", () => {
         "github:repository:123:dependabot-alert:7",
       )}`,
     });
+  });
+
+  it("restarts a failed turn on the existing deterministic thread", async () => {
+    const client = {
+      server: {
+        environment: vi.fn(async () => ({ environmentId: "vector" })),
+        refreshProviders: vi.fn(async () => ({ providers: [readyProvider()] })),
+      },
+      threads: {
+        get: vi.fn(async () => ({
+          latestTurn: { state: "error" },
+          worktreePath: "/worktrees/incident",
+        })),
+      },
+      projects: {
+        findByWorkspaceRoot: vi.fn(async () => ({
+          id: "project-hq",
+          workspaceRoot: "/work/hq",
+        })),
+      },
+    } as unknown as T3ControllerClient;
+    const startTurn = vi.fn(
+      async (
+        input: Parameters<typeof startTurnWithProviderRecovery>[0],
+      ): Promise<Awaited<ReturnType<typeof startTurnWithProviderRecovery>>> => {
+        const attempt = input.attempts[0];
+        if (attempt === undefined) throw new Error("missing provider attempt");
+        expect(input.buildTurnInput(attempt, 0).bootstrap).toBeUndefined();
+        return {} as Awaited<ReturnType<typeof startTurnWithProviderRecovery>>;
+      },
+    );
+    const launcher = t3WorkerLauncher({
+      accessToken: "test-token",
+      baseBranch: "main",
+      client,
+      origin: "https://t3.example",
+      projectRoot: "/work/hq",
+      startTurn,
+    });
+
+    await launcher.launch(decision("replace", "no-renovate-proposal"));
+
+    expect(startTurn).toHaveBeenCalledOnce();
   });
 
   it("fails before launch when the T3 project is missing", async () => {
@@ -420,35 +637,7 @@ describe("severe vulnerability reconciliation", () => {
       server: {
         environment: vi.fn(async () => ({ environmentId: "vector" })),
         refreshProviders: vi.fn(async () => ({
-          providers: [
-            {
-              instanceId: "codex",
-              driver: "codex",
-              enabled: true,
-              installed: true,
-              status: "ready",
-              auth: { status: "authenticated" },
-              models: [
-                {
-                  slug: "gpt-5.6-sol",
-                  capabilities: {
-                    optionDescriptors: [
-                      {
-                        type: "select",
-                        id: "reasoningEffort",
-                        options: [{ id: "high" }],
-                      },
-                      {
-                        type: "select",
-                        id: "serviceTier",
-                        options: [{ id: "priority" }],
-                      },
-                    ],
-                  },
-                },
-              ],
-            },
-          ],
+          providers: [readyProvider()],
         })),
       },
       threads: { get: vi.fn(async () => undefined) },
