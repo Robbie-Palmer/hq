@@ -53,6 +53,15 @@ retention period during the pilot and explicitly test how backup, stale-lock
 cleanup, `forget`, and `prune` behave before lengthening it. Retained old object
 versions increase cost and must not be mistaken for a failed cleanup.
 
+The one-day governance experiment passed. Direct deletion failed without
+`bypassGovernance`, but restic prune returned success after adding hide or
+delete markers while every locked upload version remained stored. Post-expiry
+cleanup then removed all disposable versions and the experiment bucket. The
+[Object Lock runbook](../../../../../docs/runbooks/personal-archive-object-lock.md)
+records the evidence and production rollout gates. A 30-day governance default
+is the starting candidate for a separate owner decision. This ADR does not
+enable it.
+
 Manage the private bucket, its Object Lock capability, and its bucket policy in
 the independent `infra/personal-archive` Terraform root. The root uses the
 `personal-site-personal-archive` HCP Terraform workspace and protects the
