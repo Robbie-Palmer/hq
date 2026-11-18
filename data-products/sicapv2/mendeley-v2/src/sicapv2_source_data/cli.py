@@ -5,6 +5,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 import fire
+from fire.decorators import SetParseFn
 from pydantic import BaseModel, ConfigDict, ValidationError
 
 from sicapv2_source_data.source import (
@@ -22,6 +23,7 @@ class ApplicationArguments(BaseModel):
     root: Path | None = None
 
 
+@SetParseFn(str, "root")
 class Application:
     def __init__(self, root: str | None = None) -> None:
         arguments = ApplicationArguments.model_validate({"root": root})

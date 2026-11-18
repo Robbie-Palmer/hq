@@ -4,7 +4,7 @@ from datetime import date
 from typing import Annotated, Literal, Self
 
 from pydantic import (
-    AnyHttpUrl,
+    AnyUrl,
     BaseModel,
     BeforeValidator,
     ConfigDict,
@@ -13,11 +13,13 @@ from pydantic import (
     StrictBool,
     StrictInt,
     StrictStr,
+    UrlConstraints,
     model_validator,
 )
 
 _ARTIFACT_REF_PATTERN = r"^sicapv2:v2:artifact:"
 _PATIENT_REF_PATTERN = r"^sicapv2:v2:patient:"
+HttpsUrl = Annotated[AnyUrl, UrlConstraints(allowed_schemes=["https"])]
 
 
 class StrictModel(BaseModel):
@@ -35,20 +37,20 @@ class Contributor(StrictModel):
 
 class Institution(StrictModel):
     name: Literal["Universitat Politecnica de Valencia"]
-    ror_id: AnyHttpUrl
+    ror_id: HttpsUrl
 
 
 class License(StrictModel):
     spdx_id: Literal["CC-BY-4.0"]
     name: Literal["Creative Commons Attribution 4.0 International"]
-    url: AnyHttpUrl
+    url: HttpsUrl
     attribution: str = Field(min_length=1)
 
 
 class Archive(StrictModel):
     file_id: Literal["6ab087a7-ca89-47ac-9698-f6546bb50f98"]
     filename: Literal["SICAPv2.zip"]
-    url: AnyHttpUrl
+    url: HttpsUrl
     content_type: Literal["application/x-zip-compressed"]
     bytes: int = Field(gt=0)
     sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
@@ -93,7 +95,7 @@ class ExpectedCounts(StrictModel):
     image_count: int = Field(gt=0)
     mask_count: int = Field(gt=0)
     archive_member_count: int = Field(gt=0)
-    published_labelled_patch_count: int = Field(gt=0)
+    published_labelled_patch_count: int = Field(ge=0)
     published_patch_label_counts: ExpectedPatchLabelCounts
 
 
@@ -104,7 +106,7 @@ class SourceManifest(StrictModel):
     doi: Literal["10.17632/9xxm58dvs3.2"]
     paper_doi: Literal["10.1016/j.cmpb.2020.105637"]
     publisher: Literal["Mendeley Data"]
-    publisher_record: AnyHttpUrl
+    publisher_record: HttpsUrl
     publisher_dataset_id: Literal["9xxm58dvs3"]
     publisher_version: Literal[2]
     published_at: Literal["2020-10-22T13:41:01.412Z"]
@@ -130,8 +132,23 @@ class SourceManifest(StrictModel):
             raise ValueError("SICAPv2 mask labels must preserve publisher values 0 through 3")
         if self.published_patch_labels != ["NC", "G3", "G4", "G5", "G4C"]:
             raise ValueError("SICAPv2 patch labels must preserve publisher column order")
-        if len({partition.id for partition in self.published_partitions}) != 5:
+        partition_pairs = {
+            (partition.id, partition.path) for partition in self.published_partitions
+        }
+        expected_partition_pairs = {
+            ("test", "SICAPv2/partition/Test"),
+            ("validation_val1", "SICAPv2/partition/Validation/Val1"),
+            ("validation_val2", "SICAPv2/partition/Validation/Val2"),
+            ("validation_val3", "SICAPv2/partition/Validation/Val3"),
+            ("validation_val4", "SICAPv2/partition/Validation/Val4"),
+        }
+        if (
+            len(self.published_partitions) != 5
+            or len({partition.id for partition in self.published_partitions}) != 5
+        ):
             raise ValueError("SICAPv2 must preserve the test partition and four validation folds")
+        if partition_pairs != expected_partition_pairs:
+            raise ValueError("SICAPv2 partition IDs must match their publisher paths")
         return self
 
 
@@ -341,6 +358,10 @@ class PublishedPatchLabels(StrictModel):
     G4C: int = Field(ge=0, le=1)
 
 
+class PublishedCribriformLabel(StrictModel):
+    G4C: int = Field(ge=0, le=1)
+
+
 def _validate_excel_integer(value: object) -> int:
     if isinstance(value, bool) or not isinstance(value, int | float) or int(value) != value:
         raise ValueError("value must be an integer")
@@ -376,6 +397,9 @@ class PublishedPatchTableRow(StrictModel):
 class CribriformTableRow(StrictModel):
     image_name: str = Field(min_length=1)
     G4C: ExcelInteger = Field(ge=0, le=1)
+
+    def label(self) -> PublishedCribriformLabel:
+        return PublishedCribriformLabel(G4C=self.G4C)
 
 
 class PatchCoordinates(StrictModel):
@@ -426,6 +450,7 @@ class PatchRecord(StrictModel):
     gleason_pattern_mask: OriginalArtifact
     mask_label_ids: tuple[Literal[0], Literal[1], Literal[2], Literal[3]]
     published_labels: PublishedPatchLabels | None
+    published_cribriform_label: PublishedCribriformLabel | None
     published_roles: list[PublishedRole]
 
 
@@ -461,7 +486,7 @@ class SourceMetrics(StrictModel):
     slide_count: int = Field(gt=0)
     patch_count: int = Field(gt=0)
     paired_mask_count: int = Field(gt=0)
-    published_labelled_patch_count: int = Field(gt=0)
+    published_labelled_patch_count: int = Field(ge=0)
     published_patch_label_counts: ExpectedPatchLabelCounts
     published_role_counts: PublishedRoleCounts
     global_gleason_score_counts: GlobalGleasonScoreCounts

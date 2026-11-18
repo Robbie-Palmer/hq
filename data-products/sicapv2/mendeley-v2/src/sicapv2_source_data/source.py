@@ -7,10 +7,13 @@ import os
 import re
 import shutil
 import stat
+import tempfile
 import urllib.request
 import zipfile
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Generator, Iterable
+from contextlib import contextmanager
+from fcntl import LOCK_EX, LOCK_UN, flock
 from http.client import HTTPMessage
 from pathlib import Path, PurePosixPath
 from typing import IO, Literal, override
@@ -29,6 +32,7 @@ from sicapv2_source_data.models import (
     PatchCoordinates,
     PatchRecord,
     PatientRecord,
+    PublishedCribriformLabel,
     PublishedPartition,
     PublishedPatchLabels,
     PublishedPatchTableRow,
@@ -85,6 +89,28 @@ def _digest(path: Path, algorithm: str) -> str:
     return digest.hexdigest()
 
 
+def _write_text_atomically(path: Path, content: str) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary: Path | None = None
+    try:
+        with tempfile.NamedTemporaryFile(
+            "w",
+            encoding="utf-8",
+            dir=path.parent,
+            prefix=f".{path.name}.",
+            suffix=".part",
+            delete=False,
+        ) as stream:
+            temporary = Path(stream.name)
+            stream.write(content)
+            stream.flush()
+            os.fsync(stream.fileno())
+        temporary.replace(path)
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
+
+
 def _json_request(url: str) -> object:
     request = urllib.request.Request(  # noqa: S310 - only fixed HTTPS Mendeley endpoints are used.
         url,
@@ -135,7 +161,7 @@ def verify_publisher_metadata(root: Path = PROJECT_DIR) -> PublisherMetadataEvid
                 "committed publisher metadata differs from live Mendeley metadata"
             )
     else:
-        output.write_text(result.model_dump_json(indent=2) + "\n", encoding="utf-8")
+        _write_text_atomically(output, result.model_dump_json(indent=2) + "\n")
     return result
 
 
@@ -155,23 +181,30 @@ def acquire_archive(root: Path = PROJECT_DIR) -> Path:
         verify_archive(destination, manifest)
         return destination
     destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_suffix(".zip.part")
-    temporary.unlink(missing_ok=True)
     request = urllib.request.Request(  # noqa: S310 - manifest constrains the URL to HTTPS.
         str(manifest.archive.url),
         headers={"User-Agent": "sicapv2-source-data/0.1 (+source-product)"},
     )
     opener = urllib.request.build_opener(_HttpsOnlyRedirectHandler())
+    temporary: Path | None = None
     try:
-        with opener.open(request, timeout=60) as response, temporary.open("wb") as output:
-            shutil.copyfileobj(response, output, length=1024 * 1024)
+        with tempfile.NamedTemporaryFile(
+            "wb",
+            dir=destination.parent,
+            prefix=f".{destination.name}.",
+            suffix=".part",
+            delete=False,
+        ) as output:
+            temporary = Path(output.name)
+            with opener.open(request, timeout=60) as response:
+                shutil.copyfileobj(response, output, length=1024 * 1024)
             output.flush()
             os.fsync(output.fileno())
         verify_archive(temporary, manifest)
         temporary.replace(destination)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
+    finally:
+        if temporary is not None:
+            temporary.unlink(missing_ok=True)
     return destination
 
 
@@ -300,6 +333,16 @@ def _record_patch_labels(
         raise SourceDataError(f"{image_name}: published labels differ across partitions")
 
 
+def _record_cribriform_label(
+    labels: dict[str, PublishedCribriformLabel],
+    image_name: str,
+    label: PublishedCribriformLabel,
+) -> None:
+    existing = labels.setdefault(image_name, label)
+    if existing != label:
+        raise SourceDataError(f"{image_name}: published cribriform labels differ across partitions")
+
+
 def _read_partition_table(
     archive: zipfile.ZipFile,
     infos: dict[str, zipfile.ZipInfo],
@@ -308,6 +351,7 @@ def _read_partition_table(
     task: Literal["gleason_grading", "cribriform_detection"],
     suffix: str,
     labels: dict[str, PublishedPatchLabels],
+    cribriform_labels: dict[str, PublishedCribriformLabel],
     roles: dict[str, list[PublishedRole]],
 ) -> OriginalArtifact:
     role: Literal["train", "test"] = "train" if role_name == "Train" else "test"
@@ -320,6 +364,7 @@ def _read_partition_table(
     else:
         for row in _table_rows(archive, path, CribriformTableRow):
             _append_published_role(roles, row.image_name, partition, task, role, artifact)
+            _record_cribriform_label(cribriform_labels, row.image_name, row.label())
     return artifact
 
 
@@ -327,8 +372,14 @@ def _partition_tables(
     archive: zipfile.ZipFile,
     infos: dict[str, zipfile.ZipInfo],
     manifest: SourceManifest,
-) -> tuple[dict[str, PublishedPatchLabels], dict[str, list[PublishedRole]], list[OriginalArtifact]]:
+) -> tuple[
+    dict[str, PublishedPatchLabels],
+    dict[str, PublishedCribriformLabel],
+    dict[str, list[PublishedRole]],
+    list[OriginalArtifact],
+]:
     labels: dict[str, PublishedPatchLabels] = {}
+    cribriform_labels: dict[str, PublishedCribriformLabel] = {}
     roles: dict[str, list[PublishedRole]] = defaultdict(list)
     artifacts: list[OriginalArtifact] = []
     for partition in manifest.published_partitions:
@@ -343,10 +394,11 @@ def _partition_tables(
                         task,
                         suffix,
                         labels,
+                        cribriform_labels,
                         roles,
                     )
                 )
-    return labels, roles, artifacts
+    return labels, cribriform_labels, roles, artifacts
 
 
 def _slide_rows(
@@ -388,6 +440,37 @@ def _json_lines(records: Iterable[PatientRecord | SlideRecord | PatchRecord]) ->
     return "".join(record.model_dump_json() + "\n" for record in records)
 
 
+@contextmanager
+def _output_lock(root: Path) -> Generator[None, None, None]:
+    with (root / ".outputs.lock").open("a+b") as stream:
+        flock(stream.fileno(), LOCK_EX)
+        try:
+            yield
+        finally:
+            flock(stream.fileno(), LOCK_UN)
+
+
+def _publish_output_directory(root: Path, temporary: Path) -> None:
+    output = root / "outputs"
+    backup = Path(tempfile.mkdtemp(prefix=".outputs.backup.", dir=root))
+    backup.rmdir()
+    with _output_lock(root):
+        had_output = output.exists()
+        if had_output:
+            output.replace(backup)
+        try:
+            temporary.replace(output)
+        except BaseException:
+            if output.exists():
+                shutil.rmtree(output)
+            if had_output and backup.exists():
+                backup.replace(output)
+            raise
+        else:
+            if backup.exists():
+                shutil.rmtree(backup)
+
+
 def _write_outputs(
     root: Path,
     manifest: SourceManifest,
@@ -401,7 +484,7 @@ def _write_outputs(
         for patch in patches
         for role in patch.published_roles
     )
-    label_counts: Counter[str] = Counter()
+    label_counts: Counter[str] = Counter(dict.fromkeys(manifest.published_patch_labels, 0))
     for patch in patches:
         if patch.published_labels is None:
             continue
@@ -440,10 +523,7 @@ def _write_outputs(
         record_sets=RecordSets(),
         table_artifacts=table_artifacts,
     )
-    output = root / "outputs"
-    temporary = root / ".outputs.part"
-    shutil.rmtree(temporary, ignore_errors=True)
-    temporary.mkdir(parents=True)
+    temporary = Path(tempfile.mkdtemp(prefix=".outputs.staging.", dir=root))
     try:
         (temporary / "patients.jsonl").write_text(_json_lines(patients), encoding="utf-8")
         (temporary / "slides.jsonl").write_text(_json_lines(slides), encoding="utf-8")
@@ -454,11 +534,9 @@ def _write_outputs(
         (temporary / "source-metrics.json").write_text(
             metrics.model_dump_json(indent=2) + "\n", encoding="utf-8"
         )
-        shutil.rmtree(output, ignore_errors=True)
-        temporary.replace(output)
-    except BaseException:
+        _publish_output_directory(root, temporary)
+    finally:
         shutil.rmtree(temporary, ignore_errors=True)
-        raise
     return metrics
 
 
@@ -502,6 +580,7 @@ def _patch_records(
     mask_infos: dict[str, zipfile.ZipInfo],
     slides_by_id: dict[str, SlideRecord],
     labels: dict[str, PublishedPatchLabels],
+    cribriform_labels: dict[str, PublishedCribriformLabel],
     roles: dict[str, list[PublishedRole]],
     manifest: SourceManifest,
 ) -> tuple[list[PatchRecord], dict[str, list[str]]]:
@@ -514,6 +593,16 @@ def _patch_records(
             raise SourceDataError(f"patch references missing slide identity: {filename}")
         patch_id = filename.removesuffix(".jpg")
         record_ref = f"sicapv2:v2:patch:{patch_id}"
+        published_labels = labels.get(filename)
+        published_cribriform_label = cribriform_labels.get(filename)
+        if (
+            published_labels is not None
+            and published_cribriform_label is not None
+            and published_labels.G4C != published_cribriform_label.G4C
+        ):
+            raise SourceDataError(
+                f"{filename}: published G4C values differ between grading and cribriform tables"
+            )
         records.append(
             PatchRecord(
                 record_ref=record_ref,
@@ -526,7 +615,8 @@ def _patch_records(
                 image=_artifact(image_info),
                 gleason_pattern_mask=_artifact(mask_infos[filename]),
                 mask_label_ids=(0, 1, 2, 3),
-                published_labels=labels.get(filename),
+                published_labels=published_labels,
+                published_cribriform_label=published_cribriform_label,
                 published_roles=sorted(
                     roles.get(filename, []), key=lambda item: (item.partition_id, item.task)
                 ),
@@ -580,14 +670,22 @@ def index_archive(root: Path = PROJECT_DIR) -> SourceMetrics:
         image_infos, mask_infos = _image_and_mask_infos(infos, manifest)
         slide_info, readme_info = _source_table_infos(archive, infos, manifest)
         slides_by_id, slide_table = _slide_rows(archive, slide_info)
-        labels, roles, partition_artifacts = _partition_tables(archive, infos, manifest)
+        labels, cribriform_labels, roles, partition_artifacts = _partition_tables(
+            archive, infos, manifest
+        )
         unknown_role_images = set(roles) - set(image_infos)
         if unknown_role_images:
             raise SourceDataError(
                 f"published roles reference {len(unknown_role_images)} missing patches"
             )
         patch_records, patch_refs_by_slide = _patch_records(
-            image_infos, mask_infos, slides_by_id, labels, roles, manifest
+            image_infos,
+            mask_infos,
+            slides_by_id,
+            labels,
+            cribriform_labels,
+            roles,
+            manifest,
         )
         slide_records, patient_records = _slide_and_patient_records(
             slides_by_id, patch_refs_by_slide, manifest

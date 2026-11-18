@@ -23,7 +23,9 @@ from sicapv2_source_data.models import (
 from sicapv2_source_data.source import (
     SourceDataError,
     _HttpsOnlyRedirectHandler,
+    _publish_output_directory,
     _safe_infos,
+    _write_text_atomically,
     acquire_archive,
     grade_group,
     index_archive,
@@ -49,7 +51,7 @@ def _xlsx_bytes(header: list[str], rows: list[list[object]]) -> bytes:
     return output.getvalue()
 
 
-def _fixture_root(tmp_path: Path) -> Path:
+def _fixture_root(tmp_path: Path, *, include_grading_row: bool = True) -> Path:
     root = tmp_path / "source"
     archive_path = root / "data/raw/SICAPv2.zip"
     archive_path.parent.mkdir(parents=True)
@@ -75,7 +77,7 @@ def _fixture_root(tmp_path: Path) -> Path:
                 f"{path}/Train.xlsx",
                 _xlsx_bytes(
                     ["image_name", "NC", "G3", "G4", "G5", "G4C"],
-                    [[PATCH_NAME, 0, 0, 0, 1, 0]],
+                    [[PATCH_NAME, 0, 0, 0, 1, 0]] if include_grading_row else [],
                 ),
             )
             archive.writestr(
@@ -101,8 +103,14 @@ def _fixture_root(tmp_path: Path) -> Path:
         "image_count": 1,
         "mask_count": 1,
         "archive_member_count": 24,
-        "published_labelled_patch_count": 1,
-        "published_patch_label_counts": {"NC": 0, "G3": 0, "G4": 0, "G5": 1, "G4C": 0},
+        "published_labelled_patch_count": int(include_grading_row),
+        "published_patch_label_counts": {
+            "NC": 0,
+            "G3": 0,
+            "G4": 0,
+            "G5": int(include_grading_row),
+            "G4C": 0,
+        },
     }
     (root / "manifest.json").write_text(json.dumps(payload), encoding="utf-8")
     return root
@@ -168,6 +176,24 @@ def test_manifest_rejects_changed_native_mask_semantics() -> None:
     payload["native_mask_labels"][1]["name"] = "GG4"
 
     with pytest.raises(ValidationError, match="SICAPv2 mask labels"):
+        SourceManifest.model_validate(payload)
+
+
+def test_manifest_rejects_partition_id_path_swaps() -> None:
+    payload = json.loads((PROJECT_DIR / "manifest.json").read_text(encoding="utf-8"))
+    first = payload["published_partitions"][0]
+    second = payload["published_partitions"][1]
+    first["path"], second["path"] = second["path"], first["path"]
+
+    with pytest.raises(ValidationError, match="partition IDs must match"):
+        SourceManifest.model_validate(payload)
+
+
+def test_manifest_rejects_non_https_archive_url() -> None:
+    payload = json.loads((PROJECT_DIR / "manifest.json").read_text(encoding="utf-8"))
+    payload["archive"]["url"] = payload["archive"]["url"].replace("https://", "http://")
+
+    with pytest.raises(ValidationError, match="URL scheme"):
         SourceManifest.model_validate(payload)
 
 
@@ -261,10 +287,26 @@ def test_index_archive_writes_stable_native_records(tmp_path: Path) -> None:
     assert patch.gleason_pattern_mask.member_path == f"SICAPv2/masks/{PATCH_NAME}"
     assert patch.published_labels is not None
     assert patch.published_labels.model_dump() == {"NC": 0, "G3": 0, "G4": 0, "G5": 1, "G4C": 0}
+    assert patch.published_cribriform_label is not None
+    assert patch.published_cribriform_label.G4C == 0
     assert patch.mask_label_ids == (0, 1, 2, 3)
     assert catalog.archive_ref.startswith("mendeley:9xxm58dvs3:v2:file:")
     assert len(catalog.table_artifacts) == 22
     assert written_metrics == metrics
+
+
+def test_index_archive_preserves_cribriform_only_labels(tmp_path: Path) -> None:
+    root = _fixture_root(tmp_path, include_grading_row=False)
+
+    metrics = index_archive(root)
+
+    patch = PatchRecord.model_validate_json(
+        (root / "outputs/patches.jsonl").read_text(encoding="utf-8")
+    )
+    assert metrics.published_labelled_patch_count == 0
+    assert patch.published_labels is None
+    assert patch.published_cribriform_label is not None
+    assert patch.published_cribriform_label.G4C == 0
 
 
 def test_published_patch_row_normalizes_excel_integer_values() -> None:
@@ -321,7 +363,50 @@ def test_acquire_archive_streams_and_verifies_pinned_bytes(
     monkeypatch.setattr(urllib.request, "build_opener", lambda *_: FakeOpener())
 
     assert acquire_archive(root).read_bytes() == source_bytes
-    assert not archive.with_suffix(".zip.part").exists()
+    assert not list(archive.parent.glob("*.part"))
+
+
+def test_atomic_text_write_removes_failed_temporary_file(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    target = tmp_path / "records/evidence.json"
+
+    def fail_replace(self: Path, destination: Path) -> Path:
+        raise OSError(f"cannot replace {self} with {destination}")
+
+    monkeypatch.setattr(Path, "replace", fail_replace)
+
+    with pytest.raises(OSError, match="cannot replace"):
+        _write_text_atomically(target, "partial")
+
+    assert not target.exists()
+    assert not list(target.parent.glob("*.part"))
+
+
+def test_output_promotion_restores_previous_output_on_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    root = tmp_path / "source"
+    output = root / "outputs"
+    output.mkdir(parents=True)
+    (output / "sentinel.txt").write_text("previous", encoding="utf-8")
+    staging = root / ".outputs.staging.test"
+    staging.mkdir()
+    (staging / "sentinel.txt").write_text("next", encoding="utf-8")
+    original_replace = Path.replace
+
+    def fail_promotion(self: Path, destination: Path) -> Path:
+        if self == staging and destination == output:
+            raise OSError("promotion failed")
+        return original_replace(self, destination)
+
+    monkeypatch.setattr(Path, "replace", fail_promotion)
+
+    with pytest.raises(OSError, match="promotion failed"):
+        _publish_output_directory(root, staging)
+
+    assert (output / "sentinel.txt").read_text(encoding="utf-8") == "previous"
+    assert not list(root.glob(".outputs.backup.*"))
 
 
 def test_metadata_verification_uses_public_credential_free_records(
