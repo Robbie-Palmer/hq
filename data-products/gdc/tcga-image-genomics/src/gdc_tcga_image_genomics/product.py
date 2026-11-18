@@ -6,6 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, cast
 
+from data_artifacts import files as artifact_files
+
 from gdc_tcga_image_genomics.models import (
     ApiPage,
     ArtifactReference,
@@ -37,25 +39,18 @@ def _read_object(path: Path) -> dict[str, Any]:
 def _output_path(output_root: Path, filename: str) -> Path:
     if Path(filename).name != filename:
         raise ProductError(f"output filename must not contain directories: {filename}")
-    output_root.mkdir(parents=True, exist_ok=True)
-    resolved_root = output_root.resolve()
-    path = (resolved_root / filename).resolve()
-    if not path.is_relative_to(resolved_root):
-        raise ProductError(f"output path escapes its root: {filename}")
-    return path
+    try:
+        return artifact_files.resolve_under(output_root, filename)
+    except ValueError as error:
+        raise ProductError(f"output path escapes its root: {filename}") from error
 
 
 def _write_json(output_root: Path, filename: str, value: object) -> None:
-    path = _output_path(output_root, filename)
-    path.write_text(json.dumps(value, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    artifact_files.write_json(_output_path(output_root, filename), value)
 
 
 def _write_jsonl(output_root: Path, filename: str, values: list[dict[str, Any]]) -> None:
-    path = _output_path(output_root, filename)
-    path.write_text(
-        "".join(json.dumps(value, sort_keys=True) + "\n" for value in values),
-        encoding="utf-8",
-    )
+    artifact_files.write_jsonl(_output_path(output_root, filename), values)
 
 
 def load_contracts(root: Path = PROJECT_DIR) -> tuple[ReleaseContract, QueryContract]:
@@ -174,6 +169,11 @@ def _locate_chain(file: GdcFile, entity: AssociatedEntity) -> BiospecimenChain:
         located = _locate_biospecimen(case, entity)
     except ProductError as error:
         raise ProductError(f"{file.file_id}: {error}") from error
+    sample = located.sample or {}
+    portion = located.portion or {}
+    slide = located.slide or {}
+    analyte = located.analyte or {}
+    aliquot = located.aliquot or {}
 
     return BiospecimenChain(
         case_id=entity.case_id,
@@ -183,27 +183,25 @@ def _locate_chain(file: GdcFile, entity: AssociatedEntity) -> BiospecimenChain:
         associated_entity_type=entity.entity_type,
         associated_entity_id=entity.entity_id,
         associated_entity_submitter_id=entity.entity_submitter_id,
-        sample_id=_value((located.sample or {}).get("sample_id")),
-        sample_submitter_id=_value((located.sample or {}).get("submitter_id")),
-        sample_type=_value((located.sample or {}).get("sample_type")),
-        specimen_type=_value((located.sample or {}).get("specimen_type")),
-        tissue_type=_value((located.sample or {}).get("tissue_type")),
-        tumor_descriptor=_value((located.sample or {}).get("tumor_descriptor")),
-        portion_id=_value((located.portion or {}).get("portion_id")),
-        portion_submitter_id=_value((located.portion or {}).get("submitter_id")),
-        portion_number=_value((located.portion or {}).get("portion_number")),
-        portion_is_ffpe=(located.portion or {}).get("is_ffpe"),
-        slide_id=_value((located.slide or {}).get("slide_id")),
-        slide_submitter_id=_value((located.slide or {}).get("submitter_id")),
-        slide_section_location=_value((located.slide or {}).get("section_location")),
-        analyte_id=_value((located.analyte or {}).get("analyte_id")),
-        analyte_submitter_id=_value((located.analyte or {}).get("submitter_id")),
-        analyte_type=_value((located.analyte or {}).get("analyte_type")),
-        analyte_experimental_protocol_type=_value(
-            (located.analyte or {}).get("experimental_protocol_type")
-        ),
-        aliquot_id=_value((located.aliquot or {}).get("aliquot_id")),
-        aliquot_submitter_id=_value((located.aliquot or {}).get("submitter_id")),
+        sample_id=_value(sample.get("sample_id")),
+        sample_submitter_id=_value(sample.get("submitter_id")),
+        sample_type=_value(sample.get("sample_type")),
+        specimen_type=_value(sample.get("specimen_type")),
+        tissue_type=_value(sample.get("tissue_type")),
+        tumor_descriptor=_value(sample.get("tumor_descriptor")),
+        portion_id=_value(portion.get("portion_id")),
+        portion_submitter_id=_value(portion.get("submitter_id")),
+        portion_number=_value(portion.get("portion_number")),
+        portion_is_ffpe=portion.get("is_ffpe"),
+        slide_id=_value(slide.get("slide_id")),
+        slide_submitter_id=_value(slide.get("submitter_id")),
+        slide_section_location=_value(slide.get("section_location")),
+        analyte_id=_value(analyte.get("analyte_id")),
+        analyte_submitter_id=_value(analyte.get("submitter_id")),
+        analyte_type=_value(analyte.get("analyte_type")),
+        analyte_experimental_protocol_type=_value(analyte.get("experimental_protocol_type")),
+        aliquot_id=_value(aliquot.get("aliquot_id")),
+        aliquot_submitter_id=_value(aliquot.get("submitter_id")),
     )
 
 

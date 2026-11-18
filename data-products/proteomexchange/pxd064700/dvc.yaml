@@ -1,0 +1,21 @@
+stages:
+  publish_source_product:
+    cmd: uv run --locked pxd064700-source publish
+    deps:
+      - .python-version
+      - contracts
+      - ../../../packages/data-artifacts/src/data_artifacts/acquisition.py
+      - ../../../packages/data-artifacts/src/data_artifacts/files.py
+      - pyproject.toml
+      - snapshots
+      - src/pxd064700_source
+      - uv.lock
+    outs:
+      - outputs/artifact-index.jsonl
+      - outputs/pairing-index.jsonl
+      - outputs/publisher-roles.json
+      - outputs/run-index.jsonl
+      - outputs/source-context.json
+      - outputs/source-missingness.json
+    metrics:
+      - outputs/metrics.json

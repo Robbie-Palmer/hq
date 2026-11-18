@@ -23,6 +23,13 @@ Current products:
   TCGA slides for the fixed 24-slide pilot.
 - `gdc/tcga-image-genomics`: source-native GDC metadata linking TCGA diagnostic
   slides, cases, biospecimens, annotations, and open molecular evidence.
+- `sicapv2/mendeley-v2`: source-native SICAPv2 patients, slides, patches,
+  Gleason-pattern masks, global scores, and publisher partitions.
+- `cryonuseg/frozen-he`: source-native CryoNuSeg frozen-section H&E patches,
+  manual annotation rounds, auxiliary masks, and exact GDC slide lineage.
+- `proteomexchange/pxd064700`: source-native PRIDE and ProteomeXchange metadata,
+  run identities, pairings, checksums, and remote artifact references for the
+  PXD064700 brain fixation proteomics study.
 - `paip2019/liver-roi`: source-native PAIP 2019 liver whole-slide images,
   tumour masks, XML regions, challenge roles, and gated access contract.
 - `segpath/registered-if-masks`: source-native SegPath H&E patches and
