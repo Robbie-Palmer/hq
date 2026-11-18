@@ -1,0 +1,62 @@
+[tools]
+python = "3.12"
+
+[tasks.sync]
+description = "Install the locked colorectal multistain source environment"
+run = "uv sync --locked --python 3.12"
+
+[tasks.lock]
+description = "Update the colorectal multistain source lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format colorectal multistain source code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint colorectal multistain source code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check colorectal multistain source code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run colorectal multistain source tests"
+depends = ["sync"]
+run = "uv run --locked pytest"
+
+[tasks."test:coverage"]
+description = "Run colorectal multistain source tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml"
+
+[tasks.dvc]
+description = "Run a DVC command in the colorectal multistain source project"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh"
+
+[tasks."verify:metadata"]
+description = "Verify pinned publisher metadata without downloading dataset archives"
+depends = ["sync"]
+run = "uv run --locked colorectal-multistain-source verify-metadata"
+
+[tasks.index]
+description = "Index publisher ZIP directories without downloading image or mask payloads"
+depends = ["sync"]
+run = "uv run --locked colorectal-multistain-source index"
+
+[tasks.acquire]
+description = "Acquire one pinned original artifact by manifest ID after explicit selection"
+depends = ["sync"]
+run = "uv run --locked colorectal-multistain-source acquire"
+
+[tasks.repro]
+description = "Reproduce metadata and native references through DVC without archive payloads"
+run = "bash ../../../ml-pipelines/scripts/dvc.sh repro verify_metadata index_native_references"
+
+[tasks.check]
+description = "Run deterministic colorectal multistain source checks"
+depends = ["lint", "typecheck", "test:coverage"]
