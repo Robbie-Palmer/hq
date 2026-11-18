@@ -342,44 +342,26 @@ Brave runs directly on the host. GNOME applications send print jobs to the
 
 ## Severe vulnerability controller
 
-The Vector overlay mounts the versioned controller policy, Cedar schema,
-subsystem policy modules, and prompt at `/etc/agent-coordinator`. The JSON
-manifest pins the exact Cedar bundle digest. The controller must stop if the
-digest, schema validation, request validation, or policy evaluation fails.
+The Vector overlay mounts the versioned controller policy, Cedar schema, and
+subsystem policy modules at `/etc/agent-coordinator`. A dedicated sidecar runs
+the checked-in reconciler every 60 seconds. It reads the current open
+Dependabot alerts from GitHub and therefore catches up after Vector has been
+offline without replaying webhook text. The JSON manifest pins the exact Cedar
+bundle digest. The controller stops if the digest, schema validation, request
+validation, or policy evaluation fails.
+
+The controller is ordinary code. It leaves an exact passing Renovate pull
+request to Renovate without starting an agent. When a proposal needs repair,
+no proposal exists, or the alert needs a code mitigation, it admits one Work
+Graph incident and calls the authenticated T3 API directly. T3 creates the
+worker's worktree and provider session. There is no persistent controller
+thread or scheduled controller task.
+
 T3 Code remains a private NodePort reached through the tailnet. Do not add a
-public Kubernetes Ingress, Gateway, LoadBalancer, or a second Cloudflare
-Tunnel. T3 Connect supplies the public webhook URL and holds requests while
-Vector is offline.
-
-Create one persistent controller thread in the `hq` project and bind one
-disabled webhook task to it. Copy the task schedule from
-`controller-policy.json`. Configure the GitHub webhook with JSON content and
-the same secret as the task's HMAC-SHA256 signature. Subscribe only to
-`dependabot_alert`. The task must retain its repository, action, severity, and
-alert-number filters, `X-GitHub-Delivery` replay key, and 15-minute delivery age
-limit.
-
-Reconcile the repository webhook with the checked-in task. Supply the T3
-Connect URL and both secrets through the environment and private files so they
-do not enter Git, Terraform state, command arguments, or logs:
-
-```bash
-CONTROLLER_WEBHOOK_URL="https://relay.t3.codes/v1/hooks/..." \
-CONTROLLER_WEBHOOK_SECRET_FILE=/private/path/hmac-secret \
-CONTROLLER_GITHUB_TOKEN_FILE=/private/path/github-token \
-CONTROLLER_WEBHOOK_ACTIVE=false \
-  mise run //homelab:vector-controller-webhook-configure
-```
-
-`CONTROLLER_GITHUB_TOKEN_FILE` must contain a separate, short-lived fine-grained
-token limited to `Robbie-Palmer/hq` with repository **Webhooks: Read and write**.
-Do not use the ordinary Vector agent token for this commissioning operation.
-The HMAC secret file must contain the exact secret without a terminal newline.
-
-The commissioning command is idempotent for the exact T3 Connect URL. It
-creates the hook inactive, or reconciles that hook without modifying other
-repository hooks. Keep the GitHub hook inactive while running the admission
-matrix directly against the T3 Connect URL.
+public Kubernetes Ingress, Gateway, LoadBalancer, webhook, or second Cloudflare
+Tunnel for this controller. The sidecar receives GitHub and Work Graph
+credentials from the existing scoped Kubernetes secrets. It does not copy
+those values into Work Graph, logs, prompts, or repository files.
 
 The controller uses one Cedar decision point with separate policy modules for
 GitHub, T3 Code, Work Graph, and deployment operations. It evaluates concrete
@@ -390,17 +372,13 @@ Repository writes must use a controller-owned non-default ref. Cedar forbids
 direct default-branch writes, while the GitHub ruleset remains an independent
 provider-side control.
 
-Run the admission test before enabling unattended incident work. Enable the T3
-webhook task while leaving the GitHub hook inactive. Send a signed candidate
-with a unique delivery ID, then repeat that request with the same ID. Also send
-an invalid signature, a wrong repository, an out-of-policy severity, an
-out-of-policy action, and a relay-held request older than 15 minutes. Inspect
-T3 Code's delivery records and the bound thread. The candidate must reach the
-controller exactly once. The other requests must not start a controller turn
-or worker thread. If any case fails, disable the T3 task and leave the GitHub
-hook inactive. Only after every case passes, keep the task enabled and rerun
-the guarded commissioning command with `CONTROLLER_WEBHOOK_ACTIVE=true` to
-enable normal GitHub delivery.
+Before unattended incident work, run the domain, launcher, and rendered
+manifest checks. Start the sidecar with its GitHub credential unable to write
+the repository. A usable Renovate proposal must not create an incident or
+launch a T3 worker. A broken or absent proposal must create one Work Graph
+incident and one deterministic T3 thread, then reuse both on the next
+reconciliation. Keep any retired T3 webhook task and repository webhook
+disabled; remove them after the sidecar has passed this proof.
 
 Deploy later host changes from another tailnet member:
 

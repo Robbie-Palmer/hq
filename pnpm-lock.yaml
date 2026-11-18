@@ -201,6 +201,12 @@ importers:
       '@wyrd-company/t3code-client':
         specifier: 0.5.0
         version: 0.5.0
+      agent-coordinator-domain:
+        specifier: workspace:*
+        version: link:packages/agent-coordinator-domain
+      github-client:
+        specifier: workspace:*
+        version: link:packages/github-client
       node-base:
         specifier: workspace:*
         version: link:packages/node-base
