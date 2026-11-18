@@ -105,11 +105,9 @@ Cloudflare credentials. `CLOUDFLARE_TOKEN_PROVISIONER_TOKEN` creates scoped
 API tokens. `CLOUDFLARE_BOOTSTRAP_TOKEN` writes declared Worker secrets and
 cannot create API tokens. That GitHub environment accepts only `main`, requires
 a reviewer, and disables administrator bypass.
-The protected config and environment also hold the masked R2 parent credential
-bundle created by
+The protected config and environment also hold the R2 parent declared in
 [`cloudflare-token-plans/r2-parent-credentials.yaml`](cloudflare-token-plans/r2-parent-credentials.yaml).
-Routine jobs receive short-lived bucket credentials from the broker instead of
-this parent authority.
+Runtime consumers receive brokered temporary credentials.
 The account-foundation apply creates the empty config and environment. A human
 then installs the first masked token and runs the dedicated credential-sync
 task described in the [project bootstrap runbook](../../docs/runbooks/project-secret-bootstrap.md).
