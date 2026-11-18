@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn } from "node:child_process";
+import { pathToFileURL } from "node:url";
 import {
   parseR2ParentCredentials,
   recoverR2CredentialBroker,
@@ -32,7 +33,9 @@ function optionValue(arguments_: readonly string[], name: string): string {
   return value;
 }
 
-function parseArguments(arguments_: readonly string[]): ParsedArguments {
+export function parseR2CredentialBrokerArguments(
+  arguments_: readonly string[],
+): ParsedArguments {
   const mode = arguments_[0];
   if (mode !== "run" && mode !== "recover") {
     throw new Error("Pass run or recover as the broker mode");
@@ -60,7 +63,7 @@ function parseArguments(arguments_: readonly string[]): ParsedArguments {
   };
 }
 
-async function runProcess(
+export async function runBrokerProcess(
   request: BrokerProcessRequest,
 ): Promise<BrokerProcessResult> {
   return new Promise((resolve, reject) => {
@@ -92,7 +95,7 @@ async function runProcess(
 }
 
 async function main(): Promise<void> {
-  const input = parseArguments(process.argv.slice(2));
+  const input = parseR2CredentialBrokerArguments(process.argv.slice(2));
   const accountId = requiredEnvironment("CLOUDFLARE_ACCOUNT_ID");
   const parentCredentials = parseR2ParentCredentials(
     requiredEnvironment("CLOUDFLARE_R2_PARENT_CREDENTIALS"),
@@ -105,7 +108,7 @@ async function main(): Promise<void> {
         parentCredentials,
         receiptPath: input.receiptPath,
       },
-      { runProcess },
+      { runProcess: runBrokerProcess },
     );
     process.stdout.write("Recovered and deleted the recorded disposable R2 buckets.\n");
     return;
@@ -122,15 +125,17 @@ async function main(): Promise<void> {
       ttlSeconds: input.ttlSeconds,
       environment: process.env,
     },
-    { runProcess },
+    { runProcess: runBrokerProcess },
   );
   process.stdout.write(
     "Brokered R2 consumer completed; scope denial and bucket deletion were verified.\n",
   );
 }
 
-main().catch((error: unknown) => {
-  const message = error instanceof Error ? error.message : String(error);
-  process.stderr.write(`${message}\n`);
-  process.exitCode = 1;
-});
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error: unknown) => {
+    const message = error instanceof Error ? error.message : String(error);
+    process.stderr.write(`${message}\n`);
+    process.exitCode = 1;
+  });
+}
