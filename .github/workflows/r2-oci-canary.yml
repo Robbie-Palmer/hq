@@ -28,7 +28,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - uses: ./.github/actions/setup-mise
+      - uses: $/.github/actions/setup-mise
 
       - name: Prepare canary dependencies
         run: mise //infra/oci-r2-artifact-spike:prepare
