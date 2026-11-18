@@ -1,0 +1,124 @@
+---
+title: "ADR 062: Specialize biomedical content for pathology"
+date: "2026-11-18"
+status: "Accepted"
+implements_product_decisions:
+  - "personal-knowledge-graph:009-typed-biomedical-knowledge"
+---
+
+## Context
+
+[PDR 009](/projects/personal-knowledge-graph/pdrs/009-typed-biomedical-knowledge)
+and [ADR 061](/projects/personal-knowledge-graph/adrs/061-typed-biomedical-content-nodes)
+define the shared biomedical classes and routes. Pathology content still needs
+rules for concepts that sit on different axes of laboratory work.
+
+A tissue microarray describes how tissue cores are arranged. It does not state
+how the donor tissue was preserved. A tissue microarray may therefore contain
+FFPE cores and may later undergo H\&E staining, immunohistochemistry, or in situ
+hybridization. Treating it as an alternative to FFPE would make valid
+combinations impossible to represent. Published construction guidance likewise
+describes cores taken from donor blocks and placed into a recipient block, then
+analysed with several assays. [The ACSR construction and quality-assurance
+guidance](https://pmc.ncbi.nlm.nih.gov/articles/PMC6813869/) is one example.
+
+In situ hybridization is an assay family. Fluorescence and chromogenic
+detection produce named specializations such as FISH and CISH. They are not
+synonyms for every use of fluorescence or chromogenic detection. The
+[NCI definition of FISH](https://www.cancer.gov/publications/dictionaries/cancer-terms/def/fluorescence-in-situ-hybridization)
+describes fluorescently labelled DNA probes binding to targets in cells or
+tissue.
+
+The graph needs to preserve these distinctions without creating a separate
+pathology graph or a new concrete node type for every laboratory variation.
+
+## Decision
+
+Keep pathology concepts in the concrete biomedical types accepted by ADR 061.
+Do not add a generic pathology subject.
+
+### Classify the initial pathology pages
+
+Use these classes and boundaries:
+
+| Biomedical class     | Initial pathology pages                                                        | Boundary                                                                            |
+| -------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| Biomedical field     | Pathology, Histopathology, Molecular Pathology, Computational Pathology        | A field is not an assay, data type, or analysis technique.                          |
+| Specimen preparation | FFPE tissue, Fresh-frozen tissue, Frozen section, Tissue microarray            | Preparations may describe preservation, sectioning, or arrangement and may coexist. |
+| Assay method         | H\&E staining, Immunohistochemistry, Immunofluorescence, In situ hybridization | The assay remains distinct from its detection mode and output data.                 |
+| Grading system       | Gleason grading, ISUP Grade Groups                                             | Architectural patterns, scores, and grade groups retain their stated meanings.      |
+
+Multiple-instance learning and spatial analysis remain Idea nodes. Projects
+may reference those ideas alongside pathology fields, preparations, assays,
+data types, biomarkers, and grading systems.
+
+A tissue microarray uses the `specimen-preparation` node type. Its page and
+relations must state that it records specimen arrangement rather than
+preservation. The graph may link the same project or future dataset to both a
+tissue microarray and FFPE tissue. No exclusivity rule applies between
+specimen-preparation nodes.
+
+### Represent assay families with a typed edge
+
+Add this relationship to the biomedical edge vocabulary:
+
+| Edge           | Source       | Target       |
+| -------------- | ------------ | ------------ |
+| `SUBMETHOD_OF` | Assay method | Assay method |
+
+Use `SUBMETHOD_OF` only for a narrower assay method whose definition depends
+on the parent method. In situ hybridization is the parent method for later FISH
+and CISH pages. A display label, acronym, detection mode, or implementation
+detail does not create a subtype by itself.
+
+The graph builder keeps forward and reverse indexes for `SUBMETHOD_OF` and
+rejects cycles. Queries that return an assay family may include descendants
+only when they request that traversal. A direct project edge continues to name
+the most specific assay known from the project's evidence.
+
+### Keep reader routes flat
+
+Every page keeps the shared `/biomedicine/<slug>` route and Markdown twin.
+Pathology remains both a landing-page facet and a field node. Page identities
+omit a pathology prefix.
+FISH and CISH can be deferred until project or data-product content needs
+their pages without weakening the identity of the parent ISH page.
+
+## Consequences
+
+The graph can represent a study that uses an FFPE tissue microarray and applies
+ISH without forcing those facts into one label. Readers can move from a
+specialized assay to its parent while projects still record the most precise
+method supported by their evidence.
+
+The specimen-preparation class now contains concepts from more than one axis.
+Consumers must not treat its members as mutually exclusive states. If later
+content needs specimen formats outside laboratory preparation, a new concrete
+class may replace this bounded treatment of tissue microarrays.
+
+`SUBMETHOD_OF` adds cycle validation, reverse indexes, and a traversal choice
+to assay queries. New assay pages must distinguish a real method specialization
+from an acronym, detection mode, or implementation detail.
+
+## Alternatives considered
+
+### Add a tissue-array node type
+
+This would separate arrangement from preservation at the type level. It was
+rejected for the first tranche because tissue microarrays are the only required
+array concept and the existing specimen-preparation type can represent the
+page without an invalid edge. Revisit the class when another specimen format
+needs the same relations.
+
+### Model FISH and CISH as aliases of ISH
+
+Aliases would preserve one page identity but lose the probes, detection,
+evidence media, and project relations specific to each method. They remain
+separate assay methods connected to ISH by `SUBMETHOD_OF`.
+
+### Model fluorescence and chromogenic detection as assay methods
+
+Detection alone does not identify the biological target or assay family. This
+would recreate the ambiguity that typed biomedical nodes are meant to remove.
+Keep detection details on assay content until a published use case justifies a
+separate concrete class.
