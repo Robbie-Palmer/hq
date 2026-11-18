@@ -204,6 +204,86 @@ def test_source_contract_rejects_changed_publisher_scope() -> None:
         SourceContract.model_validate(payload)
 
 
+def test_camelyon16_mapping_preserves_native_labels_and_completeness(tmp_path: Path) -> None:
+    metadata = tmp_path / "metadata"
+    annotations = tmp_path / "annotations"
+    metadata.mkdir()
+    (annotations / "CAMELYON16/training").mkdir(parents=True)
+    (annotations / "CAMELYON16/testing").mkdir(parents=True)
+    (metadata / "camelyon16_checksums.md5").write_text(
+        "a" * 32 + "  training/tumor/tumor_001.tif\n" + "b" * 32 + "  testing/images/test_001.tif\n"
+    )
+    (metadata / "camelyon16_reference.csv").write_text("test_001,Tumor,x,Macro\n")
+    (metadata / "camelyon16_readme.md").write_text("* tumor_001 is not exhaustive\n")
+    (annotations / "CAMELYON16/training/lesion_annotations.zip").write_bytes(
+        _zip_bytes("tumor_001.xml", _xml("_0"))
+    )
+    (annotations / "CAMELYON16/testing/lesion_annotations.zip").write_bytes(
+        _zip_bytes("test_001.xml", _xml("_1"))
+    )
+    files = [
+        {
+            "url": "https://example.test/CAMELYON16/training/tumor/tumor_001.tif",
+            "file_size": 10,
+        },
+        {
+            "url": "https://example.test/CAMELYON16/testing/images/test_001.tif",
+            "file_size": 20,
+        },
+    ]
+
+    artifacts, records = freeze._camelyon16(metadata, annotations, files)
+
+    assert [artifact["contains_slide_ids"] for artifact in artifacts] == [
+        ["test_001"],
+        ["tumor_001"],
+    ]
+    by_slide = {record["slide_id"]: record for record in records}
+    assert by_slide["test_001"]["lesion_category"] == "Macro"
+    assert by_slide["tumor_001"]["annotation_completeness"] == "non_exhaustive"
+    assert by_slide["tumor_001"]["lesion_annotation"] == {
+        "artifact_id": "camelyon16-training-lesion-annotations",
+        "archive_member": "tumor_001.xml",
+        "native_groups": ["_0", "_1", "_2"],
+    }
+
+
+def test_camelyon17_mapping_preserves_patient_centre_node_and_members(tmp_path: Path) -> None:
+    metadata = tmp_path / "metadata"
+    annotations = tmp_path / "annotations"
+    metadata.mkdir()
+    (annotations / "CAMELYON17/training").mkdir(parents=True)
+    source_path = "training/center_0/patient_001.zip"
+    (metadata / "camelyon17_checksums.md5").write_text("c" * 32 + f"  {source_path}\n")
+    (metadata / "camelyon17_stage_labels.csv").write_text(
+        "patient,stage\npatient_001.zip,pN1mi\npatient_001_node_3.tif,Micro\n"
+    )
+    (annotations / "CAMELYON17/training/lesion_annotations.zip").write_bytes(
+        _zip_bytes("patient_001_node_3.xml", _xml())
+    )
+    files = [
+        {
+            "url": f"https://example.test/CAMELYON17/{source_path}",
+            "file_name": "patient_001.zip",
+            "file_size": 30,
+        }
+    ]
+
+    artifacts, records = freeze._camelyon17(metadata, annotations, files)
+
+    assert artifacts[0]["contains_slide_ids"] == [f"patient_001_node_{index}" for index in range(5)]
+    record = records[0]
+    assert (record["patient_id"], record["centre_id"], record["node_id"]) == (
+        "patient_001",
+        "center_0",
+        "node_3",
+    )
+    slide_artifact = record["slide_artifact"]
+    assert isinstance(slide_artifact, dict)
+    assert slide_artifact["archive_member"] == "patient_001_node_3.tif"
+    assert record["patient_stage"] == "pN1mi"
+
+
 def test_publish_rejects_invented_camelyon16_patient(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

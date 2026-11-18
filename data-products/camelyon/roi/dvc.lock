@@ -30,8 +30,8 @@ stages:
       size: 337341
     - path: pyproject.toml
       hash: md5
-      md5: 781eaaa3bf8d6a078fb080e1b16bc82d
-      size: 1225
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
     - path: src/camelyon_roi_product
       hash: md5
       md5: bbbc560dc64e763f3814cce5936e3c0c.dir
@@ -67,8 +67,8 @@ stages:
       size: 5635
     - path: pyproject.toml
       hash: md5
-      md5: 781eaaa3bf8d6a078fb080e1b16bc82d
-      size: 1225
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
     - path: src/camelyon_roi_product/acquisition.py
       hash: md5
       md5: 075c0b586a46bb0ec683be3d8e36bbb7
@@ -108,8 +108,8 @@ stages:
       size: 5635
     - path: pyproject.toml
       hash: md5
-      md5: 781eaaa3bf8d6a078fb080e1b16bc82d
-      size: 1225
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
     - path: src/camelyon_roi_product/acquisition.py
       hash: md5
       md5: 075c0b586a46bb0ec683be3d8e36bbb7
@@ -168,8 +168,8 @@ stages:
       size: 337341
     - path: pyproject.toml
       hash: md5
-      md5: 781eaaa3bf8d6a078fb080e1b16bc82d
-      size: 1225
+      md5: 9d514e6ea239493face4a54db8a9871b
+      size: 1210
     - path: src/camelyon_roi_product/acquisition.py
       hash: md5
       md5: 075c0b586a46bb0ec683be3d8e36bbb7

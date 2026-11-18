@@ -33,7 +33,7 @@ addopts = "--strict-config --strict-markers --cov=camelyon_roi_product --cov-rep
 testpaths = ["tests"]
 
 [tool.coverage.run]
-omit = ["*/cli.py", "*/freeze.py"]
+omit = ["*/cli.py"]
 
 [tool.ruff]
 line-length = 100
