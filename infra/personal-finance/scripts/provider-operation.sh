@@ -315,6 +315,20 @@ preview_smoke() {
     --header "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID"
     --header "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
   )
+  health_status=""
+  for attempt in 1 2 3 4 5 6; do
+    health_status="$(curl --connect-timeout 10 --max-time 30 --silent --show-error \
+      --output "$work_dir/health.json" --write-out '%{http_code}' "${common_headers[@]}" \
+      --url "$preview_url/health")" || fail "preview health request failed"
+    if [[ "$health_status" == "200" ]]; then
+      break
+    fi
+    [[ "$health_status" == "404" ]] || fail "preview health returned HTTP $health_status"
+    sleep 5
+  done
+  [[ "$health_status" == "200" ]] || fail "preview route did not become ready"
+  jq -e '.status == "ok"' "$work_dir/health.json" >/dev/null \
+    || fail "preview health response was invalid"
   curl --connect-timeout 10 --fail --max-time 30 --silent --show-error \
     --output "$work_dir/write.json" --request PUT "${common_headers[@]}" \
     --header "$json_content_type_header" --url "$preview_url/api/canary/household" \

@@ -119,6 +119,8 @@ output=""
 request="GET"
 url=""
 data_binary=""
+write_out=""
+status="200"
 while (($# > 0)); do
   case "$1" in
     --output)
@@ -137,7 +139,11 @@ while (($# > 0)); do
       data_binary="$2"
       shift 2
       ;;
-    --config | --connect-timeout | --max-time | --header | --data-urlencode)
+    --write-out)
+      write_out="$2"
+      shift 2
+      ;;
+    --config | --connect-timeout | --max-time | --header | --data | --data-urlencode)
       shift 2
       ;;
     --disable | --fail | --silent | --show-error | --get)
@@ -166,12 +172,37 @@ elif [[ "$request" == "GET" && "$url" == */access/apps/app-preview/policies ]]; 
   printf '%s\n' '{"success":true,"result":[]}' >"$output"
 elif [[ "$request" == "POST" && "$url" == */access/apps/app-preview/policies ]]; then
   printf '%s\n' '{"success":true,"result":{"id":"policy-preview"}}' >"$output"
+elif [[ "$request" == "GET" && "$url" == */health ]]; then
+  attempts="$(cat "$FAKE_HEALTH_ATTEMPTS" 2>/dev/null || printf '0')"
+  attempts="$((attempts + 1))"
+  printf '%s\n' "$attempts" >"$FAKE_HEALTH_ATTEMPTS"
+  if ((attempts < 3)); then
+    status="404"
+    printf '%s\n' '{}' >"$output"
+  else
+    printf '%s\n' '{"status":"ok"}' >"$output"
+  fi
+elif [[ "$request" == "PUT" && "$url" == */api/canary/household ]]; then
+  printf '%s\n' '{"id":"synthetic-household-preview-canary","classification":"synthetic-only","label":"synthetic household"}' >"$output"
+elif [[ "$request" == "GET" && "$url" == */api/canary/household ]]; then
+  printf '%s\n' '{"id":"synthetic-household-preview-canary","classification":"synthetic-only","label":"synthetic household"}' >"$output"
+elif [[ "$request" == "POST" && "$url" == */capture/ ]]; then
+  printf '%s\n' '{}' >"$output"
 else
   echo "Unexpected fake curl request: $request $url" >&2
   exit 2
 fi
+if [[ -n "$write_out" ]]; then
+  [[ "$write_out" == '%{http_code}' ]]
+  printf '%s' "$status"
+fi
 EOF
 chmod 700 "$fake_api_bin/curl"
+cat >"$fake_api_bin/sleep" <<'EOF'
+#!/usr/bin/env bash
+exit 0
+EOF
+chmod 700 "$fake_api_bin/sleep"
 cat >"$fake_api_bin/docker" <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
@@ -213,6 +244,11 @@ assert_succeeds env "${common_preview[@]}" PERSONAL_FINANCE_OPERATION_CHECK_ONLY
   PATH="$fake_api_bin:$PATH" FAKE_DOCKER_LOG="$fake_docker_log" \
   bash "$provider" preview-seed
 grep -Fqx invoked "$fake_docker_log"
+fake_health_attempts="$temp_dir/health-attempts"
+assert_succeeds env "${common_preview[@]}" PERSONAL_FINANCE_OPERATION_CHECK_ONLY=0 \
+  PATH="$fake_api_bin:$PATH" FAKE_HEALTH_ATTEMPTS="$fake_health_attempts" \
+  bash "$provider" preview-smoke
+grep -Fqx 3 "$fake_health_attempts"
 unlink "$preview_context"
 
 common_production=(
