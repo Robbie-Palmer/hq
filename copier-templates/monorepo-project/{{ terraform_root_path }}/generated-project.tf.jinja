@@ -55,7 +55,12 @@ provider "neon" {}
 
 {% endif %}
 {% if telemetry %}
-provider "posthog" {}
+provider "posthog" {
+{% if alert_evaluation -%}
+  host       = var.posthog_alerting.host
+  project_id = var.posthog_alerting.project_id
+{% endif -%}
+}
 
 {% endif %}
 {% if alert_evaluation %}

@@ -40,7 +40,10 @@ provider "neon" {}
 
 
 
-provider "posthog" {}
+provider "posthog" {
+  host       = var.posthog_alerting.host
+  project_id = var.posthog_alerting.project_id
+}
 
 
 

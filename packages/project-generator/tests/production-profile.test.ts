@@ -307,7 +307,7 @@ describe("Personal Finance production profile", () => {
     expect(template).toMatchObject({
       id: "monorepo-project",
       source: "https://github.com/Robbie-Palmer/hq.git",
-      revision: "4b70db2d7edb71fb71041e5e9253c6757f84e8ff",
+      revision: "4f4ae9c888cf4a6af0d4dc41d243ea48dd0243f4",
     });
     expect(plan.owned_paths).toEqual([
       "infra/personal-finance",
@@ -450,6 +450,10 @@ describe("Personal Finance production profile", () => {
     expect(terraformSource).toContain('module "neon"');
     expect(terraformSource).toContain('module "telemetry"');
     expect(terraformSource).toContain('module "posthog_alerts"');
+    expect(terraformSource).toContain(`provider "posthog" {
+  host       = var.posthog_alerting.host
+  project_id = var.posthog_alerting.project_id
+}`);
     expect(terraformSource).not.toMatch(
       /NEON_DATABASE_URL|R2_SECRET_ACCESS_KEY|POSTHOG_KEY/,
     );
