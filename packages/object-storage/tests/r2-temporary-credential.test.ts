@@ -1,7 +1,22 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { hostname, tmpdir } from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+
+const receiptLockTestHooks = vi.hoisted(() => ({
+  beforeLink: undefined as undefined | (() => Promise<void>),
+}));
+
+vi.mock("node:fs/promises", async (importOriginal) => {
+  const original = await importOriginal<typeof import("node:fs/promises")>();
+  return {
+    ...original,
+    link: async (...arguments_: Parameters<typeof original.link>) => {
+      await receiptLockTestHooks.beforeLink?.();
+      return original.link(...arguments_);
+    },
+  };
+});
 import {
   parseR2ParentCredentials,
   recoverR2CredentialBroker,
@@ -28,6 +43,7 @@ const temporaryCredentials = {
 const temporaryDirectories: string[] = [];
 
 afterEach(async () => {
+  receiptLockTestHooks.beforeLink = undefined;
   await Promise.all(
     temporaryDirectories.splice(0).map((directory) =>
       rm(directory, { recursive: true, force: true }),
@@ -270,6 +286,34 @@ describe("R2 temporary credential broker", () => {
       }),
     ).rejects.toThrow("locked by another run");
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it("does not replace an empty lock published concurrently", async () => {
+    const receipt = await receiptPath();
+    let allowPublication: () => void = () => undefined;
+    const publicationAllowed = new Promise<void>((resolve) => {
+      allowPublication = resolve;
+    });
+    let markPublicationReady: () => void = () => undefined;
+    const publicationReady = new Promise<void>((resolve) => {
+      markPublicationReady = resolve;
+    });
+    receiptLockTestHooks.beforeLink = async () => {
+      markPublicationReady();
+      await publicationAllowed;
+    };
+
+    const broker = runR2CredentialBroker(brokerInput(receipt), {
+      fetch: successfulFetch(),
+      randomSuffix: () => "0123456789",
+      runProcess: vi.fn(),
+    });
+    await publicationReady;
+    await mkdir(`${receipt}.lock`);
+    allowPublication();
+
+    await expect(broker).rejects.toThrow("locked by another run");
+    expect((await lstat(`${receipt}.lock`)).isDirectory()).toBe(true);
   });
 
   it("reclaims a same-host lock whose owner process is gone", async () => {
@@ -548,7 +592,7 @@ describe("R2 temporary credential broker", () => {
       }),
     );
     const runProcess = vi.fn(async (_request: BrokerProcessRequest) => {
-      await expect(readFile(path.join(`${receipt}.lock`, "owner.json"), "utf8"))
+      await expect(readFile(`${receipt}.lock`, "utf8"))
         .resolves.toContain("token");
       return result(1);
     });

@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { link, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import path from "node:path";
 
@@ -312,29 +312,12 @@ async function replaceReceipt(
   await rename(nextPath, receiptPath);
 }
 
-async function pathExists(candidatePath: string): Promise<boolean> {
-  try {
-    await lstat(candidatePath);
-    return true;
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ENOENT"
-    ) {
-      return false;
-    }
-    throw error;
-  }
-}
-
 function isLockPublicationConflict(error: unknown): boolean {
   return (
     typeof error === "object" &&
     error !== null &&
     "code" in error &&
-    (error.code === "EEXIST" || error.code === "ENOTEMPTY")
+    error.code === "EEXIST"
   );
 }
 
@@ -342,9 +325,8 @@ async function publishReceiptLock(
   candidatePath: string,
   lockPath: string,
 ): Promise<boolean> {
-  if (await pathExists(lockPath)) return false;
   try {
-    await rename(candidatePath, lockPath);
+    await link(candidatePath, lockPath);
     return true;
   } catch (error) {
     if (isLockPublicationConflict(error)) return false;
@@ -363,9 +345,8 @@ async function acquireReceiptLock(
     token: randomBytes(16).toString("hex"),
   };
   const candidatePath = `${lockPath}.candidate-${owner.token}`;
-  await mkdir(candidatePath, { mode: 0o700 });
   await writeFile(
-    path.join(candidatePath, "owner.json"),
+    candidatePath,
     `${JSON.stringify(owner)}\n`,
     { encoding: "utf8", flag: "wx", mode: 0o600 },
   );
@@ -376,7 +357,7 @@ async function acquireReceiptLock(
         return async () => {
           if (released) return;
           released = true;
-          await rm(lockPath, { recursive: true });
+          await rm(lockPath);
         };
       }
       if (attempt > 0 || !(await reclaimStaleReceiptLock(lockPath, owner.hostname))) {
@@ -387,7 +368,7 @@ async function acquireReceiptLock(
     }
     throw new Error("The R2 broker receipt lock could not be acquired");
   } finally {
-    await rm(candidatePath, { recursive: true, force: true });
+    await rm(candidatePath, { force: true });
   }
 }
 
@@ -411,8 +392,13 @@ async function reclaimStaleReceiptLock(
 ): Promise<boolean> {
   let owner: { hostname?: unknown; pid?: unknown; token?: unknown };
   try {
+    const lock = await lstat(lockPath);
+    if (!lock.isFile() && !lock.isDirectory()) return false;
     owner = JSON.parse(
-      await readFile(path.join(lockPath, "owner.json"), "utf8"),
+      await readFile(
+        lock.isDirectory() ? path.join(lockPath, "owner.json") : lockPath,
+        "utf8",
+      ),
     ) as { hostname?: unknown; pid?: unknown; token?: unknown };
   } catch {
     return false;
