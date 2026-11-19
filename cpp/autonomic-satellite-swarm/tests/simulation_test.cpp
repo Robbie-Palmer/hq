@@ -1122,8 +1122,8 @@ TEST_CASE("the browser safe-state scenario records successful execution") {
 TEST_CASE("browser serialization preserves every native event and message name") {
   const BrowserSimulation simulation =
       makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
-  SimulationResult result = runSimulationTrace(simulation.trace);
-  result.events.clear();
+  const SimulationResult baseline = runSimulationTrace(simulation.trace);
+  SimulationResult result = baseline;
 
   constexpr std::array<SimulationEventType, 21> kEventTypes = {
       SimulationEventType::MissionCommand,
@@ -1158,9 +1158,10 @@ TEST_CASE("browser serialization preserves every native event and message name")
       "resource-sample",           "state-changed",          "controller-telemetry",
   };
 
-  for (const SimulationEventType type : kEventTypes) {
+  for (std::size_t index = 0U; index < kEventTypes.size(); ++index) {
     SimulationEvent event;
-    event.type = type;
+    event.type = kEventTypes[index];
+    event.now_ms = 100000U + static_cast<uint32_t>(index);
     event.node_id = 1U;
     event.recipient_node = 2U;
     event.accepted = true;
@@ -1176,6 +1177,14 @@ TEST_CASE("browser serialization preserves every native event and message name")
     event.telemetry.priority = TelemetryPriority::Operational;
     event.telemetry.previous_state = ControllerState::Leading;
     event.telemetry.current_state = ControllerState::Active;
+
+    SimulationResult event_result = baseline;
+    event_result.events.push_back(event);
+    const std::string event_json = serializeBrowserSimulation(simulation, event_result);
+    const std::string event_fragment = std::string(R"("type":")") + kEventNames[index] +
+                                       R"(","timeMs":)" + std::to_string(event.now_ms) +
+                                       R"(,"nodeId":1)";
+    CHECK(event_json.find(event_fragment) != std::string::npos);
     result.events.push_back(event);
   }
 
@@ -1193,20 +1202,24 @@ TEST_CASE("browser serialization preserves every native event and message name")
   for (std::size_t index = 0U; index < kMessageTypes.size(); ++index) {
     SimulationEvent event;
     event.type = SimulationEventType::MessageSent;
+    event.now_ms = 200000U + static_cast<uint32_t>(index);
+    event.node_id = 1U;
     event.message.type = kMessageTypes[index];
     event.message.sender = 1U;
     event.message.target = index == 0U ? kBroadcastNode : 2U;
     event.message.mission_key = MissionKey(1U, 2U, 3U);
+
+    SimulationResult message_result = baseline;
+    message_result.events.push_back(event);
+    const std::string message_json = serializeBrowserSimulation(simulation, message_result);
+    const std::string message_fragment =
+        std::string(R"("type":"message-sent","timeMs":)") + std::to_string(event.now_ms) +
+        R"(,"nodeId":1,"message":{"type":")" + kMessageNames[index] + '"';
+    CHECK(message_json.find(message_fragment) != std::string::npos);
     result.events.push_back(event);
   }
 
   const std::string json = serializeBrowserSimulation(simulation, result);
-  for (const char* name : kEventNames) {
-    CHECK(json.find(std::string(R"("type":")") + name + '"') != std::string::npos);
-  }
-  for (const char* name : kMessageNames) {
-    CHECK(json.find(std::string(R"("type":")") + name + '"') != std::string::npos);
-  }
   CHECK(json.find(R"("accepted":true)") != std::string::npos);
   CHECK(json.find(R"("reason":"link-unavailable")") != std::string::npos);
   CHECK(json.find(R"("reason":"scripted-drop")") != std::string::npos);
