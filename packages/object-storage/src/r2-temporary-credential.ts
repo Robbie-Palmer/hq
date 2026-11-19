@@ -1,99 +1,51 @@
 import { randomBytes } from "node:crypto";
-import { link, lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
-import { hostname } from "node:os";
-import path from "node:path";
-
-const cloudflareApiOrigin = "https://api.cloudflare.com";
-const temporaryCredentialTtlMaximum = 604_800;
-const unsafeExternalCleanupExitCode = 75;
-const bucketPrefixPattern = /^[a-z0-9](?:[a-z0-9-]{2,38}[a-z0-9])$/;
-
-export type R2ParentCredentials = {
-  schemaVersion: 1;
-  apiToken: string;
-  accessKeyId: string;
-  secretAccessKey: string;
-};
-
-export type R2TemporaryCredentials = {
-  accessKeyId: string;
-  secretAccessKey: string;
-  sessionToken: string;
-};
-
-export type BrokerProcessRequest = {
-  command: string;
-  arguments: readonly string[];
-  environment: Readonly<Record<string, string>>;
-  inheritOutput: boolean;
-};
-
-export type BrokerProcessResult = {
-  exitCode: number;
-  stdout: string;
-  stderr: string;
-};
-
-export type BrokerProcessRunner = (
-  request: BrokerProcessRequest,
-) => Promise<BrokerProcessResult>;
-
-export type R2CredentialBrokerInput = {
-  accountId: string;
-  bucketPrefix: string;
-  command: string;
-  commandArguments: readonly string[];
-  helperCommand: string;
-  parentCredentials: R2ParentCredentials;
-  receiptPath: string;
-  ttlSeconds: number;
-  environment?: Readonly<Record<string, string | undefined>>;
-};
-
-export type R2CredentialBrokerDependencies = {
-  fetch?: typeof fetch;
-  now?: () => Date;
-  randomSuffix?: () => string;
-  runProcess: BrokerProcessRunner;
-};
-
-export type R2CredentialRecoveryInput = Pick<
+import { readFile } from "node:fs/promises";
+import {
+  destroyBuckets,
+  proveScope,
+  safeConsumerEnvironment,
+  safeGuardEnvironment,
+  unsafeExternalCleanupExitCode,
+} from "./r2-broker-process.js";
+import {
+  acquireReceiptLock,
+  brokerBucketPrefixPattern,
+  createReceipt,
+  parseReceipt,
+  removeReceipt,
+  replaceReceipt,
+  type BrokerReceipt,
+} from "./r2-broker-receipt.js";
+import type {
+  R2CredentialBrokerDependencies,
   R2CredentialBrokerInput,
-  "accountId" | "helperCommand" | "parentCredentials" | "receiptPath"
-> & {
-  guardCommand?: string;
-  guardArguments?: readonly string[];
-  environment?: Readonly<Record<string, string | undefined>>;
-};
+  R2CredentialRecoveryInput,
+  R2ParentCredentials,
+} from "./r2-broker-types.js";
+import {
+  CloudflareR2AdminClient,
+  CloudflareR2RequestError,
+} from "./r2-cloudflare-admin.js";
 
-type CloudflareResponse<T> = {
-  success?: boolean;
-  result?: T;
-  errors?: readonly { message?: unknown }[];
-};
+export type {
+  BrokerProcessRequest,
+  BrokerProcessResult,
+  BrokerProcessRunner,
+  R2CredentialBrokerDependencies,
+  R2CredentialBrokerInput,
+  R2CredentialRecoveryInput,
+  R2ParentCredentials,
+  R2TemporaryCredentials,
+} from "./r2-broker-types.js";
 
-type BrokerReceipt = {
-  schemaVersion: 1;
-  accountId: string;
-  bucketPrefix: string;
-  plannedBuckets: readonly [string, string];
-  ownedBuckets: string[];
-  pendingBuckets: string[];
-  createdAt: string;
-};
+const temporaryCredentialTtlMaximum = 604_800;
 
-class CloudflareR2RequestError extends Error {
-  constructor(readonly status: number, message: string) {
-    super(message);
-  }
-}
-
-const requiredString = (value: unknown, label: string): string => {
+function requiredString(value: unknown, label: string): string {
   if (typeof value !== "string" || value.trim() === "") {
     throw new Error(`${label} must be a non-empty string`);
   }
   return value;
-};
+}
 
 export function parseR2ParentCredentials(source: string): R2ParentCredentials {
   let value: unknown;
@@ -121,7 +73,7 @@ function validateInput(input: R2CredentialBrokerInput): void {
   if (!/^[a-f0-9]{32}$/i.test(input.accountId)) {
     throw new Error("CLOUDFLARE_ACCOUNT_ID must be a 32-character hexadecimal ID");
   }
-  if (!bucketPrefixPattern.test(input.bucketPrefix)) {
+  if (!brokerBucketPrefixPattern.test(input.bucketPrefix)) {
     throw new Error(
       "R2 bucket prefix must be 4-40 lowercase letters, digits, or interior hyphens",
     );
@@ -135,455 +87,6 @@ function validateInput(input: R2CredentialBrokerInput): void {
   }
   requiredString(input.command, "consumer command");
   requiredString(input.helperCommand, "S3 helper command");
-}
-
-function apiError<T>(response: Response, payload: CloudflareResponse<T>): Error {
-  const messages = (payload.errors ?? [])
-    .map(({ message }) => (typeof message === "string" ? message : ""))
-    .filter(Boolean)
-    .join("; ");
-  return new CloudflareR2RequestError(
-    response.status,
-    `Cloudflare R2 request failed (${response.status})${messages ? `: ${messages}` : ""}`,
-  );
-}
-
-class CloudflareR2AdminClient {
-  readonly #accountId: string;
-  readonly #apiToken: string;
-  readonly #fetch: typeof fetch;
-
-  constructor(accountId: string, apiToken: string, fetchImplementation: typeof fetch) {
-    this.#accountId = accountId;
-    this.#apiToken = apiToken;
-    this.#fetch = (input, init) => fetchImplementation(input, init);
-  }
-
-  async #request<T>(
-    method: "DELETE" | "GET" | "POST",
-    pathname: string,
-    body?: unknown,
-    allowNotFound = false,
-  ): Promise<T | undefined> {
-    const response = await this.#fetch(`${cloudflareApiOrigin}${pathname}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${this.#apiToken}`,
-        ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-      },
-      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    });
-    if (allowNotFound && response.status === 404) return undefined;
-    let payload: CloudflareResponse<T>;
-    try {
-      payload = (await response.json()) as CloudflareResponse<T>;
-    } catch {
-      throw new Error(`Cloudflare R2 request returned invalid JSON (${response.status})`);
-    }
-    if (!response.ok || payload.success !== true) throw apiError(response, payload);
-    return payload.result;
-  }
-
-  async createBucket(bucket: string): Promise<void> {
-    await this.#request(
-      "POST",
-      `/client/v4/accounts/${this.#accountId}/r2/buckets`,
-      { name: bucket },
-    );
-  }
-
-  async deleteBucket(bucket: string): Promise<void> {
-    await this.#request(
-      "DELETE",
-      `/client/v4/accounts/${this.#accountId}/r2/buckets/${encodeURIComponent(bucket)}`,
-      undefined,
-      true,
-    );
-  }
-
-  async bucketExists(bucket: string): Promise<boolean> {
-    const result = await this.#request<Record<string, unknown>>(
-      "GET",
-      `/client/v4/accounts/${this.#accountId}/r2/buckets/${encodeURIComponent(bucket)}`,
-      undefined,
-      true,
-    );
-    return result !== undefined;
-  }
-
-  async createTemporaryCredentials(
-    bucket: string,
-    parentAccessKeyId: string,
-    ttlSeconds: number,
-  ): Promise<R2TemporaryCredentials> {
-    const result = await this.#request<Record<string, unknown>>(
-      "POST",
-      `/client/v4/accounts/${this.#accountId}/r2/temp-access-credentials`,
-      {
-        bucket,
-        parentAccessKeyId,
-        permission: "object-read-write",
-        ttlSeconds,
-      },
-    );
-    if (!result) throw new Error("Cloudflare returned no temporary credentials");
-    return {
-      accessKeyId: requiredString(result.accessKeyId, "temporary accessKeyId"),
-      secretAccessKey: requiredString(
-        result.secretAccessKey,
-        "temporary secretAccessKey",
-      ),
-      sessionToken: requiredString(result.sessionToken, "temporary sessionToken"),
-    };
-  }
-}
-
-function parseReceipt(source: string): BrokerReceipt {
-  const value = JSON.parse(source) as Partial<BrokerReceipt>;
-  if (
-    value.schemaVersion !== 1 ||
-    typeof value.accountId !== "string" ||
-    typeof value.bucketPrefix !== "string" ||
-    !Array.isArray(value.plannedBuckets) ||
-    value.plannedBuckets.length !== 2 ||
-    !value.plannedBuckets.every((bucket) => typeof bucket === "string") ||
-    !Array.isArray(value.ownedBuckets) ||
-    !value.ownedBuckets.every((bucket) => typeof bucket === "string") ||
-    !Array.isArray(value.pendingBuckets) ||
-    !value.pendingBuckets.every((bucket) => typeof bucket === "string") ||
-    typeof value.createdAt !== "string"
-  ) {
-    throw new Error("R2 broker receipt is invalid");
-  }
-  const [allowedBucket, deniedBucket] = value.plannedBuckets;
-  const ownedBuckets = new Set(value.ownedBuckets);
-  const pendingBuckets = new Set(value.pendingBuckets);
-  if (
-    !/^[a-f0-9]{32}$/i.test(value.accountId) ||
-    !bucketPrefixPattern.test(value.bucketPrefix) ||
-    !allowedBucket ||
-    !deniedBucket ||
-    !new RegExp(`^${value.bucketPrefix}-[a-f0-9]{10}$`).test(allowedBucket) ||
-    deniedBucket !== `${allowedBucket}-scope` ||
-    ownedBuckets.size !== value.ownedBuckets.length ||
-    pendingBuckets.size !== value.pendingBuckets.length ||
-    !value.ownedBuckets.every((bucket) => value.plannedBuckets?.includes(bucket)) ||
-    !value.pendingBuckets.every((bucket) => value.plannedBuckets?.includes(bucket)) ||
-    value.pendingBuckets.some((bucket) => ownedBuckets.has(bucket)) ||
-    !Number.isFinite(Date.parse(value.createdAt))
-  ) {
-    throw new Error("R2 broker receipt has invalid ownership fields");
-  }
-  return value as BrokerReceipt;
-}
-
-async function createReceipt(receiptPath: string, receipt: BrokerReceipt): Promise<void> {
-  await mkdir(path.dirname(receiptPath), { recursive: true });
-  try {
-    await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, {
-      encoding: "utf8",
-      flag: "wx",
-      mode: 0o600,
-    });
-  } catch (error) {
-    if (
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "EEXIST"
-    ) {
-      throw new Error(
-        "An unfinished R2 broker receipt already exists; recover it before starting another run",
-      );
-    }
-    throw error;
-  }
-}
-
-async function replaceReceipt(
-  receiptPath: string,
-  receipt: BrokerReceipt,
-): Promise<void> {
-  const nextPath = `${receiptPath}.next`;
-  await writeFile(nextPath, `${JSON.stringify(receipt, null, 2)}\n`, {
-    encoding: "utf8",
-    mode: 0o600,
-  });
-  await rename(nextPath, receiptPath);
-}
-
-function isLockPublicationConflict(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "code" in error &&
-    error.code === "EEXIST"
-  );
-}
-
-async function publishReceiptLock(
-  candidatePath: string,
-  lockPath: string,
-): Promise<boolean> {
-  try {
-    await link(candidatePath, lockPath);
-    return true;
-  } catch (error) {
-    if (isLockPublicationConflict(error)) return false;
-    throw error;
-  }
-}
-
-async function acquireReceiptLock(
-  receiptPath: string,
-): Promise<() => Promise<void>> {
-  const lockPath = `${receiptPath}.lock`;
-  await mkdir(path.dirname(receiptPath), { recursive: true });
-  const owner = {
-    hostname: hostname(),
-    pid: process.pid,
-    token: randomBytes(16).toString("hex"),
-  };
-  const candidatePath = `${lockPath}.candidate-${owner.token}`;
-  await writeFile(
-    candidatePath,
-    `${JSON.stringify(owner)}\n`,
-    { encoding: "utf8", flag: "wx", mode: 0o600 },
-  );
-  try {
-    for (let attempt = 0; attempt < 2; attempt += 1) {
-      if (await publishReceiptLock(candidatePath, lockPath)) {
-        let released = false;
-        return async () => {
-          if (released) return;
-          released = true;
-          await rm(lockPath);
-        };
-      }
-      if (attempt > 0 || !(await reclaimStaleReceiptLock(lockPath, owner.hostname))) {
-        throw new Error(
-          "The R2 broker receipt is locked by another run; refusing concurrent recovery",
-        );
-      }
-    }
-    throw new Error("The R2 broker receipt lock could not be acquired");
-  } finally {
-    await rm(candidatePath, { force: true });
-  }
-}
-
-function processIsAlive(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    return !(
-      typeof error === "object" &&
-      error !== null &&
-      "code" in error &&
-      error.code === "ESRCH"
-    );
-  }
-}
-
-async function reclaimStaleReceiptLock(
-  lockPath: string,
-  currentHostname: string,
-): Promise<boolean> {
-  let owner: { hostname?: unknown; pid?: unknown; token?: unknown };
-  try {
-    const lock = await lstat(lockPath);
-    if (!lock.isFile() && !lock.isDirectory()) return false;
-    owner = JSON.parse(
-      await readFile(
-        lock.isDirectory() ? path.join(lockPath, "owner.json") : lockPath,
-        "utf8",
-      ),
-    ) as { hostname?: unknown; pid?: unknown; token?: unknown };
-  } catch {
-    return false;
-  }
-  if (
-    owner.hostname !== currentHostname ||
-    typeof owner.pid !== "number" ||
-    !Number.isSafeInteger(owner.pid) ||
-    owner.pid < 1 ||
-    typeof owner.token !== "string" ||
-    !/^[a-f0-9]{32}$/.test(owner.token) ||
-    processIsAlive(owner.pid)
-  ) {
-    return false;
-  }
-  const stalePath = `${lockPath}.stale-${owner.token}`;
-  try {
-    await rename(lockPath, stalePath);
-  } catch {
-    return false;
-  }
-  return true;
-}
-
-async function removeReceipt(receiptPath: string): Promise<void> {
-  const retiredPath = `${receiptPath}.retired`;
-  await rename(receiptPath, retiredPath);
-  await rm(retiredPath);
-}
-
-const s3Environment = (
-  endpoint: string,
-  credentials: R2TemporaryCredentials | R2ParentCredentials,
-): Record<string, string> => ({
-  PATH: process.env.PATH ?? "",
-  HOME: process.env.HOME ?? "",
-  AWS_ACCESS_KEY_ID: credentials.accessKeyId,
-  AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
-  ...("sessionToken" in credentials
-    ? { AWS_SESSION_TOKEN: credentials.sessionToken }
-    : {}),
-  AWS_DEFAULT_REGION: "auto",
-  AWS_EC2_METADATA_DISABLED: "true",
-  R2_ENDPOINT: endpoint,
-});
-
-const safeConsumerEnvironment = (
-  source: Readonly<Record<string, string | undefined>>,
-  endpoint: string,
-  bucket: string,
-  credentials: R2TemporaryCredentials,
-): Record<string, string> => {
-  const environment: Record<string, string> = {};
-  for (const name of [
-    "PATH",
-    "HOME",
-    "TMPDIR",
-    "CI",
-    "GITHUB_ACTIONS",
-    "RUNNER_ARCH",
-    "RUNNER_OS",
-    "RUNNER_TEMP",
-    "DOCKER_CONFIG",
-    "DOCKER_HOST",
-    "XDG_RUNTIME_DIR",
-  ]) {
-    const value = source[name];
-    if (value !== undefined) environment[name] = value;
-  }
-  return {
-    ...environment,
-    AWS_ACCESS_KEY_ID: credentials.accessKeyId,
-    AWS_SECRET_ACCESS_KEY: credentials.secretAccessKey,
-    AWS_SESSION_TOKEN: credentials.sessionToken,
-    AWS_DEFAULT_REGION: "auto",
-    AWS_EC2_METADATA_DISABLED: "true",
-    R2_ENDPOINT: endpoint,
-    R2_BUCKET: bucket,
-  };
-};
-
-const safeGuardEnvironment = (
-  source: Readonly<Record<string, string | undefined>>,
-): Record<string, string> => {
-  const environment: Record<string, string> = {};
-  for (const name of [
-    "PATH",
-    "HOME",
-    "TMPDIR",
-    "CI",
-    "GITHUB_ACTIONS",
-    "RUNNER_ARCH",
-    "RUNNER_OS",
-    "RUNNER_TEMP",
-    "DOCKER_CONFIG",
-    "DOCKER_HOST",
-    "XDG_RUNTIME_DIR",
-  ]) {
-    const value = source[name];
-    if (value !== undefined) environment[name] = value;
-  }
-  return environment;
-};
-
-async function requireProcessSuccess(
-  runner: BrokerProcessRunner,
-  request: BrokerProcessRequest,
-  message: string,
-): Promise<BrokerProcessResult> {
-  const result = await runner(request);
-  if (result.exitCode !== 0) throw new Error(message);
-  return result;
-}
-
-async function proveScope(
-  runner: BrokerProcessRunner,
-  helperCommand: string,
-  endpoint: string,
-  allowedBucket: string,
-  deniedBucket: string,
-  credentials: R2TemporaryCredentials,
-): Promise<void> {
-  const environment = s3Environment(endpoint, credentials);
-  await requireProcessSuccess(
-    runner,
-    {
-      command: helperCommand,
-      arguments: ["head", allowedBucket],
-      environment,
-      inheritOutput: false,
-    },
-    "Temporary R2 credential could not access its declared bucket",
-  );
-  const denied = await runner({
-    command: helperCommand,
-    arguments: ["head", deniedBucket],
-    environment,
-    inheritOutput: false,
-  });
-  if (denied.exitCode === 0) {
-    throw new Error("Temporary R2 credential accessed the out-of-scope probe bucket");
-  }
-  if (
-    !/^An error occurred \((?:403|AccessDenied|Forbidden)\) when calling the HeadBucket operation:/m.test(
-      `${denied.stdout}\n${denied.stderr}`,
-    )
-  ) {
-    throw new Error("Out-of-scope R2 probe failed without an authorization denial");
-  }
-}
-
-async function destroyBuckets(
-  client: CloudflareR2AdminClient,
-  runner: BrokerProcessRunner,
-  helperCommand: string,
-  endpoint: string,
-  receipt: BrokerReceipt,
-  parentCredentials: R2ParentCredentials,
-): Promise<void> {
-  const failures = receipt.pendingBuckets.map(
-    (bucket) => `${bucket}: creation outcome is unresolved`,
-  );
-  for (const bucket of receipt.ownedBuckets) {
-    const purged = await runner({
-      command: helperCommand,
-      arguments: ["purge", bucket],
-      environment: s3Environment(endpoint, parentCredentials),
-      inheritOutput: false,
-    });
-    if (purged.exitCode !== 0) {
-      failures.push(`${bucket}: object cleanup failed`);
-      continue;
-    }
-    try {
-      await client.deleteBucket(bucket);
-      if (await client.bucketExists(bucket)) {
-        failures.push(`${bucket}: bucket still exists after deletion`);
-      }
-    } catch {
-      failures.push(`${bucket}: bucket deletion failed`);
-    }
-  }
-  if (failures.length > 0) {
-    throw new Error(`R2 broker cleanup failed; receipt retained (${failures.join(", ")})`);
-  }
 }
 
 async function createRecordedBucket(
@@ -616,96 +119,100 @@ export async function runR2CredentialBroker(
   validateInput(input);
   const releaseReceiptLock = await acquireReceiptLock(input.receiptPath);
   try {
-  const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
-  const suffix = (dependencies.randomSuffix ?? (() => randomBytes(5).toString("hex")))();
-  if (!/^[a-f0-9]{10}$/.test(suffix)) throw new Error("Broker suffix must be 10 lowercase hex characters");
-  const allowedBucket = `${input.bucketPrefix}-${suffix}`;
-  const deniedBucket = `${input.bucketPrefix}-${suffix}-scope`;
-  let receipt: BrokerReceipt = {
-    schemaVersion: 1,
-    accountId: input.accountId,
-    bucketPrefix: input.bucketPrefix,
-    plannedBuckets: [allowedBucket, deniedBucket],
-    ownedBuckets: [],
-    pendingBuckets: [],
-    createdAt: (dependencies.now ?? (() => new Date()))().toISOString(),
-  };
-  await createReceipt(input.receiptPath, receipt);
-  const client = new CloudflareR2AdminClient(
-    input.accountId,
-    input.parentCredentials.apiToken,
-    fetchImplementation,
-  );
-  const endpoint = `https://${input.accountId}.r2.cloudflarestorage.com`;
-  let operationFailure: unknown;
-  let externalCleanupSafe = true;
-  try {
-    receipt = await createRecordedBucket(
-      client,
-      input.receiptPath,
-      receipt,
-      allowedBucket,
-    );
-    receipt = await createRecordedBucket(
-      client,
-      input.receiptPath,
-      receipt,
-      deniedBucket,
-    );
-    const credentials = await client.createTemporaryCredentials(
-      allowedBucket,
-      input.parentCredentials.accessKeyId,
-      input.ttlSeconds,
-    );
-    await proveScope(
-      dependencies.runProcess,
-      input.helperCommand,
-      endpoint,
-      allowedBucket,
-      deniedBucket,
-      credentials,
-    );
-    const consumer = await dependencies.runProcess({
-      command: input.command,
-      arguments: input.commandArguments,
-      environment: safeConsumerEnvironment(
-        input.environment ?? process.env,
-        endpoint,
-        allowedBucket,
-        credentials,
-      ),
-      inheritOutput: true,
-    });
-    externalCleanupSafe = consumer.exitCode !== unsafeExternalCleanupExitCode;
-    if (consumer.exitCode !== 0) {
-      throw new Error(`R2 broker consumer failed with exit code ${consumer.exitCode}`);
+    const fetchImplementation = dependencies.fetch ?? globalThis.fetch;
+    const suffix = (
+      dependencies.randomSuffix ?? (() => randomBytes(5).toString("hex"))
+    )();
+    if (!/^[a-f0-9]{10}$/.test(suffix)) {
+      throw new Error("Broker suffix must be 10 lowercase hex characters");
     }
-  } catch (error) {
-    operationFailure = error;
-  }
-  let cleanupFailure: unknown;
-  if (!externalCleanupSafe) {
-    cleanupFailure = new Error(
-      "R2 broker cleanup was blocked because consumer containers may still be active; receipt retained",
+    const allowedBucket = `${input.bucketPrefix}-${suffix}`;
+    const deniedBucket = `${input.bucketPrefix}-${suffix}-scope`;
+    let receipt: BrokerReceipt = {
+      schemaVersion: 1,
+      accountId: input.accountId,
+      bucketPrefix: input.bucketPrefix,
+      plannedBuckets: [allowedBucket, deniedBucket],
+      ownedBuckets: [],
+      pendingBuckets: [],
+      createdAt: (dependencies.now ?? (() => new Date()))().toISOString(),
+    };
+    await createReceipt(input.receiptPath, receipt);
+    const client = new CloudflareR2AdminClient(
+      input.accountId,
+      input.parentCredentials.apiToken,
+      fetchImplementation,
     );
-  } else {
+    const endpoint = `https://${input.accountId}.r2.cloudflarestorage.com`;
+    let operationFailure: unknown;
+    let externalCleanupSafe = true;
     try {
-      await destroyBuckets(
+      receipt = await createRecordedBucket(
         client,
+        input.receiptPath,
+        receipt,
+        allowedBucket,
+      );
+      receipt = await createRecordedBucket(
+        client,
+        input.receiptPath,
+        receipt,
+        deniedBucket,
+      );
+      const credentials = await client.createTemporaryCredentials(
+        allowedBucket,
+        input.parentCredentials.accessKeyId,
+        input.ttlSeconds,
+      );
+      await proveScope(
         dependencies.runProcess,
         input.helperCommand,
         endpoint,
-        receipt,
-        input.parentCredentials,
+        allowedBucket,
+        deniedBucket,
+        credentials,
       );
-      await removeReceipt(input.receiptPath);
+      const consumer = await dependencies.runProcess({
+        command: input.command,
+        arguments: input.commandArguments,
+        environment: safeConsumerEnvironment(
+          input.environment ?? process.env,
+          endpoint,
+          allowedBucket,
+          credentials,
+        ),
+        inheritOutput: true,
+      });
+      externalCleanupSafe = consumer.exitCode !== unsafeExternalCleanupExitCode;
+      if (consumer.exitCode !== 0) {
+        throw new Error(`R2 broker consumer failed with exit code ${consumer.exitCode}`);
+      }
     } catch (error) {
-      cleanupFailure = error;
+      operationFailure = error;
     }
-  }
-  if (cleanupFailure) throw cleanupFailure;
-  if (operationFailure) throw operationFailure;
-  return { bucket: allowedBucket };
+    let cleanupFailure: unknown;
+    if (!externalCleanupSafe) {
+      cleanupFailure = new Error(
+        "R2 broker cleanup was blocked because consumer containers may still be active; receipt retained",
+      );
+    } else {
+      try {
+        await destroyBuckets(
+          client,
+          dependencies.runProcess,
+          input.helperCommand,
+          endpoint,
+          receipt,
+          input.parentCredentials,
+        );
+        await removeReceipt(input.receiptPath);
+      } catch (error) {
+        cleanupFailure = error;
+      }
+    }
+    if (cleanupFailure) throw cleanupFailure;
+    if (operationFailure) throw operationFailure;
+    return { bucket: allowedBucket };
   } finally {
     await releaseReceiptLock();
   }
