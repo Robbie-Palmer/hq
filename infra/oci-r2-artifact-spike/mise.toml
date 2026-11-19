@@ -1,0 +1,40 @@
+[tasks.install]
+description = "Install the checksum-verified OCI clients shared with the local baseline"
+depends = ["//infra/oci-registry-spike:install"]
+
+[tasks.preflight]
+description = "Validate the live R2 input contract without making requests"
+run = "bash scripts/run-live.sh --preflight"
+
+[tasks.live]
+description = "Run the destructive live-R2 zot canary and prove teardown"
+depends = ["install"]
+run = "bash scripts/run-live.sh"
+
+[tasks.teardown]
+description = "Remove a recorded disposable bucket after an interrupted canary"
+run = "bash scripts/teardown.sh"
+
+[tasks.format]
+description = "Format the live R2 spike configuration and evidence"
+run = "bash scripts/format.sh"
+
+[tasks."format:check"]
+description = "Check live R2 spike formatting"
+run = "bash scripts/static-check.sh format"
+
+[tasks.lint]
+description = "Validate the live R2 shell and JSON files"
+run = "bash scripts/static-check.sh lint"
+
+[tasks.test]
+description = "Test fail-closed inputs and the redacted evidence contract"
+run = "bash scripts/static-check.sh test"
+
+[tasks.check]
+description = "Run all non-destructive live R2 spike checks"
+depends = ["format:check", "lint", "test"]
+
+[tasks."evidence:check"]
+description = "Validate committed live R2 evidence after a canary"
+run = "bash scripts/static-check.sh evidence"
