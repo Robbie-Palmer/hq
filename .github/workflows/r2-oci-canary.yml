@@ -1,0 +1,101 @@
+name: R2 OCI Canary
+
+on:
+  workflow_dispatch:
+    inputs:
+      recovery_run_id:
+        description: Earlier failed run whose broker receipt should be recovered
+        required: false
+        type: string
+
+permissions:
+  actions: read
+  contents: read
+
+concurrency:
+  group: r2-oci-canary
+  cancel-in-progress: false
+
+jobs:
+  canary:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    environment:
+      name: production-cloudflare-token-bootstrap
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: $/.github/actions/setup-mise
+
+      - name: Prepare canary dependencies
+        run: mise //infra/oci-r2-artifact-spike:prepare
+
+      - name: Restore a failed run receipt
+        if: inputs.recovery_run_id != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RECOVERY_RUN_ID: ${{ inputs.recovery_run_id }}
+        run: |
+          [[ "$RECOVERY_RUN_ID" =~ ^[0-9]+$ ]]
+          gh run view "$RECOVERY_RUN_ID" \
+            --json workflowName,event,headBranch \
+            --jq '
+              .workflowName == "R2 OCI Canary" and
+              .event == "workflow_dispatch" and
+              .headBranch == "main"
+            ' | grep -Fx true
+          mkdir -p infra/oci-r2-artifact-spike/.state
+          gh run download "$RECOVERY_RUN_ID" \
+            --name "r2-broker-receipt-$RECOVERY_RUN_ID" \
+            --dir infra/oci-r2-artifact-spike/.state
+
+      - name: Run canary through the temporary-credential broker
+        if: inputs.recovery_run_id == ''
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_R2_PARENT_CREDENTIALS: ${{ secrets.CLOUDFLARE_R2_PARENT_CREDENTIALS }}
+        run: mise //infra/oci-r2-artifact-spike:live
+
+      - name: Recover buckets from an earlier failed run
+        if: inputs.recovery_run_id != ''
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_R2_PARENT_CREDENTIALS: ${{ secrets.CLOUDFLARE_R2_PARENT_CREDENTIALS }}
+        run: mise //infra/oci-r2-artifact-spike:teardown
+
+      - name: Retry cleanup after a broker failure
+        if: failure() && inputs.recovery_run_id == ''
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_R2_PARENT_CREDENTIALS: ${{ secrets.CLOUDFLARE_R2_PARENT_CREDENTIALS }}
+          RECEIPT: infra/oci-r2-artifact-spike/.state/broker-receipt.json
+        run: |
+          if [[ -f "$RECEIPT" ]]; then
+            mise //infra/oci-r2-artifact-spike:teardown
+          fi
+
+      - name: Preserve an unfinished broker receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: r2-broker-receipt-${{ github.run_id }}
+          path: infra/oci-r2-artifact-spike/.state/broker-receipt.json
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 30
+
+      - name: Publish redacted evidence
+        if: success() && inputs.recovery_run_id == ''
+        env:
+          SCORECARD: infra/oci-r2-artifact-spike/evidence/scorecard.json
+        run: |
+          mise //infra/oci-r2-artifact-spike:evidence:check
+          {
+            echo '## R2 OCI canary evidence'
+            echo '```json'
+            jq . "$SCORECARD"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

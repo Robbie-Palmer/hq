@@ -114,3 +114,16 @@ export async function purgeAndVerifyObject(
     throw new Error(`Object purge could not be verified for ${key}`);
   }
 }
+
+export {
+  parseR2ParentCredentials,
+  recoverR2CredentialBroker,
+  runR2CredentialBroker,
+  type BrokerProcessRequest,
+  type BrokerProcessResult,
+  type BrokerProcessRunner,
+  type R2CredentialBrokerDependencies,
+  type R2CredentialBrokerInput,
+  type R2ParentCredentials,
+  type R2TemporaryCredentials,
+} from "./r2-temporary-credential";

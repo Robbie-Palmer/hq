@@ -418,6 +418,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "01-platform" }
 
+  - id: "component:personal-engineering-platform/oci-r2-artifact-spike"
+    project: "project:personal-engineering-platform"
+    paths: [ "infra/oci-r2-artifact-spike" ]
+    toolchains: [ "shell" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "01-platform" }
+
   - id: "component:personal-engineering-platform/project-infrastructure-modules"
     project: "project:personal-engineering-platform"
     paths: [ "infra/project-modules" ]
