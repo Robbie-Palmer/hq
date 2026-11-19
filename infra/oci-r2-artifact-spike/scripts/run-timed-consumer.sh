@@ -34,6 +34,15 @@ HQ_R2_CONSUMER_GROUP_TOKEN="$consumer_group_token" \
   setsid --wait bash "$project_root/scripts/run-live-process-group.sh"
 consumer_status=$?
 set -e
+if [[ "$consumer_status" -eq 74 ]]; then
+  expected_record="launching $$ $consumer_group_token"
+  if [[ "$(< "$consumer_group_file")" == "$expected_record" ]]; then
+    rm "$consumer_group_file"
+  else
+    echo "The failed R2 consumer launch record changed unexpectedly" >&2
+    consumer_status=75
+  fi
+fi
 
 if ! cleanup; then
   echo "Container cleanup could not be verified; blocking R2 bucket deletion" >&2

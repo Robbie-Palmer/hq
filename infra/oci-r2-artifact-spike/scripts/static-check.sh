@@ -54,10 +54,10 @@ case "$mode" in
       .name == "s3" and .region == "auto" and .forcepathstyle == true and
       .secure == true and .v4auth == true
     ' config/zot.json >/dev/null
-    process_group_line="$(rg -n 'stop-consumer-process-group' scripts/teardown.sh | cut -d: -f1)"
-    container_line="$(rg -n 'stop-consumer-containers' scripts/teardown.sh | cut -d: -f1)"
-    recovery_line="$(rg -n 'object-storage:r2:broker -- recover' scripts/teardown.sh | cut -d: -f1)"
-    ((process_group_line < container_line && container_line < recovery_line))
+    process_group_line="$(rg -n 'stop-consumer-process-group' scripts/stop-consumer-resources.sh | cut -d: -f1)"
+    container_line="$(rg -n 'stop-consumer-containers' scripts/stop-consumer-resources.sh | cut -d: -f1)"
+    ((process_group_line < container_line))
+    rg -Fq -- '-- bash "$project_root/scripts/stop-consumer-resources.sh"' scripts/teardown.sh
     bash scripts/test-process-group-cleanup.sh
     ;;
   evidence)

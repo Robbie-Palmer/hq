@@ -67,6 +67,13 @@ function result(
   return { exitCode, stderr, stdout };
 }
 
+function authorizationDenied(): BrokerProcessResult {
+  return result(
+    1,
+    "An error occurred (AccessDenied) when calling the HeadBucket operation: Forbidden",
+  );
+}
+
 function brokerInput(receipt: string) {
   return {
     accountId,
@@ -113,7 +120,7 @@ describe("R2 temporary credential broker", () => {
     const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
       requests.push(request);
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
-        return result(1, "An error occurred (403): Forbidden");
+        return authorizationDenied();
       }
       return result(0);
     });
@@ -171,7 +178,7 @@ describe("R2 temporary credential broker", () => {
       requests.push(request);
       if (request.command === "consumer") return result(7);
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
-        return result(1, "AccessDenied");
+        return authorizationDenied();
       }
       return result(0);
     });
@@ -187,11 +194,30 @@ describe("R2 temporary credential broker", () => {
     await expect(readFile(receipt, "utf8")).rejects.toThrow();
   });
 
+  it("rejects a transport error that happens to contain 403", async () => {
+    const receipt = await receiptPath();
+    const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
+      if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
+        return result(1, "Could not connect to https://403.invalid");
+      }
+      return result(0);
+    });
+
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch: successfulFetch(),
+        randomSuffix: () => "0123456789",
+        runProcess,
+      }),
+    ).rejects.toThrow("without an authorization denial");
+    await expect(readFile(receipt, "utf8")).rejects.toThrow();
+  });
+
   it("retains the receipt and fails closed when cleanup fails", async () => {
     const receipt = await receiptPath();
     const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
-        return result(1, "403 Forbidden");
+        return authorizationDenied();
       }
       if (request.arguments[0] === "purge") return result(1, "cleanup failed");
       return result(0);
@@ -214,6 +240,7 @@ describe("R2 temporary credential broker", () => {
         "hq-oci-r2-canary-0123456789",
         "hq-oci-r2-canary-0123456789-scope",
       ],
+      pendingBuckets: [],
     });
   });
 
@@ -259,7 +286,7 @@ describe("R2 temporary credential broker", () => {
     );
     const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
-        return result(1, "403 Forbidden");
+        return authorizationDenied();
       }
       return result(0);
     });
@@ -291,7 +318,7 @@ describe("R2 temporary credential broker", () => {
     );
     const runProcess = vi.fn(async (request: BrokerProcessRequest) => {
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
-        return result(1, "403 Forbidden");
+        return authorizationDenied();
       }
       return result(0);
     });
@@ -335,7 +362,7 @@ describe("R2 temporary credential broker", () => {
         await consumerReleased;
       }
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
-        return result(1, "403 Forbidden");
+        return authorizationDenied();
       }
       return result(0);
     });
@@ -368,7 +395,7 @@ describe("R2 temporary credential broker", () => {
       requests.push(request);
       if (request.command === "consumer") return result(75);
       if (request.arguments[0] === "head" && request.arguments[1]?.endsWith("-scope")) {
-        return result(1, "403 Forbidden");
+        return authorizationDenied();
       }
       return result(0);
     });
@@ -386,6 +413,7 @@ describe("R2 temporary credential broker", () => {
         "hq-oci-r2-canary-0123456789",
         "hq-oci-r2-canary-0123456789-scope",
       ],
+      pendingBuckets: [],
     });
   });
 
@@ -405,6 +433,7 @@ describe("R2 temporary credential broker", () => {
           "hq-oci-r2-canary-0123456789",
           "hq-oci-r2-canary-0123456789-scope",
         ],
+        pendingBuckets: [],
         createdAt: "2026-11-18T12:00:00.000Z",
       }),
     );
@@ -435,6 +464,7 @@ describe("R2 temporary credential broker", () => {
           "hq-oci-r2-canary-production-scope",
         ],
         ownedBuckets: ["hq-oci-r2-canary-production"],
+        pendingBuckets: [],
         createdAt: "2026-11-18T12:00:00.000Z",
       }),
     );
@@ -477,6 +507,75 @@ describe("R2 temporary credential broker", () => {
     expect(runProcess).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(1);
     await expect(readFile(receipt, "utf8")).rejects.toThrow();
+  });
+
+  it("retains an unresolved create attempt when the response is lost", async () => {
+    const receipt = await receiptPath();
+    const fetch = vi.fn<typeof globalThis.fetch>(async () => {
+      throw new Error("connection reset after request upload");
+    });
+    const runProcess = vi.fn(async () => result(0));
+
+    await expect(
+      runR2CredentialBroker(brokerInput(receipt), {
+        fetch,
+        randomSuffix: () => "0123456789",
+        runProcess,
+      }),
+    ).rejects.toThrow("creation outcome is unresolved");
+    expect(runProcess).not.toHaveBeenCalled();
+    expect(JSON.parse(await readFile(receipt, "utf8"))).toMatchObject({
+      ownedBuckets: [],
+      pendingBuckets: ["hq-oci-r2-canary-0123456789"],
+    });
+  });
+
+  it("runs the recovery guard under the receipt lock before cleanup", async () => {
+    const receipt = await receiptPath();
+    await writeFile(
+      receipt,
+      JSON.stringify({
+        schemaVersion: 1,
+        accountId,
+        bucketPrefix: "hq-oci-r2-canary",
+        plannedBuckets: [
+          "hq-oci-r2-canary-0123456789",
+          "hq-oci-r2-canary-0123456789-scope",
+        ],
+        ownedBuckets: ["hq-oci-r2-canary-0123456789"],
+        pendingBuckets: [],
+        createdAt: "2026-11-18T12:00:00.000Z",
+      }),
+    );
+    const runProcess = vi.fn(async (_request: BrokerProcessRequest) => {
+      await expect(readFile(path.join(`${receipt}.lock`, "owner.json"), "utf8"))
+        .resolves.toContain("token");
+      return result(1);
+    });
+
+    await expect(
+      recoverR2CredentialBroker(
+        {
+          accountId,
+          helperCommand: "r2-helper",
+          parentCredentials,
+          receiptPath: receipt,
+          guardCommand: "cleanup-guard",
+          guardArguments: ["--verify"],
+          environment: { PATH: "/tools", GH_TOKEN: "must-not-leak" },
+        },
+        { fetch: successfulFetch(), runProcess },
+      ),
+    ).rejects.toThrow("recovery guard failed");
+    expect(runProcess).toHaveBeenCalledOnce();
+    expect(runProcess.mock.calls[0]?.[0]).toMatchObject({
+      command: "cleanup-guard",
+      arguments: ["--verify"],
+      environment: { PATH: "/tools" },
+    });
+    await expect(readFile(receipt, "utf8")).resolves.toContain(
+      "hq-oci-r2-canary-0123456789",
+    );
   });
 
   it("cleans only the confirmed bucket when the scope probe name collides", async () => {

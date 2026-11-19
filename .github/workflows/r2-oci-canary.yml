@@ -41,12 +41,11 @@ jobs:
         run: |
           [[ "$RECOVERY_RUN_ID" =~ ^[0-9]+$ ]]
           gh run view "$RECOVERY_RUN_ID" \
-            --json workflowName,event,headBranch,conclusion \
+            --json workflowName,event,headBranch \
             --jq '
               .workflowName == "R2 OCI Canary" and
               .event == "workflow_dispatch" and
-              .headBranch == "main" and
-              (.conclusion == "failure" or .conclusion == "cancelled")
+              .headBranch == "main"
             ' | grep -Fx true
           mkdir -p infra/oci-r2-artifact-spike/.state
           gh run download "$RECOVERY_RUN_ID" \

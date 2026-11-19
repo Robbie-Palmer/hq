@@ -57,6 +57,26 @@ CONSUMER_PROCESS_GROUP_FILE="$group_file" \
 [[ ! -e "$group_file" ]]
 
 group_token="$(openssl rand -hex 16)"
+printf 'launching %s %s\n' "$$" "$group_token" > "$group_file"
+launch_fail_bin="$probe_root/launch-fail-bin"
+mkdir "$launch_fail_bin"
+cat > "$launch_fail_bin/ps" <<'EOF'
+#!/usr/bin/env bash
+exit 1
+EOF
+chmod +x "$launch_fail_bin/ps"
+set +e
+PATH="$launch_fail_bin:$PATH" \
+  CONSUMER_PROCESS_GROUP_FILE="$group_file" \
+  HQ_R2_CONSUMER_GROUP_TOKEN="$group_token" \
+  setsid --wait bash "$project_root/scripts/run-live-process-group.sh"
+launch_status=$?
+set -e
+[[ "$launch_status" -eq 74 ]]
+grep -Fxq "launching $$ $group_token" "$group_file"
+rm "$group_file"
+
+group_token="$(openssl rand -hex 16)"
 HQ_R2_CONSUMER_GROUP_TOKEN="$group_token" \
   PROBE_GROUP_FILE="$group_file" \
   setsid --wait bash -c '

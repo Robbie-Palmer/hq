@@ -1,5 +1,5 @@
 import { randomBytes } from "node:crypto";
-import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { hostname } from "node:os";
 import path from "node:path";
 
@@ -57,6 +57,15 @@ export type R2CredentialBrokerDependencies = {
   runProcess: BrokerProcessRunner;
 };
 
+export type R2CredentialRecoveryInput = Pick<
+  R2CredentialBrokerInput,
+  "accountId" | "helperCommand" | "parentCredentials" | "receiptPath"
+> & {
+  guardCommand?: string;
+  guardArguments?: readonly string[];
+  environment?: Readonly<Record<string, string | undefined>>;
+};
+
 type CloudflareResponse<T> = {
   success?: boolean;
   result?: T;
@@ -68,9 +77,16 @@ type BrokerReceipt = {
   accountId: string;
   bucketPrefix: string;
   plannedBuckets: readonly [string, string];
-  ownedBuckets: readonly string[];
+  ownedBuckets: string[];
+  pendingBuckets: string[];
   createdAt: string;
 };
+
+class CloudflareR2RequestError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
 
 const requiredString = (value: unknown, label: string): string => {
   if (typeof value !== "string" || value.trim() === "") {
@@ -126,7 +142,8 @@ function apiError<T>(response: Response, payload: CloudflareResponse<T>): Error 
     .map(({ message }) => (typeof message === "string" ? message : ""))
     .filter(Boolean)
     .join("; ");
-  return new Error(
+  return new CloudflareR2RequestError(
+    response.status,
     `Cloudflare R2 request failed (${response.status})${messages ? `: ${messages}` : ""}`,
   );
 }
@@ -232,12 +249,15 @@ function parseReceipt(source: string): BrokerReceipt {
     !value.plannedBuckets.every((bucket) => typeof bucket === "string") ||
     !Array.isArray(value.ownedBuckets) ||
     !value.ownedBuckets.every((bucket) => typeof bucket === "string") ||
+    !Array.isArray(value.pendingBuckets) ||
+    !value.pendingBuckets.every((bucket) => typeof bucket === "string") ||
     typeof value.createdAt !== "string"
   ) {
     throw new Error("R2 broker receipt is invalid");
   }
   const [allowedBucket, deniedBucket] = value.plannedBuckets;
   const ownedBuckets = new Set(value.ownedBuckets);
+  const pendingBuckets = new Set(value.pendingBuckets);
   if (
     !/^[a-f0-9]{32}$/i.test(value.accountId) ||
     !bucketPrefixPattern.test(value.bucketPrefix) ||
@@ -246,7 +266,10 @@ function parseReceipt(source: string): BrokerReceipt {
     !new RegExp(`^${value.bucketPrefix}-[a-f0-9]{10}$`).test(allowedBucket) ||
     deniedBucket !== `${allowedBucket}-scope` ||
     ownedBuckets.size !== value.ownedBuckets.length ||
+    pendingBuckets.size !== value.pendingBuckets.length ||
     !value.ownedBuckets.every((bucket) => value.plannedBuckets?.includes(bucket)) ||
+    !value.pendingBuckets.every((bucket) => value.plannedBuckets?.includes(bucket)) ||
+    value.pendingBuckets.some((bucket) => ownedBuckets.has(bucket)) ||
     !Number.isFinite(Date.parse(value.createdAt))
   ) {
     throw new Error("R2 broker receipt has invalid ownership fields");
@@ -289,6 +312,46 @@ async function replaceReceipt(
   await rename(nextPath, receiptPath);
 }
 
+async function pathExists(candidatePath: string): Promise<boolean> {
+  try {
+    await lstat(candidatePath);
+    return true;
+  } catch (error) {
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      error.code === "ENOENT"
+    ) {
+      return false;
+    }
+    throw error;
+  }
+}
+
+function isLockPublicationConflict(error: unknown): boolean {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    (error.code === "EEXIST" || error.code === "ENOTEMPTY")
+  );
+}
+
+async function publishReceiptLock(
+  candidatePath: string,
+  lockPath: string,
+): Promise<boolean> {
+  if (await pathExists(lockPath)) return false;
+  try {
+    await rename(candidatePath, lockPath);
+    return true;
+  } catch (error) {
+    if (isLockPublicationConflict(error)) return false;
+    throw error;
+  }
+}
+
 async function acquireReceiptLock(
   receiptPath: string,
 ): Promise<() => Promise<void>> {
@@ -299,28 +362,22 @@ async function acquireReceiptLock(
     pid: process.pid,
     token: randomBytes(16).toString("hex"),
   };
-  for (let attempt = 0; attempt < 2; attempt += 1) {
-    try {
-      await mkdir(lockPath, { mode: 0o700 });
-      await writeFile(
-        path.join(lockPath, "owner.json"),
-        `${JSON.stringify(owner)}\n`,
-        { encoding: "utf8", flag: "wx", mode: 0o600 },
-      );
-      let released = false;
-      return async () => {
-        if (released) return;
-        released = true;
-        await rm(lockPath, { recursive: true });
-      };
-    } catch (error) {
-      if (
-        typeof error !== "object" ||
-        error === null ||
-        !("code" in error) ||
-        error.code !== "EEXIST"
-      ) {
-        throw error;
+  const candidatePath = `${lockPath}.candidate-${owner.token}`;
+  await mkdir(candidatePath, { mode: 0o700 });
+  await writeFile(
+    path.join(candidatePath, "owner.json"),
+    `${JSON.stringify(owner)}\n`,
+    { encoding: "utf8", flag: "wx", mode: 0o600 },
+  );
+  try {
+    for (let attempt = 0; attempt < 2; attempt += 1) {
+      if (await publishReceiptLock(candidatePath, lockPath)) {
+        let released = false;
+        return async () => {
+          if (released) return;
+          released = true;
+          await rm(lockPath, { recursive: true });
+        };
       }
       if (attempt > 0 || !(await reclaimStaleReceiptLock(lockPath, owner.hostname))) {
         throw new Error(
@@ -328,8 +385,10 @@ async function acquireReceiptLock(
         );
       }
     }
+    throw new Error("The R2 broker receipt lock could not be acquired");
+  } finally {
+    await rm(candidatePath, { recursive: true, force: true });
   }
-  throw new Error("The R2 broker receipt lock could not be acquired");
 }
 
 function processIsAlive(pid: number): boolean {
@@ -435,6 +494,29 @@ const safeConsumerEnvironment = (
   };
 };
 
+const safeGuardEnvironment = (
+  source: Readonly<Record<string, string | undefined>>,
+): Record<string, string> => {
+  const environment: Record<string, string> = {};
+  for (const name of [
+    "PATH",
+    "HOME",
+    "TMPDIR",
+    "CI",
+    "GITHUB_ACTIONS",
+    "RUNNER_ARCH",
+    "RUNNER_OS",
+    "RUNNER_TEMP",
+    "DOCKER_CONFIG",
+    "DOCKER_HOST",
+    "XDG_RUNTIME_DIR",
+  ]) {
+    const value = source[name];
+    if (value !== undefined) environment[name] = value;
+  }
+  return environment;
+};
+
 async function requireProcessSuccess(
   runner: BrokerProcessRunner,
   request: BrokerProcessRequest,
@@ -473,7 +555,11 @@ async function proveScope(
   if (denied.exitCode === 0) {
     throw new Error("Temporary R2 credential accessed the out-of-scope probe bucket");
   }
-  if (!/(?:403|AccessDenied|Forbidden)/i.test(`${denied.stdout}\n${denied.stderr}`)) {
+  if (
+    !/^An error occurred \((?:403|AccessDenied|Forbidden)\) when calling the HeadBucket operation:/m.test(
+      `${denied.stdout}\n${denied.stderr}`,
+    )
+  ) {
     throw new Error("Out-of-scope R2 probe failed without an authorization denial");
   }
 }
@@ -486,7 +572,9 @@ async function destroyBuckets(
   receipt: BrokerReceipt,
   parentCredentials: R2ParentCredentials,
 ): Promise<void> {
-  const failures: string[] = [];
+  const failures = receipt.pendingBuckets.map(
+    (bucket) => `${bucket}: creation outcome is unresolved`,
+  );
   for (const bucket of receipt.ownedBuckets) {
     const purged = await runner({
       command: helperCommand,
@@ -512,6 +600,29 @@ async function destroyBuckets(
   }
 }
 
+async function createRecordedBucket(
+  client: CloudflareR2AdminClient,
+  receiptPath: string,
+  receipt: BrokerReceipt,
+  bucket: string,
+): Promise<BrokerReceipt> {
+  receipt.pendingBuckets.push(bucket);
+  await replaceReceipt(receiptPath, receipt);
+  try {
+    await client.createBucket(bucket);
+  } catch (error) {
+    if (error instanceof CloudflareR2RequestError && error.status === 409) {
+      receipt.pendingBuckets = receipt.pendingBuckets.filter((name) => name !== bucket);
+      await replaceReceipt(receiptPath, receipt);
+    }
+    throw error;
+  }
+  receipt.ownedBuckets.push(bucket);
+  receipt.pendingBuckets = receipt.pendingBuckets.filter((name) => name !== bucket);
+  await replaceReceipt(receiptPath, receipt);
+  return receipt;
+}
+
 export async function runR2CredentialBroker(
   input: R2CredentialBrokerInput,
   dependencies: R2CredentialBrokerDependencies,
@@ -530,6 +641,7 @@ export async function runR2CredentialBroker(
     bucketPrefix: input.bucketPrefix,
     plannedBuckets: [allowedBucket, deniedBucket],
     ownedBuckets: [],
+    pendingBuckets: [],
     createdAt: (dependencies.now ?? (() => new Date()))().toISOString(),
   };
   await createReceipt(input.receiptPath, receipt);
@@ -542,12 +654,18 @@ export async function runR2CredentialBroker(
   let operationFailure: unknown;
   let externalCleanupSafe = true;
   try {
-    await client.createBucket(allowedBucket);
-    receipt = { ...receipt, ownedBuckets: [allowedBucket] };
-    await replaceReceipt(input.receiptPath, receipt);
-    await client.createBucket(deniedBucket);
-    receipt = { ...receipt, ownedBuckets: [allowedBucket, deniedBucket] };
-    await replaceReceipt(input.receiptPath, receipt);
+    receipt = await createRecordedBucket(
+      client,
+      input.receiptPath,
+      receipt,
+      allowedBucket,
+    );
+    receipt = await createRecordedBucket(
+      client,
+      input.receiptPath,
+      receipt,
+      deniedBucket,
+    );
     const credentials = await client.createTemporaryCredentials(
       allowedBucket,
       input.parentCredentials.accessKeyId,
@@ -608,14 +726,24 @@ export async function runR2CredentialBroker(
 }
 
 export async function recoverR2CredentialBroker(
-  input: Pick<
-    R2CredentialBrokerInput,
-    "accountId" | "helperCommand" | "parentCredentials" | "receiptPath"
-  >,
+  input: R2CredentialRecoveryInput,
   dependencies: Pick<R2CredentialBrokerDependencies, "fetch" | "runProcess">,
 ): Promise<void> {
   const releaseReceiptLock = await acquireReceiptLock(input.receiptPath);
   try {
+    if (input.guardCommand) {
+      const guard = await dependencies.runProcess({
+        command: input.guardCommand,
+        arguments: input.guardArguments ?? [],
+        environment: safeGuardEnvironment(input.environment ?? process.env),
+        inheritOutput: true,
+      });
+      if (guard.exitCode !== 0) {
+        throw new Error(
+          `R2 broker recovery guard failed with exit code ${guard.exitCode}; receipt retained`,
+        );
+      }
+    }
     const receipt = parseReceipt(await readFile(input.receiptPath, "utf8"));
     if (receipt.accountId !== input.accountId) {
       throw new Error("R2 broker receipt belongs to a different Cloudflare account");

@@ -107,6 +107,9 @@ async function main(): Promise<void> {
         helperCommand: input.helperCommand,
         parentCredentials,
         receiptPath: input.receiptPath,
+        ...(input.command ? { guardCommand: input.command } : {}),
+        guardArguments: input.commandArguments,
+        environment: process.env,
       },
       { runProcess: runBrokerProcess },
     );
