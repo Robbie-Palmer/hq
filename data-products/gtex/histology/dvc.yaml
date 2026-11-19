@@ -1,0 +1,31 @@
+stages:
+  acquire_metadata:
+    cmd: uv run --locked gtex-histology-source-data acquire
+    deps:
+      - .python-version
+      - contracts
+      - manifest.json
+      - pyproject.toml
+      - src/gtex_histology_source_data
+      - uv.lock
+    outs:
+      - data/raw
+
+  index_native:
+    cmd: uv run --locked gtex-histology-source-data index
+    deps:
+      - contracts
+      - data/raw
+      - manifest.json
+      - pyproject.toml
+      - src/gtex_histology_source_data
+      - uv.lock
+    outs:
+      - outputs/anvil-svs.jsonl
+      - outputs/gtex-histology-images.jsonl
+      - outputs/gtex-molecular-aliquots.jsonl
+      - outputs/idc-instances.jsonl
+      - outputs/idc-series.jsonl
+    metrics:
+      - outputs/reconciliation.json
+      - outputs/source-metrics.json

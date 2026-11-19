@@ -1,0 +1,24 @@
+{
+  "schema_version": "1.0.0",
+  "match_policy": "exact publisher identifiers only",
+  "permitted_exact_links": [
+    "GTEx subjectId equals IDC PatientID",
+    "GTEx histologyImageId equals the filename stem of an AnVIL SVS record",
+    "GTEx histology sampleId equals GTEx V8 SAMPID"
+  ],
+  "forbidden_inferences": [
+    "Do not turn a DICOM ContainerIdentifier ending in 25 into a GTEx histology ID ending in 26.",
+    "Do not describe the histology block and molecular block as the same section.",
+    "Do not assign a GTEx API row to an IDC series without a publisher crosswalk.",
+    "Do not infer that a missing API, AnVIL, or IDC record was removed for quality reasons."
+  ],
+  "reported_counts": {
+    "idc_dicom_series": 25503,
+    "gtex_histology_api_rows": 25713,
+    "anvil_svs_files": 25708,
+    "idc_subjects": 971,
+    "collection_context_tissue_samples": 26468,
+    "collection_context_donors": 956
+  },
+  "count_interpretation": "The counts come from different publisher snapshots and namespaces. Their arithmetic differences are reported, not treated as identified missing slides."
+}
