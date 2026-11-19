@@ -1,0 +1,140 @@
+---
+title: "PDR 016: Keep cross-assay evidence complementary and traceable"
+date: "2026-11-11"
+status: "Proposed"
+evidence:
+  - title: "Multiplexed imaging of colorectal cancer cellular neighborhoods"
+    url: "https://pubmed.ncbi.nlm.nih.gov/32763154/"
+  - title: "Multicenter validation of CISH for HER2 status"
+    url: "https://pubmed.ncbi.nlm.nih.gov/19289584/"
+  - title: "International TILs Working Group recommendations"
+    url: "https://pubmed.ncbi.nlm.nih.gov/25214542/"
+  - title: "Histology-based microsatellite-instability prediction"
+    url: "https://pubmed.ncbi.nlm.nih.gov/31160815/"
+  - title: "Virtual staining of unlabelled tissue autofluorescence"
+    url: "https://pubmed.ncbi.nlm.nih.gov/31142829/"
+---
+
+## Context
+
+Hematoxylin and eosin staining, immunohistochemistry, immunofluorescence, chromogenic or fluorescent in situ
+hybridization, molecular assays, and virtual stains reveal different properties of a specimen. H\&E shows
+morphology and architecture. Antibodies and probes can localize selected proteins, nucleic acids, or copy-number
+signals. Molecular assays can measure variants, expression, methylation, or other specimen-level states without
+showing which cell produced every signal. A virtual stain generates an estimate of another appearance or marker
+from its input.
+
+These sources can answer a stronger question together, but only if the product preserves what each assay directly
+observed. Adjacent sections do not contain identical cells. A region matched between slides is not automatically a
+cell-level match. Results from different specimens, timepoints, or people can support a population relationship
+without establishing that relationship in one patient.
+
+[PDR 005](/projects/pathologize/pdrs/005-restoration-as-reconstruction-and-model-input) already states that
+generated pixels have no source-observation authority. [PDR 015](/projects/pathologize/pdrs/015-cross-level-diagnostic-and-grading-products)
+keeps source labels, expert assessments, measurements, rule-derived results, and predictions distinct. A
+cross-assay product needs the same boundary while showing users how complementary evidence enriches cells, tissue
+structures, slides, patients, and aggregate analysis.
+
+## Proposed decision
+
+Publish cross-assay products as user-facing evidence sets. Each set will state the question, subject, specimen,
+material, section, timepoint, assay, target, and evidence level for every contribution. It will keep three origins
+visibly distinct:
+
+* **Assay-derived observations and measurements** report what the named H\&E, IHC, IF, CISH or ISH, or molecular
+  assay produced, including controls, quality state, units, denominator, and limits of detection where available.
+* **Expert labels and assessments** report who interpreted which assay material, under which annotation or scoring
+  protocol, and who reviewed or adjudicated the result.
+* **Model predictions and generated stains** report their input evidence, intended target, confidence,
+  applicability, and failure state. They do not inherit the authority of the assay they resemble or predict.
+
+### What each assay contributes
+
+| Evidence source            | Cell level                                                                                       | Tissue-structure level                                                                                 | Slide level                                                                                            | Patient level                                                                                                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| H\&E                       | Nuclear and cellular morphology, mitoses, and candidate cell identity                            | Glands, tumor, stroma, necrosis, vessels, margins, immune aggregates, and their relationships          | Adequacy, tumor presence and extent, type, subtype, grade components, burden, and morphology           | Evidence from a named specimen or episode that may support diagnosis, grade, prognosis, or a screening prediction                                                             |
+| IHC                        | Marker localization, intensity or category, cell phenotype, and positive or negative cell counts | Marker distribution within tumor, stroma, immune, vascular, or other annotated regions                 | Assay adequacy, control state, expression score or category, heterogeneity, and diagnostic support     | Specimen-level receptor, protein, lineage, repair-protein, viral, or treatment-relevant evidence interpreted in patient context                                               |
+| IF, including multiplex IF | Fluorescent marker state, co-expression, phenotype, and local cell neighborhood                  | Multiplexed cell communities, immune context, compartment boundaries, and spatial relationships        | Coverage, regional heterogeneity, control state, and assay-specific summary                            | Specimen or episode evidence for immune, signaling, or biomarker products, with panel and tissue coverage retained                                                            |
+| CISH or ISH                | Per-nucleus or per-cell probe signals when the assay and interpretation support them             | Spatial distribution of amplification, rearrangement, transcript, viral, or other probe-defined signal | Assay adequacy, controls, heterogeneity, counted regions, ratio or category, and expert interpretation | Specimen evidence for a patient biomarker, diagnosis, or treatment-related product without assuming every specimen shares the result                                          |
+| Molecular assays           | Variants, transcripts, proteins, or other signals only when the assay resolves them to a cell    | Spatial or compartment evidence only when sampling or the assay preserves that localization            | A slide-linked result only when the product documents the tested material and slide relationship       | Specimen and patient molecular status, including mutations, fusions, copy-number change, expression, methylation, or composite signatures, with timepoint and tested material |
+| Virtual stains             | Predicted cell appearance or marker-like signal                                                  | Predicted compartments, structures, or spatial distributions                                           | Generated stain appearance, predicted score, and coverage or failure map                               | A prediction that may prompt review or testing; resemblance to a laboratory stain gives it no authority as an observed patient biomarker                                      |
+
+An assay name alone is insufficient provenance. Products will identify stain or panel, marker or probe target,
+reagent identity when known, positive and negative controls, control outcome, scoring protocol, units and cutoffs,
+material and section identity, annotation origin, assessor, and review state. They will show missing controls,
+failed assays, exhausted material, uninterpretable regions, and equivocal or discordant results rather than
+silently selecting one answer.
+
+### Strength of the relationship between assays
+
+Cross-assay claims will state how the evidence relates:
+
+* The same material measured by more than one readout can support the closest comparison, subject to changes caused
+  by the assays themselves.
+* Paired slides from the same block or specimen support specimen-level comparison but may sample different tissue.
+* Serial sections support neighborhood or region comparison. They do not establish identical cells or structures
+  where sectioning has added, removed, split, or distorted them.
+* Registered regions support an explicitly bounded spatial correspondence. The product will keep unmatched
+  tissue and residual uncertainty instead of presenting the regions as exact copies.
+* Unpaired cohorts can establish an aggregate association or provide separate development and evaluation evidence.
+  They cannot transfer a marker, label, or molecular state to an individual cell, slide, or patient.
+
+The product will also keep the biological and analytical limits of transfer. These include intratumoral
+heterogeneity, specimen and timepoint differences, pre-analytical handling, staining and scanner variation,
+section thickness, tissue loss, assay sensitivity and specificity, marker non-uniqueness, different denominators
+or cutoffs, and imperfect annotation. Agreement can strengthen an interpretation. Disagreement is itself evidence
+for review, data-quality analysis, or a more limited claim.
+
+### Enrichment paths
+
+Complementary assays can enrich a cell product by refining phenotype or marker state while preserving the H\&E
+morphology and assay-specific observation. They can enrich a tissue map by locating marker-defined cells within
+tumor, stroma, glands, margins, or immune neighborhoods. They can enrich a slide diagnosis with lineage or
+biomarker evidence and can connect a slide-level screening prediction to a measured specimen result. At the
+patient level they can bring morphology, protein localization, probe results, and molecular status into one
+timepoint-aware evidence view.
+
+Enrichment does not overwrite the earlier product. An IHC marker can add a candidate phenotype to a cell without
+turning that marker into proof of a complete cell identity. A molecular result can add patient context without
+painting a bulk signal onto every cell. A virtual stain can focus inspection without becoming the observed
+laboratory stain. Later diagnostic, grading, prognosis, treatment-response, and research products can cite each
+contribution and its authority separately.
+
+### Aggregate products and trace-back
+
+Cohort, institution, health-system, and population products will consume cross-assay evidence as first-class
+inputs. They can compare sampling and untested groups, assay and control failure rates, missingness, agreement
+between assays or readers, turnaround and repeat-testing patterns, and associations with diagnoses, treatments,
+responses, recurrence, survival, or other outcomes. The aggregate product will keep assay versions, eligibility,
+denominators, uncertainty, and plausible confounding. It will not treat a difference in assay availability or
+workflow as a biological difference.
+
+Authorized users must be able to trace an aggregate finding to the contributing patient result, specimen,
+slide, region, cell evidence, assay control, annotation, and prediction. A concordance change can lead back to
+equivocal cases and control failures. An outcome association can lead back to test availability, sampled material,
+and the exact observed or predicted input. Privacy can restrict access to those records, but not sever their
+provenance.
+
+This decision defines evidence meaning, relationships, and user-visible limitations. It does not select storage,
+spatial-matching methods, model design, or the mechanics used to assemble study groups.
+
+## Consequences
+
+Users can combine assays without mistaking resemblance or correlation for direct observation. Cell phenotyping,
+tissue mapping, slide diagnosis, biomarker interpretation, and patient products can gain complementary evidence
+while retaining the source needed for audit and review. Aggregate products can expose assay drift, uneven access,
+workflow failures, and outcome associations, then direct investigation back to the affected evidence.
+
+The product will expose gaps that a flat joined table could hide. Serial sections may not support a desired
+cell-level comparison. Bulk molecular results may remain specimen-level. Controls, reagent identity, or annotation
+origin may be absent from a public source. Virtual stains and cross-assay predictions will remain visibly weaker
+than measured target assays until their stated use has independent evidence.
+
+## Evaluation
+
+Accept the proposal when one product combines at least three assay families and lets a user inspect their separate
+observations, expert labels, measurements, controls, predictions, and failures at every supported evidence level.
+It must state whether the inputs use the same material, paired slides, serial sections, registered regions, or
+unpaired groups and limit its claims accordingly. It must enrich a lower-level and a patient-level product, feed a
+first-class concordance or data-quality aggregate, and support authorized tracing from that aggregate to the
+assay-specific evidence without turning a generated or transferred signal into an observation.
