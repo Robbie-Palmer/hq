@@ -4,7 +4,7 @@
   "ignoreBinaries": ["mise", "typecheck", "wrangler", "duckdb", "flux-schema", "codex"],
   "workspaces": {
     ".": {
-      "ignoreBinaries": ["jq"],
+      "ignoreBinaries": ["jq", "kubectl"],
       "entry": [
         "functions/**/*.ts",
         "api-governance/spectral-functions/*.js",
