@@ -1118,3 +1118,112 @@ TEST_CASE("the browser safe-state scenario records successful execution") {
                   R"("sequence":1},"relatedNode":1,"value":1)") != std::string::npos);
   CHECK(result.frames.back().nodes[1].state == ControllerState::SafeDisabled);
 }
+
+TEST_CASE("browser serialization preserves every native event and message name") {
+  const BrowserSimulation simulation =
+      makeBrowserDemonstration(Coordinate(0.0F, -90.0F), BrowserScenario::Nominal);
+  const SimulationResult baseline = runSimulationTrace(simulation.trace);
+  SimulationResult result = baseline;
+
+  constexpr std::array<SimulationEventType, 21> kEventTypes = {
+      SimulationEventType::MissionCommand,
+      SimulationEventType::MissionCompletion,
+      SimulationEventType::MessageSent,
+      SimulationEventType::MessageDropped,
+      SimulationEventType::MessageDelayed,
+      SimulationEventType::MessageDuplicated,
+      SimulationEventType::MessageDelivered,
+      SimulationEventType::DeliveryDecision,
+      SimulationEventType::PacketQueued,
+      SimulationEventType::TransmissionStarted,
+      SimulationEventType::TransmissionCompleted,
+      SimulationEventType::PacketForwarded,
+      SimulationEventType::DelayedMessageDelivered,
+      SimulationEventType::LinkChanged,
+      SimulationEventType::ContactObserved,
+      SimulationEventType::StoragePressureChanged,
+      SimulationEventType::NodeCrashed,
+      SimulationEventType::NodeReset,
+      SimulationEventType::ResourceSample,
+      SimulationEventType::StateChanged,
+      SimulationEventType::ControllerTelemetry,
+  };
+  constexpr std::array<const char*, 21> kEventNames = {
+      "mission-command",           "mission-completion",     "message-sent",
+      "message-dropped",           "message-delayed",        "message-duplicated",
+      "message-delivered",         "delivery-decision",      "packet-queued",
+      "transmission-started",      "transmission-completed", "packet-forwarded",
+      "delayed-message-delivered", "link-changed",           "contact-observed",
+      "storage-pressure-changed",  "node-crashed",           "node-reset",
+      "resource-sample",           "state-changed",          "controller-telemetry",
+  };
+
+  for (std::size_t index = 0U; index < kEventTypes.size(); ++index) {
+    SimulationEvent event;
+    event.type = kEventTypes[index];
+    event.now_ms = 100000U + static_cast<uint32_t>(index);
+    event.node_id = 1U;
+    event.recipient_node = 2U;
+    event.accepted = true;
+    event.connected = true;
+    event.drop_reason = MessageDropReason::LinkUnavailable;
+    event.objective = Coordinate(12.5F, -8.0F);
+    event.deliver_at_ms = 40U;
+    event.previous_state = ControllerState::Leading;
+    event.current_state = ControllerState::Active;
+    event.message = Message::missionRequest(1U, MissionKey(1U, 2U, 3U), event.objective);
+    event.telemetry.type = TelemetryEventType::StateTransition;
+    event.telemetry.reason = TelemetryReason::MissionInitiated;
+    event.telemetry.priority = TelemetryPriority::Operational;
+    event.telemetry.previous_state = ControllerState::Leading;
+    event.telemetry.current_state = ControllerState::Active;
+
+    SimulationResult event_result = baseline;
+    event_result.events.push_back(event);
+    const std::string event_json = serializeBrowserSimulation(simulation, event_result);
+    const std::string event_fragment = std::string(R"("type":")") + kEventNames[index] +
+                                       R"(","timeMs":)" + std::to_string(event.now_ms) +
+                                       R"(,"nodeId":1)";
+    CHECK(event_json.find(event_fragment) != std::string::npos);
+    result.events.push_back(event);
+  }
+
+  SimulationEvent scripted_drop;
+  scripted_drop.type = SimulationEventType::MessageDropped;
+  scripted_drop.drop_reason = MessageDropReason::Scripted;
+  scripted_drop.message = Message::assignment(1U, 2U, MissionKey(1U, 2U, 3U));
+  result.events.push_back(scripted_drop);
+
+  constexpr std::array<MessageType, 4> kMessageTypes = {
+      MessageType::MissionRequest, MessageType::Candidacy, MessageType::Acknowledgement,
+      MessageType::MissionAssignment};
+  constexpr std::array<const char*, 4> kMessageNames = {"mission-request", "candidacy",
+                                                        "acknowledgement", "mission-assignment"};
+  for (std::size_t index = 0U; index < kMessageTypes.size(); ++index) {
+    SimulationEvent event;
+    event.type = SimulationEventType::MessageSent;
+    event.now_ms = 200000U + static_cast<uint32_t>(index);
+    event.node_id = 1U;
+    event.message.type = kMessageTypes[index];
+    event.message.sender = 1U;
+    event.message.target = index == 0U ? kBroadcastNode : 2U;
+    event.message.mission_key = MissionKey(1U, 2U, 3U);
+
+    SimulationResult message_result = baseline;
+    message_result.events.push_back(event);
+    const std::string message_json = serializeBrowserSimulation(simulation, message_result);
+    const std::string message_fragment =
+        std::string(R"("type":"message-sent","timeMs":)") + std::to_string(event.now_ms) +
+        R"(,"nodeId":1,"message":{"type":")" + kMessageNames[index] + '"';
+    CHECK(message_json.find(message_fragment) != std::string::npos);
+    result.events.push_back(event);
+  }
+
+  const std::string json = serializeBrowserSimulation(simulation, result);
+  CHECK(json.find(R"("accepted":true)") != std::string::npos);
+  CHECK(json.find(R"("reason":"link-unavailable")") != std::string::npos);
+  CHECK(json.find(R"("reason":"scripted-drop")") != std::string::npos);
+  CHECK(json.find(R"("deliverAtMs":40)") != std::string::npos);
+  CHECK(json.find(R"("target":null)") != std::string::npos);
+  CHECK(json.find(R"("target":2)") != std::string::npos);
+}
