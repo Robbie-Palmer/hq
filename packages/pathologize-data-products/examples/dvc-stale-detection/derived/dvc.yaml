@@ -1,0 +1,11 @@
+stages:
+  compose:
+    cmd: python compose.py
+    deps:
+      - ../source/dvc.lock
+      - ../source/product.json
+      - ../source/records.jsonl
+      - compose.py
+    outs:
+      - composed.json:
+          cache: false

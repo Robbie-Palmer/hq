@@ -1,0 +1,57 @@
+[tools]
+python = "3.12"
+uv = "0.12.22"
+
+[env]
+PYTHONDONTWRITEBYTECODE = "1"
+
+[tasks.sync]
+description = "Install the locked Pathologize data-product contract environment"
+run = "uv sync --locked"
+
+[tasks.lock]
+description = "Update the Pathologize data-product contract lockfile"
+run = "uv lock"
+
+[tasks.format]
+description = "Format Pathologize data-product contract code"
+depends = ["sync"]
+run = "uv run --locked ruff check --fix . && uv run --locked ruff format ."
+
+[tasks.lint]
+description = "Lint Pathologize data-product contract code"
+depends = ["sync"]
+run = "uv run --locked ruff check ."
+
+[tasks.typecheck]
+description = "Type-check Pathologize data-product contract code"
+depends = ["sync"]
+run = "uv run --locked ty check"
+
+[tasks.test]
+description = "Run Pathologize data-product contract tests"
+depends = ["sync"]
+run = "uv run --locked pytest --no-cov"
+
+[tasks."test:coverage"]
+description = "Run Pathologize data-product contract tests with coverage"
+depends = ["sync"]
+run = "uv run --locked pytest --cov-report=xml:coverage.xml"
+
+[tasks.schemas]
+description = "Write Pathologize data-product JSON Schemas"
+depends = ["sync"]
+run = "uv run --locked pathologize-data-products schemas"
+
+[tasks."dvc:example"]
+description = "Run a DVC command in the source-lock stale-detection example"
+run = "mise exec uv@0.12.22 -- uv run --project ../../ml-pipelines/dvc-tool --frozen -- dvc --cd examples/dvc-stale-detection"
+
+[tasks."schemas:check"]
+description = "Check committed Pathologize data-product schemas for drift"
+depends = ["sync"]
+run = "uv run --locked pathologize-data-products schemas --check"
+
+[tasks.check]
+description = "Run all Pathologize data-product contract checks"
+depends = ["lint", "typecheck", "test:coverage", "schemas:check"]

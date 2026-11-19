@@ -1,0 +1,9 @@
+schema: '2.0'
+stages:
+  publish_source:
+    cmd: publish-source-product
+    outs:
+      - path: records.jsonl
+        hash: md5
+        md5: 42c2bcfaa8da9036e24cff236bb8e38c
+        size: 131

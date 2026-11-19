@@ -686,6 +686,14 @@ components:
     receipt: null
     adoption: { state: "planned", batch: "02-project-code" }
 
+  - id: "component:pathologize/data-product-contracts"
+    project: "project:pathologize"
+    paths: [ "packages/pathologize-data-products" ]
+    toolchains: [ "python" ]
+    profile: null
+    receipt: null
+    adoption: { state: "planned", batch: "02-project-code" }
+
   - id: "component:pathologize/gpu-benchmark-image"
     project: "project:pathologize"
     paths: [ "homelab/images/pathologize-gpu-benchmark" ]
