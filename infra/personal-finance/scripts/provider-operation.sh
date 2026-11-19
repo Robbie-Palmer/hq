@@ -61,6 +61,14 @@ make_work_dir() {
   chmod 700 "$work_dir"
 }
 
+write_database_env_file() {
+  local output="$1"
+  local database_url="$2"
+  [[ "$database_url" != *$'\n'* ]] || fail "database URL must not contain a newline"
+  printf 'DATABASE_URL=%s\n' "$database_url" >"$output"
+  chmod 600 "$output"
+}
+
 preview_names() {
   require_value PR_NUMBER
   [[ "$PR_NUMBER" =~ ^[1-9][0-9]*$ ]] || fail "PR_NUMBER must be a positive integer"
@@ -116,7 +124,10 @@ preview_provision() {
   branch_count="$(jq --arg name "$preview_slug" '[.branches[]? | select(.name == $name)] | length' "$work_dir/branches.json")"
   [[ "$branch_count" =~ ^[01]$ ]] || fail "Neon returned duplicate preview branches for $preview_slug"
   if [[ "$branch_count" == "0" ]]; then
-    jq -n --arg name "$preview_slug" '{branch: {name: $name}}' >"$work_dir/create-branch.json"
+    jq -n --arg name "$preview_slug" '{
+      branch: {name: $name},
+      endpoints: [{type: "read_write"}]
+    }' >"$work_dir/create-branch.json"
     request_json "$work_dir/neon.curl" "$work_dir/created-branch.json" --request POST \
       --url "https://console.neon.tech/api/v2/projects/$PERSONAL_FINANCE_PREVIEW_NEON_PROJECT_ID/branches" \
       --header "$json_content_type_header" --data-binary "@$work_dir/create-branch.json"
@@ -224,9 +235,11 @@ preview_seed() {
   finish_check preview-seed && return
   load_preview_context
   require_command docker
+  make_work_dir
   database_url="$(jq -er '.database_url' "$context_path")"
-  docker run --rm --env PGDATABASE="$database_url" "$postgres_image" \
-    psql --no-password --set ON_ERROR_STOP=1 --command \
+  write_database_env_file "$work_dir/postgres.env" "$database_url"
+  docker run --rm --env-file "$work_dir/postgres.env" "$postgres_image" \
+    sh -ceu 'exec psql "$DATABASE_URL" --no-password --set ON_ERROR_STOP=1 --command "$1"' sh \
     "INSERT INTO household_canary_record (id, owner_user_id, classification, label) VALUES ('synthetic-household-preview-canary', 'preview-canary', 'synthetic-only', 'synthetic household') ON CONFLICT (id) DO UPDATE SET classification = EXCLUDED.classification, label = EXCLUDED.label, updated_at = now();" \
     >/dev/null
   echo "Seeded the synthetic-only preview fixture."
@@ -302,6 +315,20 @@ preview_smoke() {
     --header "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID"
     --header "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET"
   )
+  health_status=""
+  for attempt in 1 2 3 4 5 6; do
+    health_status="$(curl --connect-timeout 10 --max-time 30 --silent --show-error \
+      --output "$work_dir/health.json" --write-out '%{http_code}' "${common_headers[@]}" \
+      --url "$preview_url/health")" || fail "preview health request failed"
+    if [[ "$health_status" == "200" ]]; then
+      break
+    fi
+    [[ "$health_status" == "404" ]] || fail "preview health returned HTTP $health_status"
+    sleep 5
+  done
+  [[ "$health_status" == "200" ]] || fail "preview route did not become ready"
+  jq -e '.status == "ok"' "$work_dir/health.json" >/dev/null \
+    || fail "preview health response was invalid"
   curl --connect-timeout 10 --fail --max-time 30 --silent --show-error \
     --output "$work_dir/write.json" --request PUT "${common_headers[@]}" \
     --header "$json_content_type_header" --url "$preview_url/api/canary/household" \
@@ -470,6 +497,7 @@ restore_drill() {
   endpoint="https://${CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com"
   archive="$work_dir/backup.dump.age"
   checksum="$work_dir/backup.dump.age.sha256"
+  write_database_env_file "$work_dir/postgres.env" "$RESTORE_DATABASE_URL"
   aws s3 cp "s3://$R2_DATABASE_BACKUPS_BUCKET_NAME/$RESTORE_OBJECT_KEY" "$archive" \
     --endpoint-url "$endpoint" --no-progress --only-show-errors
   aws s3 cp "s3://$R2_DATABASE_BACKUPS_BUCKET_NAME/$RESTORE_OBJECT_KEY.sha256" "$checksum" \
@@ -478,10 +506,10 @@ restore_drill() {
   actual="$(sha256sum "$archive" | cut -d ' ' -f 1)"
   [[ "$expected" == "$actual" ]] || fail "backup ciphertext checksum mismatch"
   age --decrypt --identity "$AGE_IDENTITY_FILE" "$archive" \
-    | docker run --rm --interactive --env PGDATABASE="$RESTORE_DATABASE_URL" "$postgres_image" \
-      pg_restore --dbname "$RESTORE_DATABASE_URL" --no-owner --no-privileges --exit-on-error
-  docker run --rm --env PGDATABASE="$RESTORE_DATABASE_URL" "$postgres_image" \
-    psql --no-password --set ON_ERROR_STOP=1 --tuples-only --command \
+    | docker run --rm --interactive --env-file "$work_dir/postgres.env" "$postgres_image" \
+      sh -ceu 'exec pg_restore --dbname "$DATABASE_URL" --no-owner --no-privileges --exit-on-error'
+  docker run --rm --env-file "$work_dir/postgres.env" "$postgres_image" \
+    sh -ceu 'exec psql "$DATABASE_URL" --no-password --set ON_ERROR_STOP=1 --tuples-only --command "$1"' sh \
     "SELECT count(*) FROM household_canary_record WHERE classification = 'synthetic-only';" >/dev/null
   echo "Scratch restore drill $RESTORE_DRILL_ID passed archive and schema checks."
 }
